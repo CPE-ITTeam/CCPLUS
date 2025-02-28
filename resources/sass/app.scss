@@ -1,0 +1,418 @@
+// Fonts
+@import url('https://fonts.googleapis.com/css?family=Nunito');
+
+// Variables
+@import 'variables';
+
+// Bootstrap
+@import '~bootstrap/scss/bootstrap';
+
+/* adding stuff here - SED, 2/28/20*/
+.related-list {
+	width: 100%;
+	clear: both;
+	padding-top: 2em;
+}
+.details,
+.users {
+	float: left;
+}
+.details {
+	width: 50%;
+}
+.users {
+	width: 50%;
+	padding-left: 3em;
+}
+.section-title,
+.section-action {
+	display: inline-block;
+}
+.section-action.v-btn,
+a.section-action {
+	margin-left: 1em;
+	vertical-align: super;
+}
+.section-action.align-right {
+	display: block;
+	float: right;
+	margin-top: 1em;
+}
+.page-header {
+	float: left;
+	width: 80%;
+	margin-bottom: 1em;
+}
+.page-action {
+	float: left;
+	width: 20%;
+}
+form .v-subheader {
+	padding-left: .5em;
+}
+form .v-subheader,
+.field-wrapper .v-input {
+	display: inline-block;
+	margin-bottom: 1em;
+}
+.v-application--wrap {
+	min-height: fit-content !important;
+	max-height: fit-content;
+	border-left: 2px solid #d4dee3;
+	border-right: 2px solid #d4dee3;
+}
+main #app {
+	padding: 1em;
+}
+.in-page-form {
+	width: 100%;
+	margin-bottom: 1em;
+	padding: .5em;
+	border: 1px solid #dadada;
+	background-color: #efefef;
+	border-radius: 5px;
+}
+.in-page-form .v-input-selection-controls {
+	margin-top: 0;
+	padding-top: 0;
+}
+.v-application--is-ltr .v-text-field--outlined fieldset {
+    background-color: #fff;
+}
+.theme--light.v-input textarea {
+    background-color: #fff;
+    border-radius: 5px;
+    margin-bottom: .5em;
+}
+.field-wrapper .v-input {
+	padding-top: 0;
+	margin-top: 0;
+	max-width: 75%;
+}
+.field-wrapper.has-label {
+	margin-top: 1em;
+}
+.in-page-form .v-textarea label {
+    padding-left: .5em;
+}
+.form-fields .v-input {
+    display: inline-block;
+    margin-right: 1em;
+}
+.btn.section-action {
+	color: #006699;
+}
+.saved-report .v-card-actions,
+.saved-report .v-card-title {
+	display: inline-block;
+}
+.v-application .v-btn.primary {
+	background-color: #006699 !important;
+	border: #006699 !important;
+	color: white;
+}
+.v-card-title {
+	font-size: 1.4rem;
+	padding: .75em .5em 0;
+}
+.v-card-actions {
+    vertical-align: 0.2em;
+}
+.component-subhead {
+    margin-bottom: 1em;
+}
+.v-application.theme--light a {
+    color: #069;
+}
+.alert-High {
+	background-color: red;
+	color: white;
+}
+.alert-Medium {
+	background-color: #006699;
+	color: white;
+}
+.alert-Low {
+	background-color: #3399CC;
+}
+.saved-report .v-card__text p {
+    font-size: 1.2em;
+    color: black;
+    font-weight: 500;
+}
+.actionable-subhead {
+	display: inline-block;
+}
+.more {
+	margin-top: 1em;
+}
+.dashboard-section {
+	margin-top: 2em;
+}
+.status-message {
+  position: relative;
+  margin-bottom: 1rem;
+  margin-bottom: 1rem;
+  border-radius: 0.25rem;
+  font-weight: bold;
+}
+.good {
+	display: block;
+  padding: 0.75rem 1.25rem;
+  border: 1px solid #1b5e20;
+  background-color: #66bb6a;
+}
+.fail {
+	display: block;
+  padding: 0.75rem 1.25rem;
+  border: 1px solid #d50000;
+  background-color: #ff5252;
+}
+.work {
+	display: block;
+  padding: 0.75rem 1.25rem;
+  border: 1px solid #def440;
+  background-color: #def440;
+}
+.harvest-status {
+	margin-top: 1em;
+	font-size: 1.2em;
+	font-weight: bold;
+}
+/* new class - LSR: 11/28/22 */
+.main_content {
+	width: 96%;
+	max-height: fit-content;
+	margin: 0px auto;
+	overflow: auto;
+	padding: 0px 0px 80px 0px;
+}
+.footer_content {
+	width: 96%;
+	display: flex;
+	flex-shrink: 0;
+	justify-content: space-around;
+	overflow: auto;
+	margin: 0px;
+	padding-top: 10px;
+	padding-bottom: 10px;
+	border-top: 1px #39aae0 solid;
+}
+.dt_action {
+  display: flex;
+  justify-content: flex-end;
+}
+// Reversed input variant
+.v-input--reverse .v-input__slot {
+  flex-direction: row-reverse;
+  justify-content: flex-end;
+  .v-application--is-ltr & {
+    .v-input--selection-controls__input {
+      margin-right: 0;
+      margin-left: 8px;
+    }
+  }
+  .v-application--is-rtl & {
+    .v-input--selection-controls__input {
+      margin-left: 0;
+      margin-right: 8px;
+    }
+  }
+}
+//Login-page-specific styles
+.loginContainer {
+	opacity:0;
+  width: 100%;
+	height: 100%;
+	display: flex;
+  justify-content: center;
+	margin-left: 0;
+	margin-right: 0;
+	background-color: #9fc5f8;
+}
+.loginBox {
+	display: flex;
+	overflow: auto;
+	margin-top: 100px;
+  width: 400px;
+	height: 350px;
+	border-radius: 5px;
+	background-color: #fff;
+	border: 2px solid #000000;
+}
+.login-notices {
+	display: flex;
+	overflow: auto;
+	align-items: center;
+	justify-content: center;
+	margin-top: -7px;
+  width: 400px;
+	border-bottom-left-radius: 5px;
+	border-bottom-right-radius: 5px;
+	background-color: #fff;
+	border: 2px solid #000000;
+}
+.img-top {
+  display: flex;
+	width: 100%;
+  flex-shrink: 0;
+	justify-content: center !important;
+}
+.login-form {
+	width: 100%;
+	margin-top: 1em;
+	margin-bottom: 1em;
+	margin-left: 2em;
+	margin-right: 2em;
+	padding: 1em;
+}
+.login-form-fields {
+    display: flex;
+		width: 100%;
+		flex-direction: column;
+		align-content: space-between;
+}
+.v-btn.login-primary {
+	background-color: #006699 !important;
+	border: #006699 !important;
+	color: #fff !important;
+	font-weight: bold !important;
+}
+i.size-16 {
+  width: 16px;
+  height: 16px;
+  line-height: 16px;
+}
+.body-container {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+	background-color: #ebf7fc;
+}
+.navbar {
+	margin-bottom: 1em;
+}
+.navbar-items {
+	background-color: #fff;
+	border: 1px solid #000000;
+}
+.nav-select {
+  padding-right: 0;
+  padding-left: 0;
+	align-items: center !important;
+}
+.navbar.navbar-expand.navbar-light {
+  width: 100%;
+}
+.navbar-nav {
+	align-items: center;
+}
+.app-container {
+  width: 82%;
+	min-height: 100vh;
+	max-height: fit-content !important;
+	margin: 0px auto;
+}
+.footer-container {
+	display: flex;
+	position: absolute;
+	justify-content: center;
+	margin: 0px;
+	bottom: 0px;
+	width: 100%;
+	padding: 10px 0px 0px 0px;
+	background-color: #fff;
+}
+.ccplus-dialog {
+  background-color: #fff;
+  border-color: #000;
+	border-radius: 5px;
+	border: 2px solid #000000;
+	min-height: fit-content !important;
+	max-height: 90vh;
+	max-width: 550px;
+	padding-bottom: 20px;
+	overflow: auto;
+}
+.warning-message {
+  position: relative;
+  margin-bottom: 1rem;
+	padding: 0.5rem 1.0rem;
+	border: 1px solid #f00;
+  border-radius: 0.25rem;
+	font-weight: bold;
+}
+.idbox {
+  display: flex;
+	height: 40px;
+  max-width: fit-content;
+	align-items: center;
+  justify-content: center;
+	margin-bottom: 1em;
+	padding: .5em;
+	border: 1px solid #dadada;
+  background-color: #fff;
+	border-radius: 5px;
+}
+h1 {
+  margin: 0;
+  font-size: 1.75rem;
+  padding-bottom: 1rem;
+  color: #003d61;
+}
+h2 {
+  font-size: 1.5rem;
+  font-weight: 400;
+  margin: 0;
+}
+i.v-icon.notranslate.mdi.mdi-chevron-down.theme--light {
+  color: inherit;
+}
+i.v-icon.mdi.admin {
+  font-size: 60px;
+}
+.v-expansion-panel {
+  box-shadow: none !important;
+  padding: .5rem 0;
+  border-radius:  6px;
+}
+.v-expansion-panel::before {
+  box-shadow: none !important;
+}
+.v-expansion-panel.v-expansion-panel--active.v-item--active, .v-expansion-panel--active:not(:first-child), .v-expansion-panel--active + .v-expansion-panel  {
+   margin: 0 auto;
+	 box-shadow: none !important;
+}
+button.v-expansion-panel-header {
+  background-color: #b0ddf3;
+  background-color: #fff;
+  color: #004771;
+  border: .5px solid #004771;
+}
+button.v-expansion-panel-header.v-expansion-panel-header--active {
+  background-color: #1a75aa;
+  color: #fff;
+}
+button.v-expansion-panel-header:not(.v-expansion-panel-header--active) {
+  border-radius:6px;
+}
+.v-expansion-panel:not(:first-child)::after {
+  border: none !important;
+}
+.v-expansion-panel-content {
+  border: .5px solid #004771;
+  border-bottom-left-radius: 6px;
+  border-bottom-right-radius: 6px;
+  padding-top:20px;
+}
+.v-data-table__wrapper {
+  padding-top: 20px;
+}
+.v-data-table > .v-data-table__wrapper > table > tbody > tr > td,
+.v-data-table > .v-data-table__wrapper > table > tbody > tr > th,
+.v-data-table > .v-data-table__wrapper > table > thead > tr > td,
+.v-data-table > .v-data-table__wrapper > table > thead > tr > th,
+.v-data-table > .v-data-table__wrapper > table > tfoot > tr > td,
+.v-data-table > .v-data-table__wrapper > table > tfoot > tr > th {
+  padding: 0 8px !important;
+}
