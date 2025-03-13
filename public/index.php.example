@@ -7,7 +7,7 @@
  * @author   Taylor Otwell <taylor@laravel.com>
  */
 
-define('_CCPHOME_', '/usr/local/CC-Plus/');
+define('_CCPHOME_', '/usr/local/CCPLUS/');
 define('LARAVEL_START', microtime(true));
 if (file_exists(_CCPHOME_.'storage/framework/maintenance.php')) {
     require _CCPHOME_.'storage/framework/maintenance.php';
