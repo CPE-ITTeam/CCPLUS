@@ -6,7 +6,7 @@ nav_order: 2
 
 # CC-PLUS Installation Instructions
 
-CC-Plus is currently designed to run as a standalone web-based Laravel application connected to a MySQL database and a web server.  It allows for multiple, or just a single, consortia to be managed within a host system.  The report harvesting system uses the SUSHI protocol, and expects to receive valid and conformant COUNTER-5 usage reports. The code repository and the documentation for the original version of CC-Plus can be downloaded at: [http://github.com/palcilibraries/CC-PLUS](http://github.com/palcilibraries/CC-PLUS).
+CC-Plus is currently designed to run as a standalone web-based Laravel application connected to a MySQL database and a web server.  It allows for multiple, or just a single, consortia to be managed within a host system.  The report harvesting system uses the SUSHI protocol, and expects to receive valid and conformant COUNTER-5 usage reports. The code repository and the documentation for the original (and deprecated) version of CC-Plus can be downloaded at: [http://github.com/palcilibraries/CC-PLUS](http://github.com/palcilibraries/CC-PLUS).
 
 **Be Aware : This code is still under development. Care, feeding, customizing, and bug-fixing may be necessary for the system to work well for your specific environment - *use at your own risk*.**
 
@@ -88,11 +88,11 @@ Enable mod_rewrite for Apache:
  Firewalls, SSL/HTTPS, or other organizational requirements are not addressed in this document.
 
 ### Step 2: Download the application
-The Laravel application itself, including encryption keys, output, logs, etc. will (should) exist outside the served Apache folder. We will download the repository for the application to `/usr/local` and allow `git` to create the folder: `CC-Plus`.
+The Laravel application itself, including encryption keys, output, logs, etc. will (should) exist outside the served Apache folder. We will download the repository for the application to `/usr/local` and allow `git` to create the folder: `CCPLUS`.
 ```bash
   cd /usr/local;
-  git clone -b KYVL_Catalyst_Dev https://github.com/palcilibraries/CC-Plus.git;
-  cd CC-Plus
+  git clone https://github.com/CPE-ITTeam/CCPlus.git;
+  cd CCPLUS
 ```
 
 ### Step 3: Setup the Environment
@@ -114,7 +114,7 @@ First we will setup the application Kernel file:
 For simplicity sake, we'll configure our initial installation a single consortium.
 You can edit the Kernel.php file to match your operational needs, especially as they relate to [automating report harvesting](#step-10-define-harvesting-schedule-optional). You don't need to define the schedule at this point, but doing so now won't hurt anything.
 ```bash
-  cd /usr/local/CC-Plus/app/Console;
+  cd /usr/local/CCPLUS/app/Console;
   cp Kernel.php.example-single ./Kernel.php;
   cd ../..
 ```
@@ -136,7 +136,7 @@ Next run npm to build the application and the publicly-accessible files for the 
 ```
 The webserver will need write access to some folders within the application folder. Assuming the webserver executes with group-membership `www-data` :
 ```bash
-  cd /usr/local/CC-Plus/;
+  cd /usr/local/CCPLUS/;
   chown -R root:www-data storage;
   chmod -R g+rw storage;
   chown root:www-data bootstrap/cache;
@@ -144,19 +144,19 @@ The webserver will need write access to some folders within the application fold
 ```
 
 ### Step 5: Update the Webserver Directory
-(*Optional*) If you are installing the application to a location other than `/usr/local/CC-Plus`, then you'll need to change the value of the `_CCPHOME_` variable to match your installation path. Modify `public/index.php` to reflect the installation path for the application:
+(*Optional*) If you are installing the application to a location other than `/usr/local/CCPLUS`, then you'll need to change the value of the `_CCPHOME_` variable to match your installation path. Modify `public/index.php` to reflect the installation path for the application:
 ```bash
-  cd /usr/local/CC-Plus/public/;
+  cd /usr/local/CCPLUS/public/;
   mv index.php.example ./index.php
 ```
 > Open index.php with your favorite editor and modify this line as necessary; include a trailing slash
 >
-> define('_CCPHOME_','/usr/local/CC-Plus/');
+> define('_CCPHOME_','/usr/local/CCPLUS/');
 
 (**NOT Optional**)
 Copy the publicly accessible files to the public webserver folder:
 ```bash
-  cp -r /usr/local/CC-Plus/public/. /var/www/ccplus/;
+  cp -r /usr/local/CCPLUS/public/. /var/www/ccplus/;
   chown -R root:www-data /var/www/ccplus
 ```
 
@@ -174,7 +174,7 @@ Create the two initial CC-Plus databases (using the same user defined in step-3 
 ### Step 7: Migrate Initial Database Tables
 The tables in the ccplus_global database will be shared by all consortia within the host system
 ```bash
-  cd /usr/local/CC-Plus;
+  cd /usr/local/CCPLUS;
   php artisan migrate:fresh --database=globaldb --path=database/migrations/global
 ```
 ```
@@ -280,17 +280,17 @@ More details on scheduling tasks in Laravel applications can be found [here: htt
 The default Kernel.php Scheduler configuration expects to be launched on a regular interval (for example, every 10 minutes). If nothing needs to be processed, the scheduler will exit until the next cycle. These lines (or a close approximation) need to be added to the system cron processing to enable unattended harvesting:
 ```
 # Run CC+ Laravel scheduler every 10 minutes
-*/10 * * * * root cd /usr/local/CC-Plus && /usr/bin/php /usr/local/CC-Plus/artisan schedule:run >> /dev/null 2>&1
+*/10 * * * * root cd /usr/local/CCPLUS && /usr/bin/php /usr/local/CCPLUS/artisan schedule:run >> /dev/null 2>&1
 ```
 ## CC-Plus Artisan Commands
 The Laravel environment for CC-Plus includes a set of Console Commands for use at the system-level to manage or operate certain parts of the application. A list of the commands themselves can be displayed via:
 ```bash
-  cd /usr/local/CC-Plus;
+  cd /usr/local/CCPLUS;
   php artisan | grep ccplus
 ```
 Help for the individual commands is also available, for example:
 ```bash
-  cd /usr/local/CC-Plus;
+  cd /usr/local/CCPLUS;
   php artisan help ccplus:addconsortium
 ```
 A brief description for each command is below. See the help screen for each command for complete details on arguments and options.
