@@ -358,7 +358,7 @@
                   { label: '', name: 'requestor_id' },
                   { label: '', name: 'api_key' },
                   { label: '', name: 'extra_args' },
-                  { label: ' ', name: 'action', sortable: false },
+                  { label: ' ', name: 'action' },
                 ],
                 headers: [],
                 footer_props: { 'items-per-page-options': [10,50,100,-1] },
@@ -601,8 +601,12 @@
                           this.headers.push({ text: cnx.label, value: cnx.name});
                       }
                   } else {
-                      this.headers.push({ text: fld.label, value: fld.name });
-                  }
+                      if (fld.name == 'action') {
+                        this.headers.push({ text: 'Actions', value: 'action', align: 'end', sortable: false });
+                      } else {
+                        this.headers.push({ text: fld.label, value: fld.name });
+                      }
+                    }
               });
           },
           updateOptions(options) {

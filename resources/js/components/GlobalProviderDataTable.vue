@@ -259,7 +259,7 @@
           { text: 'Harvest Day', value: 'day_of_month', align: 'center' },
           { text: 'Connected Instances', value: 'connection_count', align: 'center' },
           { text: 'Last Updated', value: 'updated', align: 'start' },
-          { text: '', value: 'action', sortable: false },
+          { text: 'Actions', value: 'action', align: 'end', sortable: false },
         ],
         mutable_providers: [ ...this.providers],
         new_provider: {'id': null, 'registry_id': '', 'name': '', 'content_provider': '', 'abbrev': '', 'is_active': 1,

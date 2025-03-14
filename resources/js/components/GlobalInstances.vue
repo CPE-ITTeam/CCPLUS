@@ -104,7 +104,7 @@
             { text: 'Name', value: 'name' },
             { text: 'Is Harvester', value: 'is_harvester', align: 'center' },
             { text: 'Email', value: 'email' },
-            { text: '', value: 'action', align: 'center', sortable: false },
+            { text: 'Actions', value: 'action', align: 'end', sortable: false },
         ],
         dtKey: 1,
         hide_user_footer: true,

@@ -199,7 +199,7 @@
           { text: 'Email', value: 'email' },
           { text: 'Roles', value: 'role_string' },
           { text: 'Last Login', value: 'last_login' },
-          { text: '', value: 'action', sortable: false },
+          { text: 'Actions', value: 'action', align: 'end', sortable: false },
         ],
         dtKey: 1,
         mutable_options: {},

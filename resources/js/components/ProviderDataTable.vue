@@ -735,7 +735,7 @@
       if (this.is_admin) {
         this.headers.push({ text: 'Connections', value: 'connection_count', align: 'center'} )
       }
-      this.headers.push({ text: 'Actions', value: 'action', align: 'center', sortable: false });
+      this.headers.push({ text: 'Actions', value: 'action', align: 'end', sortable: false });
     },
     mounted() {
       // Set connection-filter options based on context

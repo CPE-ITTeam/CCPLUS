@@ -127,7 +127,7 @@
         headers: [
           { text: 'Group', value: 'name' },
           { text: 'Member Count', value: 'count', align: 'center' },
-          { text: '', value: 'action', sortable: false },
+          { text: 'Actions', value: 'action', align: 'end', sortable: false },
         ],
         formValid: true,
         form: new window.Form({

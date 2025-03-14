@@ -218,7 +218,7 @@
           { text: 'Institution ', value: 'name', align: 'start' },
           { text: 'Local ID ', value: 'local_id', align: 'start' },
           { text: 'Group(s)', value: 'group_string' },
-          { text: '', value: 'action', sortable: false },
+          { text: 'Actions', value: 'action', align: 'end', sortable: false },
         ],
         footer_props: { 'items-per-page-options': [10,50,100,-1] },
         mutable_institutions: [ ...this.institutions],
