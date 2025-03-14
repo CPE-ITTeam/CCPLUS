@@ -1,18 +1,11 @@
 <template>
   <div>
     <v-row class="d-flex mb-1 align-end" no-gutters>
-      <v-col v-if="myname.length>0" class="d-flex px-1">
-        <h1>{{ myname }} : Saved Reports</h1>
-      </v-col>
-      <v-col v-else class="d-flex px-1">
-        <h1>My Reports</h1>
-      </v-col>
+      <v-col class="d-flex px-1"><h1>My Saved Reports</h1></v-col>
       <v-col class="d-flex px-1" cols="3">
         <a class="btn v-btn v-btn--contained v-size--small section-action" href="/reports/create">Configure a Report</a>
       </v-col>
     </v-row>
-<!-- new tabular layout needded... -->
-
     <div v-if="mutable_reports.length>=1">
       <v-layout row wrap>
         <v-flex v-for="report in mutable_reports" :key="report.id">
