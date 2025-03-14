@@ -128,12 +128,13 @@ class HarvestLogController extends Controller
            } else {
                $institutions = Institution::with('sushiSettings:id,inst_id,prov_id')
                                           ->where('id',$user_inst)->get(['id','name'])->toArray();
+               $conso = $institutions[0]['name'];
            }
            $provider_data = GlobalProvider::with('sushiSettings','consoProviders','consoProviders.reports')
                                           ->whereIn('id', $possible_providers)->where('is_active', true)
                                           ->orderBy('name', 'ASC')->get(['id','name']);
 
-           // Add in a flag for whether or not the provider has enabled sushi settings
+                                          // Add in a flag for whether or not the provider has enabled sushi settings
            $providers = array();
            foreach ($provider_data as $gp) {
               $rec = array('id' => $gp->id, 'name' => $gp->name);
