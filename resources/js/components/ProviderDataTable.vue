@@ -255,7 +255,7 @@
         cur_provider: {},
         provDialog: false,
         connectedDialog: false,
-        connect_filter: 'Connected',
+        connect_filter: null,
         sushi_insts: [],
         sushi_provs: [],
         empty_report_state: {'PR': {'conso_enabled':false, 'prov_enabled':false},
