@@ -252,7 +252,7 @@ class Sushi extends Model
                                  (is_array($header->Release) ? 'array' : 'object'));
         }
         $release = trim($header->Release);
-        if ($release !== '5') {
+        if ($release != "5" && $release != "5.1") {
             throw new \Exception("COUNTER Release '{$release}' invalid/unsupported");
         }
 
