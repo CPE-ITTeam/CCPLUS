@@ -73,6 +73,9 @@ class Counter5Processor extends Model
         $header = $json_report->Report_Header;
         $ReportItems = $json_report->Report_Items;
 
+       // Get COUNTER Release
+        $release = $header->Release;
+
        // Loop through all ReportItems
         foreach ($ReportItems as $reportitem) {
            // Get Publisher
@@ -90,57 +93,112 @@ class Counter5Processor extends Model
                 continue;
             }
             $_item_id = (isset($reportitem->Item_ID)) ? $reportitem->Item_ID : array();
-            $Item_ID = self::itemIDValues($_item_id);
-
-           // Pick up the optional attributes
-            $_yop = (isset($reportitem->yop)) ? $reportitem->yop : "";
-            $accesstype_id = (isset($reportitem->Access_Type)) ? self::getAccessType($reportitem->Access_Type)
-                                                                 : 1;
-            $accessmethod_id = (isset($reportitem->Access_Method)) ? self::getAccessMethod($reportitem->Access_Method)
+            $Item_ID = self::itemIDValues($_item_id, $release);
+            if ($release == "5") {
+               // Pick up optional attributes
+                $_yop = "";
+                if (isset($reportitem->yop)) {
+                    $_yop = $reportitem->yop;
+                } else if (isset($reportitem->YOP)) {
+                    $_yop = $reportitem->YOP;
+                }
+                $accesstype_id = (isset($reportitem->Access_Type)) ? self::getAccessType($reportitem->Access_Type)
                                                                    : 1;
-            $sectiontype_id = (isset($reportitem->Section_Type)) ? self::getSectionType($reportitem->Section_Type)
-                                                                 : 1;
-            $datatype = (isset($reportitem->Data_Type)) ? self::getDataType($reportitem->Data_Type)
-                                                        : self::getDataType("Unknown");
-            $Item_ID['type'] = ($datatype->name == "Journal" || $datatype->name == "Book") ?
-                               mb_substr($datatype->name, 0, 1) :
-                                "I";
+                $accessmethod_id = (isset($reportitem->Access_Method)) ? self::getAccessMethod($reportitem->Access_Method)
+                                                                       : 1;
+                $sectiontype_id = (isset($reportitem->Section_Type)) ? self::getSectionType($reportitem->Section_Type)
+                                                                     : 1;
+                $datatype = (isset($reportitem->Data_Type)) ? self::getDataType($reportitem->Data_Type)
+                                                            : self::getDataType("Unknown");
+               // Titles for other than Journal or Book get saved as Item titles
+                $Item_ID['type'] = ($datatype->name == "Journal" || $datatype->name == "Book") 
+                                    ? mb_substr($datatype->name, 0, 1) : "I";
 
-           // Get or Create Title entry
-            $title = self::titleFindOrCreate($_title, $Item_ID);
-            if (is_null($title)) {  // bail silently
-                continue;
-            }
+                // Get or Create Title entry
+                $title = self::titleFindOrCreate($_title, $Item_ID);
+                if (is_null($title)) {  // bail silently
+                    continue;
+                }
 
-           // Loop $reportitem->Performance elements and store counts when time-periods match
-            foreach ($reportitem->Performance as $perf) {
-                if ($perf->Period->Begin_Date == self::$begin  && $perf->Period->End_Date == self::$end) {
-                    foreach ($perf->Instance as $instance) {
-                        // ignore unrecognized metrics
-                        if (isset($instance->Count) && isset($ICounts[$instance->Metric_Type])) {
-                            $ICounts[$instance->Metric_Type] += $instance->Count;
+                // Loop $reportitem->Performance elements and store counts when time-periods match
+                foreach ($reportitem->Performance as $perf) {
+                    if ($perf->Period->Begin_Date == self::$begin  && $perf->Period->End_Date == self::$end) {
+                        foreach ($perf->Instance as $instance) {
+                            // ignore unrecognized metrics
+                            if (isset($instance->Count) && isset($ICounts[$instance->Metric_Type])) {
+                                $ICounts[$instance->Metric_Type] += $instance->Count;
+                            }
                         }
                     }
+                }         // foreach performance clause
+
+                // Insert the record
+                TitleReport::insert(['title_id' => $title->id, 'prov_id' => self::$prov, 'publisher_id' => $publisher_id,
+                        'plat_id' => $platform_id, 'inst_id' => self::$inst, 'yearmon' => self::$yearmon,
+                        'datatype_id' => $datatype->id, 'sectiontype_id' => $sectiontype_id, 'yop' => $_yop,
+                        'accesstype_id' => $accesstype_id, 'accessmethod_id' => $accessmethod_id,
+                        'total_item_investigations' => $ICounts['Total_Item_Investigations'],
+                        'total_item_requests' => $ICounts['Total_Item_Requests'],
+                        'unique_item_investigations' => $ICounts['Unique_Item_Investigations'],
+                        'unique_item_requests' => $ICounts['Unique_Item_Requests'],
+                        'unique_title_investigations' => $ICounts['Unique_Title_Investigations'],
+                        'unique_title_requests' => $ICounts['Unique_Title_Requests'],
+                        'limit_exceeded' => $ICounts['Limit_Exceeded'], 'no_license' => $ICounts['No_License']]);
+                        // 'created_at' => self::$now]);
+
+                // Reset metric counts
+                for ($_m = 0; $_m < $_metric_count; $_m++) {
+                    $ICounts[$_metric_keys[$_m]] = 0;
                 }
-            }         // foreach performance clause
+            } else {
+               // Loop $reportitem->Performance elements and store counts when time-periods match
+               foreach ($reportitem->Attribute_Performance as $Aperf) {
+                   // Pick up optional attributes (5.1 has no Section_Type property)
+                    $_yop = "";
+                    if (isset($Aperf->yop)) {
+                        $_yop = $Aperf->yop;
+                    } else if (isset($Aperf->YOP)) {
+                        $_yop = $Aperf->YOP;
+                    }
+                    $accesstype_id = (isset($Aperf->Access_Type)) ? self::getAccessType($Aperf->Access_Type) : 1;
+                    $accessmethod_id = (isset($Aperf->Access_Method)) ? self::getAccessMethod($Aperf->Access_Method) : 1;
+                    $datatype = (isset($Aperf->Data_Type)) ? self::getDataType($Aperf->Data_Type) : self::getDataType("Unknown");
+                   // Titles for other than Journal or Book get saved as Item titles
+                    $Item_ID['type'] = ($datatype->name == "Journal" || $datatype->name == "Book") ?
+                                        mb_substr($datatype->name, 0, 1) : "I";
 
-           // Insert the record
-            TitleReport::insert(['title_id' => $title->id, 'prov_id' => self::$prov, 'publisher_id' => $publisher_id,
-                  'plat_id' => $platform_id, 'inst_id' => self::$inst, 'yearmon' => self::$yearmon,
-                  'datatype_id' => $datatype->id, 'sectiontype_id' => $sectiontype_id, 'yop' => $_yop,
-                  'accesstype_id' => $accesstype_id, 'accessmethod_id' => $accessmethod_id,
-                  'total_item_investigations' => $ICounts['Total_Item_Investigations'],
-                  'total_item_requests' => $ICounts['Total_Item_Requests'],
-                  'unique_item_investigations' => $ICounts['Unique_Item_Investigations'],
-                  'unique_item_requests' => $ICounts['Unique_Item_Requests'],
-                  'unique_title_investigations' => $ICounts['Unique_Title_Investigations'],
-                  'unique_title_requests' => $ICounts['Unique_Title_Requests'],
-                  'limit_exceeded' => $ICounts['Limit_Exceeded'], 'no_license' => $ICounts['No_License']]);
-                  // 'created_at' => self::$now]);
+                   // Get or Create Title entry
+                    $title = self::titleFindOrCreate($_title, $Item_ID);
+                    if (is_null($title)) {  // bail silently
+                        continue;
+                    }
+                   // Loop $reportitem->Performance elements and store counts when time-periods match
+                    if (isset($Aperf->Performance)) {
+                        $metrics = array_keys(json_decode(json_encode($Aperf->Performance),true));
+                        foreach ($metrics as $metric) {
+                            if (isset($Aperf->Performance->{$metric}->{self::$yearmon})) {
+                                $ICounts[$metric] += $Aperf->Performance->{$metric}->{self::$yearmon};
+                            }
+                        }     // foreach performance element
+                    }
+                   // Insert the record
+                    TitleReport::insert(['title_id' => $title->id, 'prov_id' => self::$prov, 'publisher_id' => $publisher_id,
+                            'plat_id' => $platform_id, 'inst_id' => self::$inst, 'yearmon' => self::$yearmon,
+                            'datatype_id' => $datatype->id, 'yop' => $_yop, 'accesstype_id' => $accesstype_id,
+                            'accessmethod_id' => $accessmethod_id,
+                            'total_item_investigations' => $ICounts['Total_Item_Investigations'],
+                            'total_item_requests' => $ICounts['Total_Item_Requests'],
+                            'unique_item_investigations' => $ICounts['Unique_Item_Investigations'],
+                            'unique_item_requests' => $ICounts['Unique_Item_Requests'],
+                            'unique_title_investigations' => $ICounts['Unique_Title_Investigations'],
+                            'unique_title_requests' => $ICounts['Unique_Title_Requests'],
+                            'limit_exceeded' => $ICounts['Limit_Exceeded'], 'no_license' => $ICounts['No_License']]);
 
-           // Reset metric counts
-            for ($_m = 0; $_m < $_metric_count; $_m++) {
-                $ICounts[$_metric_keys[$_m]] = 0;
+                   // Reset metric counts
+                    for ($_m = 0; $_m < $_metric_count; $_m++) {
+                        $ICounts[$_metric_keys[$_m]] = 0;
+                    }
+                }
             }
         }     // foreach $ReportItems
 
@@ -183,6 +241,9 @@ class Counter5Processor extends Model
         $header = $json_report->Report_Header;
         $ReportItems = $json_report->Report_Items;
 
+       // Get COUNTER Release
+       $release = $header->Release;
+
        // Loop through all ReportItems
         foreach ($ReportItems as $reportitem) {
            // Database is required; if Null, skip the record.
@@ -193,7 +254,7 @@ class Counter5Processor extends Model
 
            // Get PropID for this item
             $_item_id = (isset($reportitem->Item_ID)) ? $reportitem->Item_ID : array();
-            $Item_ID = self::itemIDValues($_item_id);
+            $Item_ID = self::itemIDValues($_item_id, $release);
 
             // Get or create the DataBase record (and update PropID if needed)
             $database = self::getDataBase($_name, $Item_ID['PropID']);
@@ -204,42 +265,76 @@ class Counter5Processor extends Model
            // Get Platform
             $platform_id = (isset($reportitem->Platform)) ? self::getPlatform($reportitem->Platform) : 1;
 
-           // Pick up the optional attributes
-            $accessmethod_id = (isset($reportitem->Access_Method)) ? self::getAccessMethod($reportitem->Access_Method)
-                                                                   : 1;
-            $datatype = (isset($reportitem->Data_Type)) ? self::getDataType($reportitem->Data_Type)
-                                                        : self::getDataType("Unknown");
-
-           // Loop $reportitem->Performance elements and store counts when time-periods match
-            foreach ($reportitem->Performance as $perf) {
-                if ($perf->Period->Begin_Date == self::$begin && $perf->Period->End_Date == self::$end) {
-                    foreach ($perf->Instance as $instance) {
-                        // ignore unrecognized metrics
-                        if (isset($instance->Count) && isset($ICounts[$instance->Metric_Type])) {
-                            $ICounts[$instance->Metric_Type] += $instance->Count;
+            if ($release == "5") {
+               // Pick up the optional attributes
+                $accessmethod_id = (isset($reportitem->Access_Method)) ? self::getAccessMethod($reportitem->Access_Method)
+                                                                       : 1;
+                $datatype = (isset($reportitem->Data_Type)) ? self::getDataType($reportitem->Data_Type)
+                                                            : self::getDataType("Unknown");
+               // Loop $reportitem->Performance elements and store counts when time-periods match
+                foreach ($reportitem->Performance as $perf) {
+                    if ($perf->Period->Begin_Date == self::$begin && $perf->Period->End_Date == self::$end) {
+                        foreach ($perf->Instance as $instance) {
+                            // ignore unrecognized metrics
+                            if (isset($instance->Count) && isset($ICounts[$instance->Metric_Type])) {
+                                $ICounts[$instance->Metric_Type] += $instance->Count;
+                            }
                         }
                     }
+                }         // foreach performance clause
+                DatabaseReport::insert(['db_id' => $database->id, 'prov_id' => self::$prov, 'plat_id' => $platform_id,
+                        'publisher_id' => $publisher_id, 'inst_id' => self::$inst, 'yearmon' => self::$yearmon,
+                        'datatype_id' => $datatype->id, 'accessmethod_id' => $accessmethod_id,
+                        'searches_automated' => $ICounts['Searches_Automated'],
+                        'searches_federated' => $ICounts['Searches_Federated'],
+                        'searches_regular' => $ICounts['Searches_Regular'],
+                        'total_item_investigations' => $ICounts['Total_Item_Investigations'],
+                        'total_item_requests' => $ICounts['Total_Item_Requests'],
+                        'unique_item_investigations' => $ICounts['Unique_Item_Investigations'],
+                        'unique_item_requests' => $ICounts['Unique_Item_Requests'],
+                        'unique_title_investigations' => $ICounts['Unique_Title_Investigations'],
+                        'unique_title_requests' => $ICounts['Unique_Title_Requests'],
+                        'limit_exceeded' => $ICounts['Limit_Exceeded'], 'no_license' => $ICounts['No_License']]);
+               // Reset metric counts
+                for ($_m = 0; $_m < $_metric_count; $_m++) {
+                    $ICounts[$_metric_keys[$_m]] = 0;
                 }
-            }         // foreach performance clause
-
-            DatabaseReport::insert(['db_id' => $database->id, 'prov_id' => self::$prov, 'plat_id' => $platform_id,
-                       'publisher_id' => $publisher_id, 'inst_id' => self::$inst, 'yearmon' => self::$yearmon,
-                       'datatype_id' => $datatype->id, 'accessmethod_id' => $accessmethod_id,
-                       'searches_automated' => $ICounts['Searches_Automated'],
-                       'searches_federated' => $ICounts['Searches_Federated'],
-                       'searches_regular' => $ICounts['Searches_Regular'],
-                       'total_item_investigations' => $ICounts['Total_Item_Investigations'],
-                       'total_item_requests' => $ICounts['Total_Item_Requests'],
-                       'unique_item_investigations' => $ICounts['Unique_Item_Investigations'],
-                       'unique_item_requests' => $ICounts['Unique_Item_Requests'],
-                       'unique_title_investigations' => $ICounts['Unique_Title_Investigations'],
-                       'unique_title_requests' => $ICounts['Unique_Title_Requests'],
-                       'limit_exceeded' => $ICounts['Limit_Exceeded'], 'no_license' => $ICounts['No_License']]);
-                       // 'created_at' => self::$now]);
-
-           // Reset metric counts
-            for ($_m = 0; $_m < $_metric_count; $_m++) {
-                $ICounts[$_metric_keys[$_m]] = 0;
+           // COUNTER 5.1 reports Data_Type and accessmethod at the Performance, not the Report_Item level.
+           // As a result we're storing more records for 5.1 than for 5.0
+            } else {
+               // Loop Attribute_Performance elements and store counts when time-periods match
+                foreach ($reportitem->Attribute_Performance as $Aperf) {
+                   // Set optional attributes
+                    $accessmethod_id = (isset($Aperf->Access_Method))
+                                       ? self::getAccessMethod($Aperf->Access_Method) : 1;
+                    $datatype = (isset($Aperf->Data_Type)) ? self::getDataType($Aperf->Data_Type)
+                                                           : self::getDataType("Unknown");
+                    if (isset($Aperf->Performance)) {
+                        $metrics = array_keys(json_decode(json_encode($Aperf->Performance),true));
+                        foreach ($metrics as $metric) {
+                            if (isset($Aperf->Performance->{$metric}->{self::$yearmon})) {
+                                $ICounts[$metric] += $Aperf->Performance->{$metric}->{self::$yearmon};
+                            }
+                        }     // foreach performance element
+                    }
+                    DatabaseReport::insert(['db_id' => $database->id, 'prov_id' => self::$prov, 'plat_id' => $platform_id,
+                            'publisher_id' => $publisher_id, 'inst_id' => self::$inst, 'yearmon' => self::$yearmon,
+                            'datatype_id' => $datatype->id, 'accessmethod_id' => $accessmethod_id,
+                            'searches_automated' => $ICounts['Searches_Automated'],
+                            'searches_federated' => $ICounts['Searches_Federated'],
+                            'searches_regular' => $ICounts['Searches_Regular'],
+                            'total_item_investigations' => $ICounts['Total_Item_Investigations'],
+                            'total_item_requests' => $ICounts['Total_Item_Requests'],
+                            'unique_item_investigations' => $ICounts['Unique_Item_Investigations'],
+                            'unique_item_requests' => $ICounts['Unique_Item_Requests'],
+                            'unique_title_investigations' => $ICounts['Unique_Title_Investigations'],
+                            'unique_title_requests' => $ICounts['Unique_Title_Requests'],
+                            'limit_exceeded' => $ICounts['Limit_Exceeded'], 'no_license' => $ICounts['No_License']]);
+                   // Reset metric counts
+                    for ($_m = 0; $_m < $_metric_count; $_m++) {
+                        $ICounts[$_metric_keys[$_m]] = 0;
+                    }
+                }         // foreach attribute_performance element
             }
         }     // foreach $ReportItems
 
@@ -278,6 +373,9 @@ class Counter5Processor extends Model
         $header = $json_report->Report_Header;
         $ReportItems = $json_report->Report_Items;
 
+       // Get COUNTER Release
+       $release = $header->Release;
+
        // Loop through all ReportItems
         foreach ($ReportItems as $reportitem) {
            // Platform is required; if Null, skip the item.
@@ -287,44 +385,74 @@ class Counter5Processor extends Model
             }
             $platform_id = self::getPlatform($_platform);
 
-           // Pick up the optional attributes
-            $accessmethod_id = (isset($reportitem->Access_Method)) ? self::getAccessMethod($reportitem->Access_Method)
-                                                                   : 1;
-            $datatype = (isset($reportitem->Data_Type)) ? self::getDataType($reportitem->Data_Type)
-                                                        : self::getDataType("Unknown");
+            if ($release == "5") {
+               // Pick up the optional attributes
+                $accessmethod_id = (isset($reportitem->Access_Method)) ? self::getAccessMethod($reportitem->Access_Method) : 1;
+                $datatype = (isset($reportitem->Data_Type)) ? self::getDataType($reportitem->Data_Type)
+                                                            : self::getDataType("Unknown");
 
-           // Loop $reportitem->Performance elements and store counts when time-periods match
-            foreach ($reportitem->Performance as $perf) {
-                if (
-                    $perf->Period->Begin_Date == self::$begin  &&
-                    $perf->Period->End_Date == self::$end &&
-                    isset($perf->Instance)
-                ) {
-                    foreach ($perf->Instance as $instance) {
-                        // ignore unrecognized metrics
-                        if (isset($instance->Count) && isset($ICounts[$instance->Metric_Type])) {
-                            $ICounts[$instance->Metric_Type] += $instance->Count;
+               // Loop $reportitem->Performance elements and store counts when time-periods match
+                foreach ($reportitem->Performance as $perf) {
+                    if (
+                        $perf->Period->Begin_Date == self::$begin  &&
+                        $perf->Period->End_Date == self::$end &&
+                        isset($perf->Instance)
+                    ) {
+                        foreach ($perf->Instance as $instance) {
+                            // ignore unrecognized metrics
+                            if (isset($instance->Count) && isset($ICounts[$instance->Metric_Type])) {
+                                $ICounts[$instance->Metric_Type] += $instance->Count;
+                            }
+                        }
+                    }
+                }         // foreach performance clause
+
+               // Insert the record
+                PlatformReport::insert(['plat_id' => $platform_id, 'prov_id' => self::$prov, 'inst_id' => self::$inst,
+                        'yearmon' => self::$yearmon, 'datatype_id' => $datatype->id, 'accessmethod_id' => $accessmethod_id,
+                        'searches_platform' => $ICounts['Searches_Platform'],
+                        'total_item_investigations' => $ICounts['Total_Item_Investigations'],
+                        'total_item_requests' => $ICounts['Total_Item_Requests'],
+                        'unique_item_investigations' => $ICounts['Unique_Item_Investigations'],
+                        'unique_item_requests' => $ICounts['Unique_Item_Requests'],
+                        'unique_title_investigations' => $ICounts['Unique_Title_Investigations'],
+                        'unique_title_requests' => $ICounts['Unique_Title_Requests']]);
+               // Reset metric counts
+                for ($_m = 0; $_m < $_metric_count; $_m++) {
+                    $ICounts[$_metric_keys[$_m]] = 0;
+                }
+            } else {
+               // Loop Attribute_Performance elements and store counts when time-periods match
+                foreach ($reportitem->Attribute_Performance as $Aperf) {
+                    $accessmethod_id = (isset($Aperf->Access_Method)) ? self::getAccessMethod($Aperf->Access_Method) : 1;
+                    $datatype = (isset($Aperf->Data_Type)) ? self::getDataType($Aperf->Data_Type)
+                                                           : self::getDataType("Unknown");
+
+                   // Loop $reportitem->Performance elements and store counts when time-periods match
+                    if (isset($Aperf->Performance)) {
+                        $metrics = array_keys(json_decode(json_encode($Aperf->Performance),true));
+                        foreach ($metrics as $metric) {
+                            if (isset($Aperf->Performance->{$metric}->{self::$yearmon})) {
+                                $ICounts[$metric] += $Aperf->Performance->{$metric}->{self::$yearmon};
+                            }
+                        }     // foreach performance element
+
+                       // Insert the record
+                        PlatformReport::insert(['plat_id' => $platform_id, 'prov_id' => self::$prov, 'inst_id' => self::$inst,
+                                'yearmon' => self::$yearmon, 'datatype_id' => $datatype->id,
+                                'accessmethod_id' => $accessmethod_id, 'searches_platform' => $ICounts['Searches_Platform'],
+                                'total_item_investigations' => $ICounts['Total_Item_Investigations'],
+                                'total_item_requests' => $ICounts['Total_Item_Requests'],
+                                'unique_item_investigations' => $ICounts['Unique_Item_Investigations'],
+                                'unique_item_requests' => $ICounts['Unique_Item_Requests'],
+                                'unique_title_investigations' => $ICounts['Unique_Title_Investigations'],
+                                'unique_title_requests' => $ICounts['Unique_Title_Requests']]);
+                       // Reset metric counts
+                        for ($_m = 0; $_m < $_metric_count; $_m++) {
+                            $ICounts[$_metric_keys[$_m]] = 0;
                         }
                     }
                 }
-            }         // foreach performance clause
-
-
-           // Insert the record
-            PlatformReport::insert(['plat_id' => $platform_id, 'prov_id' => self::$prov, 'inst_id' => self::$inst,
-                    'yearmon' => self::$yearmon, 'datatype_id' => $datatype->id, 'accessmethod_id' => $accessmethod_id,
-                    'searches_platform' => $ICounts['Searches_Platform'],
-                    'total_item_investigations' => $ICounts['Total_Item_Investigations'],
-                    'total_item_requests' => $ICounts['Total_Item_Requests'],
-                    'unique_item_investigations' => $ICounts['Unique_Item_Investigations'],
-                    'unique_item_requests' => $ICounts['Unique_Item_Requests'],
-                    'unique_title_investigations' => $ICounts['Unique_Title_Investigations'],
-                    'unique_title_requests' => $ICounts['Unique_Title_Requests']]);
-                    // 'created_at' => self::$now]);
-
-           // Reset metric counts
-            for ($_m = 0; $_m < $_metric_count; $_m++) {
-                $ICounts[$_metric_keys[$_m]] = 0;
             }
         }     // foreach $ReportItems
 
@@ -360,140 +488,250 @@ class Counter5Processor extends Model
         $_metric_keys = array_keys($ICounts);
         $_metric_count = count($ICounts);
 
+       // set this now to save asking about it more than once
+        $unknown_datatype = self::getDataType("Unknown");
+
        // Decode JSON and put header and report records into variables
         $header = $json_report->Report_Header;
         $ReportItems = $json_report->Report_Items;
 
-        $authors = "";  // skipping this for the time-being
+       // Get COUNTER Release
+        $release = $header->Release;
 
        // Loop through all ReportItems
         foreach ($ReportItems as $reportitem) {
-           // Author(s) processing would go here
-            // $authors = (isset($reportitem->Item_Contributors)) ? $reportitem->Item_Contributors) : "";
 
-           // Get Publisher
-            $publisher_id = (isset($reportitem->Publisher)) ? self::getPublisher($reportitem->Publisher) : 1;
+            if ($release == "5") {
 
-           // Get Platform
-            $platform_id = (isset($reportitem->Platform)) ? self::getPlatform($reportitem->Platform) : 1;
+                // Get Title, Item_ID, and Data_Type fields
+                $Title = (isset($reportitem->Item)) ? mb_substr($reportitem->Item, 0, 256) : "";
 
-           // Get Title and Item_ID fields
-            $Title = (isset($reportitem->Item)) ? mb_substr($reportitem->Item, 0, 256) : "";
-
-           // If no Title or Item_ID skip the item..
-            if ($Title == "" && !isset($reportitem->Item_ID)) {
-                continue;
-            }
-            $_item_id = (isset($reportitem->Item_ID)) ? $reportitem->Item_ID : array();
-            $Item_ID = self::itemIDValues($_item_id);
-
-           // Pick up the optional attributes
-            $yop = (isset($reportitem->yop)) ? $reportitem->yop : "";
-            $accesstype_id = (isset($reportitem->Access_Type)) ? self::getAccessType($reportitem->Access_Type)
-                                                               : 1;
-            $accessmethod_id = (isset($reportitem->Access_Method)) ? self::getAccessMethod($reportitem->Access_Method)
-                                                                   : 1;
-            $datatype = (isset($reportitem->Data_Type)) ? self::getDataType($reportitem->Data_Type)
-                                                        : self::getDataType("Unknown");
-            $Item_ID['type'] = ($datatype->name == "Journal" || $datatype->name == "Book") ?
-                                mb_substr($datatype->name, 0, 1) :
-                                "I";
-
-           // Get publication date and article version
-            $pub_date = "";
-            $item_dates = (isset($reportitem->Item_Dates)) ? $reportitem->Item_Dates : "";
-            if ($item_dates != "") {
-                foreach ($item_dates as $date) {
-                    if ($date->Type == "Publication_Date") {
-                        $pub_date = $date->Value;
-                        break;
-                    }
+               // If no Title or Item_ID skip the item..
+                if ($Title == "" && !isset($reportitem->Item_ID)) {
+                    continue;
                 }
-            }
-            $article_version = "";
-            $item_attributes = (isset($reportitem->Item_Attributes)) ? $reportitem->Item_Attributes : "";
-            if ($item_attributes != "") {
-                foreach ($item_attributes as $attrib) {
-                    if ($attrib->Type == "Article_Version") {
-                        $article_version = $attrib->Value;
-                        break;
-                    }
+                $_item_id = (isset($reportitem->Item_ID)) ? $reportitem->Item_ID : array();
+                $Item_ID = self::itemIDValues($_item_id, $release);
+                $datatype = (isset($reportitem->Data_Type)) ? self::getDataType($reportitem->Data_Type)
+                                                            : $unknown_datatype;
+                $Item_ID['type'] = ($datatype->name == "Journal" || $datatype->name == "Book") ?
+                                    mb_substr($datatype->name, 0, 1) : "I";
+                            
+               // Get Publisher
+                $publisher_id = (isset($reportitem->Publisher)) ? self::getPublisher($reportitem->Publisher) : 1;
+
+               // Get Platform
+                $platform_id = (isset($reportitem->Platform)) ? self::getPlatform($reportitem->Platform) : 1;
+
+               // Pick up the optional attributes
+                $yop = "";
+                if (isset($reportitem->yop)) {
+                    $yop = $reportitem->yop;
+                } else if (isset($reportitem->YOP)) {
+                    $yop = $reportitem->YOP;
                 }
-            }
+                $accesstype_id = (isset($reportitem->Access_Type)) ? self::getAccessType($reportitem->Access_Type) : 1;
+                $accessmethod_id = (isset($reportitem->Access_Method)) ? self::getAccessMethod($reportitem->Access_Method) : 1;
 
-           // Get-Create Title entry
-            $title = self::titleFindOrCreate($Title, $Item_ID, $pub_date, $article_version);
-            if (is_null($title)) {  // skip silently
-                continue;
-            }
-
-           // Ignore Components for now...
-            $component_id = null;
-            $component_datatype_id = null;
-
-           // Find or Create the Parent
-            $parent_id = null;
-            $parent_datatype_id = null;
-            $item_parent = (isset($reportitem->Item_Parent)) ? $reportitem->Item_Parent : "";
-            if ($item_parent != "") {
-                $_parentTitle = (isset($item_parent->Item_Name)) ? mb_substr($item_parent->Item_Name, 0, 256) : "";
-                $_parentItemid = (isset($item_parent->Item_ID)) ? $item_parent->Item_ID : array();
-                if (sizeof($_parentItemid) > 0) {
-                    $_pitem_ID = self::itemIDValues($_parentItemid);
-
-                   // parent datatype
-                    $_pdatatype = (isset($item_parent->Data_Type)) ? $item_parent->Data_Type : "Unknown";
-                    $parent_datatype = self::getDataType($_pdatatype);
-                    $_pitem_ID['type'] = ($parent_datatype->name == "Journal" || $parent_datatype->name == "Book") ?
-                                          mb_substr($parent_datatype->name, 0, 1) :
-                                          "I";
-
-                   // Get-Create the title for the parent
-                    $parent_title = self::titleFindOrCreate($_parentTitle, $_pitem_ID);
-                    if (is_null($parent_title)) {  // skip silently
-                        continue;
-                    }
-                    $parent_id = $parent_title->id;
-                    $parent_datatype_id = $parent_datatype->id;
-                }
-            }
-
-           // Get or create the Item in the global table
-            $_item = Item::firstOrCreate(
-                ['title_id' => $title->id],
-                ['parent_id' => $parent_id],
-                ['parent_datatype_id' => $parent_datatype_id]
-            );
-            if (is_null($_item)) {
-                continue;
-            }
-
-           // Loop $reportitem->Performance elements and store counts when time-periods match
-            foreach ($reportitem->Performance as $perf) {
-                if ($perf->Period->Begin_Date == self::$begin  && $perf->Period->End_Date == self::$end) {
-                    foreach ($perf->Instance as $instance) {
-                        // ignore unrecognized metrics
-                        if (isset($instance->Count) && isset($ICounts[$instance->Metric_Type])) {
-                            $ICounts[$instance->Metric_Type] += $instance->Count;
+               // Get publication date and article version
+                $pub_date = "";
+                $item_dates = (isset($reportitem->Item_Dates)) ? $reportitem->Item_Dates : "";
+                if ($item_dates != "") {
+                    foreach ($item_dates as $date) {
+                        if ($date->Type == "Publication_Date") {
+                            $pub_date = $date->Value;
+                            break;
                         }
                     }
                 }
-            }         // foreach performance clause
+                $article_version = "";
+                $item_attributes = (isset($reportitem->Item_Attributes)) ? $reportitem->Item_Attributes : "";
+                if ($item_attributes != "") {
+                    foreach ($item_attributes as $attrib) {
+                        if ($attrib->Type == "Article_Version") {
+                            $article_version = $attrib->Value;
+                            break;
+                        }
+                    }
+                }
 
-           // Insert the record
-            ItemReport::insert(['item_id' => $_item->id, 'prov_id' => self::$prov, 'publisher_id' => $publisher_id,
-                'plat_id' => $platform_id, 'inst_id' => self::$inst, 'yearmon' => self::$yearmon, 'yop' => $yop,
-                'datatype_id' => $datatype->id, 'accesstype_id' => $accesstype_id,'accessmethod_id' => $accessmethod_id,
-                'total_item_requests' => $ICounts['Total_Item_Requests'],
-                'total_item_investigations' => $ICounts['Total_Item_Investigations'],
-                'unique_item_requests' => $ICounts['Unique_Item_Requests'],
-                'unique_item_investigations' => $ICounts['Unique_Item_Investigations'],
-                'limit_exceeded' => $ICounts['Limit_Exceeded'], 'no_license' => $ICounts['No_License']]);
-                // 'created_at' => self::$now]);
+               // Get-Create Item Title entry
+                $title = self::titleFindOrCreate($Title, $Item_ID, $pub_date, $article_version);
+                if (is_null($title)) {  // skip silently
+                    continue;
+                }
 
-           // Reset metric counts
-            for ($_m = 0; $_m < $_metric_count; $_m++) {
-                $ICounts[$_metric_keys[$_m]] = 0;
+               // Find or Create the Parent
+                $parent_id = null;
+                $parent_datatype_id = null;
+                $item_parent = (isset($reportitem->Item_Parent)) ? $reportitem->Item_Parent : "";
+                if ($item_parent != "") {
+                    $_parentTitle = (isset($item_parent->Item_Name)) ? mb_substr($item_parent->Item_Name, 0, 256) : "";
+                    $_parentItemid = (isset($item_parent->Item_ID)) ? $item_parent->Item_ID : array();
+                    if (sizeof($_parentItemid) > 0) {
+                        $_pitem_ID = self::itemIDValues($_parentItemid, $release);
+
+                       // parent datatype
+                        $parent_datatype = (isset($item_parent->Data_Type)) ? self::getDataType($item_parent->Data_Type)
+                                                                            : $unknown_datatype;
+                        $_pitem_ID['type'] = ($parent_datatype->name == "Journal" || $parent_datatype->name == "Book") ?
+                                            mb_substr($parent_datatype->name, 0, 1) :
+                                            "I";
+
+                       // Get-Create the title for the parent
+                        $parent_title = self::titleFindOrCreate($_parentTitle, $_pitem_ID);
+                        if (is_null($parent_title)) {  // skip silently
+                            continue;
+                        }
+
+                       // Get or create the Parent Item in the global table
+                        $parent_item = Item::firstOrCreate(
+                            ['title_id' => $parent_title->id, 'parent_datatype_id' => $parent_datatype->id],
+                            ['parent_id' => null]
+                        );
+                        if (is_null($parent_item)) {
+                            continue;
+                        }
+                        $parent_id = $parent_item->id;
+                        $parent_datatype_id = $parent_datatype->id;
+                    }
+                }
+
+               // Get or create the Item in the global table (link it to the parent or null from above)
+                $_item = Item::firstOrCreate( ['title_id' => $title->id],
+                    ['parent_id' => $parent_id, 'parent_datatype_id' => $parent_datatype_id]
+                );
+                if (is_null($_item)) {
+                    continue;
+                }
+
+               // Loop $reportitem->Performance elements and store counts when time-periods match
+                foreach ($reportitem->Performance as $perf) {
+                    if ($perf->Period->Begin_Date == self::$begin  && $perf->Period->End_Date == self::$end) {
+                        foreach ($perf->Instance as $instance) {
+                            // ignore unrecognized metrics
+                            if (isset($instance->Count) && isset($ICounts[$instance->Metric_Type])) {
+                                $ICounts[$instance->Metric_Type] += $instance->Count;
+                            }
+                        }
+                    }
+                }         // foreach performance clause
+               // Insert the record
+                ItemReport::insert(['item_id' => $_item->id, 'prov_id' => self::$prov, 'publisher_id' => $publisher_id,
+                    'plat_id' => $platform_id, 'inst_id' => self::$inst, 'yearmon' => self::$yearmon, 'yop' => $yop,
+                    'datatype_id' => $datatype->id, 'accesstype_id' => $accesstype_id,'accessmethod_id' => $accessmethod_id,
+                    'total_item_requests' => $ICounts['Total_Item_Requests'],
+                    'total_item_investigations' => $ICounts['Total_Item_Investigations'],
+                    'unique_item_requests' => $ICounts['Unique_Item_Requests'],
+                    'unique_item_investigations' => $ICounts['Unique_Item_Investigations'],
+                    'limit_exceeded' => $ICounts['Limit_Exceeded'], 'no_license' => $ICounts['No_License']]);
+
+              // Reset metric counts
+                for ($_m = 0; $_m < $_metric_count; $_m++) {
+                    $ICounts[$_metric_keys[$_m]] = 0;
+                }
+            // COUNTER 5.1
+            } else {
+               // Item_ID at the root of a Report_Item means it is a Parent Item
+                $parent_id = null;
+                $parent_datatype = null;
+                if (isset($reportitem->Item_ID)) {
+                    $_parentItemid = (isset($reportitem->Item_ID)) ? $reportitem->Item_ID : null;
+                    if (is_object($_parentItemid) > 0) {
+                        $_pitem_ID = self::itemIDValues($_parentItemid, $release); 
+                        $_parentTitle = (isset($reportitem->Title)) ? mb_substr($reportitem->Title, 0, 256) : "";
+                        $parent_datatype = (isset($reportitem->Data_Type)) ? self::getDataType($reportitem->Data_Type)
+                                                                           : $unknown_datatype;
+                        $_pitem_ID['type'] = ($parent_datatype->name == "Journal" || $parent_datatype->name == "Book") ?
+                                              mb_substr($parent_datatype->name, 0, 1) : "I";
+                       // Get-Create the title for the parent
+                        $parent_title = self::titleFindOrCreate($_parentTitle, $_pitem_ID);
+                       // Leave parent_id null if $parent_title is null
+                        if (!is_null($parent_title)) {
+                            $_item = Item::firstOrCreate( ['title_id' => $parent_title->id], ['parent_id' => null],
+                                                          ['parent_datatype_id' => $parent_datatype->id] );
+                            if (is_null($_item)) {
+                                continue;
+                            }
+                            $parent_id = $_item->id;
+                        }
+                    }
+                }
+                $parent_datatype_id = (is_null($parent_datatype)) ? null : $parent_datatype->id;
+
+               // Loop $reportitem->Items
+                foreach ($reportitem->Items as $_item) {
+                   // Get Title, Item_ID, and Data_Type fields
+                    $Title = (isset($_item->Item)) ? mb_substr($_item->Item, 0, 256) : "";
+
+                   // If no Title or Item_ID skip the item..
+                    if ($Title == "" && !isset($_item->Item_ID)) {
+                        continue;
+                    }
+                    $_item_id = (isset($_item->Item_ID)) ? $_item->Item_ID : array();
+                    $Item_ID = self::itemIDValues($_item_id, $release);
+                   // If datatype is set, use it, otherwise this is an Item
+                    $item_dt = (isset($_item->Data_Type)) ? self::getDataType($_item->Data_Type)
+                                                          : $unknown_datatype;
+                    $Item_ID['type'] = ($item_dt->name == "Journal" || $item_dt->name == "Book") ?
+                                        mb_substr($item_dt->name, 0, 1) : "I";                                
+                    $item_title = self::titleFindOrCreate($Title, $Item_ID);
+                    if (is_null($item_title)) {  // skip silently
+                        continue;
+                    }
+                   // Get Publisher and Platform
+                    $publisher_id = (isset($_item->Publisher)) ? self::getPublisher($_item->Publisher) : 1;
+                    $platform_id = (isset($_item->Platform)) ? self::getPlatform($_item->Platform) : 1;
+
+                   // Loop over performance records
+                    foreach ($_item->Attribute_Performance as $Aperf) {
+
+                       //  Get attributes for this Attribute_Performance
+                        $yop = "";
+                        if (isset($Aperf->yop)) {
+                            $yop = $Aperf->yop;
+                        } else if (isset($Aperf->YOP)) {
+                            $yop = $Aperf->YOP;
+                        }
+                        $datatype = (isset($Aperf->Data_Type)) ? self::getDataType($Aperf->Data_Type)
+                                                               : $unknown_datatype;
+                        $accesstype_id = (isset($Aperf->Access_Type)) ? self::getAccessType($Aperf->Access_Type) : 1;
+                        $accessmethod_id = (isset($Aperf->Access_Method)) ? self::getAccessMethod($Aperf->Access_Method) : 1;
+                                                
+                       // Get or create the Item record in the global table
+                        $theItem = Item::firstOrCreate(
+                            ['title_id' => $item_title->id],
+                            ['parent_id' => $parent_id, 'parent_datatype_id' => $parent_datatype_id]
+                        );
+                        if (is_null($theItem)) {
+                            continue;
+                        }
+                       // Loop $reportitem->Performance elements and store counts when time-periods match
+                        if (isset($Aperf->Performance)) {
+                            $metrics = array_keys(json_decode(json_encode($Aperf->Performance),true));
+                            foreach ($metrics as $metric) {
+                               if (isset($Aperf->Performance->{$metric}->{self::$yearmon})) {
+                                   $ICounts[$metric] = $Aperf->Performance->{$metric}->{self::$yearmon};
+                               }
+                            }     // foreach performance element
+ 
+                           // Insert the record
+                            ItemReport::insert(['item_id' => $theItem->id, 'prov_id' => self::$prov, 'publisher_id' => $publisher_id,
+                                'plat_id' => $platform_id, 'inst_id' => self::$inst, 'yearmon' => self::$yearmon, 'yop' => $yop,
+                                'datatype_id' => $datatype->id, 'accesstype_id' => $accesstype_id,'accessmethod_id' => $accessmethod_id,
+                                'total_item_requests' => $ICounts['Total_Item_Requests'],
+                                'total_item_investigations' => $ICounts['Total_Item_Investigations'],
+                                'unique_item_requests' => $ICounts['Unique_Item_Requests'],
+                                'unique_item_investigations' => $ICounts['Unique_Item_Investigations'],
+                                'limit_exceeded' => $ICounts['Limit_Exceeded'], 'no_license' => $ICounts['No_License']]);
+
+                           // Reset metric counts
+                            for ($_m = 0; $_m < $_metric_count; $_m++) {
+                                 $ICounts[$_metric_keys[$_m]] = 0;
+                            }
+                        }
+                    }
+                }
             }
         }
 
@@ -517,7 +755,8 @@ class Counter5Processor extends Model
             if ($cur_encoding == "UTF-8" && mb_check_encoding($input_platform, "UTF-8")) {
                 $_plat_name = mb_substr($input_platform, 0, intval(config('ccplus.max_name_length')));
             } else {        // force to utf-8
-                $_plat_name = mb_substr(utf8_encode($input_platform), 0, intval(config('ccplus.max_name_length')));
+                $_plat_name = mb_substr(mb_convert_encoding($input_platform,"UTF-8"),
+                                        0, intval(config('ccplus.max_name_length')));
             }
             // If platform is known, return it's ID. If not, create a new entry
             $platform = self::$all_platforms->filter(function ($p) use ($_plat_name) {
@@ -550,7 +789,8 @@ class Counter5Processor extends Model
             if ($cur_encoding == "UTF-8" && mb_check_encoding($input_publisher, "UTF-8")) {
                 $_pub_name = mb_substr($input_publisher, 0, intval(config('ccplus.max_name_length')));
             } else {        // force to utf-8
-                $_pub_name = mb_substr(utf8_encode($input_publisher), 0, intval(config('ccplus.max_name_length')));
+                $_pub_name = mb_substr(mb_convert_encoding($input_publisher,"UTF-8"),
+                                       0, intval(config('ccplus.max_name_length')));
             }
             // If publisher is known, return it's ID. If not, create a new entry
             $publisher = self::$all_publishers->filter(function ($p) use ($_pub_name) {
@@ -583,7 +823,8 @@ class Counter5Processor extends Model
             if ($cur_encoding == "UTF-8" && mb_check_encoding($input_type, "UTF-8")) {
                 $_type_name = mb_substr($input_type, 0, intval(config('ccplus.max_name_length')));
             } else {        // force to utf-8
-                $_type_name = mb_substr(utf8_encode($input_type), 0, intval(config('ccplus.max_name_length')));
+                $_type_name = mb_substr(mb_convert_encoding($input_type,"UTF-8"), 0,
+                                        intval(config('ccplus.max_name_length')));
             }
             $accesstype = self::$all_accesstypes->filter(function ($t) use ($_type_name) {
                                                 return (strtolower($t['name']) == strtolower($_type_name));
@@ -615,7 +856,8 @@ class Counter5Processor extends Model
             if ($cur_encoding == "UTF-8" && mb_check_encoding($input_method, "UTF-8")) {
                 $_method_name = mb_substr($input_method, 0, intval(config('ccplus.max_name_length')));
             } else {        // force to utf-8
-                $_method_name = mb_substr(utf8_encode($input_method), 0, intval(config('ccplus.max_name_length')));
+                $_method_name = mb_substr(mb_convert_encoding($input_method,"UTF-8"), 0,
+                                          intval(config('ccplus.max_name_length')));
             }
             $accessmethod = self::$all_accessmethods->filter(function ($m) use ($_method_name) {
                                                 return (strtolower($m['name']) == strtolower($_method_name));
@@ -643,12 +885,14 @@ class Counter5Processor extends Model
         if ($input_type == "") {
             $input_type = "Unknown";
         }
+
        // UTF8 Encode name if it isnt already UTF-8
         $cur_encoding = mb_detect_encoding($input_type);
         if ($cur_encoding == "UTF-8" && mb_check_encoding($input_type, "UTF-8")) {
             $_type_name = mb_substr($input_type, 0, intval(config('ccplus.max_name_length')));
         } else {        // force to utf-8
-            $_type_name = mb_substr(utf8_encode($input_type), 0, intval(config('ccplus.max_name_length')));
+            $_type_name = mb_substr(mb_convert_encoding($input_type,"UTF-8"), 0,
+                                    intval(config('ccplus.max_name_length')));
         }
         $datatype = self::$all_datatypes->filter(function ($d) use ($_type_name) {
                                             return (strtolower($d['name']) == strtolower($_type_name));
@@ -678,7 +922,8 @@ class Counter5Processor extends Model
             if ($cur_encoding == "UTF-8" && mb_check_encoding($input_type, "UTF-8")) {
                 $_type_name = mb_substr($input_type, 0, intval(config('ccplus.max_name_length')));
             } else {        // force to utf-8
-                $_type_name = mb_substr(utf8_encode($input_type), 0, intval(config('ccplus.max_name_length')));
+                $_type_name = mb_substr(mb_convert_encoding($input_type,"UTF-8"), 0,
+                                        intval(config('ccplus.max_name_length')));
             }
             $sectiontype = self::$all_sectiontypes->filter(function ($s) use ($_type_name) {
                                                 return (strtolower($s['name']) == strtolower($_type_name));
@@ -708,7 +953,7 @@ class Counter5Processor extends Model
          if ($cur_encoding == "UTF-8" && mb_check_encoding($dbname, "UTF-8")) {
              $_name = $dbname;
          } else {
-             $_name = utf8_encode($dbname);    // force to utf-8
+             $_name = mb_convert_encoding($dbname,"UTF-8");  // force to utf-8
          }
          $database = self::$all_databases->filter(function ($d) use ($_name) {
                                              return (strtolower($d['name']) == strtolower($_name));
@@ -727,32 +972,45 @@ class Counter5Processor extends Model
      * may be included; missing variables within the object are returned as null.
      *
      * @param $Item_ID
+     * @param $release
      * @return $Values
      *
      */
-    private static function itemIDValues($Item_ID)
+    private static function itemIDValues($Item_ID, $release)
     {
        // Initialize variables for Title and Item_ID fields.
        // We'll use these as a basis for trying to match against known titles
         $Values = ['type' => "", 'ISBN' => "", 'ISSN' => "", 'eISSN' => "", 'DOI' => "", 'PropID' => "", 'URI' => ""];
-        foreach ($Item_ID as $_id) {
-            if ($_id->Type == "ISBN") {
-                $Values['ISBN'] = mb_substr($_id->Value, 0, intval(config('ccplus.max_name_length')));
+        if ($release == "5") {
+            foreach ($Item_ID as $_id) {
+                if ($_id->Type == "ISBN") {
+                    $Values['ISBN'] = mb_substr($_id->Value, 0, intval(config('ccplus.max_name_length')));
+                }
+                if ($_id->Type == "Print_ISSN") {
+                    $Values['ISSN'] = mb_substr($_id->Value, 0, intval(config('ccplus.max_name_length')));
+                }
+                if ($_id->Type == "Online_ISSN") {
+                    $Values['eISSN'] = mb_substr($_id->Value, 0, intval(config('ccplus.max_name_length')));
+                }
+                if ($_id->Type == "DOI") {
+                    $Values['DOI'] = mb_substr($_id->Value, 0, 256);
+                }
+                if ($_id->Type == "Proprietary") {
+                    $Values['PropID'] = mb_substr($_id->Value, 0, 256);
+                }
+                if ($_id->Type == "URI") {
+                    $Values['URI'] = mb_substr($_id->Value, 0, 256);
+                }
             }
-            if ($_id->Type == "Print_ISSN") {
-                $Values['ISSN'] = mb_substr($_id->Value, 0, intval(config('ccplus.max_name_length')));
-            }
-            if ($_id->Type == "Online_ISSN") {
-                $Values['eISSN'] = mb_substr($_id->Value, 0, intval(config('ccplus.max_name_length')));
-            }
-            if ($_id->Type == "DOI") {
-                $Values['DOI'] = mb_substr($_id->Value, 0, 256);
-            }
-            if ($_id->Type == "Proprietary") {
-                $Values['PropID'] = mb_substr($_id->Value, 0, 256);
-            }
-            if ($_id->Type == "URI") {
-                $Values['URI'] = mb_substr($_id->Value, 0, 256);
+        } else if ($release == "5.1") {
+            $Keys = ['ISBN' => 'ISBN', 'Print_ISSN' => 'ISSN', 'Online_ISSN' => 'eISSN', 'DOI' => 'DOI',
+                     'Proprietary' => "PropID", 'URI' => 'URI'];
+            foreach ($Keys as $key => $value) {
+                if ( isset($Item_ID->{$key}) ) {
+                    $Values[$value] = (in_array($value,['ISBN','ISSN','eISSN']))
+                       ? mb_substr($Item_ID->{$key}, 0, intval(config('ccplus.max_name_length')))
+                       : mb_substr($Item_ID->{$key}, 0, 256);
+                }
             }
         }
         return $Values;
@@ -781,7 +1039,7 @@ class Counter5Processor extends Model
         if ($cur_encoding == "UTF-8" && mb_check_encoding($_title, "UTF-8")) {
             $input_title = $_title;
         } else {
-            $input_title = utf8_encode($_title);    // force to utf-8
+            $input_title = mb_convert_encoding($_title,"UTF-8");  // force to utf-8
         }
 
         // Query to find an existing title
