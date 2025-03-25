@@ -100,7 +100,7 @@ class ReportProcessor extends Command
             return 0;
         }
         if (!$consortium->is_active) {
-            $this->line($ts . $ident . 'Consortium: ' . $conarg . " is NOT ACTIVE ... quitting.");
+            // $this->line($ts . $ident . 'Consortium: ' . $conarg . " is NOT ACTIVE ... quitting.");
             return 0;
         }
 
