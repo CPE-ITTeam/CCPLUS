@@ -177,6 +177,8 @@ class Sushi extends Model
     */
     public function buildUri($setting, $connectors, $method = "reports", $report)
     {
+        $release = (preg_match("/r51/",$setting->provider->server_url_r5)) ? "5.1" : "5";
+
        // Begin setting up the URI by cleaning/standardizing the server_url_r5 string in the setting
         $_url = rtrim($setting->provider->server_url_r5);    // remove trailing whitespace
         $_url = preg_replace('/\/reports\/?$/i', '', $_url);  // take off any methods with any leading slashes
@@ -211,12 +213,13 @@ class Sushi extends Model
        // Setup date range and attributes for the request
         $uri_dates = "&begin_date=" . self::$begin . "&end_date=" . self::$end;
         if ($report->name == "TR") {
-            $uri_atts  = "&attributes_to_show=Data_Type%7CAccess_Method%7CAccess_Type%7C";
-            $uri_atts .= "Section_Type%7CYOP";
+            $uri_atts  = "&attributes_to_show=Data_Type%7CAccess_Method%7CAccess_Type%7CYOP";
+            $uri_atts .= ($release == "5") ? "%7CSection_Type" : "";
         } elseif ($report->name == "DR") {
             $uri_atts = "";
         } elseif ($report->name == "PR") {
-            $uri_atts = "&attributes_to_show=Data_Type%7CAccess_Method";
+            $uri_atts  = "&attributes_to_show=Access_Method";
+            $uri_atts .= ($release == "5") ? "%7CData_Type" : "";
         } elseif ($report->name == "IR") {
             $uri_atts = "";
         }
