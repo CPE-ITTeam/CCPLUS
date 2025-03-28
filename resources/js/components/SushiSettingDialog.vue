@@ -47,7 +47,7 @@
           </v-row>
           <template v-for="cnx in sushi_prov.connectors">
             <v-row class="d-flex mx-2" no-gutters>
-              <v-col v-if="cnx.required || (setting[cnx.name] != null && setting[cnx.name]!='')" class="d-flex px-2" cols="8">
+              <v-col v-if="cnx.required || (setting[cnx.name] != null && setting[cnx.name]!='')" class="d-flex px-2" cols="10">
                 <v-text-field v-if="cnx.required" v-model="form[cnx.name]" :label='cnx.label' :id='cnx.name' outlined
                               :rules="[required]" clearable></v-text-field>
                 <v-text-field v-else v-model="form[cnx.name]" :label='cnx.label' :id='cnx.name' outlined></v-text-field>
@@ -65,7 +65,6 @@
             </v-row>
             <template v-for="rpt in sushi_prov.master_reports">
               <v-row class="d-flex ma-0 mx-2" no-gutters>
-                <!-- <v-col v-if="sushi_prov[report_status[rpt.name]]=='A'" class="d-flex px-4 justify-center" cols="12"> -->
                 <v-col class="d-flex px-4 justify-center" cols="12">
                   <v-checkbox v-model="form.report_state[rpt.name]['prov_enabled']" :label="rpt.name" class="verydense"
                               key="rpt.name" :rules="reportRules"
@@ -75,7 +74,7 @@
             </template>
           </div>
           <v-row v-if="service_url!=null" class="d-flex ma-2" no-gutters>
-            <v-col class="d-flex px-2" cols="8">
+            <v-col class="d-flex px-2" cols="10">
               <v-text-field v-model="service_url" label="COUNTER Service URL" outlined disabled></v-text-field>
             </v-col>
           </v-row>
@@ -317,7 +316,7 @@
           this.enable_switch = (this.setting.status == 'Enabled') ? 1 : 0;
           this.sushi_prov = { ...this.setting.provider};
           this.sushi_inst = { ...this.setting.institution};
-          this.service_url = this.setting.provider.server_url_r5;
+          this.service_url = this.setting.provider.service_url;
       } else {
           this.statusval = 'Enabled';
           this.sushi_inst = { ...this.default_inst};
