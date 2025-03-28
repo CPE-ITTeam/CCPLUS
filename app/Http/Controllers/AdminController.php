@@ -61,7 +61,7 @@ class AdminController extends Controller
         $conso_providers = Provider::with('reports:id,name','institution:id,name,is_active')->orderBy('name','ASC')->get();
 
         // Get all active global providers
-        $global_providers = GlobalProvider::where('is_active', true)->orderBy('name', 'ASC')->get();
+        $global_providers = GlobalProvider::orderBy('name', 'ASC')->get();
 
         // Get COUNTER API settings for the active globals
         $global_ids = $global_providers->pluck('id')->toArray();

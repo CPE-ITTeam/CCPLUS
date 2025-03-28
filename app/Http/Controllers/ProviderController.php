@@ -48,8 +48,7 @@ class ProviderController extends Controller
                                           'institution:id,name,is_active')->orderBy('name','ASC')->get();
 
         // Build list of providers, based on globals, that includes extra institution-specific providers
-        $global_providers = GlobalProvider::where('is_active', true)-> orderBy('name')
-                                          ->get()->sortBy('name', SORT_NATURAL|SORT_FLAG_CASE);
+        $global_providers = GlobalProvider::orderBy('name')->get()->sortBy('name', SORT_NATURAL|SORT_FLAG_CASE);
         $output_providers = [];
         foreach ($global_providers as $rec) {
             $report_state = [];
@@ -883,7 +882,7 @@ class ProviderController extends Controller
         }
 
         // Get existing global_provider, consortium provider, institution, and reports data
-        $global_providers = GlobalProvider::where('is_active', true)->get();
+        $global_providers = GlobalProvider::get();
         $providers = Provider::with('reports','institution')->get();
         $institutions = Institution::get();
         $master_reports = Report::where('revision',5)->where('parent_id',0)->orderBy('dorder','ASC')->get(['id','name']);

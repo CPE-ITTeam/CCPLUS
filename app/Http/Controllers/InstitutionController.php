@@ -252,7 +252,7 @@ class InstitutionController extends Controller
         $master_reports = Report::where('revision',5)->where('parent_id',0)->orderBy('dorder','ASC')->get(['id','name']);
 
         // Build list of providers, based on globals, that includes extra mapped in consorium-specific data
-        $global_providers = GlobalProvider::where('is_active', true)->orderBy('name', 'ASC')->get();
+        $global_providers = GlobalProvider::orderBy('name', 'ASC')->get();
 
         $output_providers = [];
         foreach ($global_providers as $rec) {
