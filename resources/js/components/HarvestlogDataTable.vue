@@ -306,6 +306,7 @@
         headers: [
           { text: 'Result Date', value: 'updated' },
           { text: 'Platform', value: 'prov_name' },
+          { text: 'Release', value: 'release', align: 'center' },
           { text: 'Institution', value: 'inst_name' },
           { text: 'Report', value: 'report_name', align: 'center' },
           { text: 'Usage Date', value: 'yearmon' },

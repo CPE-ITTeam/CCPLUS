@@ -275,6 +275,7 @@ class HarvestLogController extends Controller
                    $truncated = true;
                    break;
                }
+$formatted_harvest['release'] = (preg_match('/r51/',$harvest->sushiSetting->provider->server_url_r5)) ? "5.1" : "";
                $harvests[] = $formatted_harvest;
                if (!in_array(substr($harvest->updated_at,0,7), $updated_ym)) {
                    $updated_ym[] = substr($harvest->updated_at,0,7);
