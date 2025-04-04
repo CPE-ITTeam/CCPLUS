@@ -41,16 +41,16 @@
         <v-expansion-panel-content>
           <v-row class="d-flex wrap-column-boxes ma-0" no-gutters>
             <v-col class="d-flex pa-2 justify-center" cols="6">
-              <v-btn class='btn' small type="button" color="primary" @click="showAllColumns(1)">Enable All</v-btn>
+              <v-btn class='btn' small type="button" color="primary" @click="setAllColumns(1)">Enable All</v-btn>
             </v-col>
             <v-col class="d-flex pa-2 justify-center" cols="6">
-              <v-btn class='btn' small type="button" color="primary" @click="showAllColumns(0)">Disable All</v-btn>
+              <v-btn class='btn' small type="button" color="primary" @click="setAllColumns(0)">Disable All</v-btn>
             </v-col>
           </v-row>
           <v-row class="d-flex wrap-column-boxes ma-0" no-gutters>
             <v-col class="d-flex pa-2" cols="2" sm="2" v-for="field in mutable_fields" :key="field.id">
               <v-checkbox :label="field.text" v-model="field.active" :value="field.active"
-                          @change="onFieldChange(field)"></v-checkbox>
+                          @change="onFieldChange(field)" :disabled="field.isFiltered"></v-checkbox>
             </v-col>
           </v-row>
         </v-expansion-panel-content>
@@ -68,21 +68,21 @@
                 ></v-autocomplete>
               </v-col>
             </div>
-            <div v-if='filter_data["provider"].active' cols="3" sm="2">
-              <v-col v-if='filter_data["provider"].value.length >= 0' class="d-flex pa-2 align-center">
-                <img v-if='filter_data["provider"].value.length > 0' src="/images/red-x-16.png"
-                     alt="clear filter" @click="clearFilter('provider')"/>&nbsp;
-                <v-autocomplete :items='mutable_filter_options.provider' v-model='filter_data.provider.value' multiple
-                                @change="setFilter('provider')" label="Platform" item-text="name" item-value="id"
-                ></v-autocomplete>
-              </v-col>
-            </div>
             <div v-if='filter_data["platform"].active' cols="3" sm="2">
               <v-col v-if='filter_data["platform"].value.length >= 0' class="d-flex pa-2 align-center">
                 <img v-if='filter_data["platform"].value.length > 0' src="/images/red-x-16.png"
                      alt="clear filter" @click="clearFilter('platform')"/>&nbsp;
                 <v-autocomplete :items='mutable_filter_options.platform' v-model='filter_data.platform.value' multiple
                                 @change="setFilter('platform')" label="Platform" item-text="name" item-value="id"
+                ></v-autocomplete>
+              </v-col>
+            </div>
+            <div v-if='filter_data["provider"].active' cols="3" sm="2">
+              <v-col v-if='filter_data["provider"].value.length >= 0' class="d-flex pa-2 align-center">
+                <img v-if='filter_data["provider"].value.length > 0' src="/images/red-x-16.png"
+                     alt="clear filter" @click="clearFilter('provider')"/>&nbsp;
+                <v-autocomplete :items='mutable_filter_options.provider' v-model='filter_data.provider.value' multiple
+                                @change="setFilter('provider')" label="Provider" item-text="name" item-value="id"
                 ></v-autocomplete>
               </v-col>
             </div>
@@ -272,9 +272,9 @@
         },
         report_data: [],
         filter_data: {
-          provider: { col:'prov_id', act:'updateProvider', value:[], name:'', active: false },
           Dbase: { col:'db_id', act:'updateDataBase', value:[], name:'', active: false },
           platform: { col:'plat_id', act:'updatePlatform', value:[], name:'', active: false },
+          provider: { col:'prov_id', act:'updateProvider', value:[], name:'', active: false },
           institution: { col:'inst_id', act:'updateInstitution', value:[], name:'', active: false },
           institutiongroup: { col:'institutiongroup_id', act:'updateInstGroup', value: -1, name:'', active: false },
           datatype: { col:'datatype_id', act:'updateDataType', value: [], name:'', active: false },
@@ -375,7 +375,7 @@
                   if (field.id != 'institution' || !this.filterGroup) {
                       this.$store.dispatch(action,this.filter_data[field.id].value);
                       this.updateColumns();
-                      this.active_filter_count--;
+                      if (field.active) this.active_filter_count--;
                   }
               }
               // Turn off the column(s)
@@ -401,13 +401,19 @@
                 this.filter_data[filter].value = 0;
             }
             this.filter_data[filter].name = '';
-        },
+            let _field = this.mutable_fields.find( f => f.id == filter);
+            if (typeof(_field)!='undefined') _field.isFiltered = false;
+          },
         setFilter(filter) {
             let method = this.filter_data[filter].act+'Filter';
             this.$store.dispatch(method, this.filter_data[filter].value);
+            let _field = this.mutable_fields.find( f => f.id == filter);
             if (this.filter_data[filter].value.constructor != Array) {
                 let idx = this.mutable_filter_options[filter].findIndex(f => f.id==this.filter_data[filter].value);
                 this.filter_data[filter].name = this.mutable_filter_options[filter][idx].name;
+                if (typeof(_field)!='undefined') _field.isFiltered = (this.filter_data[filter].value > 0)
+            } else {
+                if (typeof(_field)!='undefined') _field.isFiltered = (this.filter_data[filter].value.length > 0)
             }
         },
         setYOP() {
@@ -502,18 +508,18 @@
             });
             this.$store.dispatch('updateDatatableOptions',this.mutable_options);
         },
-        showAllColumns(flag) {
-            if (flag == 1) {
-              this.mutable_fields.forEach(field => {
-                  field.active = 1;
-                  this.onFieldChange(field);
-              })
-            } else {
-              this.mutable_fields.forEach(field => {
-                  field.active = 0;
-                  this.onFieldChange(field);
-              })
-            }
+        setAllColumns(flag) {
+            this.mutable_fields.forEach( field => {
+                // skip any fields with an active filter
+                if ( field.isFiltered ) {
+                    if (typeof(this.filter_data[field.id])!='undefined') {
+                        this.filter_data[field.id].active = true;
+                    }
+                } else {
+                    field.active = (flag == 1);
+                    this.onFieldChange(field);
+                }
+            });
         },
         showForm (event) {
             this.configForm = true;
@@ -648,6 +654,19 @@
               }
           }
       }
+
+      // initialize isFiltered values for the fields
+      this.mutable_fields.forEach( field => {
+          if (typeof(this.filter_data[field.id]) != 'undefined') {
+              if (this.filter_data[field.id].value.constructor === Array) {
+                  field.isFiltered = (this.filter_data[field.id].value.length>0);
+              } else {
+                  field.isFiltered = (this.filter_data[field.id].value>0);
+              }
+          } else {
+              field.isFiltered = false;
+          }
+      });
 
       // Determine which inst-filter applies (by-group or by-inst), and set this.filterGroup
       // If preset given for group AND inst, we will filter by-group and ignore inst(s).
