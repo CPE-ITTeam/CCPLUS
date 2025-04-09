@@ -53,10 +53,10 @@ class SushiSetting extends Model
 
     public function isComplete()
     {
-        $required = $this->provider->connectors;
+        $required = $this->provider->connectors();
         $connectors = $this->global_connectors->whereIn('id',$required)->pluck('name')->toArray();
         foreach ($connectors as $cnx) {
-            if (is_null($this->$cnx) || trim($this->$cnx) == '' || $this->$cnx == '-required-') return false;
+            if (is_null($this->{$cnx}) || trim($this->{$cnx}) == '' || $this->{$cnx} == '-required-') return false;
         }
         return true;
     }
@@ -107,7 +107,7 @@ class SushiSetting extends Model
             $this->status = $new_status;
         // Getting here means inst+prov are both Active but settings are incomplete. update the field values
         } else {
-            $required = $this->provider->connectors;
+            $required = $this->provider->connectors();
             $fields = $this->global_connectors->whereIn('id',$required);
             $this->status = 'Incomplete';
             foreach ($fields as $fld) {
