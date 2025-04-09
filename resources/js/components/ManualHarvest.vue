@@ -72,6 +72,11 @@
             </template>
           </v-autocomplete>
         </v-col>
+        <v-col v-if="form.prov.length==1 && single_prov.releases.length>1" class="d-flex px-2" cols="3">
+          <v-select :items="single_prov.releases" v-model="form.release" label="COUNTER Release"
+                    hint="Control the COUNTER Release to be harvested" persistent-hint
+          ></v-select>
+        </v-col>
       </v-row>
       <v-row v-if="available_reports.length>0" class="d-flex ma-2" no-gutters>
         <v-col class="d-flex px-2" cols="6" sm="4">
@@ -150,6 +155,7 @@
                 inst: [],
                 inst_group_id: 0,
                 prov: [],
+                release: "",
                 reports: [],
                 fromYM: '',
                 toYM: '',
@@ -167,6 +173,7 @@
             institution_options: [ ...this.institutions],
             available_reports: [],
             selected_insts: [],
+            single_prov: {'releases': []},
         }
     },
     methods: {
@@ -174,6 +181,7 @@
             // Reset form values
             this.form.inst = ( this.is_admin ) ? [] : [this.institutions[0].id];
             this.form.prov = [];
+            this.form.release = "";
             this.form.inst_group_id = 0;
             this.form.reports = [];
             this.form.fromYM = '';
@@ -261,11 +269,20 @@
                 this.available_reports = [ ...this.all_reports];
                 return;
             }
+            if (prov_list.length > 1) {
+                this.single_prov = {'releases': []};
+                this.form.release = "";
+            }
             // Update available reports when providers changes
             this.available_reports = [];
             prov_list.forEach(pid => {
                 let cur_prov = this.providers.find(p => p.id == pid);
                 if (typeof(cur_prov) == 'undefined') return;
+                if (prov_list.length == 1) {
+                    this.single_prov = { ...cur_prov };
+                    this.form.release = (cur_prov.releases.length > 1) ? cur_prov.releases.sort().reverse()[0]
+                                                                       : cur_prov.releases[0];
+                }
                 // cur_prov has no reports or we've already got all 4 turned on, skip the rest
                 if (typeof(cur_prov.reports) == 'undefined') return;
                 if (this.available_reports.length == 4) return;
