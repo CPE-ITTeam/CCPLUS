@@ -308,8 +308,10 @@
             this.dialog_success = '';
             this.dialog_title = "Edit Platform Settings";
             this.cur_provider = this.mutable_providers.find(p => p.id == gp_id);
-            let registry = this.cur_provider.registries.find(r => r.release == this.cur_provider.release);
-            this.cur_provider.releases = this.cur_provider.registries.map(r => r.release);
+            if (this.cur_provider.registries.length>0) {
+                var registry = this.cur_provider.registries.find(r => r.release == this.cur_provider.release);
+            }
+            this.cur_provider.releases = (typeof(registry) != 'undefined') ? this.cur_provider.registries.map(r => r.release) : [];
             this.form.service_url = (typeof(registry) != 'undefined') ? registry.service_url : "";
             this.form.notifications_url = (typeof(registry) != 'undefined') ? registry.notifications_url : "";
             this.current_connector_state = (typeof(registry) != 'undefined') ? Object.assign({},registry.connector_state) : {};
