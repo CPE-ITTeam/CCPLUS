@@ -21,7 +21,7 @@
         <tr><td>Name</td><td>{{ mutable_prov.name }}</td></tr>
         <tr><td>Status</td><td>{{ status }}</td></tr>
 	      <tr><td>Serves</td><td>{{ inst_name }}</td></tr>
-	      <tr><td>COUNTER service URL</td><td>{{ mutable_prov.server_url_r5 }}</td></tr>
+	      <tr><td>COUNTER service URL</td><td>{{ mutable_prov.service_url }}</td></tr>
         <tr>
 	        <td>Required Connection Fields</td>
 	        <td>
