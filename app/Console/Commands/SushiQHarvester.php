@@ -128,7 +128,8 @@ class SushiQHarvester extends Command
                 }
 
                 // Add harvest and sushiSetting relations to the jobs collection
-                $jobs->load('harvest','harvest.sushiSetting','harvest.sushiSetting.provider');
+                $jobs->load('harvest','harvest.sushiSetting','harvest.sushiSetting.provider',
+                            'harvest.sushiSetting.provider.registries');
                 foreach ($jobs as $job) {
                    // If the job points to a job with a wrong status (could have changed since creation), or the
                    // the harvest record is AWOL, skip and delete the job record
@@ -187,7 +188,7 @@ class SushiQHarvester extends Command
                         }
                     }
 
-                   // Remove job and get next one
+                   // If something above set keepJob false, remove job and get next one
                     if (!$keepJob) {
                         $job->delete();
                         continue;
@@ -245,11 +246,8 @@ class SushiQHarvester extends Command
                     $_name = $job->harvest_id . '_' . $report->name . '_' . $begin . '_' . $end . '.json';
                     $sushi->raw_datafile = $unprocessed_path . $_name;
 
-                   // setup array of required connectors for buildUri
-                    $connectors = $this->connection_fields->whereIn('id',$setting->provider->connectors)
-                                                          ->pluck('name')->toArray();
                    // Construct URI for the request
-                    $request_uri = $sushi->buildUri($setting, $connectors, 'reports', $report);
+                    $request_uri = $sushi->buildUri($setting, 'reports', $report, $job->harvest->release);
 
                    // Make the request
                     $request_status = $sushi->request($request_uri);

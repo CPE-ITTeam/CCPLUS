@@ -9,6 +9,7 @@ use DB;
 use App\Report;
 use App\GlobalProvider;
 use App\ConnectionField;
+use App\CounterRegistry;
 
 class GlobalProviderUpdate extends Command
 {
@@ -53,9 +54,6 @@ class GlobalProviderUpdate extends Command
     {
         global $client, $options;
 
-        // Set global_db for connecting to the ccplus global tables
-        $global_db   = \Config::get('database.connections.globaldb.database');
-
         // Get Platform section from the API root
         $json = self::requestURI("https://registry.projectcounter.org/api/v1/platform/?format=json");
         if ( !is_array($json)) {
@@ -92,37 +90,27 @@ class GlobalProviderUpdate extends Command
             // Get reports available
             $reportIds = $master_reports->whereIn('name',array_column($platform->reports,'report_id'))->pluck('id')->toArray();
 
-            // Pull the Sushi Services page from the API
-            $services = "";
+            // Pull the Services for the platform from the API
+            $service_details = array();
             foreach ($platform->sushi_services as $svc) {
-                if ($services != "") continue;
-                $services = $svc->url;
-            }
-            if (is_null($services) || $services == "") {
-                $this->error("Cannot find sushi details URL for: " . $platform->name . " .. skipping ..");
-                continue;
-            }
-
-            // request the sushi details
-            $connectors = array();
-            $server_url_r5 = null;
-            $notifications_url = null;
-            $details = self::requestURI($services);
-            if (!is_object($details)) {
-                $this->error("Error getting sushi details for: " . $platform->name . " .. skipping ..");
-                continue;
-            }
-
-            // Get connection fields (for now, assumes customer_id is always required)
-            $server_url_r5 = $details->url;
-            $notifications_url = $details->notifications_url;
-            foreach ($api_connectors as $key => $cnx) {
-                if ($key == 'customer_id_info' || $details->{$key}) {
-                    $connectors[] = $cnx['id'];
+                $cr = $svc->counter_release;
+                if (strlen($cr) > 0 && strlen($svc->url) > 0) {
+                    $details = self::requestURI($svc->url);
+                    if (is_object($details)) {
+                        if (isset($details->url)) {
+                            if (strlen(trim($details->url)) > 0) {
+                                $service_details[$cr] = $details;
+                            }
+                        }
+                    }
                 }
             }
+            if (count($service_details) == 0) {
+                $this->error("Cannot find sushi service details and URL for: " . $platform->name . " .. skipping ..");
+                continue;
+            }
 
-            // Create or ppdate existing record in global_providers table
+            // Create or get GlobalProvider with a matching registry_id
             $global_provider = GlobalProvider::where('registry_id',$platform->id)->orWhere('name',$platform->name)->first();
             if ($global_provider) {
                 if (!$global_provider->refreshable) {
@@ -139,10 +127,32 @@ class GlobalProviderUpdate extends Command
             $global_provider->content_provider = $platform->content_provider_name;
             $global_provider->abbrev = $platform->abbrev;
             $global_provider->master_reports = $reportIds;
-            $global_provider->connectors = $connectors;
-            $global_provider->server_url_r5 = $server_url_r5;
-            $global_provider->notifications_url = $notifications_url;
             $global_provider->save();
+            $global_provider->load('registries');
+
+            // Update or create CC+ counter_registries records for each release defined in service details
+            foreach ( $service_details as $release => $details ) {
+                $registry = $global_provider->registries->where('release',$release)->first();
+                // create a new entry if it doesn't exist
+                if (!$registry) {
+                    $registry = new CounterRegistry;
+                    $registry->global_id = $global_provider->id;
+                    $registry->release = $release;
+                }
+                $registry->service_url = $details->url;
+                $registry->notifications_url = $details->notifications_url;
+
+                // Get connection fields (for now, assumes customer_id is always required)
+                $connectors = array();
+                foreach ($api_connectors as $key => $cnx) {
+                    if ($key == 'customer_id_info' || $details->{$key}) {
+                        $connectors[] = $cnx['id'];
+                    }
+                }
+                $registry->connectors = $connectors;
+                $registry->save();
+            }
+
             $updated_ids[] = $global_provider->id;
         }
 

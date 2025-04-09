@@ -170,34 +170,39 @@ class Sushi extends Model
     * Build and return a COUNTER API request URI based on a setting and report
     *
     * @param SushiSetting $setting
-    * @param Array $connectors
     * @param String $method
     * @param Report $report
+    * @param String $release
     * @return string $request_uri
     */
-    public function buildUri($setting, $connectors, $method = "reports", $report)
+    public function buildUri($setting, $method = "reports", $report, $release="")
     {
-        $release = (preg_match("/r51/",$setting->provider->server_url_r5)) ? "5.1" : "5";
-
-       // Begin setting up the URI by cleaning/standardizing the server_url_r5 string in the setting
-        $_url = rtrim($setting->provider->server_url_r5);    // remove trailing whitespace
+       // Set URL based on release from the provider registr(ies); default to max if not found or release not set
+        $registry = $setting->provider->registries->where('release',$release)->first();
+        $service_url = ($registry) ? $registry->service_url : $setting->provider->service_url();
+       // Begin setting up the URI by cleaning/standardizing the service_url string in the setting
+        $_url = rtrim($service_url);                          // remove trailing whitespace
         $_url = preg_replace('/\/reports\/?$/i', '', $_url);  // take off any methods with any leading slashes
-        $_url = preg_replace('/\/status\/?$/i', '', $_url);  //   "   "   "     "      "   "     "        "
-        $_url = preg_replace('/\/members\/?$/i', '', $_url); //   "   "   "     "      "   "     "        "
-        $_uri = rtrim($_url, '/');                           // remove any remaining trailing slashes
+        $_url = preg_replace('/\/status\/?$/i', '', $_url);   //   "   "   "     "      "   "     "        "
+        $_url = preg_replace('/\/members\/?$/i', '', $_url);  //   "   "   "     "      "   "     "        "
+        $_uri = rtrim($_url, '/');                            // remove any remaining trailing slashes
         $request_uri = $_uri . '/' . $method;
 
        // Construct and execute the Request
         $uri_auth = "";
+        $connectors = $setting->provider->connectionFields();
         foreach ($connectors as $cnx) {
-            $argv = ($uri_auth == "") ? "?" : "&";
-            if ($cnx == 'extra_args') {
-                // Tack on extra_args intact from the setting
-                $argv .= $setting->{$cnx};
-            } else {
-                $argv .= $cnx . "=" . urlencode( $setting->{$cnx} );
+            if ($cnx['required']) {
+                $name = $cnx['name'];
+                $argv = ($uri_auth == "") ? "?" : "&";
+                if ($name == 'extra_args') {
+                    // Tack on extra_args intact from the setting
+                    $argv .= $setting->extra_args;
+                } else {
+                    $argv .= $name . "=" . urlencode( $setting->{$name} );
+                }
+                $uri_auth .= $argv;
             }
-            $uri_auth .= $argv;
         }
 
         // If a platform value is set, add it
@@ -213,13 +218,12 @@ class Sushi extends Model
        // Setup date range and attributes for the request
         $uri_dates = "&begin_date=" . self::$begin . "&end_date=" . self::$end;
         if ($report->name == "TR") {
-            $uri_atts  = "&attributes_to_show=Access_Method%7CAccess_Type%7CYOP";
-            $uri_atts .= ($release == "5") ? "%7CData_Type%7CSection_Type" : "";
+            $uri_atts  = "&attributes_to_show=Data_Type%7CAccess_Method%7CAccess_Type%7C";
+            $uri_atts .= "Section_Type%7CYOP";
         } elseif ($report->name == "DR") {
             $uri_atts = "";
         } elseif ($report->name == "PR") {
-            $uri_atts  = "&attributes_to_show=Access_Method";
-            $uri_atts .= ($release == "5") ? "%7CData_Type" : "";
+            $uri_atts = "&attributes_to_show=Data_Type%7CAccess_Method";
         } elseif ($report->name == "IR") {
             $uri_atts = "";
         }

@@ -142,9 +142,6 @@ class SushiBatch extends Command
                 continue;
             }
 
-           // setup array of required connectors for buildUri
-            $connectors = $all_connection_fields->whereIn('id',$setting->provider->connectors)->pluck('name')->toArray();
-
            // Create a new processor object
             $C5processor = new Counter5Processor($setting->prov_id, $setting->inst_id, $begin, $end, $replace);
 
@@ -174,7 +171,10 @@ class SushiBatch extends Command
                 if (count($prov_report_ids) == 0) continue;
                 $reports = $master_reports->whereIn('id',$prov_report_ids)->whereIn('name',$requested_reports);
 
-               // Loop through all the reports
+                $registry = $provider->globalProv->default_registry();
+                $release = $registry->release;
+
+                // Loop through all the reports
                 foreach ($reports as $report) {
 
                     // if the provider is inst-assigned, and the conso-copy is already getting it, skip it
@@ -184,7 +184,7 @@ class SushiBatch extends Command
 
                    // Create a new Sushi object
                     $sushi = new Sushi($begin, $end);
-                    $request_uri = $sushi->buildUri($setting, $connectors, 'reports', $report);
+                    $request_uri = $sushi->buildUri($setting, 'reports', $report, $release);
 
                    // Set output filename for raw data. Create the folder path, if necessary
                     if (!is_null(config('ccplus.reports_path'))) {
@@ -201,7 +201,7 @@ class SushiBatch extends Command
                     try {
                         $harvest = HarvestLog::create(['status' => 'Active', 'sushisettings_id' => $setting->id,
                                            'report_id' => $report->id, 'yearmon' => $yearmon, 'source' => $source,
-                                           'attempts' => 0]);
+                                           'attempts' => 0, 'release' => $release]);
                     } catch (QueryException $e) {
                         $errorCode = $e->errorInfo[1];
                         if ($errorCode == '1062') {
