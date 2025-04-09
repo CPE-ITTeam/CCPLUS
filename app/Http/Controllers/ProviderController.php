@@ -60,7 +60,7 @@ class ProviderController extends Controller
             $rec->inst_id = null;
             $rec->inst_name = null;
             $rec->active = ($rec->is_active) ? 'Active' : 'Inactive';
-            $parsedUrl = parse_url($rec->server_url_r5);
+            $parsedUrl = parse_url($rec->service_url());
             $rec->host_domain = (isset($parsedUrl['host'])) ? $parsedUrl['host'] : "-missing-";
             $rec->can_delete = false;
             $rec->connected = array();
@@ -425,7 +425,7 @@ class ProviderController extends Controller
         $return_provider->last_harvest = $global->sushiSettings->max('last_harvest');
         $return_provider->can_delete = (is_null($provider->last_harvest)) ? true : false;
         $return_provider->allow_inst_specific = $provider->allow_inst_specific;
-        $parsedUrl = parse_url($global->server_url_r5);
+        $parsedUrl = parse_url($global->service_url());
         $return_provider->host_domain = (isset($parsedUrl['host'])) ? $parsedUrl['host'] : "-missing-";          
 
         // Set master reports to the globally available reports

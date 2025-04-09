@@ -130,7 +130,7 @@ class HarvestLogController extends Controller
                                           ->where('id',$user_inst)->get(['id','name'])->toArray();
                $conso = $institutions[0]['name'];
            }
-           $provider_data = GlobalProvider::with('sushiSettings','consoProviders','consoProviders.reports')
+           $provider_data = GlobalProvider::with('sushiSettings','consoProviders','consoProviders.reports','registries')
                                           ->whereIn('id', $possible_providers)->orderBy('name', 'ASC')->get(['id','name']);
 
                                           // Add in a flag for whether or not the provider has enabled sushi settings
@@ -143,6 +143,7 @@ class HarvestLogController extends Controller
               $rec['sushi_enabled'] = ($enabled_setting) ? true : false;
               $_reports = $gp->enabledReports();
               $rec['reports'] = $_reports;
+              $rec['releases'] = $gp->registries->pluck('release');
               $providers[] = $rec;
            }
 
@@ -275,12 +276,11 @@ class HarvestLogController extends Controller
                    $truncated = true;
                    break;
                }
-$formatted_harvest['release'] = (preg_match('/r51/',$harvest->sushiSetting->provider->server_url_r5)) ? "5.1" : "";
                $harvests[] = $formatted_harvest;
                if (!in_array(substr($harvest->updated_at,0,7), $updated_ym)) {
                    $updated_ym[] = substr($harvest->updated_at,0,7);
                }
-           }
+            }
 
            // sort updated_ym options descending
            usort($updated_ym, function ($time1, $time2) {
@@ -346,8 +346,12 @@ $formatted_harvest['release'] = (preg_match('/r51/',$harvest->sushiSetting->prov
        }
 
        // Setup providers aray for U/I
-       $providers = GlobalProvider::whereIn('id', $possible_providers)->where('is_active', true)
-                                  ->orderBy('name', 'ASC')->get(['id','name'])->toArray();
+       $provider_data = GlobalProvider::with('registries')->whereIn('id', $possible_providers)->where('is_active', true)
+                                      ->orderBy('name', 'ASC')->get(['id','name']);
+       $providers = $provider_data->map( function ($rec) {
+           $rec->releases = $rec->registries->pluck('release');
+           return $rec;
+       })->toArray();
 
        // Get all the master reports
        $all_reports = Report::where('revision',5)->where('parent_id',0)->orderBy('dorder','ASC')->get(['id','name'])->toArray();
@@ -374,6 +378,7 @@ $formatted_harvest['release'] = (preg_match('/r51/',$harvest->sushiSetting->prov
        if (sizeof($input["inst"]) == 0 && $input["inst_group_id"] <= 0) {
            return response()->json(['result' => false, 'msg' => 'Error: Institution/Group invalid in request']);
        }
+       $input_release = (isset($input["release"])) ? $input["release"] : "";
        $user_inst =$thisUser->inst_id;
        $is_admin =$thisUser->hasRole('Admin');
 
@@ -433,7 +438,7 @@ $formatted_harvest['release'] = (preg_match('/r51/',$harvest->sushiSetting->prov
            }
        }
        $global_providers = GlobalProvider::with('sushiSettings','sushiSettings.institution:id,is_active','consoProviders',
-                                                'consoProviders.reports')
+                                                'consoProviders.reports','registries')
                                          ->where('is_active',true)->whereIn('id',$global_ids)->get();
 
        // Set the status for the harvests we're creating based on "when"
@@ -461,6 +466,12 @@ $formatted_harvest['release'] = (preg_match('/r51/',$harvest->sushiSetting->prov
            // Loop for all global providers
            foreach ($global_providers as $global_provider) {
 
+               // Set the COUNTER release to be harvested 
+               $registry = $global_provider->registries->where('release',$input_release)->first();
+               if (!$registry) {
+                  $registry = $global_provider->default_registry();
+               }
+               $release = ($registry) ? $registry->release : "";
                // Set an array with the report_ids enabled consortium-wide
                $consoProv = $global_provider->consoProviders->where('inst_id',1)->first();
                $conso_reports = ($consoProv) ? $consoProv->reports->pluck('id')->toArray() : [];
@@ -509,6 +520,7 @@ $formatted_harvest['release'] = (preg_match('/r51/',$harvest->sushiSetting->prov
                              continue;
                            }
                            // We're not skipping... reset the harvest
+                           $harvest->release = $release;
                            $harvest->attempts = 0;
                            $harvest->status = $state;
                            $harvest->save();
@@ -516,9 +528,9 @@ $formatted_harvest['release'] = (preg_match('/r51/',$harvest->sushiSetting->prov
                        // Insert new HarvestLog record
                        } else {
                            $harvest = HarvestLog::create(['status' => $state, 'sushisettings_id' => $setting->id,
-                                                          'report_id' => $report->id, 'yearmon' => $yearmon,
-                                                          'source' => $report->source, 'attempts' => 0]);
-                           $created_ids[] = $harvest->id;
+                                                'release' => $release, 'report_id' => $report->id, 'yearmon' => $yearmon,
+                                                'source' => $report->source, 'attempts' => 0]);
+                            $created_ids[] = $harvest->id;
                        }
 
                        // If user wants it added now create the queue entry - set replace_data to overwrite
@@ -1093,9 +1105,9 @@ $formatted_harvest['release'] = (preg_match('/r51/',$harvest->sushiSetting->prov
           $end = $rec->yearmon . '-' . date('t', strtotime($beg));
           $sushi = new Sushi($beg, $end);
           // setup required connectors for buildUri
-          $prov_connectors = $rec->sushiSetting->provider->connectors;
+          $prov_connectors = $rec->sushiSetting->provider->connectors();
           $connectors = $this->connection_fields->whereIn('id',$prov_connectors)->pluck('name')->toArray();
-          $rec->retryUrl = $sushi->buildUri($rec->sushiSetting, $connectors, 'reports', $rec->report);
+          $rec->retryUrl = $sushi->buildUri($rec->sushiSetting, 'reports', $rec->report, $rec->release);
           // add record to the outbound array
           $harvests[] = $rec->toArray();
 
@@ -1173,11 +1185,14 @@ $formatted_harvest['release'] = (preg_match('/r51/',$harvest->sushiSetting->prov
                     'inst_name' => $harvest->sushiSetting->institution->name,
                     'prov_name' => $harvest->sushiSetting->provider->name,
                     'prov_inst_id' => $harvest->sushiSetting->provider->inst_id,
+                    'release' => $harvest->release,
                     'report_name' => $harvest->report->name,
                     'status' => $harvest->status, 'rawfile' => $harvest->rawfile,
                     'error_id' => 0, 'error' => []
                    );
        $rec['updated'] = ($harvest->updated_at) ? date("Y-m-d H:i", strtotime($harvest->updated_at)) : " ";
+       $rec['release'] = (is_null($harvest->release)) ? "" : $harvest->release;
+
        $lastFailed = null;
        if ($harvest->failedHarvests) {
            $lastFailed = $harvest->failedHarvests->sortByDesc('created_at')->first();
@@ -1203,9 +1218,9 @@ $formatted_harvest['release'] = (preg_match('/r51/',$harvest->sushiSetting->prov
        $sushi = new Sushi($beg, $end);
  
        // setup required connectors for buildUri
-       $prov_connectors = $harvest->sushiSetting->provider->connectors;
+       $prov_connectors = $harvest->sushiSetting->provider->connectors();
        $connectors = $this->connection_fields->whereIn('id',$prov_connectors)->pluck('name')->toArray();
-       $rec['retryUrl'] = $sushi->buildUri($harvest->sushiSetting, $connectors, 'reports', $harvest->report);
+       $rec['retryUrl'] = $sushi->buildUri($harvest->sushiSetting, 'reports', $harvest->report, $harvest->release);
        return $rec;
    }
 

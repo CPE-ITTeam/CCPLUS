@@ -110,12 +110,18 @@ class SushiSettingController extends Controller
             if ( count($filters['prov']) > 0 ) {
                 $providerIds = array_unique(array_merge($providerIds,$filters['prov']));
             }
+            $required_cnx_ids = array();
+            $global_providers = GlobalProvider::with('registries')->whereIn('id',$providerIds)->get();
+            foreach ($global_providers as $prov) {
+                $required_cnx_ids = array_unique(array_merge($required_cnx_ids, $prov->connectors()));
+                if (count($required_cnx_ids) == count($global_connectors)) {
+                    break;
+                }
+            }
             $all_connectors = array();
-            $required_connectors = array();
             foreach ($global_connectors as $gc) {
                 $cnx = $gc->toArray();
-                $required = GlobalProvider::whereIn('id',$providerIds)->whereJsonContains('connectors',$gc->id)->first();
-                $cnx['required'] = ($required) ? true : false;
+                $cnx['required'] = (in_array($gc->id,$required_cnx_ids)) ? true : false;
                 $all_connectors[] = $cnx;
             }
 
@@ -125,8 +131,9 @@ class SushiSettingController extends Controller
                 $setting = $rec->toArray();
                 $setting['can_edit'] = $rec->canManage();
                 $setting['provider']['connectors'] = array();
+                $setting['provider']['service_url'] = $rec->provider->service_url();
                 if (!$rec->provider) continue;
-                $required = $rec->provider->connectors;
+                $required = $rec->provider->connectors();
                 foreach ($global_connectors as $gc) {
                     $cnx = $gc->toArray();
                     $cnx['required'] = in_array($gc->id, $required);
@@ -147,6 +154,7 @@ class SushiSettingController extends Controller
             $providers = $provider_data->map( function ($rec) {
                 $rec->connectors = $rec->connectionFields();
                 $rec->connections = $rec->sushiSettings->count();
+                $rec->service_url = $rec->service_url();
                 return $rec;
             });
             // Get InstitutionGroups
@@ -172,7 +180,8 @@ class SushiSettingController extends Controller
         abort_unless($setting->institution->canManage(), 403);
 
         // Map in the connector details
-        $setting->provider->connectors = ConnectionField::whereIn('id',$setting->provider->connectors)->get();
+        $registry = $setting->provider->default_registry();
+        $setting->provider->connectors = ConnectionField::whereIn('id',$registry->connectors)->get();
 
         // Set next_harvest date
         if (!$setting->provider->is_active || !$setting->institution->is_active || $setting->status != 'Enabled') {
@@ -224,7 +233,7 @@ class SushiSettingController extends Controller
         $settings = ($data) ? $data->toArray() : array('count' => 0);
 
        // Return settings and url as json
-        $return = array('settings' => $settings, 'url' => $provider->server_url_r5);
+        $return = array('settings' => $settings, 'url' => $provider->service_url());
         return response()->json($return);
     }
 
@@ -282,7 +291,8 @@ class SushiSettingController extends Controller
         $fields = array_except($input,array('report_state'));
         $setting = SushiSetting::firstOrCreate($fields);
         $setting->load('institution', 'provider');
-        $setting->provider->connectors = ConnectionField::whereIn('id',$setting->provider->connectors)->get();
+        $registry = $setting->provider->default_registry();
+        $setting->provider->connectors = ConnectionField::whereIn('id',$registry->connectors)->get();
         // Set string for next_harvest
         if (!$setting->provider->is_active || !$setting->institution->is_active || $setting->status != 'Enabled') {
             $setting['next_harvest'] = null;
@@ -334,7 +344,8 @@ class SushiSettingController extends Controller
         }
 
         // Get required connectors
-        $connectors = ConnectionField::whereIn('id',$setting->provider->connectors)->get();
+        $registry = $setting->provider->default_registry();
+        $connectors = ConnectionField::whereIn('id',$registry->connectors)->get();
 
         // Check/update connection fields; any null/blank required connectors get updated
         foreach ($connectors as $cnx) {
@@ -379,8 +390,8 @@ class SushiSettingController extends Controller
             'headers' => ['User-Agent' => "Mozilla/5.0 (CC-Plus custom) Firefox/80.0"]
         ];
 
-       // Begin setting up the URI by cleaning/standardizing the server_url_r5 string in the setting
-        $_url = rtrim($provider->server_url_r5);    // remove trailing whitespace
+       // Begin setting up the URI by cleaning/standardizing the service_url string in the setting
+        $_url = rtrim($provider->service_url());    // remove trailing whitespace
         $_url = preg_replace('/\/reports\/?$/i', '', $_url);  // take off any methods with any leading slashes
         $_url = preg_replace('/\/status\/?$/i', '', $_url);  //   "   "   "     "      "   "     "        "
         $_url = preg_replace('/\/members\/?$/i', '', $_url); //   "   "   "     "      "   "     "        "

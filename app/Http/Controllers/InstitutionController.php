@@ -258,6 +258,7 @@ class InstitutionController extends Controller
         foreach ($global_providers as $rec) {
             $rec->global_prov = $rec->toArray();
             $rec->connectors = $rec->connectionFields();
+            $rec->service_url = $rec->service_url(); 
 
             // Setup connected institution data
             $connected_providers = $inst_providers->where('global_id',$rec->id);
@@ -285,7 +286,7 @@ class InstitutionController extends Controller
             $rec->is_active = ($inst_connection) ? $inst_connection->is_active : $rec->is_active;
             $rec->active = ($rec->is_active) ? 'Active' : 'Inactive';
             $rec->last_harvest = null;
-            $parsedUrl = parse_url($rec->server_url_r5);
+            $parsedUrl = parse_url($rec->service_url());
             $rec->host_domain = (isset($parsedUrl['host'])) ? $parsedUrl['host'] : "-missing-";          
 
             // Setup flags to control per-report icons in the U/I

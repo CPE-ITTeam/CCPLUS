@@ -44,7 +44,7 @@ class GlobalAdminController extends Controller
         $settings = GlobalSetting::whereNotIn('name',$skip_vars)->get()->toArray();
 
         // Get global providers and preserve the current instance database setting
-        $gp_data = GlobalProvider::orderBy('name', 'ASC')->get();
+        $gp_data = GlobalProvider::with('registries')->orderBy('name', 'ASC')->get();
 
         // Build the providers array to pass onto the view
         $providers = array();
@@ -52,14 +52,23 @@ class GlobalAdminController extends Controller
             $provider = $gp->toArray();
             $provider['status'] = ($gp->is_active) ? "Active" : "Inactive";
 
+            // Set release-related fields
+            $provider['registries'] = array();
+            foreach ($gp->registries as $registry) {
+                $reg = $registry->toArray();
+                $reg['connector_state'] = $this->connectorState($registry->connectors);
+                $provider['registries'][] = $reg;
+            }
+            $provider['release'] = $gp->default_release();
+            $provider['service_url'] = $gp->service_url();
+
             // Build arrays of booleans for connecion fields and reports for the U/I chackboxes
-            $provider['connector_state'] = $this->connectorState($gp->connectors);
             $provider['report_state'] = $this->reportState($gp->master_reports);
 
             // Set connection field labels in an array for the datatable display
             $provider['connection_fields'] = array();
             foreach ($allConnectors as $fld) {
-                if ( in_array($fld->id, $gp->connectors) ) {
+                if ( in_array($fld->id, $gp->connectors()) ) {
                     $provider['connection_fields'][] = $fld->label;
                 }
             }
@@ -81,10 +90,9 @@ class GlobalAdminController extends Controller
                     $provider['connection_count'] += 1;
                 }
             }
-            $parsedUrl = parse_url($gp->server_url_r5);
+            $parsedUrl = parse_url($provider['service_url']);
             $provider['host_domain'] = (isset($parsedUrl['host'])) ? $parsedUrl['host'] : "-missing-";
             $provider['connections'] = $connections;
-            $provider['release'] = (preg_match('/r51/',$gp->server_url_r5)) ? "5.1" : "";
             $provider['updated'] = (is_null($gp->updated_at)) ? "" : date("Y-m-d H:i", strtotime($gp->updated_at));
             $providers[] = $provider;
         }

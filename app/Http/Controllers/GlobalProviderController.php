@@ -8,6 +8,7 @@ use App\Report;
 use App\Provider;
 use App\SushiSetting;
 use App\ConnectionField;
+use App\CounterRegistry;
 use Illuminate\Http\Request;
 use PhpOffice\PhpSpreadsheet\Spreadsheet;
 use PhpOffice\PhpSpreadsheet\Writer\Xlsx;
@@ -20,8 +21,6 @@ class GlobalProviderController extends Controller
     private $masterReports;
     private $allConnectors;
     private $instanceData;
-    private $client;
-    private $options;
 
     public function __construct()
     {
@@ -110,7 +109,7 @@ class GlobalProviderController extends Controller
                 $provider['registry_id'] = (is_null($gp->registry_id) || $gp->registry_id=="") ? null : $gp->registry_id;
 
                 // Build arrays of booleans for connection fields and reports for the U/I chackboxes
-                $provider['connector_state'] = $this->connectorState($gp->connectors);
+                $provider['connector_state'] = $this->connectorState($gp->connectors());
                 $provider['report_state'] = $this->reportState($gp->master_reports);
 
                 // Walk all instances scan for harvests connected to this provider
@@ -130,10 +129,11 @@ class GlobalProviderController extends Controller
                         $provider['connection_count'] += 1;
                     }
                 }
-                $parsedUrl = parse_url($gp->server_url_r5);
+                $parsedUrl = parse_url($gp->service_url());
+                $provider['service_url'] = $gp->service_url();
                 $provider['host_domain'] = (isset($parsedUrl['host'])) ? $parsedUrl['host'] : "-missing-";    
                 $provider['connections'] = $connections;
-                $provider['release'] = (preg_match('/r51/',$gp->server_url_r5)) ? "5.1" : "";
+                $provider['release'] = (preg_match('/r51/',$gp->service_url())) ? "5.1" : "";
                 $provider['updated'] = (is_null($gp->updated_at)) ? "" : date("Y-m-d H:i", strtotime($gp->updated_at));
                 $providers[] = $provider;
             }
@@ -158,7 +158,8 @@ class GlobalProviderController extends Controller
       global $masterReports, $allConnectors;
 
       // Validate form inputs
-      $this->validate($request, [ 'name' => 'required', 'is_active' => 'required', 'server_url_r5' => 'required' ]);
+      $this->validate($request, [ 'name' => 'required', 'is_active' => 'required', 'service_url' => 'required',
+                                  'release' => 'required' ]);
       $input = $request->all();
 
       // Create new global provider
@@ -167,20 +168,8 @@ class GlobalProviderController extends Controller
       $provider->is_active = $input['is_active'];
       $provider->refreshable = $input['refreshable'];
       $provider->refresh_result = null;
-      $provider->server_url_r5 = $input['server_url_r5'];
       $provider->day_of_month = (isset($input['day_of_month'])) ? $input['day_of_month'] : 15;
       $provider->platform_parm = $input['platform_parm'];
-
-      // Turn array of connection checkboxes into an array of IDs
-      $connectors = array();
-      $this->getConnectionFields();
-      foreach ($allConnectors as $cnx) {
-          if (!isset($input['connector_state'][$cnx->name])) continue;
-          if ($input['connector_state'][$cnx->name]) {
-              $connectors[] = $cnx->id;
-          }
-      }
-      $provider->connectors = $connectors;
 
       // Turn array of report checkboxes into an array of IDs
       $master_reports = array();
@@ -196,13 +185,32 @@ class GlobalProviderController extends Controller
       $provider->master_reports = $master_reports;
       $provider->save();
 
+      // Create a CounterRegistry record
+      $registry = new CounterRegistry;
+      $registry->global_id = $provider->id;
+      $registry->service_url = $input['service_url'];
+      $registry->release = $input['release'];
+
+      // Turn array of connection checkboxes into an array of IDs
+      $connectors = array();
+      $this->getConnectionFields();
+      foreach ($allConnectors as $cnx) {
+          if (!isset($input['connector_state'][$cnx->name])) continue;
+          if ($input['connector_state'][$cnx->name]) {
+              $connectors[] = $cnx->id;
+          }
+      }
+      $registry->connectors = $connectors;
+      $registry->save();
+
       // Build return object to match what index() shows
       $provider['can_delete'] = true;
       $provider['connection_count'] = 0;
       $provider['status'] = ($provider->is_active) ? "Active" : "Inactive";
       $provider['connector_state'] = $input['connector_state'];
       $provider['report_state'] = (isset($input['report_state'])) ? $input['report_state'] : array();
-      $parsedUrl = parse_url($provider->server_url_r5);
+      $provider['service_url'] = $provider->service_url();
+      $parsedUrl = parse_url($provider->service_url());
       $provider['host_domain'] = (isset($parsedUrl['host'])) ? $parsedUrl['host'] : "-missing-";    
 
       return response()->json(['result' => true, 'msg' => 'Platform successfully created',
@@ -220,7 +228,7 @@ class GlobalProviderController extends Controller
     {
       global $masterReports, $allConnectors;
 
-      $provider = GlobalProvider::findOrFail($id);
+      $provider = GlobalProvider::with('registries')->findOrFail($id);
       $orig_name = $provider->name;
       $orig_isActive = $provider->is_active;
 
@@ -244,7 +252,7 @@ class GlobalProviderController extends Controller
       }
 
       // Pull all connection fields and master reports
-      $all_connectors = ConnectionField::get();
+      $this->getConnectionFields();
       $this->getMasterReports();
 
       // Gather IDs of reports that have been removed. We'll detach these from the consortia instance tables.
@@ -267,26 +275,32 @@ class GlobalProviderController extends Controller
       if (isset($input['name'])) {
           $provider->name = $input_name;
       }
-      $provider->server_url_r5 = (isset($input['server_url_r5'])) ? $input['server_url_r5'] : null;
-      $provider->day_of_month = (isset($input['day_of_month'])) ? $input['day_of_month'] : 15;
 
-      // Turn array of connection checkboxes into an array of IDs
-      $new_connectors = array();
+     // Get the registry record and set service_url
+      $release = (isset($input['release'])) ? $input['release'] : "";
+      $registry = $provider->registries->where('release',$release)->first();
       $connectors_changed = false;
-      if (array_key_exists('connector_state', $input)) {
-          $extraArgs = false;
-          foreach ($all_connectors as $cnx) {
-              if (!isset($input['connector_state'][$cnx->name])) continue;
-              if ($input['connector_state'][$cnx->name]) {
-                  if ($cnx->name == 'extra_args') $extraArgs = true;
-                  $new_connectors[] = $cnx->id;
+      if ($registry) {
+          $registry->service_url = (isset($input['service_url'])) ? $input['service_url'] : null;
+          // Turn array of connection checkboxes into an array of IDs
+          $new_connectors = array();
+          if (array_key_exists('connector_state', $input)) {
+              foreach ($allConnectors as $cnx) {
+                  if (!isset($input['connector_state'][$cnx->name])) continue;
+                  if ($input['connector_state'][$cnx->name]) {
+                      $new_connectors[] = $cnx->id;
+                  }
               }
+              // connectors_changed is true ONLY for the default/max release
+              // (we don't want to updated downstream settings by changing an older release)
+              $connectors_changed = ($provider->default_release() == $registry->release &&
+                                     $registry->connectors != $new_connectors);
+              $registry->connectors = $new_connectors;
           }
-          $connectors_changed = ($provider->connectors != $new_connectors);
-          $provider->connectors = $new_connectors;
+          $registry->save();
       }
-
-      // Handle other text values
+      // Handle other provider values
+      $provider->day_of_month = (isset($input['day_of_month'])) ? $input['day_of_month'] : 15;
       $args = array('platform_parm','content_provider','registry_id');
       foreach ($args as $key) {
           if (array_key_exists($key, $input)) {
@@ -298,28 +312,29 @@ class GlobalProviderController extends Controller
       if (array_key_exists('report_state', $input)) {
           $master_reports = array();
           foreach ($masterReports as $rpt) {
-            if (!isset($input['report_state'][$rpt->name])) continue;
-            if ($input['report_state'][$rpt->name]) {
-                $master_reports[] = $rpt->id;
-            }
+              if (!isset($input['report_state'][$rpt->name])) continue;
+              if ($input['report_state'][$rpt->name]) {
+                  $master_reports[] = $rpt->id;
+              }
           }
           $provider->master_reports = $master_reports;
       }
       $provider->save();
       $provider['status'] = ($provider->is_active) ? "Active" : "Inactive";
-      $provider['connector_state'] = (isset($input['connector_state'])) ? $input['connector_state'] : array();
       $provider['report_state'] = (isset($input['report_state'])) ? $input['report_state'] : array();
-
-      // Set connection field labels in an array for the datatable display
-      $provider['connector_state'] = array();
-      if (isset($input['connector_state'])) {
-          $provider['connector_state'] = $input['connector_state'];
+      // Set connector_state by-release
+      foreach ($provider->registries as $registry) {
+          $registry->connector_state = $this->connectorState($registry->connectors);
       }
+      $provider['release'] = ($release == "") ? $provider->default_release() : $release;
+      $provider['service_url'] = ($registry) ? $registry->service_url : $provider->service_url();
+      // Set connection field labels in an array for the datatable display
       $provider['updated'] = (is_null($provider->updated_at)) ? null : date("Y-m-d H:i", strtotime($provider->updated_at));
 
       // Get connector fields
-      $fields = $all_connectors->whereIn('id',$provider->connectors)->pluck('name')->toArray();
-      $unused_fields = $all_connectors->whereNotIn('id',$provider->connectors)->pluck('name')->toArray();
+      $_connectors = ($registry) ? $registry->connectors : $provider->connectors();
+      $fields = $allConnectors->whereIn('id',$_connectors)->pluck('name')->toArray();
+      $unused_fields = $allConnectors->whereNotIn('id',$_connectors)->pluck('name')->toArray();
 
       // If changes implicate consortia-provider settings, Loop through all consortia instances
       if ($input_name != $orig_name || $isActive!=$orig_isActive || count($dropped_reports)>0 || $connectors_changed) {
@@ -352,45 +367,46 @@ class GlobalProviderController extends Controller
                   $con_prov->reports()->detach($rpt_id);
               }
 
-              // Get all (.not.disabled) sushi settings for this global from the current conso instances
-              $settings = SushiSetting::with('institution')->where('prov_id',$id)->where('status','<>','Disabled');
-
-              // Check, and possibly update, status for related sushi settings (skip disabled settings)
-              foreach ($settings as $setting) {
-                  // If required connectors all have values, check to see if sushi setting status needs updating
-                  $setting_updates = array();
-                  if ($setting->isComplete()) {
-                      // Setting is Enabled, provider going inactive, suspend it
-                      if ($setting->status == 'Enabled' && $was_active && !$con_prov->is_active ) {
-                          $setting_updates['status'] = 'Suspended';
-                      }
-                      // Setting is Suspended, provider going active with active institution, enable it
-                      if ($setting->status == 'Suspended' && !$was_active && $con_prov->is_active &&
-                          $setting->institution->is_active) {
-                          $setting_updates['status'] = 'Enabled';
-                      }
-                      // Setting status is Incomplete, provider is active and institution is active, enable it
-                      if ($setting->status == 'Incomplete') {
-                          $setting_updates['status'] = ($con_prov->is_active && $setting->institution->is_active) ?
-                                                        'Enabled' : 'Suspended';
-                      }
-                      // Setting is Complete; clear '-required--' labels on unused fields
-                      foreach ($unused_fields as $uf) {
-                          if ($setting->$uf == '-required-') {
-                              $setting_updates[$uf]= '';
+              if ($connectors_changed || $isActive != $orig_isActive) {
+                  // Get all (.not.disabled) sushi settings for this global from the current conso instances
+                  $settings = SushiSetting::with('institution')->where('prov_id',$id)->where('status','<>','Disabled')->get();
+                  // Check, and possibly update, status for related sushi settings (skip disabled settings)
+                  foreach ($settings as $setting) {
+                      // If required connectors all have values, check to see if sushi setting status needs updating
+                      $setting_updates = array();
+                      if ($setting->isComplete()) {
+                          // Setting is Enabled, provider going inactive, suspend it
+                          if ($setting->status == 'Enabled' && $was_active && !$con_prov->is_active ) {
+                              $setting_updates['status'] = 'Suspended';
+                          }
+                          // Setting is Suspended, provider going active with active institution, enable it
+                          if ($setting->status == 'Suspended' && !$was_active && $con_prov->is_active &&
+                              $setting->institution->is_active) {
+                              $setting_updates['status'] = 'Enabled';
+                          }
+                          // Setting status is Incomplete, provider is active and institution is active, enable it
+                          if ($setting->status == 'Incomplete') {
+                              $setting_updates['status'] = ($con_prov->is_active && $setting->institution->is_active) ?
+                                                              'Enabled' : 'Suspended';
+                          }
+                          // Setting is Complete; clear '-required--' labels on unused fields
+                          foreach ($unused_fields as $uf) {
+                              if ($setting->$uf == '-required-') {
+                                  $setting_updates[$uf]= '';
+                              }
+                          }
+                      // If required conenctors are missing value(s), mark them and update setting status tp Incomplete
+                      } else {
+                          $setting_updates['status'] = 'Incomplete';
+                          foreach ($fields as $fld) {
+                              if ($setting->$fld == null || $setting->$fld == '') {
+                                  $setting_updates[$fld] = "-required-";
+                              }
                           }
                       }
-                  // If required conenctors are missing value(s), mark them and update setting status tp Incomplete
-                  } else {
-                      $setting_updates['status'] = 'Incomplete';
-                      foreach ($fields as $fld) {
-                          if ($setting->$fld == null || $setting->$fld == '') {
-                              $setting_updates[$fld] = "-required-";
-                          }
+                      if (count($setting_updates) > 0) {
+                          $setting->update($setting_updates);
                       }
-                  }
-                  if (count($setting_updates) > 0) {
-                      $setting->update($setting_updates);
                   }
               }
           }
@@ -440,292 +456,6 @@ class GlobalProviderController extends Controller
         }
 
         return response()->json(['result' => true, 'msg' => 'Global Platform successfully deleted']);
-    }
-
-    /**
-     * Pull and return a fresh copy of the registry data for a given provider
-     *
-     * @param  \Illuminate\Http\Request  $request
-     * @return \Illuminate\Http\Response
-     */
-    public function registryRefresh(Request $request)
-    {
-        global $masterReports, $allConnectors;
-        global $client, $options;
-
-        // Set Globals
-        $client = new Client();   //GuzzleHttp\Client
-        $options = [
-            'headers' => ['User-Agent' => "Mozilla/5.0 (CC-Plus custom) Firefox/80.0"]
-        ];
-
-        // Validate form inputs
-        $this->validate($request, [ 'id' => 'required' ]);
-        $input = $request->all();
-
-        if ($input['id'] == "ALL") {
-            $global_providers = GlobalProvider::get();
-            $is_dialog = 0;
-        } else {
-            $is_dialog = json_decode($request->input('dialog'));
-            $global_provider_ids = json_decode($request->input('id'));
-            if (!is_array($global_provider_ids)) {
-                return response()->json(['result' => false, 'msg' => "Refresh Request Failed - Invalid Input!"]);
-            }
-            $global_providers = GlobalProvider::whereIn('id', $global_provider_ids)->get();
-        }
-        $gpCount = count($global_providers);
-
-        // Set URL - either just one platform, or all of them
-        if (count($global_providers) == 1) {
-            $_url = "https://registry.countermetrics.org/api/v1/platform/" . $global_providers[0]->registry_id . "/?format=json";
-        } else {
-            $_url = "https://registry.countermetrics.org/api/v1/platform/?format=json";
-        }
-        // Make the request and validate as JSON
-        $json = $this->requestURI($_url);
-        if ($json == "Request Failed") {
-            return response()->json(['result'=>false, 'msg'=>"Unable to retrieve COUNTER registry details: "]);
-        }
-        if ($json == "JSON Failed") {
-            return response()->json(['result'=>false, 'msg'=>"Error decoding JSON returned by registry!"]);
-        }
-
-        // Deal with JSON as a single Object for one entry, or as an array for multiple platforms
-        $platform_records = null;
-        if (is_array($json)) {
-            $platform_records = $json;
-            if (count($platform_records) == 0) {
-                return response()->json(['result'=>false, 'msg'=>"No Platform data returned from Registry Platform request!"]);
-            }
-        } else if (is_object($json)) {
-            $platform_records = [$json];
-        } else {
-            return response()->json(['result'=>false, 'msg'=>"Error getting registry details - invalid datatype received!"]);
-        }
-
-        // Pull master reports and connection fields regardless of JSON flag
-        $this->getMasterReports();
-        $this->getConnectionFields();
-
-        // Setup a static array to conect what the COUNTER API sends back to conbnection_fields
-        $api_connectors = array('customer_id_info'      => array('field' => 'customer_id', 'id' => null, 'label' => ''),
-                                'requestor_id_required' => array('field' => 'requestor_id', 'id' => null, 'label' => ''),
-                                'api_key_required'      => array('field' => 'api_key', 'id' => null, 'label' => '')
-                               );
-        foreach ($api_connectors as $key => $cnx) {
-            $fld = $allConnectors->where('name', $cnx['field'])->first();
-            if (!$fld) continue;
-            $api_connectors[$key]['id'] = $fld->id;
-            $api_connectors[$key]['label'] = $fld->label;
-        }
-
-        // Setup a static array for error handling and reporting
-        $errorData = array( array('result' => 'success', 'msg' => "Platform successfully refreshed"),
-                            array('result' => 'failed', 'msg' => "Registry Error - sushi services URL undefined"),
-                            array('result' => 'failed', 'msg' => "Registry Error - COUNTER API connection details invalid"),
-                            array('result' => 'failed', 'msg' => "No match for CC+ Registry_ID in Registry")
-                          );
-
-        // Loop across the platforms in the JSON and build an array of output to return
-        $success_count = 0;
-        $return_data = array();
-        $updated_ids = array();   // track global_providers actually updated
-        $no_refresh = array();    // track names of platforms with refresh disabled (skipped)
-        $no_registryID = array(); // track names of platforms with no registry_id (skipped)
-        $new_platforms = array(); // track names of newly created platforms for summary
-        foreach ($platform_records as $platform) {
-
-            // Look for a matching provider
-            $newProvider = false;
-            $global_provider = $global_providers->where('registry_id',$platform->id)->first();
-            if (!$global_provider) {
-                // See if the name matches before trying to create new entry
-                $global_provider = $global_providers->where('name',$platform->name)->first();
-                if (!$global_provider) {
-                    // If doing ALL, add a new GlobalProvider
-                    if ($input['id'] == "ALL") {
-                        $global_provider = new GlobalProvider;
-                        $global_provider->refresh_result = 'new';
-                        $new_platforms[] = $platform->name;
-                        $newProvider = true;
-                    // If not found, and we're doing more than one, skip this entry and continue
-                    // (this is not an error - we pulled everything when count>1)
-                    } else if ($gpCount>1) {
-                        continue;
-                    // this should not happen since the JSON was requested using the global_provider registryID value
-                    } else {
-                        return response()->json(['result'=>false, 'msg'=>"Error matching platform to registry!"]);
-                    }
-                }
-            }
-
-            // Setup a basic return rec for this provider and do initial error checks
-            $return_rec = array('error'=>0, 'id' => $global_provider->id, 'name' => $platform->name);
-
-            // if global_provider is not refreshable, skip it
-            if (!$global_provider->refreshable && !$is_dialog) {
-                if ($gpCount == 1) {
-                    return response()->json(['result'=>false, 'msg'=>"Platform not refreshable or is not active"]);
-                }
-                $no_refresh[] = $global_provider->name;
-                continue;
-            }
-
-            // Set initial provider elements
-            $global_provider->registry_id = $platform->id;
-            $global_provider->name = $platform->name;
-            $global_provider->content_provider = $platform->content_provider_name;
-            $global_provider->abbrev = $platform->abbrev;
-
-            // Get the Sushi Services data
-            $services = "";
-            foreach ($platform->sushi_services as $svc) {
-                if ($services != "") break;
-                $services = $svc;
-            }
-            if (!$is_dialog && (is_null($services) || $services == "")) {
-                $global_provider->refresh_result = "failed";
-                $global_provider->is_active = 0;
-                $global_provider->updated_at = now();
-                $global_provider->save();
-                if ($gpCount == 1) {
-                    return response()->json(['result' => false, 'msg' => $errorData[1]['msg']]);
-                } else {
-                    $return_rec['error'] = 1;
-                    $return_data[] = $return_rec;
-                    continue;
-                }
-            }
-
-            // Get the sushi details
-            // If we pulled the whole registry, we need to get details using the URL in sushi_services
-            $details = null;
-            if (!is_null($services) && $services != ""){
-                if ($gpCount > 1) {
-                    $details = $this->requestURI($services->url);
-                // If we we're just working on one platform, the details are in $services already
-                } else {
-                    $details = $services;
-                }
-            }
-            $connectors = array();
-            if (!$is_dialog && !is_object($details)) {
-                $global_provider->refresh_result = "failed";
-                $global_provider->updated_at = now();
-                $global_provider->save();
-                if ($gpCount == 1) {
-                    return response()->json(['result' => false, 'msg' => $errorData[2]['msg']]);
-                } else {
-                    $return_rec['error'] = 2;
-                    $return_data[] = $return_rec;
-                    continue;
-                }
-            }
-            // Get connection fields (for now, assumes customer_id is always required)
-            if (is_object($details)) {
-                foreach ($api_connectors as $key => $cnx) {
-                    if ($key == 'customer_id_info' || $details->{$key}) {
-                        $connectors[] = $cnx['id'];
-                    }
-                }
-                // The registry API doesn't know about CC+ extra_args. If set in the original Global, preserve it
-                foreach ($global_provider->connectionFields() as $cf) {
-                    if ($cf['name'] == 'extra_args' && $cf['required']) {
-                        $connectors[] = $cf['id'];
-                        break;
-                    }
-                }
-                $global_provider->server_url_r5 = $details->url;
-                $global_provider->notifications_url = $details->notifications_url;
-            }
-
-            // Get platform reports available
-            $reportIds = $masterReports->whereIn('name',array_column($platform->reports,'report_id'))->pluck('id')->toArray();
-
-            // Update  global provider fields with returned registry values
-            $global_provider->master_reports = $reportIds;
-            $global_provider->connectors = $connectors;
-            $global_provider->updated_at = now();
-            if (!$newProvider) {
-                $global_provider->refresh_result = "success";
-            }
-            if (!$is_dialog) {
-                $global_provider->save();
-            }
-
-            // Setup return data
-            $return_rec = $global_provider->toArray();
-            $return_rec['status'] = ($global_provider->is_active) ? "Active" : "Inactive";
-            $return_rec['report_state'] = $this->reportState($reportIds);
-            $return_rec['connection_count'] = count($connectors);
-            $return_rec['connector_state'] = $this->connectorState($connectors);
-            $return_rec['updated'] = date("Y-m-d H:i", strtotime($global_provider->updated_at));
-            $updated_ids[] = $global_provider->id;
-            $success_count++;
-            $return_rec['error'] = 0;
-            $return_data[] = $return_rec;
-        }
-
-        if (count($updated_ids) == 0) {
-            $_msg = ($gpCount>1) ? "No Records updated" : "Refresh failed";
-            return response()->json(['result' => false, 'msg' => $_msg]);
-        }
-        // Check updated_ids against (refreshable) $global_providers to find any that are/were missing (orphaned by COUNTER?).
-        // Mark missing providers' refresh_result as "failed"
-        if (count($updated_ids) > 0 && !$is_dialog) {
-            $orphans = $global_providers->where('is_active',1)->where('refreshable',1)->whereNotIn('id',$updated_ids)->all();
-            foreach ($orphans as $gp) {
-                if (is_null($gp->registry_id) || $gp->registry_id == '') {
-                    $no_registryID[] = $gp->name;
-                    $gp->refresh_result = null;
-                } else {
-                    $return_data[] = array('error' => 3, 'id' => $gp->id, 'name' => $gp->name);
-                    $gp->refresh_result = 'failed';
-                }
-                $gp->save();
-            }
-        }
-
-        // Build a summary HTML blob if we handled more than one provider ID
-        $summary_html = "";
-        if ($gpCount > 1) {
-            $summary_html = ($success_count>0) ? $success_count . " Platforms successfully refreshed" : "";
-            if (count($new_platforms) > 0) {
-                $summary_html .= ($summary_html == "") ? "" : "<br /><hr>";
-                $summary_html .= "<center><strong><u>New Platforms Added:</u></strong></center><br />";
-                foreach ($new_platforms as $name) {
-                    $summary_html .= $name . "<br />";
-                }
-            }
-            if (count($no_refresh) > 0) {
-              $summary_html .= ($summary_html == "") ? "" : "<br /><hr>";
-              $summary_html .= "<center><strong><u>Platforms Skipped (Refresh Disabled) :</u></strong></center><br />";
-              foreach ($no_refresh as $name) {
-                  $summary_html .= $name . "<br />";
-              }
-            }
-            if (count($no_registryID) > 0) {
-              $summary_html .= ($summary_html == "") ? "" : "<br /><hr>";
-              $summary_html .= "<center><strong><u>Platforms Skipped (No Registry ID):</u></strong></center><br />";
-              foreach ($no_registryID as $name) {
-                  $summary_html .= $name . "<br />";
-              }
-            }
-            for ($eid=1; $eid<count($errorData); $eid++) {
-                $error = $errorData[$eid];
-                $matches = array_filter($return_data, function( $rec) use($eid) {
-                    return $rec['error'] == $eid;
-                });
-                if (count($matches) > 0) {
-                    $summary_html .= "<br /><hr><center><strong><u>" . $error['msg'] . "</u>:</strong></center><br />";
-                    foreach ($matches as $rec) {
-                        $summary_html .= $rec['name'] . "<br />";
-                    }
-                }
-            }
-        }
-        return response()->json(['result' => true, 'providers' => $return_data, 'summary' => $summary_html]);
     }
 
     /**
@@ -961,14 +691,14 @@ class GlobalProviderController extends Controller
             $providers_sheet->setCellValue('B' . $row, $provider->name);
             $_stat = ($provider->is_active) ? "Y" : "N";
             $providers_sheet->setCellValue('C' . $row, $_stat);
-            $providers_sheet->setCellValue('D' . $row, $provider->server_url_r5);
+            $providers_sheet->setCellValue('D' . $row, $provider->service_url());
             $providers_sheet->setCellValue('E' . $row, $provider->day_of_month);
             foreach ($masterReports as $master) {
                 $value = (in_array($master->id, $provider->master_reports)) ? 'Y' : 'N';
                 $providers_sheet->setCellValue($rpt_col[$master->name] . $row, $value);
             }
             foreach ($allConnectors as $field) {
-                $value = (in_array($field->id, $provider->connectors)) ? 'Y' : 'N';
+                $value = (in_array($field->id, $provider->connectors())) ? 'Y' : 'N';
                 $providers_sheet->setCellValue($cnx_col[$field->name] . $row, $value);
             }
             $providers_sheet->setCellValue('M' . $row, $provider->platform_parm);
@@ -1045,18 +775,18 @@ class GlobalProviderController extends Controller
             // Update/Add the provider data/settings
             // Check ID and name columns for silliness or errors
             $_name = trim($row[1]);
-            $current_prov = $global_providers->where("id", $cur_prov_id)->first();
+            $current_prov = $global_providers->with('registries')->where("id", $cur_prov_id)->first();
             if ($current_prov) {      // found existing ID
                 if (strlen($_name) < 1) {       // If import-name empty, use current value
                     $_name = trim($current_prov->name);
                 } else {                        // trap changing a name to a name that already exists
-                    $existing_prov = $global_providers->where("name", $_name)->first();
+                    $existing_prov = $global_providers->with('registries')->where("name", $_name)->first();
                     if ($existing_prov) {
                         $_name = trim($current_prov->name);     // override, use current - no change
                     }
                 }
             } else {        // existing ID not found, try to find by name
-                $current_prov = $global_providers->where("name", $_name)->first();
+                $current_prov = $global_providers->with('registries')->where("name", $_name)->first();
                 if ($current_prov) {
                     $_name = trim($current_prov->name);
                 }
@@ -1078,8 +808,7 @@ class GlobalProviderController extends Controller
             $_active = ($row[3] == 'N') ? 0 : 1;
 
             // Setup provider data as an array
-            $_prov = array('id' => $cur_prov_id, 'name' => $_name, 'is_active' => $_active, 'server_url_r5' => $row[2],
-                            'day_of_month' => $row[4]);
+            $_prov = array('id' => $cur_prov_id, 'name' => $_name, 'is_active' => $_active, 'day_of_month' => $row[4]);
 
             // Add reports to the array ($rpt_columns defined above)
             $reports = array();
@@ -1088,24 +817,33 @@ class GlobalProviderController extends Controller
             }
             $_prov['master_reports'] = $reports;
 
-            // Add connectors to the array (columns 8-10 have the connector fields)
+            // Setup connectors for the registry record (columns 8-10 have the connector fields)
             $connectors = array();
             for ($cnx=2; $cnx<6; $cnx++) {
                 if ($row[$cnx+6] == 'Y') $connectors[] = $cnx;
             }
-            $_prov['connectors'] = $connectors;
+
             // Extra argument pattern gets saved only if ExtraArgs column = 'Y'
             if ($row[11] == 'Y') {
                 $_prov['platform_parm'] = $row[12];
             }
 
-            // Update or create the Provider record
+            // Update or create the Provider record and Registry record
             if ($current_prov) {      // Update
                 $current_prov->update($_prov);
                 $prov_updated++;
+                $registry = $current_prov->default_registry();
+                if ($registry) {
+                    $registry->service_url = $row[2];
+                    $registry->connectors = $connectors;
+                    $registry->save();
+                }
             } else {                 // Create
                 $current_prov = GlobalProvider::create($_prov);
                 $global_providers->push($current_prov);
+                $_reg = array('global_id' => $current_prov->id, 'release' => '5',
+                              'service_url' => $row[2], 'connectors' => $connectors);
+                $registry = CounterRegistry::create($_reg);
                 $cur_prov_id = $current_prov->id;
                 $prov_created++;
             }
@@ -1120,7 +858,7 @@ class GlobalProviderController extends Controller
         foreach ($gp_data as $gp) {
             $provider = $gp->toArray();
             $provider['status'] = ($gp->is_active) ? "Active" : "Inactive";
-            $provider['connector_state'] = $this->connectorState($gp->connectors);
+            $provider['connector_state'] = $this->connectorState($gp->connectors());
             $provider['report_state'] = $this->reportState($gp->master_reports);
             $provider['can_delete'] = true;
             $provider['connection_count'] = 0;
@@ -1196,7 +934,7 @@ class GlobalProviderController extends Controller
     }
 
     /**
-     * Return an array of booleans for connector-state from provider connectors columns
+     * Return harvest_count, connection_count, and last_harvest for a global provider in a given instance
      *
      * @param  String  $instanceKey
      * @param  GlobalProvider  $gp
@@ -1218,23 +956,5 @@ class GlobalProviderController extends Controller
 
         // return the numbers
         return array('harvest_count' => $count , 'connections' => $connections, 'last_harvest' => $last);
-    }
-
-    private function requestURI($uri)
-    {
-      global $client, $options;
-
-      // Get specifc section from the API
-      try {
-          $result = $client->request('GET', $uri, $options);
-      } catch (\Exception $e) {
-          return "Request Failed";
-      }
-      // Get JSON from the response and do basic error checks
-      $json = json_decode($result->getBody());
-      if (json_last_error() !== JSON_ERROR_NONE) {
-          return "JSON Failed";
-      }
-      return $json;
     }
 }

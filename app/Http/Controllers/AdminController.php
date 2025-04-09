@@ -72,6 +72,7 @@ class AdminController extends Controller
         foreach ($global_providers as $rec) {
             $rec->global_prov = $rec->toArray();
             $rec->connectors = $rec->connectionFields();
+            $rec->service_url = $rec->service_url(); 
             $rec->active = ($rec->is_active) ? 'Active' : 'Inactive';
             $sushi_settings = $all_sushi_settings->where('prov_id', $rec->id);  // settings for this provider
 
@@ -100,7 +101,7 @@ class AdminController extends Controller
                     $rec->last_harvest_id = 0;
                 }
             }
-            $parsedUrl = parse_url($rec->server_url_r5);
+            $parsedUrl = parse_url($rec->service_url());
             $rec->host_domain = (isset($parsedUrl['host'])) ? $parsedUrl['host'] : "-missing-";          
 
             // Setup flags to control per-report icons in the U/I
