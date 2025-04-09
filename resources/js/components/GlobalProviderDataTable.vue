@@ -108,18 +108,26 @@
               </v-col>
               <v-col class="d-flex px-4" cols="2">
                 <div class="idbox">
-                  <v-icon title="CC+ Platform ID">mdi-web</v-icon>&nbsp; {{ current_provider_id }}
+                  <v-icon title="CC+ Platform ID">mdi-web</v-icon>&nbsp; {{ cur_provider.id }}
                 </div>
               </v-col>
             </v-row>
             <v-row class="d-flex ma-0" no-gutters>
-              <v-col class="d-flex px-4" cols="10">
+              <v-col class="d-flex px-4" cols="8">
                 <v-text-field v-model="form.content_provider" label="Content Provider" outlined dense></v-text-field>
+              </v-col>
+              <v-col v-if="dialog_title.substring(0,3) == 'Add'" class="d-flex px-4" cols="4">
+                <v-select :items="releases" v-model="form.release" label="COUNTER Release" outlined dense></v-select>
+              </v-col>
+              <v-col v-else-if="cur_provider.releases.length>1" class="d-flex px-4" cols="4">
+                <v-select :items="cur_provider.releases" v-model="form.release" label="COUNTER Release" outlined dense
+                          @change="changeRelease()"
+                ></v-select>
               </v-col>
             </v-row>
             <v-row class="d-flex ma-0" no-gutters>
               <v-col class="d-flex px-4">
-                <v-text-field v-model="form.server_url_r5" label="COUNTER Service URL" outlined dense></v-text-field>
+                <v-text-field v-model="form.service_url" label="COUNTER Service URL" outlined dense></v-text-field>
               </v-col>
             </v-row>
             <v-row class="d-flex ma-0" no-gutters>
@@ -234,8 +242,7 @@
         settingsImportDialog: false,
         provDialog: false,
         dialog_title: '',
-        current_provider_id: null,
-        cur_provider: {},
+        cur_provider: {'releases':[]},
         connectionsDialog: false,
         current_connector_state: {},
         warnConnectors: false,
@@ -264,7 +271,7 @@
         ],
         mutable_providers: [ ...this.providers],
         new_provider: {'id': null, 'registry_id': '', 'name': '', 'content_provider': '', 'abbrev': '', 'is_active': 1,
-                       'refreshable': 0, 'report_state': {}, 'connector_state': {}, 'server_url_r5': '', 'day_of_month': 15,
+                       'refreshable': 0, 'report_state': {}, 'connector_state': {}, 'service_url': '', 'day_of_month': 15,
                        'platform_parm': null, 'notifications_url': ''},
         formValid: true,
         form: new window.Form({
@@ -274,7 +281,8 @@
             abbrev: '',
             is_active: 1,
             refreshable: 1,
-            server_url_r5: '',
+            service_url: '',
+            release: '5',
             day_of_month: 15,
             connector_state: [],
             report_state: [],
@@ -289,6 +297,7 @@
         dtKey: 1,
         mutable_options: {},
         csv_upload: null,
+        releases: ['5','5.1'],
       }
     },
     methods:{
@@ -298,22 +307,25 @@
             this.dialog_error = '';
             this.dialog_success = '';
             this.dialog_title = "Edit Platform Settings";
-            let _prov = this.mutable_providers.find(p => p.id == gp_id);
-            this.current_provider_id = gp_id;
-            this.current_connector_state = Object.assign({},_prov.connector_state);
-            this.form.connector_state = Object.assign({},_prov.connector_state);
-            this.form.registry_id = _prov.registry_id;
-            this.form.name = _prov.name;
-            this.form.content_provider = _prov.content_provider;
-            this.form.abbrev = _prov.abbrev;
-            this.form.is_active = _prov.is_active;
-            this.form.refreshable = _prov.refreshable;
-            this.form.server_url_r5 = _prov.server_url_r5;
-            this.form.day_of_month = (_prov.day_of_month > 0) ? _prov.day_of_month : this.new_provider.day_of_month;
-            this.form.report_state = _prov.report_state;
-            this.form.notifications_url = _prov.notifications_url;
-            this.form.platform_parm = _prov.platform_parm;
-            this.updated_at = _prov.updated;
+            this.cur_provider = this.mutable_providers.find(p => p.id == gp_id);
+            let registry = this.cur_provider.registries.find(r => r.release == this.cur_provider.release);
+            this.cur_provider.releases = this.cur_provider.registries.map(r => r.release);
+            this.form.service_url = (typeof(registry) != 'undefined') ? registry.service_url : "";
+            this.form.notifications_url = (typeof(registry) != 'undefined') ? registry.notifications_url : "";
+            this.current_connector_state = (typeof(registry) != 'undefined') ? Object.assign({},registry.connector_state) : {};
+            this.form.connector_state = Object.assign({},this.current_connector_state);
+            this.form.registry_id = this.cur_provider.registry_id;
+            this.form.name = this.cur_provider.name;
+            this.form.content_provider = this.cur_provider.content_provider;
+            this.form.abbrev = this.cur_provider.abbrev;
+            this.form.is_active = this.cur_provider.is_active;
+            this.form.refreshable = this.cur_provider.refreshable;
+            this.form.release = this.cur_provider.release;
+            this.form.day_of_month = (this.cur_provider.day_of_month > 0) ? this.cur_provider.day_of_month
+                                                                          : this.new_provider.day_of_month;
+            this.form.report_state = this.cur_provider.report_state;
+            this.form.platform_parm = this.cur_provider.platform_parm;
+            this.updated_at = this.cur_provider.updated;
             this.providerImportDialog = false;
             this.settingsImportDialog = false;
             this.provDialog = true;
@@ -330,7 +342,8 @@
             this.form.abbrev = this.new_provider.abbrev;
             this.form.is_active = this.new_provider.is_active;
             this.form.refreshable = this.new_provider.refreshable;
-            this.form.server_url_r5 = this.new_provider.server_url_r5;
+            this.form.service_url = this.new_provider.service_url;
+            this.form.release = this.new_provider.release;
             this.form.day_of_month = this.new_provider.day_of_month;
             this.form.connector_state = Object.assign({}, this.new_provider.connector_state);
             this.form.report_state = this.new_provider.report_state;
@@ -412,6 +425,14 @@
             }
           });
           if (this.warnConnectors && all_match) this.warnConnectors = false;
+        },
+        // Change selected COUNTER Release means updating form fields
+        changeRelease() {
+            let registry = this.cur_provider.registries.find(r => r.release == this.form.release);
+            this.form.service_url = (typeof(registry) != 'undefined') ? registry.service_url : "";
+            this.form.notifications_url = (typeof(registry) != 'undefined') ? registry.notifications_url : "";
+            this.current_connector_state = (typeof(registry) != 'undefined') ? Object.assign({},registry.connector_state) : {};
+            this.form.connector_state = Object.assign({},this.current_connector_state);
         },
         processBulk() {
             this.success = "";
@@ -496,7 +517,7 @@
             let refresh_arg = gpId;
             let is_dialog = 0;      // refresh from dialog does not SAVE, just returns registry fields
             if (gpId == null) {
-              refresh_arg = [this.current_provider_id];
+              refresh_arg = [this.cur_provider.id];
               is_dialog = 1;
             } else if (Number.isInteger(gpId)) {
               refresh_arg = [gpId];
@@ -512,19 +533,20 @@
                            let prov = {...response.data.providers[0]};
                            this.form.name = prov.name;
                            this.form.abbrev = prov.abbrev;
-                           this.form.server_url_r5 = prov.server_url_r5;
+                           let registry = prov.registries.find(r => r.release == prov.release);
+                           this.form.service_url = (typeof(registry) != 'undefined') ? registry.service_url : "";
+                           this.form.notifications_url = (typeof(registry) != 'undefined') ? registry.notifications_url : "";
+                           this.form.connector_state = (typeof(registry) != 'undefined') ? Object.assign({},registry.connector_state) : {};
                            this.form.day_of_month = prov.day_of_month;
-                           this.form.connector_state = prov.connector_state;
                            this.form.report_state = prov.report_state;
-                           this.form.notifications_url = prov.notifications_url;
                            this.form.content_provider = prov.content_provider;
                            if (is_dialog) {
+                             this.cur_provider.releases = prov.registries.map(r => r.release);
                              this.dialog_success = "Selected platform successfully retrieved.";
                            } else {
                              this.success = "Selected platform successfully updated.";
                            }
-                           var _idx = this.mutable_providers.findIndex(ii=>ii.id == gpId);
-                           this.$emit('change-prov', prov.id);
+                          this.$emit('change-prov', prov.id);
                        } else {
                            let newly_added = false;
                            response.data.providers.forEach( prov => {
@@ -563,9 +585,15 @@
                            }
                        }
                      }
-                     this.dtKey += 1;           // notify the datatable
+                    this.dtKey += 1;           // notify the datatable
            })
            .catch({});
+           // Clear/Reset filters if we just refreshed ALL
+           if (gpId=="ALL") {
+               Object.keys(this.mutable_filters).forEach( (filt) => this.mutable_filters[filt] = null);
+               this.$store.dispatch('updateAllFilters',this.mutable_filters);
+               this.selectedRows = [];
+           }
         },
         updateFilters() {
             this.$store.dispatch('updateAllFilters',this.mutable_filters);
@@ -601,7 +629,7 @@
             this.dialog_success = '';
             // Update existing global provider
             if (this.dialog_title == "Edit Platform Settings") {
-              let idx = this.mutable_providers.findIndex(p => p.id == this.current_provider_id);
+              let idx = this.mutable_providers.findIndex(p => p.id == this.cur_provider.id);
               var canDelete = this.mutable_providers[idx].can_delete;
               var connections = this.mutable_providers[idx].connections;
               // If a required connector was turned off, popup a warning
@@ -617,7 +645,7 @@
                 }).then((result) => {
                   if (result.value) {
                     // Apply update
-                    this.form.patch('/global/providers/'+this.current_provider_id)
+                    this.form.patch('/global/providers/'+this.cur_provider.id)
                     .then( (response) => {
                         if (response.result) {
                             this.failure = '';
@@ -639,7 +667,7 @@
                 });
               } else {
                 // Apply update
-                this.form.patch('/global/providers/'+this.current_provider_id)
+                this.form.patch('/global/providers/'+this.cur_provider.id)
                 .then( (response) => {
                     if (response.result) {
                         this.failure = '';
