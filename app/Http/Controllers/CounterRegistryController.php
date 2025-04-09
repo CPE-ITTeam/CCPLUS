@@ -391,6 +391,7 @@ class CounterRegistryController extends Controller
             }
 
             // Setup return data
+            $global_provider->load('registries');
             $return_rec = $global_provider->toArray();
             $return_rec['registries'] = array();
             foreach ($global_provider->registries as $reg) {
