@@ -276,12 +276,20 @@ class GlobalProviderController extends Controller
           $provider->name = $input_name;
       }
 
-     // Get the registry record and set service_url
+     // Get or create the registry record and set service_url
       $release = (isset($input['release'])) ? $input['release'] : "";
       $registry = $provider->registries->where('release',$release)->first();
-      $connectors_changed = false;
       if ($registry) {
           $registry->service_url = (isset($input['service_url'])) ? $input['service_url'] : null;
+      } else {
+          // Create a CounterRegistry record
+          $registry = new CounterRegistry;
+          $registry->global_id = $provider->id;
+          $registry->service_url = $input['service_url'];
+          $registry->release = $input['release'];
+      }
+      $connectors_changed = false;
+      if ($registry) {
           // Turn array of connection checkboxes into an array of IDs
           $new_connectors = array();
           if (array_key_exists('connector_state', $input)) {
@@ -297,8 +305,9 @@ class GlobalProviderController extends Controller
                                      $registry->connectors != $new_connectors);
               $registry->connectors = $new_connectors;
           }
-          $registry->save();
       }
+      $registry->save();
+
       // Handle other provider values
       $provider->day_of_month = (isset($input['day_of_month'])) ? $input['day_of_month'] : 15;
       $args = array('platform_parm','content_provider','registry_id');
