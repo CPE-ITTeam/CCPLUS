@@ -89,7 +89,7 @@ Route::get('/admin', 'AdminController@index')->name('adminHome')->middleware(['a
 Route::get('/server/home', 'GlobalAdminController@index')->name('server.home')->middleware('auth','role:ServerAdmin');
 Route::resource('/server/config', 'GlobalSettingController')->middleware('auth','role:ServerAdmin');
 Route::resource('/global/providers', 'GlobalProviderController', ['as' => 'global'])->middleware('auth','role:ServerAdmin');
-Route::post('/global/providers/registry-refresh', 'GlobalProviderController@registryRefresh')->name('global.providers.registry');
+Route::post('/global/providers/registry-refresh', 'CounterRegistryController@registryRefresh')->name('counterRegistry.refresh');
 Route::post('/global/providers/import', 'GlobalProviderController@import')->name('global.providers.import');
 Route::get('/global/providers/export/{type}', 'GlobalProviderController@export')->name('global.providers.export');
 Route::resource('/consortia', 'ConsortiumController')->middleware('auth','role:ServerAdmin');
