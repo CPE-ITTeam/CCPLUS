@@ -161,6 +161,7 @@ class CounterRegistryController extends Controller
             $return_rec = array('error'=>0, 'id' => $global_provider->id, 'name' => $platform->name);
 
             // Pull the Services for the platform from the API
+            $urlMissing = true;
             $releases = array();
             $service_details = array();
             foreach ($platform->sushi_services as $service) {
@@ -169,6 +170,9 @@ class CounterRegistryController extends Controller
                 $releases[] = $cr;
                 if (is_object($svc)) {
                     $service_details[$cr] = $svc;
+                    if (strlen(trim($svc->url)) > 0) {
+                        $urlMissing = false;
+                    }
                 } else if (!$is_dialog) {
                     // Don't save a new provider that has bad data...
                     if ($global_provider->refresh_result != "new") {
@@ -222,7 +226,9 @@ class CounterRegistryController extends Controller
                 }
             }
             $default_url = $global_provider->service_url();
-            $urlMissing = (strlen($default_url) == 0);
+            if (strlen($default_url) > 0) {
+                $urlMissing = false;
+            }
 
             // Update or create CC+ counter_registries records for each release defined in service details
             $connectors_changed = false;
