@@ -226,6 +226,7 @@ class CounterRegistryController extends Controller
 
             // Update or create CC+ counter_registries records for each release defined in service details
             $connectors_changed = false;
+            $reportIds = array();
             $dropped_reports = array();
             if ($urlMissing) {
                 $no_url[] = $global_provider->name;
