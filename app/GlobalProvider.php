@@ -32,21 +32,23 @@ class GlobalProvider extends Model
    * @var array
    */
     protected $attributes = ['registry_id' => null, 'name' => '', 'abbrev' => null, 'is_active' => 1, 'refreshable' => 1,
-                             'refresh_result' => null, 'master_reports' => '{}', 'connectors' => '{}', 'server_url_r5' => '',
-                             'day_of_month' => 15, 'notifications_url' => null, 'platform_parm' => null];
+                             'refresh_result' => null, 'master_reports' => '{}', 'day_of_month' => 15, 'platform_parm' => null];
     protected $fillable = ['id', 'registry_id', 'name', 'abbrev', 'is_active', 'refreshable', 'refresh_result', 'master_reports',
-                           'connectors', 'server_url_r5', 'day_of_month', 'notifications_url', 'platform_parm'];
+                           'day_of_month', 'platform_parm'];
     protected $casts = ['id'=>'integer', 'is_active'=>'integer', 'refreshable'=>'integer', 'master_reports' => 'array',
-                        'connectors' => 'array', 'day_of_month' => 'integer'];
+                        'day_of_month' => 'integer'];
 
     // Return the ConnectionField detail based on connectors array
     public function connectionFields()
     {
         $connectors = array();
-        $cnxs = $this->connectors;
-        foreach ($this->all_connectors->toArray() as $cnx) {
-            $cnx['required'] = in_array($cnx['id'],$cnxs);
-            $connectors[] = $cnx;
+        $registry = $this->default_registry();
+        if ($registry) {
+            $cnxs = $registry->connectors;
+            foreach ($this->all_connectors->toArray() as $cnx) {
+                $cnx['required'] = in_array($cnx['id'],$cnxs);
+                $connectors[] = $cnx;
+            }
         }
         return $connectors;
     }
@@ -81,6 +83,56 @@ class GlobalProvider extends Model
         return $this->hasMany('App\Provider', 'global_id');
     }
 
+    public function registries()
+    {
+        return $this->hasMany('App\CounterRegistry', 'global_id');
+    }
+
+    public function default_registry()
+    {
+        $rel = $this->registries->max('release');
+        return $this->registries->where('release', $rel)->first();
+    }
+
+    public function default_release()
+    {
+        $return_value = "";
+        $registry = $this->default_registry();
+        if ($registry) {
+            $return_value = trim($registry->release);
+        }
+        return $return_value;
+    }
+
+    public function service_url()
+    {
+        $return_url = null;
+        $registry = $this->default_registry();
+        if ($registry) {
+            $return_url = trim($registry->service_url);
+        }
+        return $return_url;
+    }
+
+    public function notifications_url()
+    {
+        $return_url = null;
+        $registry = $this->default_registry();
+        if ($registry) {
+            $return_url = trim($registry->notifications_url);
+        }
+        return $return_url;
+    }
+
+    public function connectors()
+    {
+        $cnx = [];
+        $registry = $this->default_registry();
+        if ($registry) {
+            $cnx = $registry->connectors;        
+        }
+        return $cnx;
+    }
 
     public function isComplete()
     {
