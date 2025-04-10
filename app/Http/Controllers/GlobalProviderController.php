@@ -189,7 +189,8 @@ class GlobalProviderController extends Controller
       $registry = new CounterRegistry;
       $registry->global_id = $provider->id;
       $registry->service_url = $input['service_url'];
-      $registry->release = $input['release'];
+      $input_release = (isset($input['release'])) ? $input['release'] : "";
+      $registry->release = (strlen(trim($input_release)) > 0) ? $input_release : "0";
 
       // Turn array of connection checkboxes into an array of IDs
       $connectors = array();
@@ -277,7 +278,8 @@ class GlobalProviderController extends Controller
       }
 
      // Get or create the registry record and set service_url
-      $release = (isset($input['release'])) ? $input['release'] : "";
+      $input_release = (isset($input['release'])) ? $input['release'] : "";
+      $release = (strlen(trim($input_release)) > 0) ? $input_release : "0";
       $registry = $provider->registries->where('release',$release)->first();
       if ($registry) {
           $registry->service_url = (isset($input['service_url'])) ? $input['service_url'] : null;
@@ -286,7 +288,7 @@ class GlobalProviderController extends Controller
           $registry = new CounterRegistry;
           $registry->global_id = $provider->id;
           $registry->service_url = $input['service_url'];
-          $registry->release = $input['release'];
+          $registry->release = $release;
       }
       $connectors_changed = false;
       if ($registry) {
@@ -335,7 +337,7 @@ class GlobalProviderController extends Controller
       foreach ($provider->registries as $registry) {
           $registry->connector_state = $this->connectorState($registry->connectors);
       }
-      $provider['release'] = ($release == "") ? $provider->default_release() : $release;
+      $provider['release'] = $release;
       $provider['service_url'] = ($registry) ? $registry->service_url : $provider->service_url();
       // Set connection field labels in an array for the datatable display
       $provider['updated'] = (is_null($provider->updated_at)) ? null : date("Y-m-d H:i", strtotime($provider->updated_at));
