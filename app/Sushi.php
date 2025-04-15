@@ -218,12 +218,13 @@ class Sushi extends Model
        // Setup date range and attributes for the request
         $uri_dates = "&begin_date=" . self::$begin . "&end_date=" . self::$end;
         if ($report->name == "TR") {
-            $uri_atts  = "&attributes_to_show=Data_Type%7CAccess_Method%7CAccess_Type%7C";
-            $uri_atts .= "Section_Type%7CYOP";
+            $uri_atts  = "&attributes_to_show=Access_Method%7CAccess_Type%7CYOP";
+            $uri_atts .= ($release == "5") ? "%7CData_Type%7CSection_Type" : "";
         } elseif ($report->name == "DR") {
             $uri_atts = "";
         } elseif ($report->name == "PR") {
-            $uri_atts = "&attributes_to_show=Data_Type%7CAccess_Method";
+            $uri_atts  = "&attributes_to_show=Access_Method";
+            $uri_atts .= ($release == "5") ? "%7CData_Type" : "";
         } elseif ($report->name == "IR") {
             $uri_atts = "";
         }
