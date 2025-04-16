@@ -310,6 +310,7 @@
                 this.cur_provider['inst_id'] = null;
                 this.cur_provider['report_state'] = {...this.empty_report_state};
                 this.cur_provider['allow_inst_specifc'] = true;
+                this.cur_provider['global_id'] = provId;
             } else {
                 this.cur_provider['id'] = this.cur_provider.connected[cnxIdx].id;
                 this.cur_provider['inst_id'] = this.cur_provider.connected[cnxIdx].inst_id;
