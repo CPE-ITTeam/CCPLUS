@@ -248,6 +248,11 @@ class CounterRegistryController extends Controller
                             $registry = new CounterRegistry;
                             $registry->global_id = $global_provider->id;
                             $registry->release = $release;
+                            // Remove release="0" entry, if defined, since we have a "real" one now
+                            $zero_reg = $global_provider->registries->where('release',"0")->first();
+                            if ($zero_reg) {
+                                $zero_reg->delete();
+                            }
                         }
                         $registry->service_url = trim($details->url);
                         $registry->notifications_url = trim($details->notifications_url);
