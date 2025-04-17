@@ -159,13 +159,14 @@ class SushiQLoader extends Command
                 if (count($prov_report_ids) == 0) continue;
                 $reports = $master_reports->whereIn('id',$prov_report_ids)->whereIn('name',$requested_reports);
                 $source = ($provider->inst_id == 1) ? "C" : "I";
+                $release = $provider->default_release();
 
                // Loop through all the reports
                 foreach ($reports as $report) {
                     $ts = date("Y-m-d H:i:s");
                    // Create new HarvestLog record; catch and prevent duplicates
                     try {
-                        HarvestLog::insert(['status' => 'New', 'sushisettings_id' => $setting->id,
+                        HarvestLog::insert(['status' => 'New', 'sushisettings_id' => $setting->id, 'release' => $release,
                                            'report_id' => $report->id, 'yearmon' => $yearmon, 'source' => $source,
                                            'attempts' => 0, 'created_at' => $ts]);
                     } catch (QueryException $e) {
