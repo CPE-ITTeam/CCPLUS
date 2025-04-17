@@ -104,7 +104,8 @@
             </v-row>
             <v-row class="d-flex ma-0" no-gutters>
               <v-col class="d-flex px-4" cols="10">
-                <v-text-field v-model="form.name" label="Platform" outlined dense></v-text-field>
+                <v-text-field v-model="form.name" label="Platform" outlined dense required :rules="requiredRule"
+                ></v-text-field>
               </v-col>
               <v-col class="d-flex px-4" cols="2">
                 <div class="idbox">
@@ -113,21 +114,34 @@
               </v-col>
             </v-row>
             <v-row class="d-flex ma-0" no-gutters>
-              <v-col class="d-flex px-4" cols="8">
+              <v-col class="d-flex px-4" cols="10">
                 <v-text-field v-model="form.content_provider" label="Content Provider" outlined dense></v-text-field>
               </v-col>
-              <v-col v-if="dialog_title.substring(0,3) == 'Add'" class="d-flex px-4" cols="4">
-                <v-select :items="releases" v-model="form.release" label="COUNTER Release" outlined dense></v-select>
+            </v-row>
+            <v-row class="d-flex ma-0" no-gutters>
+              <v-col v-if="dialog_title.substring(0,3) == 'Add'" class="d-flex px-4" cols="5">
+                <v-text-field v-model="form.release" label="COUNTER Release" outlined dense required :rules="requiredRule"
+                ></v-text-field>
               </v-col>
-              <v-col v-else-if="cur_provider.releases.length>1" class="d-flex px-4" cols="4">
-                <v-select :items="cur_provider.releases" v-model="form.release" label="COUNTER Release" outlined dense
-                          @change="changeRelease()"
+              <v-col v-else-if="cur_provider.releases.length<=1" class="d-flex px-4" cols="5">
+                <v-text-field v-model="form.release" value="cur_provider.releases[0].release" label="COUNTER Release"
+                              outlined dense required :rules="requiredRule"
+                ></v-text-field>
+              </v-col>
+              <v-col v-else-if="cur_provider.releases.length>1" class="d-flex px-4" cols="5">
+                <v-select :items="cur_provider.releases" v-model="cur_release" label="COUNTER Release" outlined dense required
+                          @change="changeRelease()" :rules="requiredRule"
                 ></v-select>
+              </v-col>
+              <v-col class="d-flex px-4" cols="7">
+                <v-switch v-model="form.is_selected" label="Currently Selected Release" dense
+                          :readonly="(form.is_selected)" @change="changeSelected()"></v-switch>
               </v-col>
             </v-row>
             <v-row class="d-flex ma-0" no-gutters>
               <v-col class="d-flex px-4">
-                <v-text-field v-model="form.service_url" label="COUNTER Service URL" outlined dense></v-text-field>
+                <v-text-field v-model="form.service_url" label="COUNTER Service URL" outlined dense required :rules="requiredRule"
+                ></v-text-field>
               </v-col>
             </v-row>
             <v-row class="d-flex ma-0" no-gutters>
@@ -136,7 +150,7 @@
                   <v-list-item class="verydense"><strong>Connection Fields</strong></v-list-item>
                   <v-list-item v-for="cnx in all_connectors" :key="cnx.name" class="verydense">
                     <v-checkbox :value="form.connector_state[cnx.name]" :key="cnx.name" :label="cnx.label"
-                                v-model="form.connector_state[cnx.name]"  @change="changeConnector() "dense>
+                                v-model="form.connector_state[cnx.name]" @change="changeConnector()" dense>
                     </v-checkbox>
                   </v-list-item>
                 </v-list>
@@ -146,7 +160,7 @@
                   <v-list-item class="verydense"><strong>Supported Reports</strong></v-list-item>
                   <v-list-item v-for="rpt in master_reports" :key="rpt.name" class="verydense">
                     <v-checkbox :value="form.report_state[rpt.name]" :key="rpt.name" :label="rpt.name"
-                                v-model="form.report_state[rpt.name]" dense>
+                                v-model="form.report_state[rpt.name]" @change="changeReport()" dense>
                     </v-checkbox>
                   </v-list-item>
                 </v-list>
@@ -161,7 +175,7 @@
               <v-col class="d-flex px-6" cols="6"><strong>Run Harvests Monthly on Day : </strong></v-col>
               <v-col class="d-flex px-4" cols="2">
                 <v-text-field v-model="form.day_of_month" label="Day-of-Month" single-line dense type="number" :rules="dayRules"
-                              class="centered-input"
+                              class="centered-input" required
                 ></v-text-field>
               </v-col>
             </v-row>
@@ -225,6 +239,8 @@
 <script>
   import { mapGetters } from 'vuex'
   import Swal from 'sweetalert2';
+  import Form from '@/js/plugins/Form';
+  window.Form = Form;
   export default {
     props: {
             providers: { type:Array, default: () => [] },
@@ -244,7 +260,9 @@
         dialog_title: '',
         cur_provider: {'releases':[]},
         connectionsDialog: false,
-        current_connector_state: {},
+        initial_report_state: {},
+        initial_connector_state: {},
+        cur_release: null,
         warnConnectors: false,
         updated_at: null,
         import_type: '',
@@ -282,7 +300,8 @@
             is_active: 1,
             refreshable: 1,
             service_url: '',
-            release: '5',
+            release: '',
+            is_selected: true,
             day_of_month: 15,
             connector_state: [],
             report_state: [],
@@ -294,46 +313,54 @@
             v => ( v && v >= 1 ) || "Day of month must be > 1",
             v => ( v && v <= 28 ) || "Day of month must be < 29",
         ],
+        requiredRule: [
+          v => !!v || "A value is required",
+        ],
         dtKey: 1,
         mutable_options: {},
         csv_upload: null,
-        releases: ['5','5.1'],
       }
     },
     methods:{
         editForm (gp_id) {
-            this.failure = '';
+          this.failure = '';
             this.success = '';
             this.dialog_error = '';
             this.dialog_success = '';
             this.dialog_title = "Edit Platform Settings";
             this.cur_provider = this.mutable_providers.find(p => p.id == gp_id);
             if (typeof(this.cur_provider.registries) != 'undefined') {
-                if (this.cur_provider.registries.length>0) {
+                if (this.cur_provider.registries.length>1) {
                     var registry = this.cur_provider.registries.find(r => r.release == this.cur_provider.release);
+                } else {
+                    var registry = { ...this.cur_provider.registries[0] };
                 }
             }
             this.cur_provider.releases = (typeof(registry) != 'undefined') ? this.cur_provider.registries.map(r => r.release) : [];
             this.form.service_url = (typeof(registry) != 'undefined') ? registry.service_url : "";
             this.form.notifications_url = (typeof(registry) != 'undefined') ? registry.notifications_url : "";
-            this.current_connector_state = (typeof(registry) != 'undefined') ? Object.assign({},registry.connector_state) : {};
-            this.form.connector_state = Object.assign({},this.current_connector_state);
+            this.initial_connector_state = (typeof(registry) != 'undefined') ? Object.assign({},registry.connector_state) : {};
+            this.form.connector_state = Object.assign({},this.initial_connector_state);
             this.form.registry_id = this.cur_provider.registry_id;
             this.form.name = this.cur_provider.name;
             this.form.content_provider = this.cur_provider.content_provider;
             this.form.abbrev = this.cur_provider.abbrev;
             this.form.is_active = this.cur_provider.is_active;
             this.form.refreshable = this.cur_provider.refreshable;
-            this.form.release = this.cur_provider.release;
+            this.cur_release = this.cur_provider.selected_release;
+            this.form.release = this.cur_release;
+            this.form.is_selected = true;
             this.form.day_of_month = (this.cur_provider.day_of_month > 0) ? this.cur_provider.day_of_month
                                                                           : this.new_provider.day_of_month;
-            this.form.report_state = this.cur_provider.report_state;
+            this.form.report_state = Object.assign({},this.cur_provider.report_state);
+            this.initial_report_state = Object.assign({},this.cur_provider.report_state);
             this.form.platform_parm = this.cur_provider.platform_parm;
             this.updated_at = this.cur_provider.updated;
             this.providerImportDialog = false;
             this.settingsImportDialog = false;
             this.provDialog = true;
-        },
+            this.form.resetOriginal();
+          },
         createForm () {
             this.failure = '';
             this.success = '';
@@ -347,7 +374,8 @@
             this.form.is_active = this.new_provider.is_active;
             this.form.refreshable = this.new_provider.refreshable;
             this.form.service_url = this.new_provider.service_url;
-            this.form.release = this.new_provider.release;
+            this.cur_release = this.new_provider.release;
+            this.form.is_selected = true;
             this.form.day_of_month = this.new_provider.day_of_month;
             this.form.connector_state = Object.assign({}, this.new_provider.connector_state);
             this.form.report_state = this.new_provider.report_state;
@@ -357,6 +385,8 @@
             this.providerImportDialog = false;
             this.settingsImportDialog = false;
             this.provDialog = true;
+            this.form.resetOriginal();
+            this.formValid = false;
         },
         refreshAll() {
           let msg = "You are about to reset ALL Platforms to match the COUNTER registry. This includes provider name(s),";
@@ -420,23 +450,56 @@
         },
         // Set flag if we need to warn about connectors being turned off (happens when saving)
         changeConnector() {
-          let all_match = true;
           Object.keys(this.form.connector_state).forEach( (cnx) => {
-            if (this.form.connector_state[cnx] != this.current_connector_state[cnx]) all_match = false;
-            if (this.current_connector_state[cnx] == true &&
-                (this.form.connector_state[cnx] == null || this.form.connector_state[cnx] == false)) {
+            if (this.form.connector_state[cnx] == null) this.form.connector_state[cnx] = false;
+            if (this.initial_connector_state[cnx] && !this.form.connector_state[cnx]) {
                 this.warnConnectors = true;
             }
           });
-          if (this.warnConnectors && all_match) this.warnConnectors = false;
+        },
+        // Force changes to the report_state checkboxes to hold false, instead of null, when cleared
+        changeReport() {
+          Object.keys(this.form.report_state).forEach( (rpt) => {
+            if (this.form.report_state[rpt] == null) this.form.report_state[rpt] = false;
+          });
         },
         // Change selected COUNTER Release means updating form fields
         changeRelease() {
+          if (this.form_is_dirty) {
+              Swal.fire({
+                title: 'Unsaved Changes!', html: "You have unsaved changes, are you sure you want to switch to another release?",
+                icon: 'info', showCancelButton: true, cancelButtonColor: '#d33', confirmButtonColor: '#3085d6',
+                confirmButtonText: 'Yes - Discard Changes'
+              })
+              .then( (result) => {
+                if (result.value) {
+                  this.form.release = this.cur_release;
+                  let registry = this.cur_provider.registries.find(r => r.release == this.form.release);
+                  this.form.service_url = (typeof(registry) != 'undefined') ? registry.service_url : "";
+                  this.form.notifications_url = (typeof(registry) != 'undefined') ? registry.notifications_url : "";
+                  this.initial_connector_state = (typeof(registry) != 'undefined') ? Object.assign({},registry.connector_state) : {};
+                  this.form.connector_state = Object.assign({},this.initial_connector_state);
+                  this.form.is_selected = registry.is_selected;
+                  this.form.resetOriginal();
+                } else {
+                  this.cur_release = this.form.release;
+                }
+              });
+          } else {
+            this.form.release = this.cur_release;
             let registry = this.cur_provider.registries.find(r => r.release == this.form.release);
             this.form.service_url = (typeof(registry) != 'undefined') ? registry.service_url : "";
             this.form.notifications_url = (typeof(registry) != 'undefined') ? registry.notifications_url : "";
-            this.current_connector_state = (typeof(registry) != 'undefined') ? Object.assign({},registry.connector_state) : {};
-            this.form.connector_state = Object.assign({},this.current_connector_state);
+            this.initial_connector_state = (typeof(registry) != 'undefined') ? Object.assign({},registry.connector_state) : {};
+            this.form.connector_state = Object.assign({},this.initial_connector_state);
+            this.form.is_selected = registry.is_selected;
+            this.form.resetOriginal();
+          }
+        },
+        changeSelected() {
+          this.cur_provider.registries.forEach( (reg) => {
+            reg.is_selected = (reg.release == this.form.release);
+          });
         },
         processBulk() {
             this.success = "";
@@ -530,6 +593,7 @@
             if (refresh_arg.length>1 || gpId == "ALL") {
                 this.loading = true;
             }
+            this.success = "";
             axios.post('/global/providers/registry-refresh', {id: _providers, dialog: is_dialog })
                  .then( (response) => {
                      if (response.data.result) {
@@ -550,7 +614,7 @@
                            } else {
                              this.success = "Selected platform successfully updated.";
                            }
-                          this.$emit('change-prov', prov.id);
+                           this.$emit('change-prov', prov.id);
                        } else {
                            let newly_added = false;
                            response.data.providers.forEach( prov => {
@@ -588,7 +652,7 @@
                               this.mutable_providers[_idx].refresh_result = 'failed';
                            }
                        }
-                     }
+                    }
                     this.dtKey += 1;           // notify the datatable
            })
            .catch({});
@@ -653,6 +717,7 @@
                     .then( (response) => {
                         if (response.result) {
                             this.failure = '';
+                            this.form.resetOriginal();
                             // Update the provider entry in the mutable array
                             this.mutable_providers[idx] = Object.assign({}, response.provider);
                             this.mutable_providers[idx]['can_delete'] = canDelete;
@@ -676,6 +741,7 @@
                     if (response.result) {
                         this.failure = '';
                         this.success = response.msg;
+                        this.form.resetOriginal();
                         // Update the provider entry in the mutable array
                         this.mutable_providers[idx] = Object.assign({}, response.provider);
                         this.mutable_providers[idx]['can_delete'] = canDelete;
@@ -753,7 +819,15 @@
         goURL (target) { window.open(target, "_blank"); },
     },
     computed: {
-      ...mapGetters(['datatable_options'])
+      ...mapGetters(['datatable_options']),
+      connectors_changed() {
+        return (JSON.stringify(this.form.connector_state) !== JSON.stringify(this.initial_connector_state));
+      },
+      form_is_dirty() {
+        return (this.form.isDirty() || this.connectors_changed ||
+                (JSON.stringify(this.form.report_state) !== JSON.stringify(this.initial_report_state))
+               );
+      },
     },
     beforeMount() {
         // Set page name in the store
@@ -778,7 +852,10 @@
   }
 </script>
 <style scoped>
-.verydense { max-height: 16px; }
+.verydense {
+  max-height: 14px;
+  min-height: 28px;
+}
 .centered-input >>> input {
   text-align: center
 }
