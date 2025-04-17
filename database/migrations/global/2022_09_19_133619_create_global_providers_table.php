@@ -27,6 +27,7 @@ class CreateGlobalProvidersTable extends Migration
           $table->json('master_reports')->default("[1]");
           $table->unsignedInteger('day_of_month')->default(15);
           $table->string('platform_parm')->nullable();
+          $table->string('selected_release',6)->nullable();
           $table->timestamps();
         });
     }

@@ -23,6 +23,7 @@ class CreateProvidersTable extends Migration
             $table->boolean('allow_inst_specific')->default(0);
             $table->unsignedInteger('global_id')->nullable();
             $table->unsignedInteger('inst_id')->default(1); // inst_id=1 is consorta-wide
+            $table->string('selected_release',6)->nullable();
             $table->timestamps();
 
             $table->foreign('inst_id')->references('id')->on('institutions');
