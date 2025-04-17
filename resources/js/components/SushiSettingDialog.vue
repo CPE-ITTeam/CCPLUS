@@ -94,11 +94,16 @@
         <v-btn small class='btn' color="primary" @click="saveSetting"
                :disabled="!formValid || (mutable_dtype=='edit' && !setting.can_edit)">Save</v-btn>
       </v-col>
-      <v-col v-if="sushi_inst.id!=null && sushi_prov.id!=null" class="d-flex px-2 justify-center">
-        <v-btn small color="secondary" type="button" @click="testSettings">Test Credentials</v-btn>
-      </v-col>
       <v-col class="d-flex px-2 justify-center">
         <v-btn small class='btn' type="button" color="primary" @click="cancelDialog">Cancel</v-btn>
+      </v-col>
+    </v-row>
+    <v-row v-if="sushi_inst.id!=null && sushi_prov.id!=null" class="d-flex mt-1 mx-2">
+      <v-col class="d-flex px-2 justify-center">
+        <v-btn small color="secondary" type="button" @click="testSettings('status')">Service Status</v-btn>
+      </v-col>
+      <v-col class="d-flex px-2 justify-center">
+        <v-btn small color="secondary" type="button" @click="testSettings('test')">Test Credentials</v-btn>
       </v-col>
     </v-row>
   </div>
@@ -226,13 +231,13 @@
         this.form_key += 1;
         this.$emit('sushi-done', { result:'Cancel', msg:null, setting:null });
       },
-      testSettings (event) {
+      testSettings (type) {
           this.failure = '';
           this.success = '';
           this.testData = '';
           this.testStatus = "... Working ...";
           this.showTest = true;
-          var testArgs = {'prov_id' : this.form.prov_id};
+          var testArgs = {'type' : type, 'prov_id' : this.form.prov_id};
           if (this.sushi_prov.connectors.some(c => c.name === 'requestor_id' && c.required)) {
             testArgs['requestor_id'] = this.form.requestor_id;
           }
@@ -247,11 +252,12 @@
           }
           axios.post('/sushisettings-test', testArgs)
                .then((response) => {
-                  if (response.data.result == '') {
-                      this.testStatus = "No results!";
-                  } else {
+                  if (response.data.result) {
                       this.testStatus = response.data.result;
                       this.testData = response.data.rows;
+                  } else {
+                      this.testStatus = response.data.msg;
+                      this.testData = (response.data.rows.length>0) ? $rows : "Test Failed";
                   }
               })
              .catch(error => {});

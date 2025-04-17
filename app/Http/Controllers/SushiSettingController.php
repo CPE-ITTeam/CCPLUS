@@ -383,6 +383,9 @@ class SushiSettingController extends Controller
         } catch (\Exception $e) {
             return response()->json(['result' => false, 'msg' => 'Error decoding input!']);
         }
+        if (!isset($input['type'])) {
+            return response()->json(['result' => false, 'msg' => 'Type is a required argument!']);
+        }
         $provider = GlobalProvider::findOrFail($input['prov_id']);
 
         // ASME (there may be others) checks the Agent and returns 403 if it doesn't like what it sees
@@ -403,48 +406,54 @@ class SushiSettingController extends Controller
           $input['extra_args'] = ltrim($input['extra_args'], "&?");
         }
 
-       // Construct and execute the test request for a PR report of last month
-        $_uri .= '/reports/pr?';
-        $uri_auth = "";
+       // For credentials test, build and execute a request for a PR report of last month
+        if ($input['type'] == 'test') {
+            $_uri .= '/reports/pr?';
+            $uri_auth = "";
 
-        // If a platform value is set, start with it
-        if (!is_null($provider->platform_parm)) {
-            $uri_auth = "platform=" . $provider->platform_parm;
+            // If a platform value is set, start with it
+            if (!is_null($provider->platform_parm)) {
+                $uri_auth = "platform=" . $provider->platform_parm;
+            }
+
+            $fields = array('customer_id', 'requestor_id', 'api_key', 'extra_args');
+            foreach ($fields as $fld) {
+            if (isset($input[$fld])) {
+                $uri_auth .= ($uri_auth == '') ? "" : "&";
+                if ($fld == 'extra_args') {
+                    $uri_auth .= urlencode($input['extra_args']);
+                } else {
+                    $uri_auth .= $fld . '=' . urlencode($input[$fld]);
+                }
+            }
+            }
+            $dates = '&begin_date=' . date('Y-m-d', strtotime('first day of previous month')) .
+                    '&end_date=' . date('Y-m-d', strtotime('last day of previous month'));
+            $request_uri = $_uri . $uri_auth . $dates;
         }
-
-        $fields = array('customer_id', 'requestor_id', 'api_key', 'extra_args');
-        foreach ($fields as $fld) {
-          if (isset($input[$fld])) {
-              $uri_auth .= ($uri_auth == '') ? "" : "&";
-              if ($fld == 'extra_args') {
-                  $uri_auth .= urlencode($input['extra_args']);
-              } else {
-                  $uri_auth .= $fld . '=' . urlencode($input[$fld]);
-              }
-          }
-        }
-        $dates = '&begin_date=' . date('Y-m-d', strtotime('first day of previous month')) .
-                 '&end_date=' . date('Y-m-d', strtotime('last day of previous month'));
-        $request_uri = $_uri . $uri_auth . $dates;
-
        // Make the request and convert result into JSON
         $rows = array();
         $client = new Client();   //GuzzleHttp\Client
         try {
-            $response = $client->request('GET', $request_uri, $options);
-            $rows[] = "Request URL: ";
-            $rows[] = $request_uri;
-            $rows[] = "JSON Response:";
-            $rows[] = json_decode($response->getBody(), JSON_PRETTY_PRINT);
+            if ($input['type'] == 'status') {
+                $response = $client->request('GET', $_uri . "/status");
+                $rows[] = "Service Status: ";
+            } else {
+                $response = $client->request('GET', $request_uri, $options);
+                $rows[] = "Request URL: ";
+                $rows[] = $request_uri;
+                $rows[] = "JSON Response:";
+            }
             $result = 'Request response successfully received';
+            $rows[] = json_decode($response->getBody(), JSON_PRETTY_PRINT);
         } catch (\Exception $e) {
-            $result = 'Request for service status failed!';
             $rows[] = $e->getMessage();
+            return response()->json(['result' => false, 'msg' => 'Request for service status failed!',
+                                     'rows' => $rows]);
         }
 
-       // return ... something
-        $return = array('rows' => $rows, 'result' => $result);
-        return response()->json($return);
+       // return result
+        return response()->json(['result' => true, 'rows' => $rows, 'result' => $result]);
     }
 
     /**
