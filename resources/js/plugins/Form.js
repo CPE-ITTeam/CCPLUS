@@ -124,6 +124,33 @@ class Form {
     onFail(errors) {
         this.errors.record(errors);
     }
+
+    /**
+     * Determines if a form is dirty by comparing the current value of each element  with the original value.
+     *
+     * @param {Form} form the form to be checked.
+     * @return {Boolean} true if the form is dirty, false otherwise.
+     */
+    isDirty() {
+        let cur = this.data();
+        for (let field in this.originalData) {
+            if (JSON.stringify(cur[field]) !== JSON.stringify(this.originalData[field]) ) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /**
+     * Update originalData with the current form fields.
+     */
+    resetOriginal() {
+        for (let field in this.data()) {
+            this.originalData[field] = this[field];
+        }
+        this.errors.clear();
+    }
+
 }
 
 export default Form;
