@@ -54,13 +54,17 @@ class GlobalAdminController extends Controller
 
             // Set release-related fields
             $provider['registries'] = array();
+            $provider['release'] = $gp->default_release();
+            $provider['service_url'] = $gp->service_url();
             foreach ($gp->registries as $registry) {
                 $reg = $registry->toArray();
                 $reg['connector_state'] = $this->connectorState($registry->connectors);
+                $reg['is_selected'] = ($registry->release == $provider['release']);
                 $provider['registries'][] = $reg;
             }
-            $provider['release'] = $gp->default_release();
-            $provider['service_url'] = $gp->service_url();
+            if (is_null($gp->selected_release)) {
+                $provider['selected_release'] = $provider['release'];
+            }
 
             // Build arrays of booleans for connecion fields and reports for the U/I chackboxes
             $provider['report_state'] = $this->reportState($gp->master_reports);
