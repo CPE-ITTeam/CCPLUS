@@ -277,10 +277,16 @@ class GlobalProviderController extends Controller
           $provider->name = $input_name;
       }
 
-     // Get or create the registry record and set service_url
+      // Get or create the registry record and set service_url
       $input_release = (isset($input['release'])) ? $input['release'] : "";
       $release = (strlen(trim($input_release)) > 0) ? $input_release : "0";
-      $registry = $provider->registries->where('release',$release)->first();
+      // If there is only one registry, allow input value to modify the release set for the entry
+      if ($provider->registries->count() == 1) {
+          $registry = $provider->registries->first();
+          $registry->release = $release;
+      } else {
+          $registry = $provider->registries->where('release',$release)->first();
+      }
       if ($registry) {
           $registry->service_url = (isset($input['service_url'])) ? $input['service_url'] : null;
       } else {
@@ -310,6 +316,12 @@ class GlobalProviderController extends Controller
       }
       $registry->save();
 
+      // Set Provider's selected_release if the input flag is on
+      $isSelected = ($input['is_selected']) ? 1 : 0;
+      if ($isSelected) {
+          $provider->selected_release = trim($registry->release);
+      }
+
       // Handle other provider values
       $provider->day_of_month = (isset($input['day_of_month'])) ? $input['day_of_month'] : 15;
       $args = array('platform_parm','content_provider','registry_id');
@@ -331,11 +343,13 @@ class GlobalProviderController extends Controller
           $provider->master_reports = $master_reports;
       }
       $provider->save();
+      $provider->load('registries');
       $provider['status'] = ($provider->is_active) ? "Active" : "Inactive";
       $provider['report_state'] = (isset($input['report_state'])) ? $input['report_state'] : array();
       // Set connector_state by-release
       foreach ($provider->registries as $registry) {
           $registry->connector_state = $this->connectorState($registry->connectors);
+          $registry->is_selected = ($registry->release == $provider->selected_release);
       }
       $provider['release'] = $release;
       $provider['service_url'] = ($registry) ? $registry->service_url : $provider->service_url();
