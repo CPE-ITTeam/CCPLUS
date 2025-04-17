@@ -32,9 +32,10 @@ class GlobalProvider extends Model
    * @var array
    */
     protected $attributes = ['registry_id' => null, 'name' => '', 'abbrev' => null, 'is_active' => 1, 'refreshable' => 1,
-                             'refresh_result' => null, 'master_reports' => '{}', 'day_of_month' => 15, 'platform_parm' => null];
+                             'refresh_result' => null, 'master_reports' => '{}', 'day_of_month' => 15, 'platform_parm' => null,
+                             'selected_release' => null];
     protected $fillable = ['id', 'registry_id', 'name', 'abbrev', 'is_active', 'refreshable', 'refresh_result', 'master_reports',
-                           'day_of_month', 'platform_parm'];
+                           'day_of_month', 'platform_parm', 'selected_release'];
     protected $casts = ['id'=>'integer', 'is_active'=>'integer', 'refreshable'=>'integer', 'master_reports' => 'array',
                         'day_of_month' => 'integer'];
 
@@ -90,12 +91,20 @@ class GlobalProvider extends Model
 
     public function default_registry()
     {
+        $rel = (is_null($this->selected_release)) ? $this->registries->max('release') : $this->selected_release;
+        $reg = $this->registries->where('release', $rel)->first();
+        if ($reg) return $reg;
+
+        // if selected_release registry not found, try for max instead
         $rel = $this->registries->max('release');
         return $this->registries->where('release', $rel)->first();
     }
 
     public function default_release()
     {
+        if (!is_null($this->selected_release)) {
+            return $this->selected_release;
+        }
         $return_value = "";
         $registry = $this->default_registry();
         if ($registry) {
