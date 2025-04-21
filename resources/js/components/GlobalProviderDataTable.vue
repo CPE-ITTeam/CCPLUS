@@ -71,9 +71,12 @@
       </template>
       <template v-slot:item.action="{ item }">
         <span class="dt_action">
-          <v-btn v-if="item.registry_id!=null" icon
+          <v-btn v-if="item.refresh_result=='orphan'" icon>
+            <v-icon title="Deprecated" color="red">mdi-web-remove</v-icon>
+          </v-btn>
+          <v-btn v-else="item.registry_id!=null" icon
                  @click="goURL('https://registry.projectcounter.org/platform/'+item.registry_id)">
-            <v-icon v-if="item.refresh_result=='failed'" title="Last Update Attempt Failed" color="red">mdi-web-remove</v-icon>
+            <v-icon v-if="item.refresh_result=='failed'" title="Last Update Attempt Failed" color="red">mdi-web-remove</v-icon>            
             <v-icon v-else-if="item.refresh_result=='success'" title="Open Registry Details" color="blue">mdi-web-check</v-icon>
             <v-icon v-else-if="item.refresh_result=='new'" title="New Platform Entry" color="green">mdi-web-plus</v-icon>
             <v-icon v-else title="Registry Refresh Disabled">mdi-web-cancel</v-icon>
@@ -180,8 +183,11 @@
               </v-col>
             </v-row>
             <v-row class="d-flex ma-0 align-center" no-gutters>
-              <v-col class="d-flex px-4">
-                <v-switch v-model="form.refreshable" label="Enable COUNTER API Refresh" dense></v-switch>
+              <v-col class="d-flex px-4" cols="6">
+                <v-switch v-model="form.refreshable" label="Enable COUNTER Refresh" dense></v-switch>
+              </v-col>
+              <v-col class="d-flex px-4" cols="6">
+                <v-switch v-model="form.apply_instances" label="Apply to All Instances" dense></v-switch>
               </v-col>
             </v-row>
             <v-row v-if="form.refreshable" class="d-flex ma-0" no-gutters>
@@ -269,7 +275,7 @@
         import_types: ['Add or Update', 'Full Replacement'],
         mutable_filters: this.filters,
         status_options: ['ALL', 'Active', 'Inactive'],
-        result_options: ['ALL', 'Success', 'Failed', 'New', 'Refresh Disabled', 'No Registry ID'],
+        result_options: ['ALL', 'Success', 'Failed', 'New', 'Deprecated', 'Refresh Disabled', 'No Registry ID'],
         bulk_actions: [ 'Enable', 'Disable', 'Refresh Registry', 'Delete' ],
         bulkAction: null,
         selectedRows: [],
@@ -307,6 +313,7 @@
             report_state: [],
             notifications_url: '',
             platform_parm: null,
+            apply_instances: false,
         }),
         dayRules: [
             v => !!v || "Day of month is required",
@@ -358,6 +365,7 @@
             this.updated_at = this.cur_provider.updated;
             this.providerImportDialog = false;
             this.settingsImportDialog = false;
+            this.apply_instances=false;
             this.provDialog = true;
             this.form.resetOriginal();
           },
@@ -701,7 +709,7 @@
               var canDelete = this.mutable_providers[idx].can_delete;
               var connections = this.mutable_providers[idx].connections;
               // If a required connector was turned off, popup a warning
-              if (this.warnConnectors) {
+              if (this.warnConnectors && this.form.apply_instances) {
                 let warning_html = "One or more required connectors has been marked as no longer required. The current "+
                                    " values defined for these connectors will be cleared THROUGH ALL INSTANCES from the "+
                                    " COUNTER API credentials when the platform is saved.<br />";
@@ -727,7 +735,7 @@
                                 return a.name.toLowerCase().localeCompare(b.name.toLowerCase());
                             });
                             this.success = response.msg;
-                        } else {
+                          } else {
                             this.success = '';
                             this.failure = response.msg;
                         }
