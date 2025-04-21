@@ -41,7 +41,7 @@ class CounterRegistryController extends Controller
         $input = $request->all();
 
         if ($input['id'] == "ALL") {
-            $global_providers = GlobalProvider::get();
+            $global_providers = GlobalProvider::whereNotNull('registry_id')->get();
             $is_dialog = 0;
         } else {
             $is_dialog = json_decode($request->input('dialog'));
@@ -122,7 +122,7 @@ class CounterRegistryController extends Controller
                     break;
                 }
             }
-            // if no URL defined,
+            // if no URL defined, don't create a GlobalProvider, just flag it
             if (!$hasUrl) {
                 if ($gpCount == 1) {
                     return response()->json(['result' => false, 'msg' => $errorData[1]['msg']]);
@@ -220,8 +220,8 @@ class CounterRegistryController extends Controller
             foreach ($global_provider->registries as $reg) {
                 $len = (isset($reg->service_url)) ? strlen(trim($reg->service_url)) : 0;
                 // delete (CC+) registries for releases no longer in the (COUNTER) registry
-                // or that have an empty/missing
-                if (!in_array($reg->release,$releases) || $len == 0) {
+                // or that have an empty/missing (skip if there is only one)
+                if ($global_provider->registries->count() > 1 && (!in_array($reg->release,$releases) || $len == 0)) {
                     $reg->delete();
                 }
             }
@@ -233,12 +233,26 @@ class CounterRegistryController extends Controller
             // Update or create CC+ counter_registries records for each release defined in service details
             $connectors_changed = false;
             $reportIds = array();
-            $dropped_reports = array();
             if ($urlMissing) {
                 $no_url[] = $global_provider->name;
                 $global_provider->is_active = 0;
-                $global_provider->refresh_result = "noUrl"; // deprecated
+                $global_provider->refresh_result = "noUrl";
             } else {
+                // Get available platform reports
+                $reportIds = $masterReports->whereIn('name',array_column($platform->reports,'report_id'))
+                                        ->pluck('id')->toArray();
+    
+                // Set and save the global_provider
+                $global_provider->registry_id = $platform->id;
+                $global_provider->name = $platform->name;
+                $global_provider->content_provider = $platform->content_provider_name;
+                $global_provider->abbrev = $platform->abbrev;
+                $global_provider->master_reports = $reportIds;
+                $global_provider->refresh_result = ($newProvider) ? "new" : "success";
+                $global_provider->updated_at = now();
+                if (!$is_dialog) {
+                    $global_provider->save();   
+                }
                 $old_connectors = $global_provider->connectors();
                 foreach ( $service_details as $release => $details ) {
                     if (strlen(trim($details->url)) > 0) {
@@ -276,127 +290,27 @@ class CounterRegistryController extends Controller
                         $registry->save();
                     }
                 }
+                $global_provider->load('registries');
     
                 // Check for changed connectors (in the default/max release) - if new ones are now required, we need
                 // to update SushiSettings.
                 $cur_connectors = $global_provider->connectors();
                 $connectors_changed = ($cur_connectors != $old_connectors);
-    
-                // Get platform reports available
-                $reportIds = $masterReports->whereIn('name',array_column($platform->reports,'report_id'))
-                                           ->pluck('id')->toArray();
-    
-                // Collect IDs of reports that have been removed; they need to be detached from the consortia instance tables.
-                // NOTE:: adding to the global master list doesn't automatically enable new reports in the instance tables.
-                foreach ($global_provider->master_reports as $mr) {
-                    if (!in_array($mr, $reportIds)) {
-                        $dropped_reports[] = $mr;
-                    }
-                }
-
-                // Set and save the global_provider elements
-                $global_provider->registry_id = $platform->id;
-                $global_provider->name = $platform->name;
-                $global_provider->content_provider = $platform->content_provider_name;
-                $global_provider->abbrev = $platform->abbrev;
-                $global_provider->master_reports = $reportIds;
-                $global_provider->updated_at = now();
-                if (!$newProvider) {
-                    $global_provider->refresh_result = "success";
-                }
             }
+
+            // If running from dialog, user decides whether to save and/or apply to instances
             if (!$is_dialog) {
-                $global_provider->save();
-            }
-            $isActive = $global_provider->is_active;
 
-            // Setup connector lookgups
-            $registry = $global_provider->default_registry();
-            $fields = ($registry) ? $allConnectors->whereIn('id',$registry->connectors)->pluck('name')->toArray() : array();
-            $unused_fields = ($registry) ? $allConnectors->whereNotIn('id',$registry->connectors)->pluck('name')->toArray()
-                                         : array();
+                $_release = $global_provider->default_release();
+                $global_provider->update(['selected_release' => $_release]);
 
-            // If changes implicate consortia-provider settings, Loop through all consortia instances
-            if ($global_provider->name != $orig_name  || $isActive!=$orig_isActive ||
-                count($dropped_reports)>0 || $connectors_changed) {
-
-                $instances = Consortium::get();
-                $keepDB  = config('database.connections.consodb.database');
-                $prov_updates = array('name' => $global_provider->name);
-                // only update is_active if the global state is changing (otherwise leave consortium state as-is)
-                if ($isActive != $orig_isActive) {
-                    $prov_updates['is_active'] = $isActive;
+                // If changes implicate consortia-provider settings, Loop through all consortia instances
+                if ($global_provider->name != $orig_name || $global_provider->is_active!=$orig_isActive || $connectors_changed) {
+                    $global_provider->appyToInstances();
                 }
-                foreach ($instances as $instance) {
-                    // switch the database connection
-                    config(['database.connections.consodb.database' => "ccplus_" . $instance->ccp_key]);
-                    try {
-                        DB::reconnect('consodb');
-                    } catch (\Exception $e) {
-                        continue;
-                    }
-                    // Update the providers table (name and/or is_active)
-                    $con_prov = Provider::where('global_id',$global_provider->id)->first();
-                    if (!$con_prov) continue;
-                    $was_active = $con_prov->is_active;
-                    if ($global_provider->name != $orig_name || $isActive != $orig_isActive) {
-                        $con_prov->update($prov_updates);
-                    }
-                    // Detach any reports that are no longer available
-                    foreach ($dropped_reports as $rpt_id) {
-                        $con_prov->reports()->detach($rpt_id);
-                    }
-                    // If connectors changed, check/update sushi settings
-                    if ($connectors_changed || $isActive != $orig_isActive) {
-                        // Get all (.not.disabled) settings for this global from the current conso instances
-                        $settings = SushiSetting::with('institution')->where('prov_id',$global_provider->id)
-                                                ->where('status','<>','Disabled')->get();
-                        // Check, and possibly update, status for related sushi settings (skip disabled settings)
-                        foreach ($settings as $setting) {
-                            $setting_updates = array();
-                            if ($setting->isComplete()) {
-                                // Clear any '-required-' labels on unused fields
-                                foreach ($unused_fields as $uf) {
-                                    if ($setting->$uf == '-required-') {
-                                        $setting_updates[$uf]= '';
-                                    }
-                                }
-                                // Setting is marked Enabled, but provider just went inactive, suspend it
-                                if ($setting->status == 'Enabled' && $was_active && !$con_prov->is_active ) {
-                                    $setting_updates['status'] = 'Suspended';
-                                }
-                                // Setting is marked Suspended, but provider is now active with active institution, enable it
-                                if ($setting->status == 'Suspended' && !$was_active && $con_prov->is_active &&
-                                    $setting->institution->is_active) {
-                                    $setting_updates['status'] = 'Enabled';
-                                }
-                                // Setting status is marked Incomplete
-                                if ($setting->status == 'Incomplete') {
-                                    // if provider and institution are active, enable it, otherwise mark suspended
-                                    $setting_updates['status'] = ($con_prov->is_active && $setting->institution->is_active) ?
-                                                                 'Enabled' : 'Suspended';
-                                }
-                            // If required connectors are missing value(s), mark them and update setting status to Incomplete
-                            } else {
-                                $setting_updates['status'] = 'Incomplete';
-                                foreach ($fields as $fld) {
-                                    if ($setting->$fld == null || $setting->$fld == '') {
-                                        $setting_updates[$fld] = "-required-";
-                                    }
-                                }
-                            }
-                            if (count($setting_updates) > 0) {
-                                $setting->update($setting_updates);
-                            }
-                        }
-                    }
-                }
-                // Restore the database handle
-                config(['database.connections.consodb.database' => $keepDB]);
             }
 
             // Setup return data
-            $global_provider->load('registries');
             $return_rec = $global_provider->toArray();
             $return_rec['registries'] = array();
             foreach ($global_provider->registries as $reg) {
@@ -421,16 +335,15 @@ class CounterRegistryController extends Controller
         }
 
         // Providers that are in CC+ as a GlobalProvider, but missing from updated_ids have been orphaned by COUNTER.
-        // Mark these providers' refresh_result as "failed"
+        // Mark these providers' refresh_result as "orphan" (the U/I will label as Deprecated)
         if (!$is_dialog && count($updated_ids) > 0) {
             $orphans = $global_providers->where('is_active',1)->where('refreshable',1)->whereNotIn('id',$updated_ids)->all();
             foreach ($orphans as $gp) {
+                $gp->refresh_result = 'orphan';
                 if (is_null($gp->registry_id) || $gp->registry_id == '') {
                     $no_registryID[] = $gp->name;
-                    $gp->refresh_result = null;
                 } else {
                     $return_data[] = array('error' => 3, 'id' => $gp->id, 'name' => $gp->name);
-                    $gp->refresh_result = 'failed';
                 }
                 $gp->save();
             }
