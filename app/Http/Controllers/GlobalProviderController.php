@@ -79,6 +79,8 @@ class GlobalProviderController extends Controller
                 $filter_not_refreshable = true;
             } else if ($filters['refresh'] == 'No Registry ID') {
                 $filter_no_registryID = true;
+            } else if ($filters['refresh'] == 'Deprecated') {
+                $filter_refresh = 'orphan';
             } else if ($filters['refresh'] != 'ALL') {
                 $filter_refresh = strtolower($filters['refresh']);
             }
@@ -252,24 +254,12 @@ class GlobalProviderController extends Controller
           $provider->refresh_result = null;
       }
 
+      // Set flag for whether to push change through all instances
+      $applyFlag = ($input['apply_instances']) ? true : false;
+
       // Pull all connection fields and master reports
       $this->getConnectionFields();
       $this->getMasterReports();
-
-      // Gather IDs of reports that have been removed. We'll detach these from the consortia instance tables.
-      // NOTE:: adding to the global master list doesn't automatically enable new reports in the instance tables.
-      $dropped_reports = array();
-      $original_reports = $provider->master_reports;
-      if (array_key_exists('report_state', $input)) {
-          foreach ($original_reports as $mr) {
-              $_master = $masterReports->where('id', $mr)->first();
-              if (!$_master) continue;
-              if (!isset($input['report_state'][$_master->name])) continue;
-              if (!$input['report_state'][$_master->name]) {
-                  $dropped_reports[] = $mr;
-              }
-          }
-      }
 
       // Update the record in the global table
       $input_name = (isset($input['name'])) ? $input['name'] : $orig_name;
@@ -296,7 +286,6 @@ class GlobalProviderController extends Controller
           $registry->service_url = $input['service_url'];
           $registry->release = $release;
       }
-      $connectors_changed = false;
       if ($registry) {
           // Turn array of connection checkboxes into an array of IDs
           $new_connectors = array();
@@ -307,10 +296,6 @@ class GlobalProviderController extends Controller
                       $new_connectors[] = $cnx->id;
                   }
               }
-              // connectors_changed is true ONLY for the default/max release
-              // (we don't want to updated downstream settings by changing an older release)
-              $connectors_changed = ($provider->default_release() == $registry->release &&
-                                     $registry->connectors != $new_connectors);
               $registry->connectors = $new_connectors;
           }
       }
@@ -356,87 +341,9 @@ class GlobalProviderController extends Controller
       // Set connection field labels in an array for the datatable display
       $provider['updated'] = (is_null($provider->updated_at)) ? null : date("Y-m-d H:i", strtotime($provider->updated_at));
 
-      // Get connector fields
-      $_connectors = ($registry) ? $registry->connectors : $provider->connectors();
-      $fields = $allConnectors->whereIn('id',$_connectors)->pluck('name')->toArray();
-      $unused_fields = $allConnectors->whereNotIn('id',$_connectors)->pluck('name')->toArray();
-
-      // If changes implicate consortia-provider settings, Loop through all consortia instances
-      if ($input_name != $orig_name || $isActive!=$orig_isActive || count($dropped_reports)>0 || $connectors_changed) {
-          $instances = Consortium::get();
-          $keepDB  = config('database.connections.consodb.database');
-          $prov_updates = array('name' => $input_name);
-          // only update is_active if the global state is changing (otherwise leave consortium state as-is)
-          if ($isActive != $orig_isActive) {
-              $prov_updates['is_active'] = $isActive;
-          }
-          foreach ($instances as $instance) {
-              // switch the database connection
-              config(['database.connections.consodb.database' => "ccplus_" . $instance->ccp_key]);
-              try {
-                  DB::reconnect('consodb');
-              } catch (\Exception $e) {
-                  return response()->json(['result' => 'Error connecting to database for the ' . $instance->name . ' instance!']);
-              }
-
-              // Update the providers table
-              $con_prov = Provider::where('global_id',$id)->first();
-              if (!$con_prov) continue;
-              $was_active = $con_prov->is_active;
-              if ($input_name!=$orig_name || $isActive!=$orig_isActive) {
-                  $con_prov->update($prov_updates);
-              }
-
-              // Detach any reports that are no longer available
-              foreach ($dropped_reports as $rpt_id) {
-                  $con_prov->reports()->detach($rpt_id);
-              }
-
-              if ($connectors_changed || $isActive != $orig_isActive) {
-                  // Get all (.not.disabled) sushi settings for this global from the current conso instances
-                  $settings = SushiSetting::with('institution')->where('prov_id',$id)->where('status','<>','Disabled')->get();
-                  // Check, and possibly update, status for related sushi settings (skip disabled settings)
-                  foreach ($settings as $setting) {
-                      // If required connectors all have values, check to see if sushi setting status needs updating
-                      $setting_updates = array();
-                      if ($setting->isComplete()) {
-                          // Setting is Enabled, provider going inactive, suspend it
-                          if ($setting->status == 'Enabled' && $was_active && !$con_prov->is_active ) {
-                              $setting_updates['status'] = 'Suspended';
-                          }
-                          // Setting is Suspended, provider going active with active institution, enable it
-                          if ($setting->status == 'Suspended' && !$was_active && $con_prov->is_active &&
-                              $setting->institution->is_active) {
-                              $setting_updates['status'] = 'Enabled';
-                          }
-                          // Setting status is Incomplete, provider is active and institution is active, enable it
-                          if ($setting->status == 'Incomplete') {
-                              $setting_updates['status'] = ($con_prov->is_active && $setting->institution->is_active) ?
-                                                              'Enabled' : 'Suspended';
-                          }
-                          // Setting is Complete; clear '-required--' labels on unused fields
-                          foreach ($unused_fields as $uf) {
-                              if ($setting->$uf == '-required-') {
-                                  $setting_updates[$uf]= '';
-                              }
-                          }
-                      // If required conenctors are missing value(s), mark them and update setting status tp Incomplete
-                      } else {
-                          $setting_updates['status'] = 'Incomplete';
-                          foreach ($fields as $fld) {
-                              if ($setting->$fld == null || $setting->$fld == '') {
-                                  $setting_updates[$fld] = "-required-";
-                              }
-                          }
-                      }
-                      if (count($setting_updates) > 0) {
-                          $setting->update($setting_updates);
-                      }
-                  }
-              }
-          }
-          // Restore the database habdle
-          config(['database.connections.consodb.database' => $keepDB]);
+      // Apply changes system-wide if the user requested it
+      if ($applyFlag) {
+          $provider->appyToInstances();
       }
 
       return response()->json(['result' => true, 'msg' => 'Global Platform settings successfully updated',
