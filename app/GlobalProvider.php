@@ -1,8 +1,12 @@
 <?php
 
 namespace App;
+use DB;
 use App\Report;
 use App\ConnectionField;
+use App\Consortium;
+use App\Provider;
+use App\SushiSetting;
 use Illuminate\Database\Eloquent\Model;
 
 class GlobalProvider extends Model
@@ -190,4 +194,97 @@ class GlobalProvider extends Model
         }
         return $reports;
     }
+
+   /**
+    * Apply GlobalProvider settings to all active consortia instances.
+    *
+    * @return \Illuminate\Http\Response
+    */
+    public function appyToInstances()
+    {
+        $global_reports = $this->master_reports;
+
+        // Setup connector lookups
+        $registry = $this->default_registry();
+        $fields = ($registry) ? $this->all_connectors->whereIn('id',$registry->connectors)->pluck('name')->toArray() : array();
+        $unused_fields = ($registry) ? $this->all_connectors->whereNotIn('id',$registry->connectors)->pluck('name')->toArray()
+                                     : array();
+
+        // Get active consortia
+        $instances = Consortium::where('is_active',1)->get();
+        $keepDB  = config('database.connections.consodb.database');
+
+        // Setup updates array for all related consortial providers
+        $prov_updates = array('name' => $this->name, 'is_active' => $this->is_active);
+        foreach ($instances as $instance) {
+            // switch the database connection
+            config(['database.connections.consodb.database' => "ccplus_" . $instance->ccp_key]);
+            try {
+                DB::reconnect('consodb');
+            } catch (\Exception $e) {
+                continue;
+            }
+            // Update the providers table (name and/or is_active)
+            $con_prov = Provider::where('global_id',$this->id)->first();
+            if (!$con_prov) continue;
+            $was_active = $con_prov->is_active;
+            $con_prov->update($prov_updates);
+
+            // Detach any reports that are no longer available
+            foreach ($con_prov->reports as $rpt) {
+                if (!in_array($rpt->id,$global_reports)) {
+                    $con_prov->reports()->detach($rpt->id);
+                }
+            }
+
+            // Check/update sushi settings
+            // Get all (.not.disabled) settings for this global from the current conso instances
+            $settings = SushiSetting::with('institution')->where('prov_id',$this->id)
+                                    ->where('status','<>','Disabled')->get();
+
+            // Check, and possibly update, status for related sushi settings (skip disabled settings)
+            foreach ($settings as $setting) {
+                $setting_updates = array();
+                // Clear all unused fields with values, regardless of completeness
+                foreach ($unused_fields as $uf) {
+                    if (strlen($setting->{$uf}) > 0) {
+                        $setting_updates[$uf]= '';
+                    }
+                }
+                if ($setting->isComplete()) {
+                    // Setting is marked Enabled, but provider just went inactive, suspend it
+                    if ($setting->status == 'Enabled' && $was_active && !$con_prov->is_active ) {
+                        $setting_updates['status'] = 'Suspended';
+                    }
+                    // Setting is marked Suspended, but provider is now active with active institution, enable it
+                    if ($setting->status == 'Suspended' && !$was_active && $con_prov->is_active &&
+                        $setting->institution->is_active) {
+                        $setting_updates['status'] = 'Enabled';
+                    }
+                    // Setting status is marked Incomplete
+                    if ($setting->status == 'Incomplete') {
+                        // if provider and institution are active, enable it, otherwise mark suspended
+                        $setting_updates['status'] = ($con_prov->is_active && $setting->institution->is_active) ?
+                                                        'Enabled' : 'Suspended';
+                    }
+                // If required connectors are missing value(s), mark them and update setting status to Incomplete
+                } else {
+                    $setting_updates['status'] = 'Incomplete';
+                    foreach ($fields as $fld) {
+                        if ($setting->$fld == null || $setting->$fld == '') {
+                            $setting_updates[$fld] = "-required-";
+                        }
+                    }
+                }
+                if (count($setting_updates) > 0) {
+                    $setting->update($setting_updates);
+                }
+            }
+        }
+
+        // Restore the database handle
+        config(['database.connections.consodb.database' => $keepDB]);
+        return true;
+    }
+
 }
