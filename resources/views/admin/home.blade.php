@@ -4,7 +4,7 @@
 @endsection
 @section('content')
 <div class="d-flex pl-2">
-  <h1>{{ $conso_name }} Instance Dashboard</h1>
+  <h1>{{ $conso_name }} Consortium Dashboard</h1>
 </div>
 <consoadmin-dashboard :roles="{{ json_encode($roles) }}"
                       :institutions="{{ json_encode($institutions) }}"
