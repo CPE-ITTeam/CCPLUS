@@ -69,14 +69,6 @@ class GlobalAdminController extends Controller
             // Build arrays of booleans for connecion fields and reports for the U/I chackboxes
             $provider['report_state'] = $this->reportState($gp->master_reports);
 
-            // Set connection field labels in an array for the datatable display
-            $provider['connection_fields'] = array();
-            foreach ($allConnectors as $fld) {
-                if ( in_array($fld->id, $gp->connectors()) ) {
-                    $provider['connection_fields'][] = $fld->label;
-                }
-            }
-
             // Walk all instances scan for harvests connected to this provider
             // If any are found, the can_delete flag will be set to false to disable deletion option in the U/I
             $provider['can_delete'] = true;
