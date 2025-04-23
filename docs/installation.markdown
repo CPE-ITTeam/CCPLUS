@@ -53,7 +53,7 @@ Once the application is installed, the application administrator will need to co
 ### Step 1: Apache
 Make sure you have a working [apache server configured](https://httpd.apache.org/docs/2.4/), including `mod_rewrite`, for serving the publicly-accessible elements of the CC-Plus application. For the purposes of these instructions, we will refer to this place as: `/var/www/ccplus/`.
 
-Define the public-facing web directory settings something along the lines of:
+Define the public-facing web directory settings something similar to those below. Note that increasing the TimeOut value is likely necessary for refreshing the COUNTER registry from the user interface.
 >
 >       DocumentRoot "/var/www/ccplus"
 >
@@ -63,6 +63,8 @@ Define the public-facing web directory settings something along the lines of:
 >          Order allow,deny
 >          allow from all
 >      </Directory>
+>
+>      TimeOut 300
 
 Enable mod_rewrite for Apache:
 ```bash
@@ -99,6 +101,7 @@ The Laravel application itself, including encryption keys, output, logs, etc. wi
 Next, the local `.env` needs to be modified to match the current host environment. Use your preferred editor to open and modify the .env file:
 ```bash
   cp .env.example .env;
+  chmod 670 .env;
   vi .env
 ```
 * Assign APP_URL to the URL that your webserver uses to connect to your public documents folder (step-1, above)
@@ -138,9 +141,9 @@ The webserver will need write access to some folders within the application fold
 ```bash
   cd /usr/local/CCPLUS/;
   chown -R root:www-data storage;
-  chmod -R g+rw storage;
+  chmod -R 775 storage;
   chown root:www-data bootstrap/cache;
-  chmod g+rw bootstrap/cache;
+  chmod 775 bootstrap/cache;
 ```
 
 ### Step 5: Update the Webserver Directory
@@ -182,7 +185,7 @@ The tables in the ccplus_global database will be shared by all consortia within 
   Migration table created successfully
   Migrating: 2019_07_12_200315_create_datatypes_table
      . . .
-  Migrated: 2022_09_19_133619_create_global_providers_table (31.52ms)
+  Migrated: 2025_03_24_111229_create_counter_registries_table (18.83ms)
 ```
 
 The tables in the ccplus_con_template database are used when creating consortia for CC-Plus
@@ -194,7 +197,7 @@ The tables in the ccplus_con_template database are used when creating consortia 
   Migration table created successfully
   Migrating: 2019_07_16_111258_create_institutiontypes_table
      . . .
-  Migrated: 2022_08_03_171565_create_provider_connectors_table (69.44ms)
+  Migrated: 2020_05_29_133354_create_system_alerts_table (29.41ms)
 ```
 
 ### Step 8: Seed Tables
@@ -205,7 +208,7 @@ Certain tables in both the global and the template need to be seeded with some i
 ```
   Seeding: Database\Seeders\ReportsTableSeeder
      . . .
-  Seeded: Database\Seeders\ConnectionFieldSeeder (5.75ms)
+  Seeded: Database\Seeders\GlobalSettingSeeder (62.73ms)
 ```
 
 ### Step 9: Add a Consortium
