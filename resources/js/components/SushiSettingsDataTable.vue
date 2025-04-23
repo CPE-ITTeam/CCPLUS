@@ -484,7 +484,6 @@
                     this.filters['inst'] = [];
                 }
               }
-              this.updateFilterOptions(filt);
               this.dtKey += 1;           // re-render of the datatable
           },
           clearAllFilters() {
