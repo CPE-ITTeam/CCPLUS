@@ -110,8 +110,21 @@ class GlobalProviderController extends Controller
                 $provider['status'] = ($gp->is_active) ? "Active" : "Inactive";
                 $provider['registry_id'] = (is_null($gp->registry_id) || $gp->registry_id=="") ? null : $gp->registry_id;
 
-                // Build arrays of booleans for connection fields and reports for the U/I chackboxes
-                $provider['connector_state'] = $this->connectorState($gp->connectors());
+                // Set release-related fields
+                $provider['registries'] = array();
+                $provider['release'] = $gp->default_release();
+                $provider['service_url'] = $gp->service_url();
+                foreach ($gp->registries as $registry) {
+                    $reg = $registry->toArray();
+                    $reg['connector_state'] = $this->connectorState($registry->connectors);
+                    $reg['is_selected'] = ($registry->release == $provider['release']);
+                    $provider['registries'][] = $reg;
+                }
+                if (is_null($gp->selected_release)) {
+                    $provider['selected_release'] = $provider['release'];
+                }
+    
+                // Build arrays of booleans for connecion fields and reports for the U/I chackboxes
                 $provider['report_state'] = $this->reportState($gp->master_reports);
 
                 // Walk all instances scan for harvests connected to this provider
@@ -131,11 +144,9 @@ class GlobalProviderController extends Controller
                         $provider['connection_count'] += 1;
                     }
                 }
-                $parsedUrl = parse_url($gp->service_url());
-                $provider['service_url'] = $gp->service_url();
-                $provider['host_domain'] = (isset($parsedUrl['host'])) ? $parsedUrl['host'] : "-missing-";    
+                $parsedUrl = parse_url($provider['service_url']);
+                $provider['host_domain'] = (isset($parsedUrl['host'])) ? $parsedUrl['host'] : "-missing-";
                 $provider['connections'] = $connections;
-                $provider['release'] = (preg_match('/r51/',$gp->service_url())) ? "5.1" : "";
                 $provider['updated'] = (is_null($gp->updated_at)) ? "" : date("Y-m-d H:i", strtotime($gp->updated_at));
                 $providers[] = $provider;
             }
