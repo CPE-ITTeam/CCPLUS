@@ -26,7 +26,7 @@ Route::post('/reset-password','Auth\ForgotPasswordController@submitResetForm')->
 Route::resource('/roles', 'RoleController')->middleware(['auth']);
 Route::resource('/users', 'UserController')->middleware(['auth','cache.headers:no_store']);
 Route::post('/users/import', 'UserController@import')->name('users.import');
-Route::get('/users/export/{type}', 'UserController@export')->name('users.export');
+Route::get('/users-export', 'UserController@export')->name('users.export');
 // Institutions
 Route::resource('institutions', 'InstitutionController')->middleware(['auth','cache.headers:no_store']);
 Route::prefix('institution')->name('institution.')->group(function () {

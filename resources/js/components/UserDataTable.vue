@@ -8,7 +8,7 @@
         <v-btn small color="primary" @click="importForm">Import Users</v-btn>
       </v-col>
       <v-col class="d-flex px-2" cols="3">
-        <a @click="doExport">
+        <a @click="exportDialog=true;">
           <v-icon title="Export to Excel">mdi-microsoft-excel</v-icon>&nbsp; Export Users to Excel
         </a>
       </v-col>
@@ -161,7 +161,36 @@
                    :groups="all_groups" @user-complete="userDialogDone" :key='udKey'
       ></user-dialog>
     </v-dialog>
-  </div>
+    <v-dialog v-model="exportDialog" max-width="600px">
+      <v-card>
+        <v-card-title>Export Users</v-card-title>
+        <v-card-text>
+          <v-container grid-list-md>
+            <p>
+              The records to be exported depend on the display context and values defined for filters in the user interface.
+              <strong>In order to retrieve all records, all filters must be cleared first.</strong>
+            </p>
+            <p v-if="filters.inst.length==0">
+              <strong>Note:&nbsp; By default, the export will only include user accounts and institutions that have accounts
+                defined in the system. Enabling the checkbox (below) will include all other institutions in the output listing,
+                albeit without actual user names/emails/etc. The resulting CSV can be editted and imported to CC+ to modify
+                or create user accounts in-bulk.</strong>
+            </p>
+            <v-checkbox v-if="filters.inst.length==0" v-model="all_insts" label="Include Institutions with no users?" dense
+            ></v-checkbox>
+          </v-container>
+        </v-card-text>
+        <v-card-actions>
+          <v-col class="d-flex">
+            <v-btn small color="primary" type="submit" @click="exportSubmit">Run Export</v-btn>
+          </v-col>
+          <v-col class="d-flex">
+            <v-btn small type="button" color="primary" @click="exportDialog=false">Cancel</v-btn>
+          </v-col>
+        </v-card-actions>
+      </v-card>
+    </v-dialog>
+</div>
 </template>
 
 <script>
@@ -188,6 +217,8 @@
         dialogType: 'create',
         userDialog: false,
         importDialog: false,
+        exportDialog: false,
+        all_insts: false,
         udKey: 0,
         search: '',
         status_options: ['ALL', 'Active', 'Inactive'],
@@ -207,8 +238,17 @@
       }
     },
     methods: {
-        doExport () {
-            window.location.assign('/users/export/xlsx');
+        exportSubmit () {
+            this.success = '';
+            this.failure = '';
+            let url = "/users-export?all_insts="+this.all_insts;
+            if (this.filters['inst'].length > 0 || this.filters['roles'].length > 0 ||
+                this.filters['stat'] != '' && this.filters['stat'] != null ) {
+                let _filters = JSON.stringify(this.filters);
+                url += "&filters="+_filters;
+            }
+            window.location.assign(url);
+            this.exportDialog = false;
         },
         destroy (userid) {
             var self = this;
