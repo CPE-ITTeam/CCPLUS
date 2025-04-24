@@ -16,7 +16,7 @@ export const store = new Vuex.Store({
                      datatable: {itemsPerPage: 10, sortBy: [], sortDesc: [], groupBy: [],
                                  groupDesc: [], multiSort: false, mustSort: false }
                    },
-          users: { filters: {fromYM: "", toYM: "", inst: [], prov: [], rept: [], stat: '', roles:[]},
+          users: { filters: {inst: [], stat: '', roles:[]},
                    datatable: {itemsPerPage: 10, sortBy: [], sortDesc: [], groupBy: [],
                                groupDesc: [], multiSort: false, mustSort: false }
                  },
