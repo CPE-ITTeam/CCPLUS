@@ -438,19 +438,64 @@ class UserController extends Controller
     /**
      * Export user records from the database.
      *
-     * @param  string  $type    // 'xls' or 'xlsx'
+     * @param  \Illuminate\Http\Request  $request
      */
-    public function export($type)
+    public function export(Request $request)
     {
         $thisUser = auth()->user();
 
         // Admins access all, managers only access their inst, eveyone else gets an error
         abort_unless($thisUser->hasAnyRole(['Admin','Manager']), 403);
+
+        // Handle and validate inputs
+        $filters = null;
+        if ($request->filters) {
+            $filters = json_decode($request->filters, true);
+        } else {
+            $filters = array('inst' => [], 'roles' => [], 'stat' => null);
+        }
+        $status_filter = null;
+        if ($filters['stat'] != 'ALL') {
+            $status_filter = ($filters['stat'] == 'Inactive') ? 0 : 1;
+        }
+        foreach ($filters as $key => $filt) {
+            if ($key != 'stat') {
+                if (count($filt)==0) $filters[$key] = null;
+            }
+        }
+        $all_insts = false;
+
+        // Get User records
         if ($thisUser->hasRole("Admin")) {
-            $users = User::with('roles', 'institution:id,name')->orderBy('name', 'ASC')->get();
+            $data = User::with('roles', 'institution:id,name')
+                         ->when($filters['inst'], function ($qry, $filters) {
+                             return $qry->whereIn('inst_id', $filters['inst']);
+                         })
+                         ->when($status_filter, function ($qry, $status_filter) {
+                             return $qry->where('is_active', '=', $status_filter);
+                         })->get();
+
+            // Check whether to include all institutions in the export (including those with no users)
+            $all_insts = ($request->all_insts) ? json_decode($request->all_insts, true) : false;
+            if ($all_insts) {
+                $ids_with_users = $data->unique('inst_id')->pluck('inst_id')->toArray();
+                $remaining_insts = Institution::whereNotIn('id',$ids_with_users)->get(['id','name']);
+            }
         } else {    // is manager
-            $users = User::with('roles', 'institution:id,name')->orderBy('name', 'ASC')
+            $data = User::with('roles', 'institution:id,name')->orderBy('name', 'ASC')
                          ->where('inst_id', '=', $thisUser->inst_id)->get();
+        }
+
+        // Apply roles filter if sent
+        if ($filters['roles']) {
+            $users = array();
+            foreach ($data as $rec) {
+                if (array_intersect($rec->roles->pluck('id')->toArray(), $filters['roles'])) {
+                    $users[] = $rec;
+                } 
+            }
+        } else {
+            $users = $data;
         }
 
         // Setup some styles arrays
@@ -485,7 +530,7 @@ class UserController extends Controller
         $info_sheet->getStyle('B9:E11')->getAlignment()->setWrapText(true);
         $note_txt  = "When performing full-replacement imports, be VERY careful about changing or overwriting\n";
         $note_txt .= "existing ID value(s). The best approach is to add to, or modify, a full export to ensure\n";
-        $note_txt .= "that existing user IDs are not accidently overwritten.";
+        $note_txt .= "that existing user IDs are not accidentally overwritten.";
         $info_sheet->setCellValue('B9', $note_txt);
         $info_sheet->getStyle('A13:E13')->applyFromArray($head_style);
         $info_sheet->setCellValue('A13', 'Column Name');
@@ -503,8 +548,8 @@ class UserController extends Controller
         $info_sheet->setCellValue('D15', 'Yes');
         $info_sheet->setCellValue('A16', 'Password');
         $info_sheet->setCellValue('B16', 'String');
-        $info_sheet->setCellValue('C16', 'Password (will be encrypted)');
-        $info_sheet->setCellValue('D16', 'No');
+        $info_sheet->setCellValue('C16', 'Password (will be encrypted) - REQUIRED for new users');
+        $info_sheet->setCellValue('D16', 'Sometimes');
         $info_sheet->setCellValue('E16', 'NULL - no change');
         $info_sheet->setCellValue('A17', 'Name');
         $info_sheet->setCellValue('B17', 'String');
@@ -523,16 +568,9 @@ class UserController extends Controller
         $info_sheet->setCellValue('E19', 'Y');
         $info_sheet->setCellValue('A20', 'Role(s)');
         $info_sheet->setCellValue('B20', 'Comma-separated strings');
-        $info_sheet->setCellValue('C20', 'Admin, Manager, User, or Viewer');
+        $info_sheet->setCellValue('C20', 'Consortium Admin, Local Admin, User, or Consortium Viewer');
         $info_sheet->setCellValue('D20', 'No');
         $info_sheet->setCellValue('E20', 'User');
-        // IF you're planning to add these back in, note that the import function below also needs to
-        // updated to account for the new column.
-        // -------------------------------------------------------------------------------------------
-        // $info_sheet->setCellValue('A21', 'PWChangeReq');
-        // $info_sheet->setCellValue('B21', 'String (Y or N)');
-        // $info_sheet->setCellValue('C21', 'Force user to change password');
-        // $info_sheet->setCellValue('D21', 'N');
         $info_sheet->setCellValue('A21', 'Institution ID');
         $info_sheet->setCellValue('B21', 'Integer');
         $info_sheet->setCellValue('C21', 'Unique CC-Plus Institution ID (1=Staff)');
@@ -559,7 +597,6 @@ class UserController extends Controller
         $users_sheet->setCellValue('E1', 'Phone');
         $users_sheet->setCellValue('F1', 'Active');
         $users_sheet->setCellValue('G1', 'Role(s)');
-        // $users_sheet->setCellValue('H1', 'PWChangeReq');
         if ($thisUser->hasRole('Admin')) {
             $users_sheet->setCellValue('H1', 'Institution ID');
             $users_sheet->setCellValue('I1', 'LEAVE BLANK');
@@ -567,6 +604,9 @@ class UserController extends Controller
         }
         $row = 2;
         foreach ($users as $user) {
+            if ($user->email == "ServerAdmin") {
+                continue;
+            }
             $users_sheet->getRowDimension($row)->setRowHeight(15);
             $users_sheet->setCellValue('A' . $row, $user->id);
             $users_sheet->setCellValue('B' . $row, $user->email);
@@ -576,18 +616,31 @@ class UserController extends Controller
             $users_sheet->setCellValue('F' . $row, $_stat);
             $_roles = "";
             foreach ($user->roles as $role) {
-                $_roles .= $role->name . ", ";
+                $_name = $role->name;
+                if ($_name == "Manager") $_name = "Local Admin";
+                if ($_name == 'Admin') $_name = "Consortium Admin";
+                if ($_name == 'Viewer') $_name = "Consortium Viewer";
+                $_roles .= $_name . ", ";
             }
             $_roles = rtrim(trim($_roles), ',');
             $users_sheet->setCellValue('G' . $row, $_roles);
-            // $_pwcr = ($user->password_change_required) ? "Y" : "N";
-            // $users_sheet->setCellValue('H' . $row, $_pwcr);
             if ($thisUser->hasRole('Admin')) {
                 $users_sheet->setCellValue('H' . $row, $user->inst_id);
                 $_inst = ($user->inst_id == 1) ? "Staff" : $user->institution->name;
                 $users_sheet->setCellValue('J' . $row, $_inst);
             }
             $row++;
+        }
+
+        // If we're including all insitutions, add them at the end 
+        if ($all_insts) {
+            foreach ($remaining_insts as $inst) {
+                $users_sheet->getRowDimension($row)->setRowHeight(15);
+                $users_sheet->setCellValue('H' . $row, $inst->id);
+                $_name = ($user->inst_id == 1) ? "Staff" : $inst->name;
+                $users_sheet->setCellValue('J' . $row, $_name);
+                $row++;
+            }
         }
 
         // Auto-size the columns
@@ -598,19 +651,14 @@ class UserController extends Controller
 
         // Give the file a meaningful filename
         if ($thisUser->hasRole('Admin')) {
-            $fileName = "CCplus_" . session('ccp_con_key', '') . "_Users." . $type;
+            $fileName = "CCplus_" . session('ccp_con_key', '') . "_Users.xlsx";
         } else {
-            $fileName = "CCplus_" . preg_replace('/ /', '', $thisUser->institution->name) . "_Users." . $type;
+            $fileName = "CCplus_" . preg_replace('/ /', '', $thisUser->institution->name) . "_Users.xlsx";
         }
 
-        // redirect output to client browser
-        if ($type == 'xlsx') {
-            $writer = new \PhpOffice\PhpSpreadsheet\Writer\Xlsx($spreadsheet);
-            header('Content-Type: application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
-        // } elseif ($type == 'xls') {
-        //     $writer = new \PhpOffice\PhpSpreadsheet\Writer\Xls($spreadsheet);
-        //     header('Content-Type: application/vnd.ms-excel');
-        }
+        // redirect output to client browser as .xslx
+        $writer = new \PhpOffice\PhpSpreadsheet\Writer\Xlsx($spreadsheet);
+        header('Content-Type: application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
         header('Content-Disposition: attachment;filename=' . $fileName);
         header('Cache-Control: max-age=0');
         $writer->save('php://output');
@@ -644,7 +692,8 @@ class UserController extends Controller
         // Get existing user data
         $users = User::with('roles', 'institution:id,name')->orderBy('name', 'ASC')->get();
         $institutions = Institution::get();
-
+        $all_roles = Role::orderBy('id', 'ASC')->get(['name', 'id']);
+        $viewRoleId = $all_roles->where('name', 'Viewer')->first()->id;
         // Process the input rows
         $num_skipped = 0;
         $num_updated = 0;
@@ -662,6 +711,9 @@ class UserController extends Controller
             // Update/Add the user data/settings
             // Check ID and name columns for silliness or errors
             $_email = trim($row[1]);
+            if ($_email == "ServerAdmin") {    // Disallow import of ServerAdmin
+                continue;
+            }
             $current_user = $users->where("id", "=", $cur_user_id)->first();
             if (!is_null($current_user)) {      // found existing ID
                 if (strlen($_email) < 1) {       // If import email empty, use current value
@@ -723,22 +775,24 @@ class UserController extends Controller
             }
 
             // Set roles
-            $import_roles = preg_replace('/,,/', ',',preg_replace('/ /', ',',$row[6]));
+            $import_roles = preg_replace('/, /', ',',$row[6]);
             $_roles = preg_split('/,/', $import_roles);
             $role_ids = array();
             $sawUser = false;
             foreach ($_roles as $r) {
                 $rstr = ucwords(trim($r));
-                if ($rstr == 'User') {
-                    $sawUser = true;
-                }
-                $role = Role::where('name', '=', $rstr)->first();
+                if ($rstr == "ServerAdmin") continue;
+                if ($rstr == 'User') $sawUser = true;
+                if ($rstr == "Local Admin") $rstr = "Manager";
+                if ($rstr == "Consortium Admin") $rstr = "Admin";
+                if ($rstr == "Consortium Viewer") $rstr = "Viewer";
+                $role = $all_roles->where('name', '=', $rstr)->first();
                 if ($role) {
                     $role_ids[] = $role->id;
                 }
             }
             if (!$sawUser) {
-                $role_ids[] = Role::where('name', '=', 'User')->value('id');
+                $role_ids[] = $all_roles->where('name', '=', 'User')->value('id');
             }
             $current_user->roles()->detach();
             foreach ($role_ids as $_r) {
@@ -747,13 +801,25 @@ class UserController extends Controller
         }
 
         // Recreate the users list (like index does) to be returned to the caller
-        $user_data = User::with('roles', 'institution:id,name')->orderBy('name', 'ASC')->get();
-        $users = $user_data->map(function($user) {
-            $_roles = "";
-            foreach ($user->roles as $role) {
-                $_roles .= $role->name . ", ";
+        $server_admin = config('ccplus.server_admin');
+        $user_data = User::with('roles', 'institution:id,name')->orderBy('name', 'ASC')
+                         ->where('email', '<>', $server_admin)->get();
+        $users = $user_data->map( function($user) use ($all_roles, $viewRoleId) {
+            $access_role_ids = $user->roles->where('id','<>',$viewRoleId)->pluck('id')->toArray();
+            $user['role_string'] = $all_roles->where('id', max($access_role_ids))->first()->name;
+            $user_is_admin = in_array($user['role_string'],["ServerAdmin", "Admin", "Manager"]);
+            if ($user['role_string'] == 'Manager') $user['role_string'] = "Local Admin";
+            if ($user['role_string'] == 'Admin') $user['role_string'] = "Consortium Admin";
+
+            // non-admins with Viewer get it tacked onto their role_string
+            if ( $user->roles->where('name', 'Viewer')->first() ) {
+                if (!$user->roles->whereIn('name', ['ServerAdmin','Admin'])->first() ) {
+                    $user['role_string'] .= ", Consortium Viewer";
+                }
             }
-            $user->role_string = rtrim(trim($_roles), ',');
+            // Set user's roles as array of IDs; exclude "User" for admins
+            $user['roles'] = ($user_is_admin) ? $user->roles->where('id','>',1)->pluck('id')->toArray()
+                                              : $user->roles->pluck('id')->toArray();
             return $user;
         });
 
