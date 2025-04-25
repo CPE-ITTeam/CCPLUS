@@ -54,6 +54,7 @@ class GlobalAdminController extends Controller
 
             // Set release-related fields
             $provider['registries'] = array();
+            $provider['releases'] = array();
             $provider['release'] = $gp->default_release();
             $provider['service_url'] = $gp->service_url();
             foreach ($gp->registries as $registry) {
@@ -61,6 +62,7 @@ class GlobalAdminController extends Controller
                 $reg['connector_state'] = $this->connectorState($registry->connectors);
                 $reg['is_selected'] = ($registry->release == $provider['release']);
                 $provider['registries'][] = $reg;
+                $provider['releases'][] = trim($registry->release);
             }
             if (is_null($gp->selected_release)) {
                 $provider['selected_release'] = $provider['release'];

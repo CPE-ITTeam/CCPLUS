@@ -343,7 +343,7 @@
                     var registry = { ...this.cur_provider.registries[0] };
                 }
             }
-            this.cur_provider.releases = (typeof(registry) != 'undefined') ? this.cur_provider.registries.map(r => r.release) : [];
+            this.cur_provider.releases = (typeof(registry) != 'undefined') ? this.cur_provider.registries.map(r => r.release) : ['-'];
             this.form.service_url = (typeof(registry) != 'undefined') ? registry.service_url : "";
             this.form.notifications_url = (typeof(registry) != 'undefined') ? registry.notifications_url : "";
             this.initial_connector_state = (typeof(registry) != 'undefined') ? Object.assign({},registry.connector_state) : {};
