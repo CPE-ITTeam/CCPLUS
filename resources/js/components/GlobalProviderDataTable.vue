@@ -225,18 +225,18 @@
       <h1 align="center">Instances connected to<br />{{ cur_provider.name }}</h1>
       <hr>
       <!-- <div v-for="instance in cur_provider.connections"> -->
-      <v-row class="d-flex mx-2" no-gutters>
-        <v-col class="d-flex px-2" cols="6"><strong>Instance</strong></v-col>
-        <v-col class="d-flex px-2" cols="3"><strong>Connections</strong></v-col>
-        <v-col class="d-flex px-2" cols="3"><strong>Last Harvest</strong></v-col>
+      <v-row class="d-flex my-1" no-gutters>
+        <v-col class="d-flex px-4" cols="6"><strong>Instance</strong></v-col>
+        <v-col class="d-flex px-4" cols="3"><strong>Connections</strong></v-col>
+        <v-col class="d-flex px-4" cols="3"><strong>Last Harvest</strong></v-col>
       </v-row>
-      <v-row v-for="instance in cur_provider.connections" class="d-flex mx-2" :key="instance.key" no-gutters>
-        <v-col class="d-flex px-2" cols="6">
+      <v-row v-for="instance in cur_provider.connections" class="d-flex my-1" :key="instance.key" no-gutters>
+        <v-col class="d-flex px-4" cols="6">
           {{ instance.name }}
           <v-icon title="Open instance Administration in new tab" @click="goInst(instance.key)">mdi-open-in-new</v-icon>
         </v-col>
-        <v-col class="d-flex px-2" cols="3">{{ instance.num }}</v-col>
-        <v-col class="d-flex px-2" cols="3">{{ instance.last_harvest }}</v-col>
+        <v-col class="d-flex px-4" cols="3">{{ instance.num }}</v-col>
+        <v-col class="d-flex px-4" cols="3">{{ instance.last_harvest }}</v-col>
       </v-row>
     </v-dialog>
   </div>
