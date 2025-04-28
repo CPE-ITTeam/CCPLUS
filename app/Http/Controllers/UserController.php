@@ -617,6 +617,7 @@ class UserController extends Controller
             $_roles = "";
             foreach ($user->roles as $role) {
                 $_name = $role->name;
+                if ($_name == "User") continue;
                 if ($_name == "Manager") $_name = "Local Admin";
                 if ($_name == 'Admin') $_name = "Consortium Admin";
                 if ($_name == 'Viewer') $_name = "Consortium Viewer";
