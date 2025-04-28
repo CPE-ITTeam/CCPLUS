@@ -99,7 +99,7 @@
       </v-col>
     </v-row>
     <v-row v-if="sushi_inst.id!=null && sushi_prov.id!=null" class="d-flex mt-1 mx-2">
-      <v-col class="d-flex px-2 justify-center">
+      <v-col v-if="sushi_prov.selected_release=='5.1'" class="d-flex px-2 justify-center">
         <v-btn small color="secondary" type="button" @click="testSettings('status')">Service Status</v-btn>
       </v-col>
       <v-col class="d-flex px-2 justify-center">
