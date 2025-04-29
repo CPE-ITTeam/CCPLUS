@@ -142,11 +142,26 @@
               </v-col>
             </v-row>
             <v-row class="d-flex ma-0" no-gutters>
-              <v-col class="d-flex px-4">
+              <v-col class="d-flex px-4" :cols="(cur_provider.selected_release=='5.1') ? 9 : 12">
                 <v-text-field v-model="form.service_url" label="COUNTER Service URL" outlined dense required :rules="requiredRule"
                 ></v-text-field>
               </v-col>
+              <v-col v-if="cur_provider.selected_release=='5.1'" class="d-flex px-2 justify-center" cols="3">
+                <v-btn small color="secondary" type="button" @click="serviceStatus()">Service Status</v-btn>
+              </v-col>
             </v-row>
+            <div v-if="showTest">
+              <v-row class="d-flex mx-4" no-gutters>
+                <div>{{ testStatus }}</div>
+                <div v-for="row in testData">{{ row }}</div>
+              </v-row>
+              <v-row class="d-flex ma-2" no-gutters>
+                <v-col class="d-flex justify-center">
+                  <v-btn small color="secondary" type="button" @click="showTest=false">Hide</v-btn>
+                </v-col>
+              </v-row>
+              <v-divider class="border-opacity-100"></v-divider>
+            </div>
             <v-row class="d-flex ma-0" no-gutters>
               <v-col class="d-flex px-4" cols="6">
                 <v-list dense>
@@ -281,6 +296,9 @@
         selectedRows: [],
         loading: false,
         search: '',
+        showTest: false,
+        testData: '',
+        testStatus: '',
         footer_props: { 'items-per-page-options': [10,50,100,-1] },
         headers: [
           { text: 'Status', value: 'status' },
@@ -366,6 +384,8 @@
             this.providerImportDialog = false;
             this.settingsImportDialog = false;
             this.apply_instances=false;
+            this.testData = '';
+            this.testStatus = '';
             this.provDialog = true;
             this.form.resetOriginal();
           },
@@ -455,6 +475,21 @@
                  }
                })
                .catch(error => {});
+        },
+        serviceStatus () {
+            this.testStatus= "... Working ...";
+            this.showTest = true;
+            axios.post('/sushisettings-test', {'type' : 'status', 'prov_id' : this.cur_provider.id} )
+                .then((response) => {
+                    if (response.data.result) {
+                        this.testStatus = response.data.result;
+                        this.testData = response.data.rows;
+                    } else {
+                        this.testStatus = response.data.msg;
+                        this.testData = (response.data.rows.length>0) ? $rows : "Test Failed";
+                    }
+                })
+              .catch(error => {});
         },
         // Set flag if we need to warn about connectors being turned off (happens when saving)
         changeConnector() {
