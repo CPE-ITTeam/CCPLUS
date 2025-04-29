@@ -38,11 +38,14 @@
           <v-row class="d-flex ma-2 justify-center" no-gutters>
             <strong>{{ sushi_inst.name }} &lt;&lt; -- &gt;&gt; {{ sushi_prov.name }}</strong>
           </v-row>
-          <v-row v-if="mutable_dtype == 'create' || setting.can_edit" class="d-flex mx-2" no-gutters>
-            <v-col class="d-flex px-2" cols="8">
+          <v-row class="d-flex mx-2" no-gutters>
+            <v-col v-if="mutable_dtype == 'create' || setting.can_edit" class="d-flex px-2" cols="6">
               <v-switch v-model="enable_switch" dense label="Enable Harvesting"
                         @change="statusval=(enable_switch) ? 'Enabled' : 'Disabled'"
               ></v-switch>
+            </v-col>
+            <v-col class="d-flex px-2 align-center" cols="6">
+              <strong>Platform COUNTER Release : {{ sushi_prov.selected_release }}</strong>
             </v-col>
           </v-row>
           <template v-for="cnx in sushi_prov.connectors">
