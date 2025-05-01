@@ -434,18 +434,31 @@ class SushiSettingController extends Controller
        // Make the request and convert result into JSON
         $rows = array();
         $client = new Client();   //GuzzleHttp\Client
+        $result = '';
         try {
             if ($input['type'] == 'status') {
                 $response = $client->request('GET', $_uri . "/status");
+                $json = $response->getBody();
                 $rows[] = "Service Status: ";
             } else {
                 $response = $client->request('GET', $request_uri, $options);
+                $json = $response->getBody();
                 $rows[] = "Request URL: ";
                 $rows[] = $request_uri;
                 $rows[] = "JSON Response:";
             }
-            $result = 'Request response successfully received';
-            $rows[] = json_decode($response->getBody(), JSON_PRETTY_PRINT);
+            $begin_txt = substr(trim($json),0,80);
+            if (stripos($begin_txt,"doctype html") || stripos($begin_txt,"<html>" )) {
+                $result = 'Invalid response - JSON expected but request returned HTML';
+                $rows[0] = '';
+            } else if (!is_object($json)) { // Badly formed JSON?
+                $result = 'Invalid response - JSON expected but not received - check URL';
+                $rows[0] = '';
+            }
+            if ($result == '') {
+                $result = 'Request response successfully received';
+                $rows[] = json_decode($json, JSON_PRETTY_PRINT);
+            }
         } catch (\Exception $e) {
             $rows[] = $e->getMessage();
             return response()->json(['result' => false, 'msg' => 'Request for service status failed!',
@@ -474,8 +487,7 @@ class SushiSettingController extends Controller
     /**
      * Export sushi settings records from the database.
      *
-     * @param  array $inst    // (Optional) - limit to an institutionID, missing or zero means all
-     * @param  array $prov    // (Optional) - limit to a providerID, missing or zero means all
+     * @return \Illuminate\Http\Response
      */
     public function export(Request $request)
     {
