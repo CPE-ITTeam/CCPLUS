@@ -117,8 +117,8 @@ class Sushi extends Model
                 if (substr($begin_txt,0,1) == "{") { // Badly formed JSON?
                     $this->error_code = 9021;
                     $this->detail = " request returned a string that looks like badly formed JSON";
-                //NOTE:: Need a target for testing... (Newsbank?)
-                } else if (stripos($begin_txt,"doctype html") >= 0 || stripos($begin_txt,"<html>" )>= 0) {
+                // Got HTML?
+                } else if (stripos($begin_txt,"doctype html") || stripos($begin_txt,"<html>")) {
                     $this->detail = " request returned HTML";
                     $this->error_code = 9022;
                 } else {
