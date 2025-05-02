@@ -57,7 +57,7 @@ class GlobalAdminController extends Controller
             $provider['releases'] = array();
             $provider['release'] = $gp->default_release();
             $provider['service_url'] = $gp->service_url();
-            foreach ($gp->registries as $registry) {
+            foreach ($gp->registries->sortBy('release') as $registry) {
                 $reg = $registry->toArray();
                 $reg['connector_state'] = $this->connectorState($registry->connectors);
                 $reg['is_selected'] = ($registry->release == $provider['release']);
@@ -95,7 +95,7 @@ class GlobalAdminController extends Controller
             $providers[] = $provider;
         }
 
-        $filters = array('stat' => null);
+        $filters = array('stat' => '', 'refresh' => '');
         return view('globaladmin.home', compact('consortia','settings','providers','filters','masterReports','all_connectors'));
     }
 

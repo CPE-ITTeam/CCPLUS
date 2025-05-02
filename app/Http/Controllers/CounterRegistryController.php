@@ -313,7 +313,7 @@ class CounterRegistryController extends Controller
             // Setup return data
             $return_rec = $global_provider->toArray();
             $return_rec['registries'] = array();
-            foreach ($global_provider->registries as $reg) {
+            foreach ($global_provider->registries->sortBy('release') as $reg) {
                 $data = $reg->toArray();
                 $data['connector_state'] = $this->connectorState($reg->connectors);
                 $return_rec['registries'][] = $data;

@@ -20,7 +20,7 @@ class CounterRegistry extends Model
  */
   protected $attributes = ['global_id' => null, 'release' => null, 'connectors' => '{}', 'service_url' => null,
                            'notifications_url' => null];
-  protected $fillable = ['id', 'global_id', 'connectors', 'service_url', 'notifications_url'];
+  protected $fillable = ['id', 'global_id', 'release', 'connectors', 'service_url', 'notifications_url'];
   protected $casts = ['id'=>'integer', 'global_id'=>'integer', 'connectors' => 'array'];
 
   public function globalProv()

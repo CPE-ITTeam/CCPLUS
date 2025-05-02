@@ -91,7 +91,7 @@ Route::resource('/server/config', 'GlobalSettingController')->middleware('auth',
 Route::resource('/global/providers', 'GlobalProviderController', ['as' => 'global'])->middleware('auth','role:ServerAdmin');
 Route::post('/global/providers/registry-refresh', 'CounterRegistryController@registryRefresh')->name('counterRegistry.refresh');
 Route::post('/global/providers/import', 'GlobalProviderController@import')->name('global.providers.import');
-Route::get('/global/providers/export/{type}', 'GlobalProviderController@export')->name('global.providers.export');
+Route::get('/global-providers-export', 'GlobalProviderController@export')->name('global.providers.export');
 Route::resource('/consortia', 'ConsortiumController')->middleware('auth','role:ServerAdmin');
 Route::get('/change-instance/{key}', 'GlobalAdminController@changeInstance')->name('global.changeInstance')
      ->middleware('auth','role:ServerAdmin');

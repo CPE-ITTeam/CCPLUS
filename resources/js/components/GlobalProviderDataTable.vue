@@ -2,25 +2,24 @@
   <div>
     <v-row class="d-flex mb-1 align-end" no-gutters>
       <v-col class="d-flex px-2" cols="3">
-        <v-btn small color="primary" @click="createForm()">Add a Platform</v-btn>
-      </v-col>
-      <v-col class="d-flex px-2" cols="3">
         <v-btn small color="primary" @click="refreshAll()">FULL Registry Refresh</v-btn>
       </v-col>
-      <v-col class="d-flex px-2" cols="3">&nbsp;</v-col>
-<!--
+      <v-col class="d-flex px-2" cols="3">
+        <v-btn small color="primary" @click="createForm()">Add a Platform</v-btn>
+      </v-col>
       <v-col class="d-flex px-2" cols="3">
         <a @click="doExport">
           <v-icon title="Export to Excel">mdi-microsoft-excel</v-icon>&nbsp; Export platforms to Excel
         </a>
       </v-col>
--->
       <v-col class="d-flex px-2" cols="3">
-        <v-text-field v-model="search" label="Search" prepend-inner-icon="mdi-magnify" single-line hide-details clearable
-        ></v-text-field>
+        <!-- <v-btn small color="primary" type="button" @click="importForm" class="section-action">Import Platforms</v-btn> -->
+        <a @click="importForm">
+          <v-icon title="Import Platforms (CSV)">mdi-file-delimited-outline</v-icon>&nbsp; Import Platforms
+        </a>
       </v-col>
     </v-row>
-    <v-row class="d-flex pa-1 align-center" no-gutters>
+    <v-row class="d-flex pa-1 align-beg" no-gutters>
       <v-col class="d-flex px-2" cols="2">
         <v-select :items='bulk_actions' v-model='bulkAction' label="Bulk Actions" @change="processBulk()"
                   :disabled='selectedRows.length==0'
@@ -39,6 +38,11 @@
         <v-select :items="result_options" v-model="mutable_filters['refresh']" @change="updateFilters('refresh')"
                   label="Filter Refresh Result"
         ></v-select> &nbsp;
+      </v-col>
+      <v-col cols="1">&nbsp;</v-col>
+      <v-col class="d-flex px-2" cols="3">
+        <v-text-field v-model="search" label="Search" prepend-inner-icon="mdi-magnify" single-line hide-details clearable
+        ></v-text-field>
       </v-col>
     </v-row>
     <div v-if="success || failure" class="status-message">
@@ -236,6 +240,40 @@
           </v-form>
         </v-container>
     </v-dialog>
+    <v-dialog v-model="importDialog" max-width="1200px">
+      <v-card>
+        <v-card-title>Import Platforms</v-card-title>
+        <v-card-text>
+          <v-container grid-list-md>
+            <v-file-input show-size label="CC+ Import File (CSV)" v-model="csv_upload" accept="text/csv" outlined
+            ></v-file-input>
+            <p>
+              <strong>Note:&nbsp; Platform imports function exclusively as Updates. Existing CC+ settings for
+              platform not included in the import will be preserved.</strong>
+            </p>
+            <p>
+              Imports will overwrite existing settings whenever a match for an Registry-ID (or, if no Registry-ID is
+              specificed, a platform name is an exact match.) If no settings exist for a given valid platform, a new CC+
+              platform will be created and saved. Any values in columns D-N which are NULL, blank, or missing will result
+              in the Default value being stored for that field.
+            </p>
+            <p>
+              Generating an export of the existing CC+ global plaforms - FIRST - will provide detailed instructions for
+              setting up the input CSV file and importing on the "How to Import" tab to help ensure that the desired end-state
+              is achieved.
+            </p>
+          </v-container>
+        </v-card-text>
+        <v-card-actions>
+          <v-col class="d-flex">
+            <v-btn small color="primary" type="submit" @click="importSubmit" :disabled='csv_upload==null'>Run Import</v-btn>
+          </v-col>
+          <v-col class="d-flex">
+            <v-btn small type="button" color="primary" @click="importDialog=false">Cancel</v-btn>
+          </v-col>
+        </v-card-actions>
+      </v-card>
+    </v-dialog>
     <v-dialog v-model="connectionsDialog" content-class="ccplus-dialog">
       <h1 align="center">Instances connected to<br />{{ cur_provider.name }}</h1>
       <hr>
@@ -271,12 +309,13 @@
            },
     data () {
       return {
+        mutable_providers: [ ...this.providers ],
+        mutable_filters: { ...this.filters },
         success: '',
         failure: '',
         dialog_error: '',
         dialog_success: '',
-        providerImportDialog: false,
-        settingsImportDialog: false,
+        importDialog: false,
         provDialog: false,
         dialog_title: '',
         cur_provider: {'releases':[]},
@@ -288,7 +327,6 @@
         updated_at: null,
         import_type: '',
         import_types: ['Add or Update', 'Full Replacement'],
-        mutable_filters: this.filters,
         status_options: ['ALL', 'Active', 'Inactive'],
         result_options: ['ALL', 'Success', 'Failed', 'New', 'Deprecated', 'Refresh Disabled', 'No Registry ID'],
         bulk_actions: [ 'Enable', 'Disable', 'Refresh Registry', 'Delete' ],
@@ -311,7 +349,6 @@
           { text: 'Last Updated', value: 'updated', align: 'start' },
           { text: 'Actions', value: 'action', align: 'end', sortable: false },
         ],
-        mutable_providers: [ ...this.providers],
         new_provider: {'id': null, 'registry_id': '', 'name': '', 'content_provider': '', 'abbrev': '', 'is_active': 1,
                        'refreshable': 0, 'report_state': {}, 'connector_state': {}, 'service_url': '', 'day_of_month': 15,
                        'platform_parm': null, 'notifications_url': ''},
@@ -381,8 +418,7 @@
             this.initial_report_state = Object.assign({},this.cur_provider.report_state);
             this.form.platform_parm = this.cur_provider.platform_parm;
             this.updated_at = this.cur_provider.updated;
-            this.providerImportDialog = false;
-            this.settingsImportDialog = false;
+            this.importDialog = false;
             this.apply_instances=false;
             this.testData = '';
             this.testStatus = '';
@@ -410,8 +446,7 @@
             this.form.platform_parm = this.new_provider.platform_parm;
             this.form.notifications_url = this.new_provider.notifications_url;
             this.updated_at = null;
-            this.providerImportDialog = false;
-            this.settingsImportDialog = false;
+            this.importDialog = false;
             this.provDialog = true;
             this.form.resetOriginal();
             this.formValid = false;
@@ -430,39 +465,39 @@
           })
           .catch({});
         },
-        // enableImportForm () {
-        //     this.csv_upload = null;
-        //     this.providerImportDialog = true;
-        //     this.settingsImportDialog = false;
-        //     this.provDialog = false;
-        // },
-        // providerImportSubmit (event) {
-        //     this.success = '';
-        //     if (this.csv_upload==null) {
-        //         this.failure = 'A CSV import file is required';
-        //         return;
-        //     }
-        //     this.failure = '';
-        //     let formData = new FormData();
-        //     formData.append('csvfile', this.csv_upload);
-        //     axios.post('/global/providers/import', formData, {
-        //             headers: {
-        //                 'Content-Type': 'multipart/form-data'
-        //             }
-        //           })
-        //          .then( (response) => {
-        //              if (response.data.result) {
-        //                  this.failure = '';
-        //                  this.success = response.data.msg;
-        //                  // Replace mutable array with response providers
-        //                  this.mutable_providers = response.data.providers;
-        //              } else {
-        //                  this.success = '';
-        //                  this.failure = response.data.msg;
-        //              }
-        //          });
-        //      this.providerImportDialog = false;
-        // },
+        importForm () {
+            this.csv_upload = null;
+            this.importDialog = true;
+            this.provDialog = false;
+        },
+        importSubmit (event) {
+            this.success = '';
+            if (this.csv_upload==null) {
+                this.failure = 'A CSV import file is required';
+                return;
+            }
+            this.failure = '';
+            let formData = new FormData();
+            formData.append('csvfile', this.csv_upload);
+            axios.post('/global/providers/import', formData, {
+                    headers: {
+                        'Content-Type': 'multipart/form-data'
+                    }
+                  })
+                 .then( (response) => {
+                     if (response.data.result) {
+                         this.failure = '';
+                         this.success = response.data.msg;
+                         // Replace mutable array with response platforms
+                         this.mutable_providers = [ ...response.data.platforms ];
+                     } else {
+                         this.success = '';
+                         this.failure = response.data.msg;
+                     }
+                 });
+             this.importDialog = false;
+             this.dtKey += 1;
+            },
         changeStatus(gpId, state) {
             axios.patch('/global/providers/'+gpId, { is_active: state })
                .then( (response) => {
@@ -856,9 +891,15 @@
             });
             this.$store.dispatch('updateDatatableOptions',this.mutable_options);
         },
-        // doExport () {
-        //     window.location.assign('/global/providers/export/xlsx');
-        // },
+        doExport () {
+            this.success = '';
+            this.failure = '';
+            let url = "/global-providers-export";
+            if (this.mutable_filters['stat'].length >0 || this.mutable_filters['refresh'].length > 0) {
+                url += "?filters="+JSON.stringify(this.mutable_filters);
+            }
+            window.location.assign(url);
+        },
         goURL (target) { window.open(target, "_blank"); },
     },
     computed: {
