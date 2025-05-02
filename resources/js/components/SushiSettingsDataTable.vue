@@ -192,7 +192,7 @@
       </template>
       <template v-slot:item.action="{ item }">
         <span class="dt_action">
-          <v-icon title="Manual Harvest in new tab" @click="goHarvest(item)">mdi-barley</v-icon>
+          <v-icon title="Manual Harvest in new tab" @click="goHarvest(item)">mdi-tractor-variant</v-icon>
           &nbsp; &nbsp;
           <v-icon v-if="item.can_edit" title="Edit COUNTER API Credentials" @click="editSetting(item)">mdi-cog-outline</v-icon>
           <v-icon v-else color="#c9c9c9">mdi-cog-outline</v-icon>
