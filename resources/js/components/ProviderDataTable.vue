@@ -83,8 +83,10 @@
                 @click="changeReportState(item.id,'PR',0)">mdi-checkbox-multiple-outline</v-icon>
         <v-icon v-else-if="item.PR_status=='I'" title="PR is enabled for this institution" color="green"
                 @click="changeReportState(item.id,'PR',0)">mdi-checkbox-outline</v-icon>
-        <v-icon v-else-if="item.PR_status=='A'" title="PR is available but not enabled" color="gray"
+        <v-icon v-else-if="item.PR_status=='A' && !item.can_connect" title="PR is available but not enabled" color="gray"
                 @click="changeReportState(item.id,'PR',1)">mdi-plus-box-outline</v-icon>
+        <v-icon v-else-if="item.PR_status=='A' && item.can_connect" title="PR is available but not enabled" color="gray"
+                >mdi-plus-box-outline</v-icon>
         <v-icon v-else="item.PR_status=='NA'" title="PR is not available" color="#c9c9c9">mdi-minus-box-outline</v-icon>
       </template>
       <template v-slot:item.DR_status="{ item }">
@@ -92,8 +94,10 @@
                 @click="changeReportState(item.id,'DR',0)">mdi-checkbox-multiple-outline</v-icon>
         <v-icon v-else-if="item.DR_status=='I'" title="DR is enabled for this institution" color="green"
                 @click="changeReportState(item.id,'DR',0)">mdi-checkbox-outline</v-icon>
-        <v-icon v-else-if="item.DR_status=='A'" title="DR is available but not enabled" color="gray"
+        <v-icon v-else-if="item.DR_status=='A' && !item.can_connect" title="DR is available but not enabled" color="gray"
                 @click="changeReportState(item.id,'DR',1)">mdi-plus-box-outline</v-icon>
+        <v-icon v-else-if="item.DR_status=='A' && item.can_connect" title="DR is available but not enabled" color="gray"
+                >mdi-plus-box-outline</v-icon>
         <v-icon v-else="item.DR_status=='NA'" title="DR is not available" color="#c9c9c9">mdi-minus-box-outline</v-icon>
       </template>
       <template v-slot:item.TR_status="{ item }">
@@ -101,8 +105,10 @@
                 @click="changeReportState(item.id,'TR',0)">mdi-checkbox-multiple-outline</v-icon>
         <v-icon v-else-if="item.TR_status=='I'" title="TR is enabled for this institution" color="green"
                 @click="changeReportState(item.id,'TR',0)">mdi-checkbox-outline</v-icon>
-        <v-icon v-else-if="item.TR_status=='A'" title="TR is available but not enabled" color="gray"
+        <v-icon v-else-if="item.TR_status=='A' && !item.can_connect" title="TR is available but not enabled" color="gray"
                 @click="changeReportState(item.id,'TR',1)">mdi-plus-box-outline</v-icon>
+        <v-icon v-else-if="item.TR_status=='A' && item.can_connect" title="TR is available but not enabled" color="gray"
+                >mdi-plus-box-outline</v-icon>
         <v-icon v-else="item.TR_status=='NA'" title="TR is not available" color="#c9c9c9">mdi-minus-box-outline</v-icon>
       </template>
       <template v-slot:item.IR_status="{ item }">
@@ -110,8 +116,10 @@
                 @click="changeReportState(item.id,'IR',0)">mdi-checkbox-multiple-outline</v-icon>
         <v-icon v-else-if="item.IR_status=='I'" title="IR is enabled for this institution" color="green"
                 @click="changeReportState(item.id,'IR',0)">mdi-checkbox-outline</v-icon>
-        <v-icon v-else-if="item.IR_status=='A'" title="IR is available but not enabled" color="gray"
+        <v-icon v-else-if="item.IR_status=='A' && !item.can_connect" title="IR is available but not enabled" color="gray"
                 @click="changeReportState(item.id,'IR',1)">mdi-plus-box-outline</v-icon>
+        <v-icon v-else-if="item.IR_status=='A' && item.can_connect" title="IR is available but not enabled" color="gray"
+                >mdi-plus-box-outline</v-icon>
         <v-icon v-else="item.IR_status=='NA'" title="IR is not available" color="#c9c9c9">mdi-minus-box-outline</v-icon>
       </template>
       <template v-slot:item.connection_count="{ item }">
