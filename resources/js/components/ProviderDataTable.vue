@@ -79,39 +79,39 @@
         <span v-else>{{ item.name }}</span>
       </template>
       <template v-slot:item.PR_status="{ item }">
-        <v-icon v-if="item.PR_status=='C'" title="PR is enabled for the consortium" color="green">
-                mdi-checkbox-multiple-outline</v-icon>
-        <v-icon v-else-if="item.PR_status=='I'" title="PR is enabled for this institution" color="green">
-                mdi-checkbox-outline</v-icon>
-        <v-icon v-else-if="item.PR_status=='A'" title="PR is available but not enabled" color="gray">
-                mdi-plus-box-outline</v-icon>
+        <v-icon v-if="item.PR_status=='C'" title="PR is enabled for the consortium" color="green"
+                @click="changeReportState(item.id,'PR',0)">mdi-checkbox-multiple-outline</v-icon>
+        <v-icon v-else-if="item.PR_status=='I'" title="PR is enabled for this institution" color="green"
+                @click="changeReportState(item.id,'PR',0)">mdi-checkbox-outline</v-icon>
+        <v-icon v-else-if="item.PR_status=='A'" title="PR is available but not enabled" color="gray"
+                @click="changeReportState(item.id,'PR',1)">mdi-plus-box-outline</v-icon>
         <v-icon v-else="item.PR_status=='NA'" title="PR is not available" color="#c9c9c9">mdi-minus-box-outline</v-icon>
       </template>
       <template v-slot:item.DR_status="{ item }">
-        <v-icon v-if="item.DR_status=='C'" title="DR is enabled for the consortium" color="green">
-                mdi-checkbox-multiple-outline</v-icon>
-        <v-icon v-else-if="item.DR_status=='I'" title="DR is enabled for this institution" color="green">
-                mdi-checkbox-outline</v-icon>
-        <v-icon v-else-if="item.DR_status=='A'" title="DR is available but not enabled" color="gray">
-                mdi-plus-box-outline</v-icon>
+        <v-icon v-if="item.DR_status=='C'" title="DR is enabled for the consortium" color="green"
+                @click="changeReportState(item.id,'DR',0)">mdi-checkbox-multiple-outline</v-icon>
+        <v-icon v-else-if="item.DR_status=='I'" title="DR is enabled for this institution" color="green"
+                @click="changeReportState(item.id,'DR',0)">mdi-checkbox-outline</v-icon>
+        <v-icon v-else-if="item.DR_status=='A'" title="DR is available but not enabled" color="gray"
+                @click="changeReportState(item.id,'DR',1)">mdi-plus-box-outline</v-icon>
         <v-icon v-else="item.DR_status=='NA'" title="DR is not available" color="#c9c9c9">mdi-minus-box-outline</v-icon>
       </template>
       <template v-slot:item.TR_status="{ item }">
-        <v-icon v-if="item.TR_status=='C'" title="TR is enabled for the consortium" color="green">
-                mdi-checkbox-multiple-outline</v-icon>
-        <v-icon v-else-if="item.TR_status=='I'" title="TR is enabled for this institution" color="green">
-                mdi-checkbox-outline</v-icon>
-        <v-icon v-else-if="item.TR_status=='A'" title="TR is available but not enabled" color="gray">
-                mdi-plus-box-outline</v-icon>
+        <v-icon v-if="item.TR_status=='C'" title="TR is enabled for the consortium" color="green"
+                @click="changeReportState(item.id,'TR',0)">mdi-checkbox-multiple-outline</v-icon>
+        <v-icon v-else-if="item.TR_status=='I'" title="TR is enabled for this institution" color="green"
+                @click="changeReportState(item.id,'TR',0)">mdi-checkbox-outline</v-icon>
+        <v-icon v-else-if="item.TR_status=='A'" title="TR is available but not enabled" color="gray"
+                @click="changeReportState(item.id,'TR',1)">mdi-plus-box-outline</v-icon>
         <v-icon v-else="item.TR_status=='NA'" title="TR is not available" color="#c9c9c9">mdi-minus-box-outline</v-icon>
       </template>
       <template v-slot:item.IR_status="{ item }">
-        <v-icon v-if="item.IR_status=='C'" title="IR is enabled for the consortium" color="green">
-                mdi-checkbox-multiple-outline</v-icon>
-        <v-icon v-else-if="item.IR_status=='I'" title="IR is enabled for this institution" color="green">
-                mdi-checkbox-outline</v-icon>
-        <v-icon v-else-if="item.IR_status=='A'" title="IR is available but not enabled" color="gray">
-                mdi-plus-box-outline</v-icon>
+        <v-icon v-if="item.IR_status=='C'" title="IR is enabled for the consortium" color="green"
+                @click="changeReportState(item.id,'IR',0)">mdi-checkbox-multiple-outline</v-icon>
+        <v-icon v-else-if="item.IR_status=='I'" title="IR is enabled for this institution" color="green"
+                @click="changeReportState(item.id,'IR',0)">mdi-checkbox-outline</v-icon>
+        <v-icon v-else-if="item.IR_status=='A'" title="IR is available but not enabled" color="gray"
+                @click="changeReportState(item.id,'IR',1)">mdi-plus-box-outline</v-icon>
         <v-icon v-else="item.IR_status=='NA'" title="IR is not available" color="#c9c9c9">mdi-minus-box-outline</v-icon>
       </template>
       <template v-slot:item.connection_count="{ item }">
@@ -290,6 +290,59 @@
                })
                .catch(error => {});
         },
+        changeReportState(id,report_name,new_state) {
+          this.failure = '';
+          this.success = '';
+          var provider = this.mutable_providers.find(p => p.id == id);
+          if (typeof(provider) == 'undefined') return;
+          let p_inst = (provider.inst_id == null) ? this.inst_context : provider.inst_id;
+          var _cidx = provider.connected.findIndex(c => c.inst_id == p_inst);
+          let cnx_prov = provider.connected[_cidx];
+          if (typeof(cnx_prov) == 'undefined') return;
+          // If context is NOT conso, and requesting a change to a conso-wide provider - bail silently.
+          var skey = report_name+"_status";
+          if (!cnx_prov.can_edit || (provider[skey] == 'C' && this.inst_context!=1)) return;
+          // Update the report-setting (pass connected-ID, not global-ID)
+          axios.post('/update-report-state', {
+              prov_id: cnx_prov.id,
+              report: report_name,
+              state: new_state,
+          })
+          .then( (response) => {
+            if (response.data.result) {
+                // Update status flag on the record to update icon
+                if (new_state == 1) {
+                  provider[skey] = (this.inst_context==1) ? 'C' : 'I';
+                } else {
+                  provider[skey] = 'A';
+                }
+                // Update report_state and reports in the "connected" provider definition
+                if (this.inst_context > 1) {
+                  cnx_prov.reports = [...response.data.reports];
+                  cnx_prov.report_state = {...response.data.report_state};
+
+                  // For conso-wide context, the connected providers need updating too
+                } else {
+                  // Update reports
+                  response.data.reports.forEach( rep => {
+                    let _idx = provider.connected.findIndex(c => c.id == rep.id);
+                    if (_idx < 0) return;
+                    provider.connected[_idx].reports = [...rep.data];
+                  });
+                  // Update report_state
+                  response.data.report_state.forEach( state => {
+                    let _idx = provider.connected.findIndex(c => c.id == state.id);
+                    if (_idx < 0) return;
+                    provider.connected[_idx].report_state = {...state.data};
+                  });
+                }
+                this.dtKey++;
+              } else {
+                this.failure = response.data.msg;
+              }
+          })
+          .catch(error => {});
+       },
         updateOptions(options) {
             if (Object.keys(this.mutable_options).length === 0) return;
             Object.keys(this.mutable_options).forEach( (key) =>  {

@@ -1010,6 +1010,99 @@ class ProviderController extends Controller
     }
 
     /**
+     * Update report availability settings
+     *
+     * @param  \Illuminate\Http\Request  $request
+     * @return \Illuminate\Http\Response
+     */
+    public function updateReportState(Request $request)
+    {
+        $thisUser = auth()->user();
+        abort_unless($thisUser->hasAnyRole(['Admin','Manager']), 403);
+
+        // Get and verify input
+        try {
+            $input = json_decode($request->getContent(), true);
+        } catch (\Exception $e) {
+            return response()->json(['result' => false, 'msg' => 'Error decoding input!']);
+        }
+        if (!isset($input['prov_id']) || !isset($input['report']) || !isset($input['state'])) {
+            return response()->json(['result' => false, 'msg' => 'Missing expected inputs!']);
+        }
+
+        // Get specified provider
+        $provider = Provider::with('reports:id,name')->where('id',$input['prov_id'])->first();
+        if (!$provider) {
+            return response()->json(['result' => false, 'msg' => 'Requested provider not found']);
+        }
+        // Manager not allowed to change conso-level provider settings
+        if (!$thisUser->hasRole("Admin") && $provider->inst_id == 1) {
+            return response()->json(['result' => false, 'msg' => 'Update failed (403) - Forbidden']);
+        }
+
+        // Get specified report
+        $report = Report::where('name',trim($input['report']))->first();
+        if (!$report) {
+            return response()->json(['result' => false, 'msg' => 'Requested report is invalid']);
+        }
+
+        // Get master reports
+        $master_reports = Report::where('revision',5)->where('parent_id',0)->orderBy('dorder','ASC')->get(['id','name']);
+
+        // Get consortium-wide connection report assignments, if set. Need these to build "report_state"
+        $all_conso_provs = Provider::with('reports:id,name')->where('global_id',$provider->global_id)->get();
+
+        // Update the report-setting(s)
+        if ($input['state'] == 1) {
+            $provider->reports()->attach($report->id);
+            // Enabling a report conso-wide means we should also clean up any institution-specific
+            // assignments for that report (it shouldn't be assigned to conso AND specific insts).
+            foreach ($all_conso_provs as $cnx) {
+                if ($cnx->inst_id == 1) continue;
+                $cnx_reports = $cnx->reports->pluck('id')->toArray();
+                if (in_array($report->id,$cnx_reports)) {
+                    $cnx->reports()->detach($report->id);
+                    // delete provider definition if it has no other reports defined
+                    if ($cnx->reports()->count() == 0) {
+                        $cnx->delete();
+                    }
+                }
+            }
+        } else {
+            $provider->reports()->detach($report->id);
+        }
+
+        // Reload reports
+        $provider->load('reports');
+        $conso_prov = ($provider->inst_id==1) ? $provider : $all_conso_provs->where('inst_id',1)->first();
+        $conso_reports = ($conso_prov) ? $conso_prov->reports->pluck('id')->toArray() : [];
+
+        // Set report state and reports array for the U/I
+        if ($provider->inst_id > 1) {
+            $prov_reports = $provider->reports->pluck('id')->toArray();
+            $prov_reports = array_unique(array_merge($prov_reports, $conso_reports));
+            $report_state = $this->reportState($master_reports, $conso_reports, $prov_reports);
+            $reports = $provider->reports->toArray();
+        // If we updated a conso-wide provider, return arrays for state & reports (1-each-per-connected)
+        } else {
+            $reports = array();
+            $report_state = array();
+            // Get this again... since it probably changed up above
+            $all_conso_provs = Provider::with('reports:id,name')->where('global_id',$provider->global_id)->get();
+            foreach ($all_conso_provs as $prov) {
+                $prov_reports = $prov->reports->pluck('id')->toArray();
+                $prov_reports = array_unique(array_merge($prov_reports, $conso_reports));
+                $_state = $this->reportState($master_reports, $conso_reports, $prov_reports);
+                $_reports = $prov->reports->toArray();
+                $report_state[] = array('id' => $prov->id, 'data' => $_state);
+                $reports[] = array('id' => $prov->id, 'data' => $_reports);
+            }
+        }
+
+        return response()->json(['result' => true, 'report_state' => $report_state, 'reports' => $reports]);
+    }
+
+    /**
      * Return an array of booleans for report-state from provider reports columns
      *
      * @param  Collection master_reports
