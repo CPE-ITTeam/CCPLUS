@@ -182,11 +182,16 @@ class UserController extends Controller
         }
         $this->validate($request, [
             'name' => 'required',
-            'email' => 'required|email|unique:consodb.users,email',
+            'email' => 'required|email',
             'password' => 'required|same:confirm_pass',
             'inst_id' => 'required'
         ]);
         $input = $request->all();
+        // make sure email is unique 
+        $exists = User::where('email',$input['email'])->first();
+        if ($exists) {
+            return response()->json(['result' => false, 'msg' => 'Email address is already assigned to another user']);
+        }
         if (!$thisUser->hasRole("Admin")) {     // managers only store to their institution
             $input['inst_id'] = $thisUser->inst_id;
         }

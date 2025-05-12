@@ -95,8 +95,6 @@
       return {
         success: '',
         failure: '',
-        success: '',
-        failure: '',
         form_key: 1,
         idKey: 0,
         dialog_title: 'User Settings',
@@ -150,9 +148,14 @@
           } else if (this.dtype == 'create') {
               this.form.post('/users')
                   .then((response) => {
-                      var _user   = (response.result) ? response.user : null;
-                      var _result = (response.result) ? 'Success' : 'Fail';
-                      this.$emit('user-complete', { result:_result, msg:response.msg, user:_user, new_inst:this.added_insts });
+                      if (response.result) {
+                        var _user   = (response.result) ? response.user : null;
+                        var _result = 'Success';
+                        this.$emit('user-complete', { result:_result, msg:response.msg, user:_user, new_inst:this.added_insts });
+                      } else {
+                        var _result = 'Fail';
+                        this.failure = response.msg;
+                      }
                   });
           }
       },
