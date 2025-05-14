@@ -9,6 +9,14 @@
     </div>
     <v-data-table :headers="con_headers" :items="mutable_consortia" item-key="id" disable-sort
                   :hide-default-footer="hide_user_footer" :key="dtKey">
+      <template v-slot:item.active="{ item }">
+        <span v-if="item.is_active">
+          <v-icon large color="green" title="Active" @click="changeStatus(item.id,0)">mdi-toggle-switch</v-icon>
+        </span>
+        <span v-else>
+          <v-icon large color="red" title="Inactive" @click="changeStatus(item.id,1)">mdi-toggle-switch-off</v-icon>
+        </span>
+      </template>
       <template v-slot:item.action="{ item }">
         <v-btn v-if="!consoDialog" icon @click="editForm(item.id)">
           <v-icon title="Edit Instance Settings">mdi-cog-outline</v-icon>
@@ -66,11 +74,6 @@
               <v-col class="d-flex px-2" cols="4">
                 <v-switch v-model="form.is_active" :value="current_consortium.is_active" label="Active?" dense></v-switch>
               </v-col>
-              <v-col class="d-flex px-2" cols="6">
-                <v-switch v-model="form.enable_harvesting" :value="current_consortium.enable_harvesting"
-                          label="Enable Harvesting" dense
-                ></v-switch>
-              </v-col>
             </v-row>
             <v-row class="d-flex mx-2 align-center">
               <v-col class="d-flex px-2" cols="4">
@@ -100,9 +103,9 @@
         mutable_consortia: [...this.consortia],
         current_consortium: {},
         con_headers: [
+            { text: 'Status', value: 'active', align: 'center' },
             { text: 'Database Key', value: 'ccp_key' },
             { text: 'Name', value: 'name' },
-            { text: 'Is Harvester', value: 'is_harvester', align: 'center' },
             { text: 'Email', value: 'email' },
             { text: 'Actions', value: 'action', align: 'end', sortable: false },
         ],
@@ -119,7 +122,6 @@
             name: '',
             email: '',
             is_active: 1,
-            enable_harvesting: 1,
             admin_user: 'Administrator',
             admin_pass: '',
             admin_confirm_pass: '',
@@ -127,6 +129,20 @@
       }
     },
     methods: {
+      changeStatus(Id, state) {
+        var _idx = this.mutable_consortia.findIndex(c => c.id == Id);
+        if (_idx < 0) return;
+        axios.patch('/consortia/'+Id, { is_active: state })
+             .then((response) => {
+              if (response.data.result) {
+                // Update mutable_consortia record with new value
+                this.mutable_consortia[_idx].is_active = state;
+                this.dtKey++;
+            } else {
+                this.failure = response.msg;
+            }
+        });
+      },
       formSubmit (event) {
           this.success = '';
           this.failure = '';
