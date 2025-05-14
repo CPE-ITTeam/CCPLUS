@@ -32,9 +32,6 @@ class GlobalAdminController extends Controller
 
         // Get consortia, master reports, and connection fields
         $consortia = Consortium::orderby('name')->get();
-        foreach ($consortia as $con) {
-            $con->is_harvester = ($con->enable_harvesting == 1) ? "Yes" : "No";
-        }
         $this->getMasterReports();
         $this->getConnectionFields();
         $all_connectors = $allConnectors->toArray();
