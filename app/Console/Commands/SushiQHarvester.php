@@ -80,12 +80,13 @@ class SushiQHarvester extends Command
        // Set error-severity so we only have to query for it once
         $all_severities = Severity::get();
 
-       // Get  (upto the first 100) Jobs in the Queue
-        $all_jobs = SushiQueueJob::orderBy('id', 'ASC')->take(100)->get();
+       // Get (up 100) Jobs in the Queue for ACTIVE consortium instances
+        $all_jobs = SushiQueueJob::join('consortia as Con', 'jobs.consortium_id', 'Con.id')
+                                 ->where('Con.is_active', 1)
+                                 ->orderBy('jobs.id', 'ASC')->take(100)->get();
 //
-//NOTE:: this is how it USED to work :
-        // $all_jobs = SushiQueueJob::orderBy('priority', 'DESC')->take(100)->get();
-// In case we want to revisit using priority in the Job queue
+// If we want to revisit using priority in the Job queue, this is how it USED to work :
+//    ->orderBy('priority', 'DESC')->take(100)->get();
 
        // Track #-skipped jobs so we don't keep pulling them
         $skip_count = 0;
@@ -95,10 +96,6 @@ class SushiQHarvester extends Command
             $conso_ids = $all_jobs->pluck('consortium_id')->unique()->values()->toArray();
             $consortia = Consortium::whereIn('id',$conso_ids)->get();
             foreach ($consortia as $con) {
-                // Skip consortium if harvesting is disabled
-                if (!$con->enable_harvesting) {
-                    continue;
-                }
 
                 // Get jobs for this consortium
                 $jobs = $all_jobs->where('consortium_id',$con->id);
@@ -114,18 +111,18 @@ class SushiQHarvester extends Command
                     mkdir($unprocessed_path, 0755, true);
                 }
 
-                // If conso is not active
-                if (!$con->is_active) {
-                    // Set all related harvests to "Fail"
-                    $harvest_ids = $jobs->pluck('harvest_id')->toArray();
-                    $res = HarvestLog::whereIn('id',$harvest_ids)->update(['status' => 'Fail']);
-                    // Remove the jobs from the Queue
-                    $job_ids = $jobs->pluck('id')->toArray();
-                    $res = SushiQueueJob::whereIn('id',$job_ids)->delete();
-                    $this->line($ts . "QueueHarvester: Consortium ID : " . $con->id . " is NOT ACTIVE ... skipping.");
-                    // Move on to next conso
-                    continue;
-                }
+                // // If conso is not active
+                // if (!$con->is_active) {
+                //     // Set all related harvests to "Fail"
+                //     $harvest_ids = $jobs->pluck('harvest_id')->toArray();
+                //     $res = HarvestLog::whereIn('id',$harvest_ids)->update(['status' => 'Fail']);
+                //     // Remove the jobs from the Queue
+                //     $job_ids = $jobs->pluck('id')->toArray();
+                //     $res = SushiQueueJob::whereIn('id',$job_ids)->delete();
+                //     $this->line($ts . "QueueHarvester: Consortium ID : " . $con->id . " is NOT ACTIVE ... skipping.");
+                //     // Move on to next conso
+                //     continue;
+                // }
 
                 // Add harvest and sushiSetting relations to the jobs collection
                 $jobs->load('harvest','harvest.sushiSetting','harvest.sushiSetting.provider',
@@ -425,7 +422,9 @@ class SushiQHarvester extends Command
             }      // foreach consortium with queued jobs
 
            // Get (another 100) Jobs from the Queue
-            $all_jobs = SushiQueueJob::orderBy('id', 'ASC')->skip($skip_count)->take(100)->get();
+            $all_jobs = SushiQueueJob::join('consortia as Con', 'jobs.consortium_id', 'Con.id')
+                                     ->where('Con.is_active', 1)
+                                     ->orderBy('jobs.id', 'ASC')->take(100)->get();
 
         }  // continue while $all_jobs->count() > 0
         return 1;
