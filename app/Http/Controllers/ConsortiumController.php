@@ -168,22 +168,26 @@ class ConsortiumController extends Controller
      */
     public function update(Request $request, $id)
     {
-        $this->validate($request, [
-            'name' => 'required',
-            'email' => 'required',
-        ]);
-        $isActive = 0;
-        if ($request->has('is_active')) {
-            $isActive = ($request->input('is_active')) ? 1 : 0;
-        }
-        $harvester = 0;
-        // Update the entry
+        // Get the consortium record
         $consortium = Consortium::findOrFail($id);
-        $consortium->name = $request->input('name');
-        $consortium->email = $request->input('email');
-        $consortium->is_active = $isActive;
+
+        // Check is_active and set in record if given
+        if (!$request->has('is_active')) {
+            return response()->json(['result' => false, 'msg' => 'Missing arguments! - no update applied.']);
+        }
+        $input = $request->all();
+        $consortium->is_active = ($input['is_active']) ? 1 : 0;
+
+        // If more than just is_active was requested
+        if (count($input) > 1) {
+            if (!isset($input['name']) || !isset($input['email'])) {
+                return response()->json(['result' => false, 'msg' => 'Missing arguments! - no update applied.']);
+            }
+            $consortium->name = $request->input('name');
+            $consortium->email = $request->input('email');
+        }
+        // Save the record
         $consortium->save();
-        $consortium->is_harvester = ($harvester==1) ? "Yes" : "No";
 
         // Return the updated object
         return response()->json(['result' => true, 'consortium' => $consortium,
