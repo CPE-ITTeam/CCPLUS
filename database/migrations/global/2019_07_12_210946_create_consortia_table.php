@@ -19,7 +19,6 @@ class CreateConsortiaTable extends Migration
             $table->string('name');
             $table->string('email')->nullable();
             $table->boolean('is_active')->default(true);
-            $table->boolean('enable_harvesting')->default(true);
             $table->timestamps();
         });
     }

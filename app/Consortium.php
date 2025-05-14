@@ -12,9 +12,9 @@ class Consortium extends Model
      * @var array
      */
     protected $fillable = [
-        'ccp_key', 'name', 'email', 'is_active', 'enable_harvesting'
+        'ccp_key', 'name', 'email', 'is_active'
     ];
-    protected $casts =['id'=>'integer', 'is_active'=>'integer', 'enable_harvesting'=>'integer'];
+    protected $casts =['id'=>'integer', 'is_active'=>'integer'];
 
     public function ingests()
     {
