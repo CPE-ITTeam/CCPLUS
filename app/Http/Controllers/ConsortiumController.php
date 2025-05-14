@@ -177,15 +177,11 @@ class ConsortiumController extends Controller
             $isActive = ($request->input('is_active')) ? 1 : 0;
         }
         $harvester = 0;
-        if ($request->has('enable_harvesting')) {
-            $harvester = ($request->input('enable_harvesting')) ? 1 : 0;
-        }
         // Update the entry
         $consortium = Consortium::findOrFail($id);
         $consortium->name = $request->input('name');
         $consortium->email = $request->input('email');
         $consortium->is_active = $isActive;
-        $consortium->enable_harvesting = $harvester;
         $consortium->save();
         $consortium->is_harvester = ($harvester==1) ? "Yes" : "No";
 
