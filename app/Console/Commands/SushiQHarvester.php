@@ -82,8 +82,8 @@ class SushiQHarvester extends Command
 
        // Get (up 100) Jobs in the Queue for ACTIVE consortium instances
         $all_jobs = SushiQueueJob::join('consortia as Con', 'jobs.consortium_id', 'Con.id')
-                                 ->where('Con.is_active', 1)
-                                 ->orderBy('jobs.id', 'ASC')->take(100)->get();
+                                 ->where('Con.is_active', 1)->orderBy('jobs.id', 'ASC')->take(100)
+                                 ->get(['jobs.id as id','consortium_id','harvest_id']);
 //
 // If we want to revisit using priority in the Job queue, this is how it USED to work :
 //    ->orderBy('priority', 'DESC')->take(100)->get();
@@ -144,7 +144,6 @@ class SushiQHarvester extends Command
                      if ($keepJob) {
                          if ($job->harvest->status == 'Paused' ||
                              ($job->harvest->status == 'Pending' && strtotime($job->harvest->updated_at) > $ten_ago) ) {
-                            $skip_count++;
                             continue;
                          }
                      }
@@ -422,9 +421,11 @@ class SushiQHarvester extends Command
             }      // foreach consortium with queued jobs
 
            // Get (another 100) Jobs from the Queue
+            $skip_count += 100;
             $all_jobs = SushiQueueJob::join('consortia as Con', 'jobs.consortium_id', 'Con.id')
-                                     ->where('Con.is_active', 1)
-                                     ->orderBy('jobs.id', 'ASC')->take(100)->get();
+                                     ->where('Con.is_active', 1)->orderBy('jobs.id', 'ASC')
+                                     ->skip($skip_count)->take(100)
+                                     ->get(['jobs.id as id','consortium_id','harvest_id']);
 
         }  // continue while $all_jobs->count() > 0
         return 1;
