@@ -185,8 +185,8 @@
       </v-row>
     </div>
     <v-data-table v-model="selectedRows" :headers="headers" :items="harvest_jobs" :loading="loading" item-key="id" show-select
-                  :options="mutable_dt_options" @update:options="updateOptions" :footer-props="footer_props" :key="dtKey"
-                  :search="search">
+                  multi-sort :options="mutable_dt_options" @update:options="updateOptions" :footer-props="footer_props"
+                  :key="dtKey" :search="search">
       <template v-slot:item.prov_name="{ item }">
         {{ item.prov_name.substr(0,63) }}
         <span v-if="item.prov_name.length>63">...</span>
