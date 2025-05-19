@@ -75,6 +75,9 @@ class SushiQLoader extends Command
             return 0;
         }
 
+        // Bail out - SILENTLY - if consortium is not active 
+        if ( $consortium->is_active != 1 ) return 0;
+
        // Aim the consodb connection at specified consortium's database and initialize the
        // path for keeping raw report responses
         config(['database.connections.consodb.database' => 'ccplus_' . $consortium->ccp_key]);
@@ -96,6 +99,9 @@ class SushiQLoader extends Command
             $yearmon = date("Y-m", strtotime($month));
         }
 
+        // Get setting for default release_5.1 availability
+        $first_yearmon_51 = config('ccplus.first_yearmon_51');
+
        // Get detail on (master) reports requested
         $master_reports = Report::where('parent_id',0)->orderBy('dorder','ASC')->get(['id','name']);
         if (strtoupper($rept) == 'ALL') {
@@ -110,12 +116,14 @@ class SushiQLoader extends Command
 
        // Get active provider data
         if ($prov_id == 0) {
-            $conso_providers = Provider::with('globalProv','reports')->where('is_active',true)->get();
+            $conso_providers = Provider::with('globalProv','globalProv.registries','reports')
+                                       ->where('is_active',true)->get();
         } else {
-            $conso_providers = Provider::with('globalProv','reports')->where('is_active',true)->where('global_id',$prov_id)->get();
+            $conso_providers = Provider::with('globalProv','globalProv.registries','reports')
+                                       ->where('is_active',true)->where('global_id',$prov_id)->get();
         }
 
-       // Get sushi settings for all the global_ids based on the
+       // Get sushi settings for the consortium providers using their global_id 
         $global_ids = $conso_providers->unique('global_id')->pluck('global_id')->toArray();
         $settings = SushiSetting::with('institution', 'provider')
                                 ->when($inst_id > 0, function ($qry) use ($inst_id) {
@@ -140,7 +148,7 @@ class SushiQLoader extends Command
            // Loop through related (conso) providers
             foreach ($providers as $provider) {
 
-               // If not overriding day-of-month, and today is not the day, skip to next provider
+                // If not overriding day-of-month, and today is not the day, skip to next provider
                 if (!$override_dom && $provider->globalProv->day_of_month != date('j')) {
                     continue;
                 }
@@ -157,9 +165,28 @@ class SushiQLoader extends Command
                 if (count($prov_report_ids) == 0) continue;
                 $reports = $master_reports->whereIn('id',$prov_report_ids)->whereIn('name',$requested_reports);
                 $source = ($provider->inst_id == 1) ? "C" : "I";
-                $release = $provider->default_release();
 
-               // Loop through all the reports
+                // Figure out which COUNTER release to pull
+                $available_releases = $provider->globalProv->registries->sortByDesc('release')->pluck('release')->toArray();
+
+                // To override default release, there need to be: multiple releases, "5.1" needs to be
+                // one of the choices, and the GlobalSetting (first_yearmon_51) needs to be non-null
+                $or_release = null;
+                $idx51 = array_search("5.1", $available_releases);
+                if (!is_null($first_yearmon_51) && count($available_releases) > 1 && $idx51) {
+                    // requested yearmon before 5.1 default begin date
+                    if ($yearmon < $first_yearmon_51) {
+                        $or_release = (isset($available_releases[$idx51+1])) ? $available_releases[$idx51+1] : null;
+                    // requested yearmon on/after 5.1 default begin date
+                    } else {
+                        $or_release = "5.1";
+                    }
+                }
+
+                // Use provider's default release override no set
+                $release = (!is_null($or_release)) ? $or_release : $provider->default_release();
+
+                // Loop through all the reports
                 foreach ($reports as $report) {
                     $ts = date("Y-m-d H:i:s");
                    // Create new HarvestLog record; catch and prevent duplicates
