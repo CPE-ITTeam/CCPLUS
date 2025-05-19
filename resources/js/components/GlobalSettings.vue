@@ -3,9 +3,17 @@
     <form>
       <v-row class="d-flex ma-0" no-gutters>
         <v-col v-for="item in config_settings" class="d-flex pa-2" cols="4" :key="item.id">
-          <v-text-field v-model="item.value" :label="item.name" outlined dense
+          <v-text-field v-if="item.name!='first_yearmon_51'" v-model="item.value" :label="item.name" outlined dense
                         :disabled="item.name=='root_url' || item.name=='reports_path'"
           ></v-text-field>
+          <v-menu v-if="item.name=='first_yearmon_51'" v-model="menu51" :close-on-content-click="true"
+                  transition="scale-transition" offset-y max-width="290px" min-width="290px">
+            <template v-slot:activator="{ on }">
+              <v-text-field v-model="item.value" label="Harvesting defaults to 5.1 reports beginning Year-Month"
+                            readonly clearable v-on="on"></v-text-field>
+            </template>
+            <v-date-picker v-model="item.value" type="month" min="2024-06" no-title scrollable></v-date-picker>
+          </v-menu>
         </v-col>
       </v-row>
       <v-row class="d-flex ma-0" no-gutters>
@@ -56,6 +64,7 @@
         config_settings: [],
         mail_settings: [],
         pw_show: false,
+        menu51: false,
       }
     },
     methods: {
