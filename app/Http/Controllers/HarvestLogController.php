@@ -243,7 +243,9 @@ class HarvestLogController extends Controller
                ->when($filters['updated'], function ($qry) use ($filters) {
                    if ($filters['updated'] == "Last 24 hours") {
                        return $qry->whereRaw("updated_at >= (now() - INTERVAL 24 HOUR)");
-                   } else {
+                    } else if ($filters['updated'] == "Last 7 days") {
+                        return $qry->whereRaw("updated_at >= (now() - INTERVAL 168 HOUR)");
+                    } else {
                        return $qry->where('updated_at', 'like', '%' . $filters['updated'] . '%');
                    }
                })
@@ -293,6 +295,7 @@ class HarvestLogController extends Controller
                }
            });
            array_unshift($updated_ym , 'Last 24 hours');
+           array_unshift($updated_ym , 'Last 7 days');
            return response()->json(['harvests' => $harvests, 'updated' => $updated_ym, 'truncated' => $truncated,
                                     'code_opts' => $codes, 'rept_opts' => $rept_ids, 'prov_opts' => $prov_ids,
                                     'inst_opts' => $inst_ids, 'yymms' => $yymms]);
