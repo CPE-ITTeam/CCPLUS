@@ -77,8 +77,7 @@
             harvest_provs: [],
             harvest_insts: [],
             mutable_bounds: [...this.bounds],
-            job_filters: { 'providers': [], 'institutions': [], 'groups':[], 'reports':[], 'yymms': [], 'statuses':[], 'codes':[],
-                           'created': null },
+            job_filters: {'providers':[], 'institutions':[], 'groups':[], 'reports':[], 'yymms':[], 'statuses':[], 'codes':[]},
             queueKey: 1,
         }
     },
