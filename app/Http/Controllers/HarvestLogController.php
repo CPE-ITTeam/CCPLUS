@@ -986,18 +986,16 @@ class HarvestLogController extends Controller
 
        // Assign optional inputs to $filters array
        $filters = array('providers' => [], 'institutions' => [], 'groups' => [], 'reports' => [], 'yymms' => [], 'statuses' => [],
-                        'codes' => [], 'created' => null);
+                        'codes' => []);
 
+       $has_filters = false;
        if ($request->input('filters')) {
            $filter_data = json_decode($request->input('filters'));
            foreach ($filter_data as $key => $val) {
-               if (!is_array($filters[$key])) {
-                   if (($key == 'updated' && $val != '') || $val != 0) {
-                       $filters[$key] = $val;
-                   }
-               } else {
-                   $filters[$key] = $val;
-               }
+                if (is_array($filters[$key]) && count($val) > 0) {
+                    $filters[$key] = $val;
+                    $has_filters = true;
+                }
            }
        }
 
@@ -1048,68 +1046,49 @@ class HarvestLogController extends Controller
                               'Paused' => 'Paused', 'ReQueued' => 'ReQueued', 'Waiting' => 'Process Queue',
                               'Processing' => 'Processing');
 
-       // Get all harvests, by-status, that are currently running
+       // Get all harvests joined with sushisettings that match the statuses
        $all_data = HarvestLog::with('sushiSetting','sushiSetting.provider','sushiSetting.institution:id,name','report')
                              ->whereIn('status',array_keys($displayStatus))
-                             ->when(count($filters["reports"]) > 0, function ($qry) use ($filters) {
-                                 return $qry->whereIn("report_id", $filters["reports"]);
-                             })
-                             ->when(count($filters["statuses"]) > 0, function ($qry) use ($filters) {
-                                 return $qry->whereIn("status", $filters["statuses"]);
-                             })
-                             ->when(count($filters['codes']) > 0, function ($qry) use ($filters) {
-                                 return $qry->whereIn('error_id', $filters['codes']);
-                             })
-                             ->when(count($filters['yymms']) > 0, function ($qry) use ($filters) {
-                                 return $qry->whereIn('yearmon', $filters['yymms']);
-                             })
-                             ->when($filters['created'], function ($qry) use ($filters) {
-                                 if ($filters['created'] == "Last 24 hours") {
-                                     return $qry->whereRaw("created_at >= (now() - INTERVAL 24 HOUR)");
-                                 } else {
-                                     return $qry->where('created_at', 'like', '%' . $filters['created'] . '%');
-                                 }
-                             })
-                             ->orderBy("updated_at", "ASC")
-                             ->get();
+                             ->orderBy("updated_at", "DESC")->get();
 
-
-       // Grab the harvests that are currently running and make these the "first" harvests in the output array
-       $exec_records = $all_data->whereIn('status',['Harvesting','Processing']);
-       $exec_ids = $exec_records->pluck('id')->toArray();
-       $data = $all_data->whereNotIn('id',$exec_ids);
-       foreach ($exec_records as $e_rec) {
-           $data->prepend($e_rec);
-       }
-
-       // Get global Queue rows for the harvests (if they have one)
-       $harvest_ids = $data->pluck('id')->toArray();
-       $jobs = SushiQueueJob::where('consortium_id',$con->id)->whereIn('harvest_id',$harvest_ids)->get();
+       // Apply filters if set
+       $data = $all_data->when(count($limit_to_insts) > 0, function ($qry) use ($limit_to_insts) {
+                                return $qry->whereIn('sushiSetting.inst_id', $limit_to_insts);
+                        })
+                        ->when(count($filters['providers']) > 0, function ($qry) use ($filters) {
+                            return $qry->whereIn('sushiSetting.prov_id', $filters['providers']);
+                        })
+                        ->when(count($filters["reports"]) > 0, function ($qry) use ($filters) {
+                            return $qry->whereIn("report_id", $filters["reports"]);
+                        })
+                        ->when(count($filters["statuses"]) > 0, function ($qry) use ($filters) {
+                            return $qry->whereIn("status", $filters["statuses"]);
+                        })
+                        ->when(count($filters['codes']) > 0, function ($qry) use ($filters) {
+                            return $qry->whereIn('error_id', $filters['codes']);
+                        })
+                        ->when(count($filters['yymms']) > 0, function ($qry) use ($filters) {
+                            return $qry->whereIn('yearmon', $filters['yymms']);
+                        });
 
        // Build an output array of no more than 500 harvests
        $output_count = 0;
        $truncated = false;
        $harvests = array();
        foreach ($data as $rec) {
-          if ( (count($limit_to_insts) > 0 && !in_array($rec->sushiSetting->inst_id, $limit_to_insts)) ||
-               (count($filters["providers"]) > 0 && !in_array($rec->sushiSetting->prov_id, $filters["providers"])) ) {
-               continue;
-          }
-          $active_job = $jobs->where('harvest_id',$rec->id)->first();
+          $rec->prov_id = $rec->sushiSetting->prov_id;
+          $rec->inst_id = $rec->sushiSetting->inst_id;
           $rec->prov_name = $rec->sushiSetting->provider->name;
           $rec->inst_name = $rec->sushiSetting->institution->name;
           $rec->report_name = $rec->report->name;
-          $rec->created_at = ($active_job) ? $active_job->created_at : $rec->updated_at;
-          $rec->created = ($rec->created_at) ? date("Y-m-d H:i", strtotime($rec->created_at)) : " ";
+          $rec->updated = date("Y-m-d H:i", strtotime($rec->updated_at));
           $rec->dStatus = $displayStatus[$rec->status];
 
           // Add a test+confirm URL
           $beg = $rec->yearmon . '-01';
           $end = $rec->yearmon . '-' . date('t', strtotime($beg));
           $sushi = new Sushi($beg, $end);
-          // setup required connectors for buildUri
-          $prov_connectors = $rec->sushiSetting->provider->connectors();
-          $connectors = $this->connection_fields->whereIn('id',$prov_connectors)->pluck('name')->toArray();
+          // set url for manual retry/confirm icon using buildUri
           $rec->retryUrl = $sushi->buildUri($rec->sushiSetting, 'reports', $rec->report, $rec->release);
           // add record to the outbound array
           $harvests[] = $rec->toArray();
@@ -1122,18 +1101,28 @@ class HarvestLogController extends Controller
           }
        }
 
-       // grab IDs/values for setting filter option in the UI (based on ALL data, not the output array)
-       $repts = $all_data->unique('report_id')->pluck('report_id')->toArray();
-       $yymms = $all_data->unique('yearmon')->sortBy('yearmon')->pluck('yearmon')->toArray();
-       $stats = $all_data->unique('status')->sortBy('status')->pluck('status')->toArray();
-       $codes = $all_data->where('error_id','>',0)->unique('error_id')->sortBy('error_id')->pluck('error_id')->toArray();
-       $insts = $all_data->unique('sushiSetting.inst_id')->pluck('sushiSetting.inst_id')->toArray();
-       $provs = $all_data->unique('sushiSetting.prov_id')->pluck('sushiSetting.prov_id')->toArray();
+       // Set Filter options
+       // If ANY filter is set, returned filter options are set based on the filtered records.
+       // Otherwise, return all-possible options based on $all_data.
+       $repts = ($has_filters) ? $data->unique('report_id')->pluck('report_id')->toArray()
+                               : $all_data->unique('report_id')->pluck('report_id')->toArray();
+       $yymms = ($has_filters) ? $data->unique('yearmon')->sortBy('yearmon')->pluck('yearmon')->toArray()
+                               : $all_data->unique('yearmon')->sortBy('yearmon')->pluck('yearmon')->toArray();
+       $stats = ($has_filters) ? $data->unique('status')->sortBy('status')->pluck('status')->toArray()
+                               : $all_data->unique('status')->sortBy('status')->pluck('status')->toArray();
+       $insts = ($has_filters) ? $data->unique('sushiSetting.inst_id')->pluck('sushiSetting.inst_id')->toArray()
+                               : $all_data->unique('sushiSetting.inst_id')->pluck('sushiSetting.inst_id')->toArray();
+       $provs = ($has_filters) ? $data->unique('sushiSetting.prov_id')->pluck('sushiSetting.prov_id')->toArray()
+                               : $all_data->unique('sushiSetting.prov_id')->pluck('sushiSetting.prov_id')->toArray();
+       $codes = ($has_filters) ? $data->where('error_id','>',0)->unique('error_id')->sortBy('error_id')
+                                      ->pluck('error_id')->toArray()
+                               : $all_data->where('error_id','>',0)->unique('error_id')->sortBy('error_id')
+                                      ->pluck('error_id')->toArray();
        if (count($codes) == 1 && is_null($codes[0])) {
            $codes = [];
        }
        array_unshift($codes, 'No Error');
-
+                       
        return response()->json(["result" => true, "jobs" => $harvests, "prov_ids" => $provs, "inst_ids" => $insts,
                                 "rept_ids" => $repts, "yymms" => $yymms, "statuses" => $stats, "codes" => $codes,
                                 "truncated" => $truncated]);

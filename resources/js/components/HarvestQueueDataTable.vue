@@ -184,8 +184,8 @@
         <span v-if="failure" class="fail" role="alert" v-text="failure"></span>
       </v-row>
     </div>
-    <v-data-table v-model="selectedRows" :headers="headers" :items="harvest_jobs" :loading="loading" item-key="id" show-select
-                  :options="mutable_dt_options" @update:options="updateOptions" :footer-props="footer_props"
+    <v-data-table v-model="selectedRows" :headers="headers" :items="filtered_harvests" :loading="loading" item-key="id"
+                  show-select :options="mutable_dt_options" @update:options="updateOptions" :footer-props="footer_props"
                   :key="dtKey" :search="search">
       <template v-slot:item.prov_name="{ item }">
         {{ item.prov_name.substr(0,63) }}
@@ -221,7 +221,7 @@
     data () {
       return {
         headers: [
-          { text: 'Created', value: 'created' },
+          { text: 'Updated', value: 'updated' },
           { text: 'Platform', value: 'prov_name' },
           { text: 'Institution', value: 'inst_name' },
           { text: 'Report', value: 'report_name', align: 'center' },
@@ -234,8 +234,11 @@
         footer_props: { 'items-per-page-options': [10,50,100,-1] },
         selectedRows: [],
         mutable_filters: { ...this.filters },
+        filter_vars: {'providers':'prov_id','institutions':'inst_id','reports':'report_id','yymms':'yearmon','statuses':'dStatus'},
+        filtered_harvests: [],
         conso_switch: 0,
         limit_prov_ids: [],
+        limit_inst_ids: [],
         inst_filter: null,
         codes: [],
         yymms: [],
@@ -255,6 +258,14 @@
         search: '',
       }
     },
+    watch: {
+      mutable_filters: {
+        handler () {
+          this.filtered_harvests = [ ...this.filter_harvests() ];
+        },
+        deep: true
+      },
+    },
     methods: {
         // Update records from the jobs queue
         updateRecords() {
@@ -273,7 +284,8 @@
             let _filters = JSON.stringify(filters_copy);
             axios.get("/harvest-queue?filters="+_filters)
                  .then((response) => {
-                     this.harvest_jobs = response.data.jobs;
+                     this.harvest_jobs = [...response.data.jobs];
+                     this.filtered_harvests = [...response.data.jobs],
                      this.truncatedResult = response.data.truncated;
                      // update filtering options; keep a copy in saved_options for resetting/clearing filters
                      this.saved_options['providers'] = (response.data.prov_ids.length > 0)
@@ -338,9 +350,20 @@
             // Setting an inst or group filter clears the other one
             if (this.mutable_filters['institutions'].length>0) {
                 this.inst_filter = "I";
+                this.limit_inst_ids = [...this.mutable_filters['institutions']];
                 this.mutable_filters['groups'] = [];
             } else if (this.mutable_filters['groups'].length>0) {
                 this.inst_filter = "G";
+                var _new_id_set = [];
+                this.limit_inst_ids = this.mutable_filters['groups'].forEach( (gid)  => {
+                  let group = this.groups.find(g => g.id == gid);
+                  if (typeof(group) != 'undefined') {
+                    group.institutions.forEach( (inst) => {
+                      if ( !_new_id_set.includes(inst.id) ) _new_id_set.push(inst.id);
+                    });
+                  }
+                });
+                this.limit_inst_ids = [..._new_id_set];
                 this.mutable_filters['institutions'] = [];
             }
             // update allSelected flag
@@ -350,14 +373,13 @@
             }
         },
         clearFilter(filter) {
-            if (filter == 'created') {
-                this.mutable_filters[filter] = '';
-            } else {
-                this.mutable_filters[filter] = [];
-                if (filter=='institutions' || filter=='groups') this.inst_filter = null;
-                if ( Object.keys(this.mutable_options).includes(filter) ) {
-                  this.mutable_options[filter] = [...this.saved_options[filter]];
-                }
+            this.mutable_filters[filter] = [];
+            if (filter=='institutions' || filter=='groups') {
+              this.inst_filter = null;
+              this.limit_inst_ids = [];
+            }
+            if ( Object.keys(this.mutable_options).includes(filter) ) {
+              this.mutable_options[filter] = [...this.saved_options[filter]];
             }
             if (typeof(this.allSelected[filter]) != 'undefined') this.allSelected[filter] = false;
             this.$store.dispatch('updateAllFilters',this.mutable_filters);
@@ -370,8 +392,11 @@
             if (this.allSelected[filt]) {
                 this.mutable_filters[filt] = [];
                 this.allSelected[filt] = false;
-                if (filt == "institutions" || filt == "groups") this.inst_filter = null;
-          // Turned an all-options filter ON
+                if (filt == "institutions" || filt == "groups") {
+                  this.inst_filter = null;
+                  this.limit_inst_ids = [];
+                }
+            // Turned an all-options filter ON
             } else {
                 if (filt == 'codes' || filt == 'statuses' || filt == 'yymms') {
                     this.mutable_filters[filt] = [...this.saved_options[filt]];
@@ -379,12 +404,15 @@
                     this.mutable_filters[filt] = this.saved_options[filt].map(o => o.id);
                 }
                 this.allSelected[filt] = true;
-                if (filt == "institutions") {
-                    this.inst_filter = "I";
-                    this.mutable_filters['groups'] = [];
-                } else if (filt == "groups") {
-                    this.inst_filter = "G";
-                    this.mutable_filters['institutions'] = [];
+                if (filt == "institutions" || filt == "groups") {
+                  if (filt == "institutions") {
+                      this.inst_filter = "I";
+                      this.mutable_filters['groups'] = [];
+                  } else {
+                      this.inst_filter = "G";
+                      this.mutable_filters['institutions'] = [];
+                  }
+                  this.limit_inst_ids = this.saved_options['institutions'].map( inst => inst.id)
                 }
             }
         },
@@ -393,11 +421,7 @@
             this.updateConsoOnly(false);
             // Reset filters
             Object.keys(this.mutable_filters).forEach( (key) =>  {
-              if (key == 'created') {
-                  this.mutable_filters[key] = '';
-              } else {
-                  this.mutable_filters[key] = [];
-              }
+              this.mutable_filters[key] = [];
             });
             // Reset error code options to inbound property
             Object.keys(this.mutable_options).forEach( (key) => {
@@ -482,6 +506,32 @@
         },
         goURL(url) {
           window.open(url, "_blank");
+        },
+        groupsToInsts(groupIds) {
+          var _return_ids = [];
+          groupIds.forEach( (gid)  => {
+            let group = this.groups.find(g => g.id == gid);
+            if (typeof(group) != 'undefined') {
+              group.institutions.forEach( (inst) => {
+                if ( !_return_ids.includes(inst.id) ) _return_ids.push(inst.id);
+              });
+            }
+          });
+          return [..._return_ids];
+        },
+        // Filter job_harvests (from last record load) by all the set filters 
+        filter_harvests() {
+          let returnSet = [ ...this.harvest_jobs ];
+          Object.keys(this.filters).forEach( (key) =>  {
+            if (this.mutable_filters[key].length > 0) {
+              if (key == 'institutions' || key == 'groups') {
+                returnSet = returnSet.filter( h => this.limit_inst_ids.includes(h.inst_id) );
+              } else {
+                returnSet = returnSet.filter( h => this.mutable_filters[key].includes(h[this.filter_vars[key]]) );
+              }
+            }
+          });
+          return returnSet;
         },
     },
     computed: {

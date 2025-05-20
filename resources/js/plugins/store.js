@@ -42,8 +42,8 @@ export const store = new Vuex.Store({
                                      groupDesc: [], multiSort: false, mustSort: false }
                        },
           harvestqueue: { filters: {fromYM: "", toYM: "", institutions: [], providers: [], reports: [], statuses: [], groups: [],
-                                    created: "", codes:[], yymms:[]},
-                         datatable: {itemsPerPage: 10, sortBy: ['created'], sortDesc: [true], groupBy: [],
+                                    codes:[], yymms:[]},
+                         datatable: {itemsPerPage: 10, sortBy: ['updated'], sortDesc: [true], groupBy: [],
                                      groupDesc: [], multiSort: true, mustSort: false }
                        },
           alerts: { filters: {fromYM: "", toYM: "", inst: [], prov: [], rept: [], stat: ''},
