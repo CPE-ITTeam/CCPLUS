@@ -483,7 +483,7 @@
                       // otherwise, the delete operation will remove just the provider record with ID=instProvID
                       let instProvID = provider.conso_id;
                       if (this.is_admin && (this.inst_context == 1 ||
-                           (this.inst_context !=1 && _prov.connection_count==1 && _prov.is_conso))) {
+                           (this.inst_context !=1 && provider.connection_count==1 && provider.is_conso))) {
                         instProvID = "0";
                       }
                       let url = '/providers/customDestroy/'+provider.id+"/"+instProvID;
