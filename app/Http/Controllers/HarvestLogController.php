@@ -650,11 +650,12 @@ class HarvestLogController extends Controller
        }
 
        // Limit new status input to 2 possible values
-       $new_status_allowed = array('Pause', 'ReStart');
+       $new_status_allowed = array('Pause', 'ReStart', 'ReStart as v5', 'ReStart as v5.1');
        if (!in_array($input['status'], $new_status_allowed)) {
            return response()->json(['result' => false,
                                     'msg' => 'Invalid request: status cannot be set to requested value.']);
        }
+       $status_action = ($input['status'] == 'Pause') ? "Pause" : "ReStart";
 
        // Get consortium info
        $con = Consortium::where("ccp_key", session("ccp_con_key"))->first();
@@ -662,10 +663,17 @@ class HarvestLogController extends Controller
            return response()->json(['result' => false, 'msg' => 'Error: Corrupt session or consortium settings']);
        }
 
+       // Check status input for a specific COUNTER release for restarting
+       $forceRelease = null;
+       if (substr($input['status'],8,4) == 'as v') {
+           $forceRelease = substr($input['status'],12,null);
+       }
+
        // Get and process the harvest(s)
        $changed = 0;
        $skipped = [];
-       $harvests = HarvestLog::with('sushiSetting','sushiSetting.institution','sushiSetting.provider')
+       $harvests = HarvestLog::with('sushiSetting','sushiSetting.institution','sushiSetting.provider',
+                                    'sushiSetting.provider.registries')
                              ->whereIn('id',$input['ids'])->get();
        foreach ($harvests as $harvest) {
            // keep track of original status
@@ -673,19 +681,33 @@ class HarvestLogController extends Controller
 
            // Disallow ReStart on any harvest where sushi settings are not Enabled, or provider or institution are
            // are not active
-           if ( ($input['status'] == 'ReStart') && ($harvest->sushiSetting->status != 'Enabled' ||
+           if ( ($status_action == 'ReStart') && ($harvest->sushiSetting->status != 'Enabled' ||
                 !$harvest->sushiSetting->institution->is_active || !$harvest->sushiSetting->provider->is_active) ) {
                $skipped[] = $harvest->id;
                continue;
            }
 
-           // Setting Queued means attempts get set to zero
-           if ($input['status'] == 'Pause') {
+           // Confirm that a "forcedRelease" is available for this harvests' provider
+           if ($forceRelease) {
+               $registry = $harvest->sushiSetting->provider->registries->where('release',$forceRelease)->first();
+               if (!$registry) {
+                   $skipped[] = $harvest->id;
+                   continue;
+               }
+               // Update the release value in the harvest record now so that the new job processes it right
+               if ($registry->release != $harvest->release) {
+                   $harvest->release = $forceRelease;
+                   $harvest->save();
+               }
+           }
+
+           // Setting Paused just changes status
+           if ($status_action == 'Pause') {
                $harvest->status = 'Paused';
 
            // Setting Queued means attempts get set to zero
            // Restart will reset attempts and create a SushiQueueJob if one does not exist
-           } else if ($input['status'] == 'ReStart') {
+           } else if ($status_action == 'ReStart') {
                $sushiJob = SushiQueueJob::where('consortium_id',$con->id)->where('harvest_id',$harvest->id)->first();
                if (!$sushiJob) {
                    try {
@@ -707,11 +729,17 @@ class HarvestLogController extends Controller
        }
 
        // Return result
-       $msg_result = ($input['status'] == 'ReStart') ? "restarted" : "paused";
-       if (count($skipped) == 0) {
-          $msg = "Selected harvests successfully " . $msg_result . ".";
+       $msg_result = ($status_action == 'ReStart') ? "restarted" : "paused";
+       if ($changed > 0) {
+           $msg  = "Successfully  " . $msg_result . " " . $changed . " harvests";
+           $msg .= ($forceRelease) ? " as release ".$forceRelease : "";
+           if (count($skipped) > 0) {
+               $msg .= " , and skipped " . count($skipped) . " harvests";
+               $msg .= ($forceRelease) ? " (release ".$forceRelease." may not be available)." : ".";
+            }
        } else {
-          $msg = "Successfully  " . $msg_result . " " . $changed . " harvests, and skipped " . count($skipped) . " harvests.";
+           $msg = "No selected harvests modified";
+           $msg .= ($forceRelease) ? ", release ".$forceRelease." may not be available" : "";
        }
        return response()->json(['result' => true, 'msg' => $msg, 'skipped' => $skipped]);
    }

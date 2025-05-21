@@ -367,7 +367,7 @@
         truncatedResult: false,
         yymms: [],
         harv_stat: [ {id:'Success', opt:'Success'}, {id:'Fail', opt:'Failed'},  {id:'NoRetries', opt:'Out of Retries'} ],
-        bulk_actions: ['ReStart','Delete'],
+        bulk_actions: ['ReStart','ReStart as v5','ReStart as v5.1','Delete'],
         harv: {},
         selectedRows: [],
         minYM: '',
@@ -543,7 +543,7 @@
             let msg = "";
             msg = "Bulk processing will proceed through each requested harvest sequentially.";
             msg += "<br><br>";
-            if (this.bulkAction == 'ReStart') {
+            if (this.bulkAction.substring(0,6) == 'ReStart') {
                 msg += "Restarting the selected harvests will reset the attempts counters to zero and";
                 msg += " immediately add the harvests to the processing queue.";
                 msg += "<br><strong>NOTE: </strong>Harvests related to inactive institutions or platforms, or with";
