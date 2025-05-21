@@ -387,7 +387,7 @@
     watch: {
       datesFromTo: {
         handler() {
-          // Changing date-range means we need to update state and reload records
+          // Changing date-range means we need to update state
           // (just not the FIRST change that happens on page load)
           if (this.rangeKey > 1 && this.all_filters.toYM != '' && this.all_filters.fromYM != '' &&
               this.all_filters.toYM != null && this.all_filters.fromYM != null) {
@@ -497,19 +497,25 @@
                      this.mutable_updated = response.data.updated;
                      this.truncatedResult = response.data.truncated;
                      this.mutable_options['codes'] = response.data.code_opts;
-                     this.mutable_options['reports'] = (response.data.rept_opts.length > 0)
-                                            ? this.reports.filter( r => response.data.rept_opts.includes(r.id) )
-                                            : [...this.reports];
-                     this.mutable_options['institutions'] = (response.data.inst_opts.length > 0 && !this.allSelected.institutions)
-                                            ? this.institutions.filter( i => response.data.inst_opts.includes(i.id) )
-                                            : [...this.institutions];
-                     this.mutable_options['providers'] = (response.data.prov_opts.length > 0 && !this.allSelected.providers)
-                                                      ? this.providers.filter( p => response.data.prov_opts.includes(p.id))
-                                                      : [...this.providers];
-                     this.mutable_options['yymms'] = (response.data.yymms.length > 0 && !this.allSelected.yymms) ?
-                                                     [...response.data.yymms] : [...this.yymms];
+                     this.mutable_options['reports'] = this.reports.filter( r => response.data.rept_opts.includes(r.id) );
+                     this.mutable_options['institutions'] = this.institutions.filter( i => response.data.inst_opts.includes(i.id) );
+                     this.mutable_options['providers'] = this.providers.filter( p => response.data.prov_opts.includes(p.id) );
+                     this.mutable_options['yymms'] = [...response.data.yymms];
                      // Make sure *something* is in the yymms array
-                     if (this.mutable_options['yymms'].length > this.yymms.length) this.yymms = [...this.mutable_options['yymms']];
+                     if (this.mutable_options['yymms'].length == 0) this.yymms = [...this.yymms];
+                    //  this.mutable_options['reports'] = (response.data.rept_opts.length > 0)
+                    //                         ? this.reports.filter( r => response.data.rept_opts.includes(r.id) )
+                    //                         : [...this.reports];
+                    //  this.mutable_options['institutions'] = (response.data.inst_opts.length > 0 && !this.allSelected.institutions)
+                    //                         ? this.institutions.filter( i => response.data.inst_opts.includes(i.id) )
+                    //                         : [...this.institutions];
+                    //  this.mutable_options['providers'] = (response.data.prov_opts.length > 0 && !this.allSelected.providers)
+                    //                                   ? this.providers.filter( p => response.data.prov_opts.includes(p.id))
+                    //                                   : [...this.providers];
+                    //  this.mutable_options['yymms'] = (response.data.yymms.length > 0 && !this.allSelected.yymms) ?
+                    //                                  [...response.data.yymms] : [...this.yymms];
+                     // Make sure *something* is in the yymms array
+                    //  if (this.mutable_options['yymms'].length > this.yymms.length) this.yymms = [...this.mutable_options['yymms']];
                      this.update_button = "Refresh Records";
                      this.loading = false;
                      this.dtKey++;
@@ -646,9 +652,9 @@
           // Turned an all-options filter ON
           } else {
             if (filt == 'codes' || filt == 'yymms') {
-                this.mutable_filters[filt] = [...this[filt]];
+                this.mutable_filters[filt] = [...this.mutable_options[filt]];
             } else {
-                this.mutable_filters[filt] = this[filt].map(o => o.id);
+                this.mutable_filters[filt] = this.mutable_options[filt].map(o => o.id);
             }
             this.allSelected[filt] = true;
             if (filt == "institutions") {
