@@ -14,8 +14,16 @@
       </v-col>
     </v-row>
     <v-row no-gutters>
-      <v-col v-if="is_admin" class="d-flex px-2 align-center" cols="2">
+      <v-col v-if="is_admin || is_viewer" class="d-flex px-2 align-center" cols="2">
         <v-switch v-model="conso_switch" dense label="Limit to Consortium" @change="updateConsoOnly()"></v-switch>
+      </v-col>
+      <v-col v-else class="d-flex px-2" cols="2">
+        <div v-if="mutable_filters['updated']!=null && mutable_filters['updated']!=''" class="x-box">
+          <img src="/images/red-x-16.png" width="100%" alt="clear filter" @click="clearFilter('updated')"/>&nbsp;
+        </div>
+        <v-select :items="mutable_updated" v-model="mutable_filters['updated']" @change="updateFilters('updated')"
+                  label="Updated"
+        ></v-select>
       </v-col>
       <v-col class="d-flex px-2 align-center" cols="2">
         <div v-if="mutable_filters['providers'].length>0" class="x-box">
@@ -39,7 +47,7 @@
           </template>
         </v-autocomplete>
       </v-col>
-      <v-col v-if="institutions.length>1 && (inst_filter==null || inst_filter=='I')"
+      <v-col v-if="(is_admin || is_viewer) && institutions.length>1 && (inst_filter==null || inst_filter=='I')"
              class="d-flex px-2 align-center" cols="2">
         <div v-if="mutable_filters['institutions'].length>0" class="x-box">
           <img src="/images/red-x-16.png" width="100%" alt="clear filter" @click="clearFilter('institutions')"/>&nbsp;
@@ -64,7 +72,7 @@
           </template>
         </v-autocomplete>
       </v-col>
-      <v-col v-if="groups.length>1 && (inst_filter==null || inst_filter=='G') && (is_admin || is_viewer)"
+      <v-col v-if="(is_admin || is_viewer) && groups.length>1 && (inst_filter==null || inst_filter=='G')"
              class="d-flex px-2 align-center" cols="2">
         <div v-if="mutable_filters['groups'].length>0" class="x-box">
           <img src="/images/red-x-16.png" width="100%" alt="clear filter" @click="clearFilter('groups')"/>&nbsp;
@@ -117,28 +125,7 @@
           </template>
         </v-autocomplete>
       </v-col>
-    </v-row>
-    <v-row no-gutters>
-      <v-col class="d-flex px-2 align-center" cols="3">
-        <div v-if="datesFromTo!='|'" class="x-box">
-          <img src="/images/red-x-16.png" width="100%" alt="clear date range" @click="clearFilter('date_range')"/>&nbsp;
-        </div>
-        <date-range :minym="minYM" :maxym="maxYM" :ymfrom="filter_by_fromYM" :ymto="filter_by_toYM" :key="rangeKey"
-        ></date-range>
-      </v-col>
-      <v-col class="d-flex px-2" cols="2">
-        <div v-if="mutable_filters['updated']!=null && mutable_filters['updated']!=''" class="x-box">
-          <img src="/images/red-x-16.png" width="100%" alt="clear filter" @click="clearFilter('updated')"/>&nbsp;
-        </div>
-        <v-select :items="mutable_updated" v-model="mutable_filters['updated']" @change="updateFilters('updated')"
-                  label="Updated"
-        ></v-select>
-      </v-col>
-      <v-col v-if="truncatedResult" class="d-flex px-2 align-center" cols="3">
-        <span class="fail" role="alert">Result Truncated To 500 Records</span>
-      </v-col>
-      <v-col v-else class="d-flex" cols="3">&nbsp;</v-col>
-      <v-col class="d-flex px-2 align-center" cols="2">
+      <v-col v-if="!is_admin && !is_viewer" class="d-flex px-2 align-center" cols="2">
         <div v-if="mutable_filters['codes'].length>0" class="x-box">
           <img src="/images/red-x-16.png" width="100%" alt="clear filter" @click="clearFilter('codes')"/>&nbsp;
         </div>
@@ -161,7 +148,59 @@
           </template>
         </v-select>
       </v-col>
-      <v-col class="d-flex px-2 align-center" cols="2">
+      <v-col v-if="!is_admin && !is_viewer" class="d-flex px-2 align-center" cols="2">
+        <div v-if="mutable_filters['harv_stat'].length>0" class="x-box">
+          <img src="/images/red-x-16.png" width="100%" alt="clear filter" @click="clearFilter('harv_stat')"/>&nbsp;
+        </div>
+        <v-select :items="harv_stat" v-model="mutable_filters['harv_stat']" @change="updateFilters('harv_stat')"
+                  multiple label="Status(es)" item-text="opt" item-value="id"
+        ></v-select>
+      </v-col>
+    </v-row>
+    <v-row no-gutters>
+      <v-col class="d-flex px-2 align-center" cols="3">
+        <div v-if="datesFromTo!='|'" class="x-box">
+          <img src="/images/red-x-16.png" width="100%" alt="clear date range" @click="clearFilter('date_range')"/>&nbsp;
+        </div>
+        <date-range :minym="minYM" :maxym="maxYM" :ymfrom="filter_by_fromYM" :ymto="filter_by_toYM" :key="rangeKey"
+        ></date-range>
+      </v-col>
+      <v-col v-if="is_admin && is_viewer" class="d-flex px-2" cols="2">
+        <div v-if="mutable_filters['updated']!=null && mutable_filters['updated']!=''" class="x-box">
+          <img src="/images/red-x-16.png" width="100%" alt="clear filter" @click="clearFilter('updated')"/>&nbsp;
+        </div>
+        <v-select :items="mutable_updated" v-model="mutable_filters['updated']" @change="updateFilters('updated')"
+                  label="Updated"
+        ></v-select>
+      </v-col>
+      <v-col v-if="truncatedResult" class="d-flex px-2 align-center" cols="3">
+        <span class="fail" role="alert">Result Truncated To 500 Records</span>
+      </v-col>
+      <v-col v-else class="d-flex" cols="3">&nbsp;</v-col>
+      <v-col v-if="is_admin && is_viewer" class="d-flex px-2 align-center" cols="2">
+        <div v-if="mutable_filters['codes'].length>0" class="x-box">
+          <img src="/images/red-x-16.png" width="100%" alt="clear filter" @click="clearFilter('codes')"/>&nbsp;
+        </div>
+        <v-select :items="mutable_options['codes']" v-model="mutable_filters['codes']" @change="updateFilters('codes')" multiple
+                  label="Error Code">
+          <template v-slot:prepend-item>
+            <v-list-item @click="filterAll('codes')">
+               <span v-if="allSelected.codes">Clear Selections</span>
+               <span v-else>Select All</span>
+            </v-list-item>
+            <v-divider class="mt-1"></v-divider>
+          </template>
+          <template v-slot:selection="{ item, index }">
+            <span v-if="index == 0 && allSelected.codes">All Error Codes</span>
+            <span v-else-if="index < 2 && !allSelected.codes">{{ item }}</span>
+            <span v-else-if="index === 2 && !allSelected.codes" class="text-grey text-caption align-self-center">
+              &nbsp; +{{ mutable_filters['codes'].length-2 }} more
+            </span>
+            <span v-if="index <= 1 && index < mutable_filters['codes'].length-1 && !allSelected.codes">, </span>
+          </template>
+        </v-select>
+      </v-col>
+      <v-col v-if="is_admin && is_viewer" class="d-flex px-2 align-center" cols="2">
         <div v-if="mutable_filters['harv_stat'].length>0" class="x-box">
           <img src="/images/red-x-16.png" width="100%" alt="clear filter" @click="clearFilter('harv_stat')"/>&nbsp;
         </div>
