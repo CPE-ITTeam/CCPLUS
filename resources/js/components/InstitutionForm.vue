@@ -56,7 +56,8 @@
           <h2>Recent Harvest Activity</h2>
     	  </v-expansion-panel-header>
     	  <v-expansion-panel-content>
-          <harvestlog-summary-table :harvests='harvests' :inst_id="institution.id"></harvestlog-summary-table>
+          <harvestlog-summary-table :harvests='harvests' :inst_id="institution.id" :inst_context="this.institution.id" 
+          ></harvestlog-summary-table>
     	  </v-expansion-panel-content>
   	  </v-expansion-panel>
     </v-expansion-panels>

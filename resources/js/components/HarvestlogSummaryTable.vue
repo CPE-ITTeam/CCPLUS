@@ -2,20 +2,12 @@
   <div>
     <div v-if="harvests.length > 0">
       <v-data-table :headers="headers" :items="mutable_harvests" item-key="id" class="elevation-1"
-                    :hide-default-footer="true" :server-items-length="10" dense disable-sort>
-        <template v-slot:item="{ item }">
-          <tr>
-            <td>{{ item.updated_at.substr(0,10) }}</td>
-            <td>{{ item.sushi_setting.institution.name }}</td>
-            <td>{{ item.sushi_setting.provider.name }}</td>
-            <td>{{ item.report.name }}</td>
-            <td>{{ item.yearmon }}</td>
-            <td>{{ item.attempts }}</td>
-            <td>{{ item.status }}</td>
-            <td v-if="item.attempts>0">
-              <a :href="'/harvests/'+item.id+'/edit'">details</a>
-            </td>
-          </tr>
+                    :hide-default-footer="true" :server-items-length="10" dense :options="dt_options">
+        <template v-slot:item.updated_at="{ item }">
+          {{ item.updated_at.substr(0,10) }}
+        </template>
+        <template v-slot:item.details="{ item }">
+          <a :href="'/harvests/'+item.id+'/edit'">details</a>
         </template>
       </v-data-table>
     </div>
@@ -34,19 +26,24 @@
             harvests: { type:Array, default: () => [] },
             inst_id: { type:Number, default: 0 },
             prov_id: { type:Number, default: 0 },
-           },
+            inst_context: { type: Number, default: 1 }
+          },
     data () {
       return {
-        headers: [
-          { text: 'Updated', value: 'updated_at' },
-          { text: 'Institution', value: 'inst_name' },
-          { text: 'Platform', value: 'prov_name' },
-          { text: 'Report', value: 'report_name' },
-          { text: 'Usage Date', value: 'yearmon' },
-          { text: 'Attempts', value: 'attempts' },
-          { text: 'Status', value: 'status' },
-          { text: '', value: '', sortable: false },
+        // Actual headers array is built from these in mounted()
+        header_fields: [
+          { label: 'Updated', name: 'updated_at' },
+          { label: 'Institution', name: 'sushi_setting.institution.name' },
+          { label: 'Platform', name: 'sushi_setting.provider.name' },
+          { label: 'Report', name: 'report.name' },
+          { label: 'Usage Date', name: 'yearmon' },
+          { label: 'Attempts', name: 'attempts' },
+          { label: 'Status', name: 'status' },
+          { label: '', name: 'details' },
         ],
+        headers: [],
+        dt_options: {itemsPerPage:10, sortBy:['updated_at','sushi_setting.provider.name'], sortDesc:[false],
+                     multiSort:true, mustSort:false},
         mutable_harvests: this.harvests,
         seemore_url: "/harvests",
       }
@@ -60,6 +57,16 @@
               this.seemore_url += 'providers='+this.prov_id;
           }
       }
+      // Setup datatable headers
+      this.header_fields.forEach((fld) => {
+          if (fld.label == 'Institution') {
+              if (this.int_context == 1) this.headers.push({ text: fld.label, value: fld.name });
+          } else if (fld.name == 'details') {
+            this.headers.push({ text: '', value: fld.name, sortable:false });
+          } else {
+            this.headers.push({ text: fld.label, value: fld.name });
+          }
+      });
       console.log('HarvestLogSummary Component mounted.');
     }
   }
