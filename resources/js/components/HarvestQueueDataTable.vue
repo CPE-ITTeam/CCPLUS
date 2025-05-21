@@ -117,6 +117,52 @@
           </template>
         </v-autocomplete>
       </v-col>
+      <v-col v-if="!is_admin && !is_viewer" class="d-flex px-2 align-center" cols="2">
+        <div v-if="mutable_filters['codes'].length>0" class="x-box">
+          <img src="/images/red-x-16.png" width="100%" alt="clear filter" @click="clearFilter('codes')"/>&nbsp;
+        </div>
+        <v-select :items="mutable_options['codes']" v-model="mutable_filters['codes']" @change="updateFilters('codes')" multiple
+                  label="Error Code">
+          <template v-slot:prepend-item>
+            <v-list-item @click="filterAll('codes')">
+              <span v-if="allSelected.codes">Clear Selections</span>
+              <span v-else>Select All</span>
+            </v-list-item>
+            <v-divider class="mt-1"></v-divider>
+          </template>
+          <template v-slot:selection="{ item, index }">
+            <span v-if="index == 0 && allSelected.codes">All Error Codes</span>
+            <span v-else-if="index < 2 && !allSelected.codes">{{ item }}</span>
+            <span v-else-if="index === 2 && !allSelected.codes" class="text-grey text-caption align-self-center">
+              &nbsp; +{{ mutable_filters['codes'].length-2 }} more
+            </span>
+            <span v-if="index <= 1 && index < mutable_filters['codes'].length-1 && !allSelected.codes">, </span>
+          </template>
+        </v-select>
+      </v-col>
+      <v-col v-if="!is_admin && !is_viewer" class="d-flex px-2 align-center" cols="2">
+        <div v-if="mutable_filters['statuses'].length>0" class="x-box">
+          <img src="/images/red-x-16.png" width="100%" alt="clear filter" @click="clearFilter('statuses')"/>&nbsp;
+        </div>
+        <v-select :items="mutable_options['statuses']" v-model="mutable_filters['statuses']" @change="updateFilters('statuses')"
+                  multiple label="Status(es)" item-text="opt" item-value="id">
+          <template v-slot:prepend-item>
+            <v-list-item @click="filterAll('statuses')">
+              <span v-if="allSelected.statuses">Clear Selections</span>
+              <span v-else>Select All</span>
+            </v-list-item>
+            <v-divider class="mt-1"></v-divider>
+          </template>
+          <template v-slot:selection="{ item, index }">
+            <span v-if="index == 0 && allSelected.statuses">All Status</span>
+            <span v-else-if="index < 2 && !allSelected.statuses">{{ item.opt }}</span>
+            <span v-else-if="index === 2 && !allSelected.statuses" class="text-grey text-caption align-self-center">
+              &nbsp; +{{ mutable_filters['statuses'].length-2 }} more
+            </span>
+            <span v-if="index <= 1 && index < mutable_filters['statuses'].length-1 && !allSelected.statuses">, </span>
+          </template>
+        </v-select>
+      </v-col>
     </v-row>
     <v-row class="d-flex pa-1 align-center" no-gutters>
       <v-col v-if='is_admin || is_manager' class="d-flex px-2" cols="2">
@@ -131,7 +177,7 @@
       <v-col v-if="truncatedResult" class="d-flex px-2 align-center" cols="3">
         <span class="fail" role="alert">Result Truncated To 500 Records</span>
       </v-col>
-      <v-col class="d-flex px-2 align-center" cols="2">
+      <v-col v-if='is_admin || is_manager' class="d-flex px-2 align-center" cols="2">
         <div v-if="mutable_filters['codes'].length>0" class="x-box">
           <img src="/images/red-x-16.png" width="100%" alt="clear filter" @click="clearFilter('codes')"/>&nbsp;
         </div>
@@ -154,7 +200,7 @@
           </template>
         </v-select>
       </v-col>
-      <v-col class="d-flex px-2 align-center" cols="2">
+      <v-col v-if='is_admin || is_manager' class="d-flex px-2 align-center" cols="2">
         <div v-if="mutable_filters['statuses'].length>0" class="x-box">
           <img src="/images/red-x-16.png" width="100%" alt="clear filter" @click="clearFilter('statuses')"/>&nbsp;
         </div>
@@ -220,15 +266,17 @@
     },
     data () {
       return {
-        headers: [
-          { text: 'Updated', value: 'updated' },
-          { text: 'Platform', value: 'prov_name' },
-          { text: 'Institution', value: 'inst_name' },
-          { text: 'Report', value: 'report_name', align: 'center' },
-          { text: 'Usage Date', value: 'yearmon' },
-          { text: 'Harvest ID', value: 'id', align: 'center'},
-          { text: 'Status', value: 'dStatus' },
+        // Actual headers array is built from these in mounted()
+        header_fields: [
+          { label: 'Updated', name: 'updated' },
+          { label: 'Platform', name: 'prov_name' },
+          { label: 'Institution', name: 'inst_name' },
+          { label: 'Report', name: 'report.name' },
+          { label: 'Usage Date', name: 'yearmon' },
+          { label: 'Harvest ID', name: 'id'},
+          { label: 'Status', name: 'dStatus' },
         ],
+        headers: [],
         harvest_jobs: [],
         mutable_dt_options: {},
         footer_props: { 'items-per-page-options': [10,50,100,-1] },
@@ -548,8 +596,20 @@
       // Subscribe to store updates
       this.$store.subscribe((mutation, state) => { localStorage.setItem('store', JSON.stringify(state)); });
 
+      // Setup datatable headers
+      this.header_fields.forEach((fld) => {
+          if (fld.name == 'id') {
+            this.headers.push({ text: '', value: fld.name, align: 'center' });
+          } else if (fld.label == 'Institution') {
+            if (this.is_admin || this.is_viewer) this.headers.push({ text: fld.label, value: fld.name });
+          } else {
+            this.headers.push({ text: fld.label, value: fld.name });
+          }
+      });
+
       // Load data records
       this.updateRecords();
+      this.dtKey++;
       console.log('HarvestJobs Component mounted.');
     }
   }
