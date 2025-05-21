@@ -920,7 +920,16 @@
           // Set datatable options with store-values
           Object.assign(this.mutable_options, this.datatable_options);
 
-          // If we're viewing settings for a single institution, remove the bnstitution column from the datatable
+          // set/update column sorting based on context
+          if (this.inst_context == 1) {
+            this.mutable_options.sortBy = ['institution.name','provider.name'];
+            this.mutable_options.sortDec = [false,false];
+          } else {
+            this.mutable_options.sortBy = ['provider.name'];
+            this.mutable_options.sortDec = [false];
+          }
+
+          // If we're viewing settings for a single institution, remove the institution column from the datatable
           if (this.institutions.length == 1) {
             this.header_fields.splice(this.header_fields.findIndex( h => h.label == 'Institution'),1);
           }
@@ -932,6 +941,7 @@
           if (this.inst_context > 1) {
               this.getSettings();
           }
+          this.dtKey++;
 
           console.log('SushiSettings Datatable Component mounted.');
       }

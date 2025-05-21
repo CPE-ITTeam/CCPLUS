@@ -17,20 +17,20 @@ export const store = new Vuex.Store({
                                  groupDesc: [], multiSort: false, mustSort: false }
                    },
           users: { filters: {inst: [], stat: '', roles:[]},
-                   datatable: {itemsPerPage: 10, sortBy: [], sortDesc: [], groupBy: [],
-                               groupDesc: [], multiSort: false, mustSort: false }
+                   datatable: {itemsPerPage: 10, sortBy: ['name'], sortDesc: [false], groupBy: [],
+                               groupDesc: [], multiSort: true, mustSort: false }
                  },
           providers: { filters: {fromYM: "", toYM: "", inst: [], prov: [], rept: [], stat: ''},
-                       datatable: {itemsPerPage: 10, sortBy: [], sortDesc: [], groupBy: [],
-                                   groupDesc: [], multiSort: false, mustSort: false }
+                       datatable: {itemsPerPage: 10, sortBy: ['name'], sortDesc: [false], groupBy: [],
+                                   groupDesc: [], multiSort: true, mustSort: false }
                      },
           institutions: { filters: {stat: '', groups: []},
-                          datatable: {itemsPerPage: 10, sortBy: [], sortDesc: [], groupBy: [],
-                                      groupDesc: [], multiSort: false, mustSort: false }
+                          datatable: {itemsPerPage: 10, sortBy: ['name'], sortDesc: [false], groupBy: [],
+                                      groupDesc: [], multiSort: true, mustSort: false }
                         },
           institutiongroups: { filters: {fromYM: "", toYM: "", inst: [], prov: [], rept: [], stat: ''},
-                               datatable: {itemsPerPage: 10, sortBy: [], sortDesc: [], groupBy: [],
-                                           groupDesc: [], multiSort: false, mustSort: false }
+                               datatable: {itemsPerPage: 10, sortBy: ['name'], sortDesc: [false], groupBy: [],
+                                           groupDesc: [], multiSort: true, mustSort: false }
                              },
           institutiontypes: { filters: {fromYM: "", toYM: "", inst: [], prov: [], rept: [], stat: ''},
                               datatable: {itemsPerPage: 10, sortBy: [], sortDesc: [], groupBy: [],
@@ -38,12 +38,12 @@ export const store = new Vuex.Store({
                             },
           harvestlogs: { filters: {fromYM: "", toYM: "", institutions: [], providers: [], reports: [], harv_stat: [], group: [],
                                    updated: "", source:"", codes:[]},
-                         datatable: {itemsPerPage: 10, sortBy: [], sortDesc: [], groupBy: [],
-                                     groupDesc: [], multiSort: false, mustSort: false }
+                         datatable: {itemsPerPage: 10, sortBy: ['updated'], sortDesc: [true], groupBy: [],
+                                     groupDesc: [], multiSort: true, mustSort: false }
                        },
           harvestqueue: { filters: {fromYM: "", toYM: "", institutions: [], providers: [], reports: [], statuses: [], groups: [],
                                     codes:[], yymms:[]},
-                         datatable: {itemsPerPage: 10, sortBy: ['updated'], sortDesc: [true], groupBy: [],
+                         datatable: {itemsPerPage: 10, sortBy: ['dStatus','prov_name'], sortDesc: [false,false], groupBy: [],
                                      groupDesc: [], multiSort: true, mustSort: false }
                        },
           alerts: { filters: {fromYM: "", toYM: "", inst: [], prov: [], rept: [], stat: ''},
@@ -56,12 +56,12 @@ export const store = new Vuex.Store({
                      datatable: {itemsPerPage: 10, sortBy: [], sortDesc: [] }
                    },
           sushi: { filters: {inst: [], group: 0, prov: [], harv_stat: []},
-                           datatable: {itemsPerPage: 10, sortBy: [], sortDesc: [], groupBy: [],
-                                       groupDesc: [], multiSort: false, mustSort: false }
+                           datatable: {itemsPerPage: 10, sortBy: ['institution.name','provider.name'], sortDesc: [false,false],
+                                       groupBy: [], groupDesc: [], multiSort: true, mustSort: false }
                  },
           globalproviders: { filters: {fromYM: "", toYM: "", inst: [], prov: [], rept: [], stat: '', refresh: ''},
-                             datatable: {itemsPerPage: 10, sortBy: [], sortDesc: [], groupBy: [],
-                                         groupDesc: [], multiSort: false, mustSort: false }
+                             datatable: {itemsPerPage: 10, sortBy: ['name'], sortDesc: [false], groupBy: [],
+                                         groupDesc: [], multiSort: true, mustSort: false }
                            },
       },
       report_data: [],

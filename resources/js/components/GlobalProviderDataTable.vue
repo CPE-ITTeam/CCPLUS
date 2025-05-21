@@ -927,6 +927,7 @@
       });
       // Set datatable options with store-values
       Object.assign(this.mutable_options, this.datatable_options);
+      this.dtKey++;
 
       // Subscribe to store updates
       this.$store.subscribe((mutation, state) => { localStorage.setItem('store', JSON.stringify(state)); });

@@ -7,7 +7,7 @@
       <span v-if="success" class="good" role="alert" v-text="success"></span>
       <span v-if="failure" class="fail" role="alert" v-text="failure"></span>
     </div>
-    <v-data-table :headers="con_headers" :items="mutable_consortia" item-key="id" disable-sort
+    <v-data-table :headers="con_headers" :items="mutable_consortia" item-key="id" :options="dt_options"
                   :hide-default-footer="hide_user_footer" :key="dtKey">
       <template v-slot:item.active="{ item }">
         <span v-if="item.is_active">
@@ -110,6 +110,7 @@
             { text: 'Actions', value: 'action', align: 'end', sortable: false },
         ],
         dtKey: 1,
+        dt_options: {itemsPerPage:10, sortBy:['name'], sortDesc:[false], multiSort:true, mustSort:false},
         hide_user_footer: true,
         hide_counter_footer: true,
         consoDialog: false,
