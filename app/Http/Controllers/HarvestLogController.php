@@ -1042,9 +1042,9 @@ class HarvestLogController extends Controller
        }
 
        // Setup "display names" for internal system status values
-       $displayStatus = array('Queued' => 'Harvest Queue', 'Harvesting' => 'Harvesting', 'Pending' => 'Queued by Vendor',
+       $displayStatus = array('Queued' => 'Harvest Queue', 'Harvesting' => '*Harvesting', 'Pending' => 'Queued by Vendor',
                               'Paused' => 'Paused', 'ReQueued' => 'ReQueued', 'Waiting' => 'Process Queue',
-                              'Processing' => 'Processing');
+                              'Processing' => '*Processing');
 
        // Get all harvests joined with sushisettings that match the statuses
        $all_data = HarvestLog::with('sushiSetting','sushiSetting.provider','sushiSetting.institution:id,name','report')
