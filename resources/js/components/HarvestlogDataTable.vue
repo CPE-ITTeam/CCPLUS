@@ -367,7 +367,7 @@
         truncatedResult: false,
         yymms: [],
         harv_stat: [ {id:'Success', opt:'Success'}, {id:'Fail', opt:'Failed'},  {id:'NoRetries', opt:'Out of Retries'} ],
-        bulk_actions: ['ReStart','ReStart as v5','ReStart as v5.1','Delete'],
+        bulk_actions: ['ReStart','ReStart as r5','ReStart as r5.1','Delete'],
         harv: {},
         selectedRows: [],
         minYM: '',
@@ -583,6 +583,10 @@
                 // Restarting will need their row removed from the datatable also... they will move to the Queued component
                 } else {
                     let _harvests = this.selectedRows.map( h => h.id);
+                    if (this.bulkAction.length>6) {
+                      var new_status = this.bulkAction.substring(this.bulkAction.indexOf("as r")+4);
+                      this.bulkAction = new_status;
+                    }
                     axios.post('/update-harvest-status', { ids: _harvests, status: this.bulkAction })
                     .then( (response) => {
                       if (response.data.result) {

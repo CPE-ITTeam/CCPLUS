@@ -650,7 +650,7 @@ class HarvestLogController extends Controller
        }
 
        // Limit new status input to 2 possible values
-       $new_status_allowed = array('Pause', 'ReStart', 'ReStart as v5', 'ReStart as v5.1');
+       $new_status_allowed = array('Pause', 'ReStart', '5', '5.1');
        if (!in_array($input['status'], $new_status_allowed)) {
            return response()->json(['result' => false,
                                     'msg' => 'Invalid request: status cannot be set to requested value.']);
@@ -664,10 +664,7 @@ class HarvestLogController extends Controller
        }
 
        // Check status input for a specific COUNTER release for restarting
-       $forceRelease = null;
-       if (substr($input['status'],8,4) == 'as v') {
-           $forceRelease = trim(substr($input['status'],12,null));
-       }
+       $forceRelease = ($input['status']=='5' || $input['status']=='5.1') ? $input['status'] : null;
 
        // Get and process the harvest(s)
        $changed = 0;
