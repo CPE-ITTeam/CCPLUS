@@ -688,7 +688,7 @@ class HarvestLogController extends Controller
            }
 
            // Confirm that a "forcedRelease" is available for this harvests' provider
-           if ($forceRelease) {
+           if (!is_null($forceRelease)) {
                $registry = $harvest->sushiSetting->provider->registries->where('release',$forceRelease)->first();
                if (!$registry) {
                    $skipped[] = $harvest->id;
@@ -731,14 +731,14 @@ class HarvestLogController extends Controller
        $msg_result = ($status_action == 'ReStart') ? "restarted" : "paused";
        if ($changed > 0) {
            $msg  = "Successfully  " . $msg_result . " " . $changed . " harvests";
-           $msg .= ($forceRelease) ? " as release ".$forceRelease : "";
+           $msg .= (!is_null($forceRelease)) ? " as release ".$forceRelease : "";
            if (count($skipped) > 0) {
                $msg .= " , and skipped " . count($skipped) . " harvests";
-               $msg .= ($forceRelease) ? " (release ".$forceRelease." may not be available)." : ".";
+               $msg .= (!is_null($forceRelease)) ? " (release ".$forceRelease." may not be available)." : ".";
             }
        } else {
            $msg = "No selected harvests modified";
-           $msg .= ($forceRelease) ? ", release ".$forceRelease." may not be available" : "";
+           $msg .= (!is_null($forceRelease)) ? ", release ".$forceRelease." may not be available" : "";
        }
        return response()->json(['result' => true, 'msg' => $msg, 'skipped' => $skipped]);
    }
