@@ -583,7 +583,7 @@
                 // Restarting will need their row removed from the datatable also... they will move to the Queued component
                 } else {
                     let _harvests = this.selectedRows.map( h => h.id);
-                    if (this.bulkAction.length>6) {
+                    if (this.bulkAction.length>7) {
                       var new_status = this.bulkAction.substring(this.bulkAction.indexOf("as r")+4);
                       this.bulkAction = new_status;
                     }
