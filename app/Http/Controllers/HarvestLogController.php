@@ -666,7 +666,7 @@ class HarvestLogController extends Controller
        // Check status input for a specific COUNTER release for restarting
        $forceRelease = null;
        if (substr($input['status'],8,4) == 'as v') {
-           $forceRelease = substr($input['status'],12,null);
+           $forceRelease = trim(substr($input['status'],12,null));
        }
 
        // Get and process the harvest(s)
@@ -695,9 +695,8 @@ class HarvestLogController extends Controller
                    continue;
                }
                // Update the release value in the harvest record now so that the new job processes it right
-               if ($registry->release != $harvest->release) {
+               if ($forceRelease != trim($harvest->release)) {
                    $harvest->release = $forceRelease;
-                   $harvest->save();
                }
            }
 
