@@ -143,7 +143,10 @@ class HarvestLogController extends Controller
               $rec['sushi_enabled'] = ($enabled_setting) ? true : false;
               $_reports = $gp->enabledReports();
               $rec['reports'] = $_reports;
-              $rec['releases'] = $gp->registries->pluck('release');
+              $rec['releases'] = $gp->registries->sortBy('release')->pluck('release');
+              if ($rec['releases']->count() > 1) {
+                  $rec['releases']->prepend('System Default');
+              }              
               $providers[] = $rec;
            }
 
@@ -384,6 +387,7 @@ class HarvestLogController extends Controller
        $input_release = (isset($input["release"])) ? $input["release"] : "";
        $user_inst =$thisUser->inst_id;
        $is_admin =$thisUser->hasRole('Admin');
+       $firstYM = config('ccplus.first_yearmon_51');
 
        // Set flag for "skip previously harvested data"
        $skip_harvested = false;
@@ -470,11 +474,26 @@ class HarvestLogController extends Controller
            foreach ($global_providers as $global_provider) {
 
                // Set the COUNTER release to be harvested 
-               $registry = $global_provider->registries->where('release',$input_release)->first();
-               if (!$registry) {
-                  $registry = $global_provider->default_registry();
+               $release = "";
+               if ($input_release == 'System Default' && !is_null($firstYM)) {
+                   $available_releases = $global_provider->registries->sortByDesc('release')->pluck('release')->toArray();
+                   $idx51 = array_search("5.1", $available_releases);
+                   if ($available_releases > 1 && $idx51) {
+                       // requested yearmon before 5.1 default begin date
+                       if ($yearmon < $firstYM) {
+                           $release = (isset($available_releases[$idx51+1])) ? $available_releases[$idx51+1] : null;
+                       // requested yearmon on/after 5.1 default begin date
+                       } else {
+                           $release = "5.1";
+                       }
+                   }
+               } else {
+                   $registry = $global_provider->registries->where('release',$input_release)->first();
+                   if (!$registry) {
+                       $registry = $global_provider->default_registry();
+                   }
+                   $release = ($registry) ? $registry->release : "";
                }
-               $release = ($registry) ? $registry->release : "";
                // Set an array with the report_ids enabled consortium-wide
                $consoProv = $global_provider->consoProviders->where('inst_id',1)->first();
                $conso_reports = ($consoProv) ? $consoProv->reports->pluck('id')->toArray() : [];

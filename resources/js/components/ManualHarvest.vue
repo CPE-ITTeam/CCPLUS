@@ -155,7 +155,7 @@
                 inst: [],
                 inst_group_id: 0,
                 prov: [],
-                release: "",
+                release: "System Default",
                 reports: [],
                 fromYM: '',
                 toYM: '',
