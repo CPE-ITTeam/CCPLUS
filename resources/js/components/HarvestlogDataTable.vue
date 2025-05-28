@@ -366,7 +366,8 @@
         allSelected: {'providers':false, 'institutions':false, 'codes':false, 'groups':false, 'yymms':false},
         truncatedResult: false,
         yymms: [],
-        harv_stat: [ {id:'Success', opt:'Success'}, {id:'Fail', opt:'Failed'},  {id:'NoRetries', opt:'Out of Retries'} ],
+        harv_stat: [ {id:'Success', opt:'Success'}, {id:'Fail', opt:'Failed'},  {id:'NoRetries', opt:'Out of Retries'},
+                     {id:'BadCreds', opt:'Bad Credentials'} ],
         bulk_actions: ['ReStart','ReStart as r5','ReStart as r5.1','Delete'],
         harv: {},
         selectedRows: [],
@@ -749,5 +750,6 @@
 .Success { color: #00dd00; }
 .Fail { color: #dd0000; }
 .NoRetries { color: #ff9900; }
+.BadCreds { color: #ff9900; }
 .Other { color: #999999 }
 </style>

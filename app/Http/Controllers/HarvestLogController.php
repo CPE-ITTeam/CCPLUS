@@ -196,7 +196,7 @@ class HarvestLogController extends Controller
 
            // Limit status if an empty array is passed in
            if (count($filters["harv_stat"]) == 0) {
-               $filters["harv_stat"] = array('Success','Fail');
+               $filters["harv_stat"] = array('Success','Fail','BadCreds');
 
            }
 
