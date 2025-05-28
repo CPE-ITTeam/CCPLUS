@@ -51,21 +51,21 @@ class CcplusErrorsTableSeeder extends Seeder
                 'explanation' => 'One or more credentials is missing.',
                 'suggestion' => 'Check your SUSHI credentials and verify that they are complete and correct with' .
                                 ' the provider.',
-                'new_status' => 'Fail'
+                'new_status' => 'BadCreds'
             ],
             ['id'=>2000, 'message' => 'Requestor Not Authorized to Access Service', 'severity_id'=>12,
                 'explanation' => 'One or more of your credentials is incorrect or has not been authorized, likely' .
                                  ' the requestor_id.',
                 'suggestion' => 'Check your SUSHI credentials and verify that they are complete and correct with' .
                                 ' the provider.',
-                'new_status' => 'Fail'
+                'new_status' => 'BadCreds'
             ],
             ['id'=>2010, 'message' => 'Requestor Not Authorized to Access Usage for Institution', 'severity_id'=>12,
                 'explanation' => 'The account reflected by your requestor_id does not have permission to access' .
                                  ' credentials for this institution or provider.',
                 'suggestion' => 'Check your SUSHI credentials and verify that they are complete and correct with' .
                                 ' the provider.',
-                'new_status' => 'Fail'
+                'new_status' => 'BadCreds'
             ],
             ['id'=>2011, 'message' => 'Global Reports Not Supported', 'severity_id'=>12,
                 'explanation' => 'The Provider does not support Global Reports.',
@@ -76,7 +76,7 @@ class CcplusErrorsTableSeeder extends Seeder
                 'explanation' => 'The APIKey for the request was not recognized by the report provider.',
                 'suggestion' => 'Check your SUSHI credentials and verify that they are complete and correct with' .
                                 ' the provider.',
-                'new_status' => 'Fail'
+                'new_status' => 'BadCreds'
             ],
             ['id'=>3000, 'message' => 'Report Not Supported', 'severity_id'=>12,
                 'explanation' => 'The provider is not providing this report via this SUSHI endpoint.',

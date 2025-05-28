@@ -60,8 +60,6 @@ class ReportProcessor extends Command
     public function __construct()
     {
         parent::__construct();
-        // $this->global_providers = GlobalProvider::where('is_active', true)->get();
-        // $this->connection_fields = ConnectionField::get();
         try {
           $this->global_providers = GlobalProvider::where('is_active', true)->get();
         } catch (\Exception $e) {
@@ -117,7 +115,7 @@ class ReportProcessor extends Command
         $severities_error = Severity::where('name', '=', 'Error')->value('id');
 
        // Get records for all "Retrieved" Harvestlogs
-        $skip_statuses = array('Success', 'Fail', 'New', 'NoRetries');
+        $skip_statuses = array('Success', 'Fail', 'New', 'NoRetries', 'BadCreds');
         $all_harvests = HarvestLog::with('sushiSetting','sushiSetting.provider','sushiSetting.institution')
                                   ->whereNotIn('status', $skip_statuses)->get();
 
