@@ -109,7 +109,7 @@ class HarvestLogController extends Controller
        // Setup for initial view - get queue count and build arrays for the filter-options.
        if (!$json) {
 
-           // Get the job-count for the current consortium
+           // Get the current consortium
            $con = Consortium::where("ccp_key", session("ccp_con_key"))->first();
            // Only display consortium name for admins
            $conso = ($con && $thisUser->hasRole('Admin')) ? $con->name : "";
@@ -263,7 +263,7 @@ class HarvestLogController extends Controller
                                     ->pluck('sushiSetting.prov_id')->toArray();
            $inst_ids = $harvest_data->unique('sushiSetting.institution')->sortBy('sushiSetting.institution.name')
                                     ->pluck('sushiSetting.inst_id')->toArray();
-           $yymms = $harvest_data->unique('yearmon')->sortBy('yearmon')->pluck('yearmon')->toArray();
+           $yymms = $harvest_data->unique('yearmon')->sortByDesc('yearmon')->pluck('yearmon')->toArray();
 
            // Format records for display , limit to 500 output records
            $updated_ym = array();
