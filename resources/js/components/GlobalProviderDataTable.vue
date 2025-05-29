@@ -205,9 +205,6 @@
               <v-col class="d-flex px-4" cols="6">
                 <v-switch v-model="form.refreshable" label="Enable COUNTER Refresh" dense></v-switch>
               </v-col>
-              <v-col class="d-flex px-4" cols="6">
-                <v-switch v-model="form.apply_instances" label="Apply to All Instances" dense></v-switch>
-              </v-col>
             </v-row>
             <v-row v-if="form.refreshable" class="d-flex ma-0" no-gutters>
               <v-col class="d-flex pl-4" cols="9">
@@ -368,7 +365,6 @@
             report_state: [],
             notifications_url: '',
             platform_parm: null,
-            apply_instances: false,
         }),
         dayRules: [
             v => !!v || "Day of month is required",
@@ -419,7 +415,6 @@
             this.form.platform_parm = this.cur_provider.platform_parm;
             this.updated_at = this.cur_provider.updated;
             this.importDialog = false;
-            this.apply_instances=false;
             this.testData = '';
             this.testStatus = '';
             this.provDialog = true;
@@ -779,7 +774,7 @@
               var canDelete = this.mutable_providers[idx].can_delete;
               var connections = this.mutable_providers[idx].connections;
               // If a required connector was turned off, popup a warning
-              if (this.warnConnectors && this.form.apply_instances) {
+              if (this.warnConnectors) {
                 let warning_html = "One or more required connectors has been marked as no longer required. The current "+
                                    " values defined for these connectors will be cleared THROUGH ALL INSTANCES from the "+
                                    " COUNTER API credentials when the platform is saved.<br />";

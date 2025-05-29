@@ -267,9 +267,6 @@ class GlobalProviderController extends Controller
           $provider->refresh_result = null;
       }
 
-      // Set flag for whether to push change through all instances
-      $applyFlag = ($input['apply_instances']) ? true : false;
-
       // Pull all connection fields and master reports
       $this->getConnectionFields();
       $this->getMasterReports();
@@ -354,10 +351,8 @@ class GlobalProviderController extends Controller
       // Set connection field labels in an array for the datatable display
       $provider['updated'] = (is_null($provider->updated_at)) ? null : date("Y-m-d H:i", strtotime($provider->updated_at));
 
-      // Apply changes system-wide if the user requested it
-      if ($applyFlag) {
-          $provider->appyToInstances();
-      }
+      // Apply changes system-wide
+      $provider->appyToInstances();
 
       return response()->json(['result' => true, 'msg' => 'Global Platform settings successfully updated',
                                'provider' => $provider]);
