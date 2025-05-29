@@ -474,11 +474,11 @@ class HarvestLogController extends Controller
            foreach ($global_providers as $global_provider) {
 
                // Set the COUNTER release to be harvested 
-               $release = "";
+               $release = $global_provider->default_release();
                if ($input_release == 'System Default' && !is_null($firstYM)) {
                    $available_releases = $global_provider->registries->sortByDesc('release')->pluck('release')->toArray();
-                   $idx51 = array_search("5.1", $available_releases);
-                   if ($available_releases > 1 && $idx51) {
+                   if ($available_releases > 1 && in_array("5.1",$available_releases)) {
+                       $idx51 = array_search("5.1", $available_releases);
                        // requested yearmon before 5.1 default begin date
                        if ($yearmon < $firstYM) {
                            $release = (isset($available_releases[$idx51+1])) ? $available_releases[$idx51+1] : null;

@@ -181,7 +181,7 @@
             // Reset form values
             this.form.inst = ( this.is_admin ) ? [] : [this.institutions[0].id];
             this.form.prov = [];
-            this.form.release = "";
+            this.form.release = "System Default";
             this.form.inst_group_id = 0;
             this.form.reports = [];
             this.form.fromYM = '';
@@ -271,7 +271,7 @@
             }
             if (prov_list.length > 1) {
                 this.single_prov = {'releases': []};
-                this.form.release = "";
+                this.form.release = "System Default";
             }
             // Update available reports when providers changes
             this.available_reports = [];
