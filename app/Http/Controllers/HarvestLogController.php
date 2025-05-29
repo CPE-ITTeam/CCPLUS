@@ -481,18 +481,14 @@ class HarvestLogController extends Controller
                        $idx51 = array_search("5.1", $available_releases);
                        // requested yearmon before 5.1 default begin date
                        if ($yearmon < $firstYM) {
-                           $release = (isset($available_releases[$idx51+1])) ? $available_releases[$idx51+1] : null;
+                           if (isset($available_releases[$idx51+1])) {
+                               $release = $available_releases[$idx51+1];
+                           }
                        // requested yearmon on/after 5.1 default begin date
                        } else {
                            $release = "5.1";
                        }
-                   }
-               } else {
-                   $registry = $global_provider->registries->where('release',$input_release)->first();
-                   if (!$registry) {
-                       $registry = $global_provider->default_registry();
-                   }
-                   $release = ($registry) ? $registry->release : "";
+                    }
                }
                // Set an array with the report_ids enabled consortium-wide
                $consoProv = $global_provider->consoProviders->where('inst_id',1)->first();
