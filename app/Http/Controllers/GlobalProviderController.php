@@ -337,6 +337,7 @@ class GlobalProviderController extends Controller
           }
           $provider->master_reports = $master_reports;
       }
+      $provider->updated_at = now();
       $provider->save();
       $provider->load('registries');
       $provider['status'] = ($provider->is_active) ? "Active" : "Inactive";
