@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use DB;
+use App\Consortium;
 use App\SavedReport;
 use App\Report;
 use App\ReportField;
@@ -30,6 +31,11 @@ class SavedReportController extends Controller
      */
     public function index()
     {
+      $thisUser = auth()->user();
+
+      // Assign optional inputs to $filters array
+      $filters = array('codes' => []);
+
       // Get and map the standard Counter reports
       $master_reports = Report::with('reportFields', 'children', 'reportFields.reportFilter')
                               ->where('parent_id',0)->orderBy('name', 'asc')->get();
@@ -39,6 +45,11 @@ class SavedReportController extends Controller
       $intro = array('series' => " >>> ", 'text' => "Select a tab to view standard COUNTER-5 report definitions by type",
                      'reports' => array());
       $counter_reports[] = $intro;
+
+      // Get the current consortium
+      $con = Consortium::where("ccp_key", session("ccp_con_key"))->first();
+      // Only display consortium name for admins
+      $conso = ($con && $thisUser->hasRole('Admin')) ? $con->name : "";
 
       // Procoess all master reports
       foreach ($master_reports as $master) {
@@ -89,10 +100,18 @@ class SavedReportController extends Controller
           $counter_reports[] = $series;
       }
 
+      // Pass FiscalYr start month (default to Jan if not set)
+      $fy_month = 1;
+      $userFY = $thisUser->getFY();
+      if ( !is_null($userFY) ) {
+          $date = date_parse($userFY);
+          $fy_month = $date['month'];
+      }
       // Get formatted array of saved user reports
-      $myname = auth()->user()->name;
       $report_data = $this->savedUserReports(auth()->id());
-      return view('savedreports.my-saved', compact('report_data','counter_reports','myname'));
+
+      //   return view('savedreports.my-saved', compact('report_data','counter_reports','conso'));
+      return view('reports.index', compact('report_data','counter_reports','filters','conso','fy_month'));
     }
 
     /**
@@ -112,9 +131,6 @@ class SavedReportController extends Controller
         if (!$user_is_admin && $thisUser->hasRole('Manager')) {
             return redirect()->route('institutions.show', [$user_inst]);
         }
-
-        // Get formatted array of saved user reports
-        $report_data = $this->savedUserReports(auth()->id());
 
         // Summarize harvest data values and counts
         $limit_to_insts = ($user_is_admin || $user_is_viewer) ? array() : array($user_inst);
@@ -192,7 +208,6 @@ class SavedReportController extends Controller
         return view('savedreports.home', compact(
             'inst_count',
             'prov_count',
-            'report_data',
             'harvests',
             'total_insts',
             'system_alerts',
@@ -398,6 +413,8 @@ class SavedReportController extends Controller
         $saved_report->date_range = $request->date_range;
         $saved_report->ym_from = $request->from;
         $saved_report->ym_to = $request->to;
+        $saved_report->format = $request->format;
+        $saved_report->exclude_zeros = $request->zeros;
         $saved_report->save();
         return response()->json(['result' => true, 'msg' => 'Configuration saved successfully']);
     }
@@ -451,7 +468,7 @@ class SavedReportController extends Controller
     private function savedUserReports($userId)
     {
         // Get list of saved reports for this user
-        $saved_reports = SavedReport::with('master')->where('user_id', $userId)->get();
+        $saved_reports = SavedReport::with('master','report')->where('user_id', $userId)->get();
 
         // Get the report filters
         $all_filters = ReportFilter::get(['id','table_name']);
@@ -460,31 +477,86 @@ class SavedReportController extends Controller
         $count_fields  = "sushisettings.inst_id, ";
         $count_fields .= "count(*) as total, sum(case when harvestlogs.status='Success' then 1 else 0 end) as success";
 
+        // Get names and IDs for providers, institutions, platforms, and groups
+        // If not filtering by instutiongroup, get names and IDs all institutions
+        $all_institutions = Institution::where('id', '>', 1)->get(['id','name']);
+        $all_insts = Institution::get(['id','name']);
+        $all_provs = Provider::get(['id','name']);
+        $all_plats = Platform::get(['id','name']);
+        $all_groups = InstitutionGroup::get(['id','name']);
+
         // Build the output data array
         $report_data = array();
         foreach ($saved_reports as $report) {
             $last_harvest = HarvestLog::where('report_id', '=', $report->master->id)->max('yearmon');
             $data = array('id' => $report->id, 'title' => $report->title, 'last_harvest' => $last_harvest,
-                          'master_id' => $report->master_id, 'master_name' => $report->master->name);
+                          'master_id' => $report->master_id, 'master_name' => $report->master->name,
+                          'report_id'=>$report->report_id, 'report_legend' => $report->report->legend, 
+                          'report_name' => $report->report->name, 'format' => $report->format,
+                          'exclude_zeros' => $report->exclude_zeros, 'date_range' => $report->date_range,
+                          'updated_at' => $report->updated_at);
 
-            // Handle institution/group filters
-            $limit_to_insts = array();  // default to no limit
-            $filter_vals = $report->parsedFilters();
-            foreach ($filter_vals as $key => $val) {
-                $filt = $all_filters->where('id', $key)->first();
-                if (!$filt) {
-                    continue;
-                }
-                if ($filt->table_name == 'institutions') {
-                    $limit_to_insts = $val; // $val should be an array....
-                    break;
-                } elseif ($filt->table_name == 'institutiongroups') {
-                    if ($val > 0) {
-                        $group = InstitutionGroup::find($val);
-                        $limit_to_insts = $group->institutions->pluck('id')->toArray();
-                        break;
+            // Setup array of filter-data to be added to the report
+            $data['filters'] = array();
+            $filter_data = $report->filterBy();
+
+            // Get master fields for $report->inherited_fields and tack on filter relationship
+            $fields = $report->master->reportFields->whereIn('id', preg_split('/,/', $report->inherited_fields));
+            $fields->load('reportFilter');
+            $data['fields'] = array();
+            foreach($fields as $field) {
+                $rec = array('id' => $field->id, 'name' => $field->legend, 'qry_as' => 'All');
+                if ($field->reportFilter) {
+                    if ($field->qry_as == 'institution' && count($filter_data['inst_id']) > 0 &&
+                        !($filter_data['institutiongroup_id'] > 0)) {
+                        $rec['qry_as'] = '';
+                        foreach ($filter_data['inst_id'] as $val) {
+                            $_inst = $all_institutions->where('id', $val)->first();
+                            $rec['qry_as'] .= $_inst->name . ', ';
+                        }
+                        $rec['qry_as'] = rtrim(trim($rec['qry_as']), ',');
+                    } elseif ($field->qry_as == 'provider' && count($filter_data['prov_id']) > 0) {
+                        $rec['qry_as'] = '';
+                        foreach ($filter_data['prov_id'] as $val) {
+                            $_prov = $all_provs->where('id', $val)->first();
+                            $rec['qry_as'] .= $_prov->name . ', ';
+                        }
+                        $rec['qry_as'] = rtrim(trim($rec['qry_as']), ',');
+                    } elseif ($field->qry_as == 'platform' && count($filter_data['plat_id']) > 0) {
+                        $rec['qry_as'] = '';
+                        foreach ($filter_data['plat_id'] as $val) {
+                            $_prov = $all_plats->where('id', $val)->first();
+                            $rec['qry_as'] .= $_prov->name . ', ';
+                        }
+                        $rec['qry_as'] = rtrim(trim($rec['qry_as']), ',');
+                    } elseif ($field->qry_as == 'yop' && count($filter_data['yop']) > 0) {
+                        $rec['qry_as'] = $filter_data['yop'][0] . ' to ' . $filter_data['yop'][1];
+                    } else {
+                        if (isset($filter_data[$field->reportFilter->report_column])) {
+                            $filter_id = $filter_data[$field->reportFilter->report_column];
+                            if ($field->reportFilter->model) {
+                                $rec['qry_as'] = $field->reportFilter->model::where('id', $filter_id)->value('name');
+                            }
+                        }
                     }
                 }
+                if ($filter_data['institutiongroup_id'] > 0) {
+                    $rec['legend'] = 'Institution Group';
+                    $rec['name'] = $all_groups->where('id', $filter_data['institutiongroup_id'])->value('name');
+                }
+                $rec['column'] = ($field->reportFilter) ? $field->reportFilter->report_column : null;
+                $data['fields'][] = $rec;
+            }
+
+            // Handle institution/group filters
+            $limit_to_insts = array();
+            if ($filter_data['institutiongroup_id'] > 0) {
+                $group = InstitutionGroup::where('id',$filter_data['institutiongroup_id'])->first();
+                if ($group) {
+                    $group->institutions->pluck('id')->toArray();
+                }
+            } else if (isset($filter_data['institutions'])) {
+                $limit_to_insts = $filter_data['institutions'];
             }
 
             // Pull by-institution harvest/error counts, add to report_data
