@@ -26,6 +26,8 @@ class CreateSavedReportsTable extends Migration
             $table->unsignedInteger('report_id');
             $table->string('inherited_fields')->nullable();
             $table->string('filters')->nullable();
+            $table->string('format', 7)->default('Compact');
+            $table->boolean('exclude_zeros')->default(1);
             $table->timestamps();
 
             $table->foreign('user_id')->references('id')->on('users')->onDelete('cascade');

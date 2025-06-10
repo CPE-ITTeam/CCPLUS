@@ -21,7 +21,8 @@ class SavedReport extends Model
    * @var array
    */
     protected $fillable = [
-      'title', 'user_id', 'date_range', 'master_id', 'report_id', 'ym_from', 'ym_to', 'inherited_fields', 'filters'
+      'title', 'user_id', 'date_range', 'master_id', 'report_id', 'ym_from', 'ym_to', 'inherited_fields', 'filters',
+      'format', 'exclude_zeros'
     ];
 
     public function user()
