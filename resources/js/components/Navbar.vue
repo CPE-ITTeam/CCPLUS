@@ -79,23 +79,7 @@ export default {
               { url: "/consoadmin", name: "Consortium Admin", role: "Admin"},
               { url: "#", name: "My Institution", role: "ManagerOnly"},
               { url: "/harvests", name: "Harvesting", role: "All"},
-              {
-                url: "#",
-                name: "Reports",
-                role: "All",
-                children: [
-                  {
-                    url: "/my-reports",
-                    name: "My Reports",
-                    role: "All",
-                  },
-                  {
-                    url: "/reports/create",
-                    name: "Create",
-                    role: "All",
-                  },
-                ]
-              },
+              { url: "/reports", name: "Reports", role: "All"},
             ],
             userDialog: false,
             mutable_user: {...this.user},
@@ -159,15 +143,25 @@ export default {
             if (this.consortia.some(con => con.ccp_key == this.ccp_key)) this.cur_key = this.ccp_key;
         }
         // Set homeUrl based on role
-        var _idx = null;
         if (this.is_serveradmin) {
             this.homeUrl = "/server/home";
             if (this.consortia.length > 1) {
-              _idx = this.navList.findIndex(nav => nav.name == "Consortium Admin");
-              this.navList[_idx]["url"] = "#";
-              this.navList[_idx]["children"] = [];
+              let ca_idx = this.navList.findIndex(nav => nav.name == "Consortium Admin");
+              this.navList[ca_idx]["url"] = "#";
+              this.navList[ca_idx]["children"] = [];
+              let h_idx = this.navList.findIndex(nav => nav.name == "Harvesting");
+              this.navList[h_idx]["url"] = "#";
+              this.navList[h_idx]["children"] = [];
+              let r_idx = this.navList.findIndex(nav => nav.name == "Reports");
+              this.navList[r_idx]["url"] = "#";
+              this.navList[r_idx]["children"] = [];
               this.consortia.forEach( con => {
-                this.navList[_idx].children.push({'url':"/change-instance/"+con.ccp_key, 'name':con.name, 'role':"ServerAdmin"});
+                this.navList[ca_idx].children.push({'url':"/change-instance/"+con.ccp_key+"/"+'home',
+                                                    'name':con.name, 'role':"ServerAdmin"});
+                this.navList[h_idx].children.push({'url':"/change-instance/"+con.ccp_key+"/"+'harvests',
+                                                    'name':con.name, 'role':"ServerAdmin"});
+                this.navList[r_idx].children.push({'url':"/change-instance/"+con.ccp_key+"/"+'reports',
+                                                    'name':con.name, 'role':"ServerAdmin"});
               });
             }
             // If current instance is not set, take Harvesting and Reports off the menu
@@ -185,7 +179,7 @@ export default {
             _idx = this.navList.findIndex(nav => nav.name == "My Institution");
             this.navList[_idx].url = this.homeUrl;
         } else {  // Viewer and un-priv users set to my-reports
-            this.homeUrl = "/my-reports";
+            this.homeUrl = "/home";
         }
         console.log('Navbar Component mounted.');
     }
