@@ -99,9 +99,11 @@ class GlobalAdminController extends Controller
     /**
      * Change instnance method for GlobalAdmin Controller
      *
-     * @return \Illuminate\Http\Response
+     * @param  \Illuminate\Http\Request  $request
+     * @param  String $key    // Consortium Instance database key
+     * @param  String $page   // Page to redirect to
      */
-    public function changeInstance($key)
+    public function changeInstance(Request $request, $key, $page)
     {
         // Get input arguments from the request
         $consortium = Consortium::where('ccp_key',$key)->first();
@@ -109,7 +111,7 @@ class GlobalAdminController extends Controller
             return response()->json(['result' => 'Instance not found!']);
         }
 
-        // Update the active configuration and the sesttion to use the new key
+        // Update the active configuration and the session to use the new key
         $conso_db = "ccplus_" . $key;
         config(['database.connections.consodb.database' => $conso_db]);
         session(['ccp_con_key' => $key]);
@@ -118,7 +120,13 @@ class GlobalAdminController extends Controller
         } catch (\Exception $e) {
             return response()->json(['result' => 'Error decoding input!']);
         }
-        return redirect()->route('admin.home');
+        if ($page == 'home') {
+            return redirect()->route('admin.home');
+        } else if ($page == 'harvests' || $page == 'reports') {
+            return redirect()->route($page . '.index');
+        } else {
+            return redirect()->route('home');
+        }
     }
 
     /**
