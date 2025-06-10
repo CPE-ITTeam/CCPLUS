@@ -512,21 +512,27 @@ class SavedReportController extends Controller
                         $rec['qry_as'] = '';
                         foreach ($filter_data['inst_id'] as $val) {
                             $_inst = $all_institutions->where('id', $val)->first();
-                            $rec['qry_as'] .= $_inst->name . ', ';
+                            if ($_inst) {
+                                $rec['qry_as'] .= $_inst->name . ', ';
+                            }
                         }
                         $rec['qry_as'] = rtrim(trim($rec['qry_as']), ',');
                     } elseif ($field->qry_as == 'provider' && count($filter_data['prov_id']) > 0) {
                         $rec['qry_as'] = '';
                         foreach ($filter_data['prov_id'] as $val) {
                             $_prov = $all_provs->where('id', $val)->first();
-                            $rec['qry_as'] .= $_prov->name . ', ';
+                            if ($_prov) {
+                                $rec['qry_as'] .= $_prov->name . ', ';
+                            }
                         }
                         $rec['qry_as'] = rtrim(trim($rec['qry_as']), ',');
                     } elseif ($field->qry_as == 'platform' && count($filter_data['plat_id']) > 0) {
                         $rec['qry_as'] = '';
                         foreach ($filter_data['plat_id'] as $val) {
-                            $_prov = $all_plats->where('id', $val)->first();
-                            $rec['qry_as'] .= $_prov->name . ', ';
+                            $_plat = $all_plats->where('id', $val)->first();
+                            if ($_plat) {
+                                $rec['qry_as'] .= $_plat->name . ', ';
+                            }
                         }
                         $rec['qry_as'] = rtrim(trim($rec['qry_as']), ',');
                     } elseif ($field->qry_as == 'yop' && count($filter_data['yop']) > 0) {
@@ -542,7 +548,7 @@ class SavedReportController extends Controller
                 }
                 if ($filter_data['institutiongroup_id'] > 0) {
                     $rec['legend'] = 'Institution Group';
-                    $rec['name'] = $all_groups->where('id', $filter_data['institutiongroup_id'])->value('name');
+                    $rec['name'] = $all_groups->where('id', $filter_data['institutiongroup_id'])->pluck('name');
                 }
                 $rec['column'] = ($field->reportFilter) ? $field->reportFilter->report_column : null;
                 $data['fields'][] = $rec;
