@@ -560,6 +560,8 @@
                 date_range: this.preset_filters.dateRange,
                 from: this.filter_by_fromYM,
                 to: this.filter_by_toYM,
+                exclude_zeros: this.zeroRecs,
+                format: this.format,
                 fields: JSON.stringify(_flds),
             })
             .then((response) => {
@@ -574,9 +576,8 @@
         },
         goExport() {
             this.runtype = 'export';
-            this.getReportData().then(data => {
-                this.runtype = '';
-            });
+            this.getReportData();
+            this.runtype = '';
         },
     },
     computed: {
