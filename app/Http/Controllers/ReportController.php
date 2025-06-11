@@ -451,10 +451,11 @@ class ReportController extends Controller
                 } elseif ($key == 'institutiongroup_id' && $group_name != '') {
                     $out_file .= "_" . $group_name;
                 } elseif ($key == 'inst_id' || $key == 'prov_id' || $key == 'plat_id') {
+                    $col = ($key == 'prov_id') ? 'global_id' : 'id';
                     if (sizeof($value) > 1) {
                         $out_file .= "_Multiple_" . $filt->table_name;
                     } elseif (sizeof($value) == 1) {
-                        $out_file .= "_" . preg_replace('/ /', '', $filt->model::where('id', $value[0])->value('name'));
+                        $out_file .= "_" . preg_replace('/ /', '', $filt->model::where($col, $value[0])->value('name'));
                     }
                 }
             }
