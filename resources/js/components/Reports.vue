@@ -38,7 +38,7 @@
     },
     data () {
         return {
-            panels: [],
+            panels: [0],
             queueKey: 1,
         }
     },
