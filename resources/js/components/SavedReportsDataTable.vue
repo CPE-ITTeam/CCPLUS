@@ -15,25 +15,25 @@
         <a href="/reports/create"><v-btn color="primary" small>Create A Report</v-btn></a>
       </v-col>
       <v-col class="d-flex px-2 align-center" cols="2">
-        <div v-if="mutable_filters['codes'].length>0" class="x-box">
-          <img src="/images/red-x-16.png" width="100%" alt="clear filter" @click="clearFilter('codes')"/>&nbsp;
+        <div v-if="mutable_filters['reports'].length>0" class="x-box">
+          <img src="/images/red-x-16.png" width="100%" alt="clear filter" @click="clearFilter('reports')"/>&nbsp;
         </div>
-        <v-select :items="mutable_options['codes']" v-model="mutable_filters['codes']" @change="updateFilters('codes')" multiple
-                  label="Error Code">
+        <v-select :items="mutable_options['reports']" v-model="mutable_filters['reports']" @change="updateFilters('reports')"
+                  multiple label="Report Type">
           <template v-slot:prepend-item>
-            <v-list-item @click="filterAll('codes')">
-               <span v-if="allSelected.codes">Clear Selections</span>
+            <v-list-item @click="filterAll('reports')">
+               <span v-if="allSelected.reports">Clear Selections</span>
                <span v-else>Select All</span>
             </v-list-item>
             <v-divider class="mt-1"></v-divider>
           </template>
           <template v-slot:selection="{ item, index }">
-            <span v-if="index == 0 && allSelected.codes">All Error Codes</span>
-            <span v-else-if="index < 2 && !allSelected.codes">{{ item }}</span>
-            <span v-else-if="index === 2 && !allSelected.codes" class="text-grey text-caption align-self-center">
-              &nbsp; +{{ mutable_filters['codes'].length-2 }} more
+            <span v-if="index == 0 && allSelected.reports">All Report Types</span>
+            <span v-else-if="index < 2 && !allSelected.reports">{{ item }}</span>
+            <span v-else-if="index === 2 && !allSelected.reports" class="text-grey text-caption align-self-center">
+              &nbsp; +{{ mutable_filters['reports'].length-2 }} more
             </span>
-            <span v-if="index <= 1 && index < mutable_filters['codes'].length-1 && !allSelected.codes">, </span>
+            <span v-if="index <= 1 && index < mutable_filters['reports'].length-1 && !allSelected.reports">, </span>
           </template>
         </v-select>
       </v-col>
@@ -44,7 +44,7 @@
         <span v-if="failure" class="fail" role="alert" v-text="failure"></span>
       </v-row>
     </div>
-    <v-data-table v-model="selectedRows" :headers="headers" :items="mutable_reports" item-key="id"
+    <v-data-table v-model="selectedRows" :headers="headers" :items="filteredReports" item-key="id"
                   show-select :options="dt_options" :key="dtKey">
       <template v-slot:item.exclude_zeros="{ item }">
         <span v-if="item.exclude_zeros==1">No</span>
@@ -124,7 +124,7 @@
               <date-range :minym="minYM" :maxym="maxYM" :ymfrom="minYM" :ymto="maxYM"></date-range>
             </v-col>
           </v-row>
-          <v-row class="d-flex mt-1" no-gutters>
+          <v-row class="d-flex my-1" no-gutters>
             <v-col class="d-flex px-4" cols="4">
               <v-btn x-small color="primary" type="button" @click="formSubmit" :disabled="!formValid">
                 Save Report
@@ -134,8 +134,7 @@
               <v-btn x-small color="primary" type="button" @click="reportDialog=false">Cancel</v-btn>
             </v-col>
           </v-row>
-          <div v-if="dialog_failure || dialog_success" class="status-message">
-            <span v-if="dialog_success" class="good" role="alert" v-text="dialog_success"></span>
+          <div v-if="dialog_failure" class="status-message">
             <span v-if="dialog_failure" class="fail" role="alert" v-text="dialog_failure"></span>
           </div>
         </v-form>
@@ -161,11 +160,10 @@
       return {
           success: '',
           failure: '',
-          dialog_success: '',
           dialog_failure: '',
           mutable_reports: [ ...this.reports ],
           mutable_filters: { ...this.filters },
-          mutable_options: { 'codes':[] },
+          mutable_options: { 'reports':['PR','DR','TR','IR'] },
           headers: [
             { text: 'Report Title', value: 'title' },
             { text: 'Report', value: 'master_name' },
@@ -175,12 +173,12 @@
             { text: 'Include Zeros', value: 'exclude_zeros', align: 'center' },
             { text: 'Actions', value: 'action', align: 'end', sortable: false },
           ],
-          dt_options: {itemsPerPage:10, sortBy:['updated_at'], sortDesc:[false],
+          dt_options: {itemsPerPage:10, sortBy:['last_harvest'], sortDesc:[true],
                        multiSort:true, mustSort:false},
-          bulk_actions: ['Pause', 'ReStart'],
+          bulk_actions: ['Delete'],
           bulkAction: '',
           selectedRows: [],
-          allSelected: { 'codes':false },
+          allSelected: { 'reports':false },
           dtKey: 1,
           reportDialog: false,
           report_data: [],
@@ -202,11 +200,46 @@
         }
     },
     methods: {
+        // Changing filters means clearing SelectedRows - otherwise Bulk Actions could affect
+        // one of many rows no longer displayed.
+        updateFilters(filt) {
+            this.$store.dispatch('updateAllFilters',this.mutable_filters);
+            this.selectedRows = [];
+            // update allSelected flag
+            if (typeof(this.allSelected[filt]) != 'undefined') {
+                this.allSelected[filt] = ( this.mutable_filters[filt].length==this.mutable_options[filt].length &&
+                                           this.mutable_filters[filt].length>0 );
+            }
+        },
+        clearAllFilters() {
+            Object.keys(this.mutable_filters).forEach( (key) =>  {
+                this.mutable_filters[key] = [];
+            });
+            this.$store.dispatch('updateAllFilters',this.mutable_filters);
+        },
+        clearFilter(filter) {
+            this.mutable_filters[filter] = [];
+            if (typeof(this.allSelected[filter]) != 'undefined') this.allSelected[filter] = false;
+            this.$store.dispatch('updateAllFilters',this.mutable_filters);
+            this.selectedRows = [];
+        },
+        // @change function for filtering/clearing all options on a filter
+        filterAll(filt) {
+          if (typeof(this.allSelected[filt]) == 'undefined') return;
+          // Turned an all-options filter OFF?
+          if (this.allSelected[filt]) {
+            this.mutable_filters[filt] = [];
+            this.allSelected[filt] = false;
+          // Turned an all-options filter ON
+          } else {
+            this.mutable_filters[filt] = [ ...this.mutable_options[filt]];
+            this.allSelected[filt] = true;
+          }
+        },
         editForm (id) {
           this.failure = '';
           this.success = '';
           this.dialog_failure = '';
-          this.dialog_success = '';
           this.cur_report = this.mutable_reports.find(r => r.id == id);
           // Setup date bounds and strings based on master report
           this.maxYM = this.report_data[this.cur_report.master_name].YM_max;
@@ -239,7 +272,6 @@
             this.success = '';
             this.failure = '';
             this.dialog_failure = '';
-            this.dialog_success = '';
             let idx = this.mutable_reports.findIndex(r => r.id == this.cur_report.id);
             if ( idx < 0 ) {
               this.dialog_failure = 'Error - Cannot find report to be saved! Something is broken...';
@@ -251,16 +283,54 @@
                        if (response.result) {
                          this.form.resetOriginal();
                          // Update the entry in the mutable array
-                         this.mutable_reports[idx] = Object.assign({}, response.report);
-                         this.dialog_success = response.msg;
+                         this.mutable_reports[idx].title = response.report.title;
+                         this.mutable_reports[idx].date_range = response.report.date_range;
+                         this.mutable_reports[idx].ym_from = response.report.ym_from;
+                         this.mutable_reports[idx].ym_to = response.report.ym_to;
+                         this.mutable_reports[idx].format = response.report.format;
+                         this.mutable_reports[idx].exclude_zeros = response.report.exclude_zeros;
+                         this.success = response.msg;
+                         this.dtKey++;
+                         this.reportDialog = false;
                        } else {
-                         this.dialog_success = '';
                          this.dialog_failure = response.msg;
                        }
                      });
         },
+        processBulk() {
+            this.success = "";
+            this.failure = "";
+            let msg = "";
+            msg = "Bulk processing will proceed each requested report sequentially.";
+            msg += "<br><br>";
+            if (this.bulkAction == 'Delete') {
+                msg += "Deleting the selected reports cannot be reversed, only manually recreated.";
+            } else {
+                this.failure = "Unknown bulk action : "+this.bulkAction;
+            }
+            Swal.fire({
+              title: 'Are you sure?', html: msg, icon: 'warning', showCancelButton: true,
+              confirmButtonColor: '#3085d6', cancelButtonColor: '#d33', confirmButtonText: 'Yes, Proceed!'
+            }).then((result) => {
+              if (result.value) {
+                this.success = "Working...";
+                this.selectedRows.forEach( (report) => {
+                  axios.delete('/my-reports/'+report.id)
+                       .then( (response) => {
+                          if (response.data.result) {
+                              this.mutable_reports.splice(this.mutable_reports.findIndex( r => r.id == report.id),1);
+                          }
+                      })
+                      .catch({});
+                  });
+                  this.loading = false;
+                  this.success = "Selected reports successfully deleted.";
+                }
+                this.dtKey += 1;           // force re-render of the datatable
+                this.bulkAction = '';
+            }).catch({});
+        },
         destroy (id) {
-            var self = this;
             Swal.fire({
               title: 'Are you sure?',
               text: "Deleting this report cannot be reversed, only manually recreated.",
@@ -274,13 +344,13 @@
                   axios.delete('/my-reports/'+id)
                        .then( (response) => {
                            if (response.data.result) {
-                               self.failure = '';
-                               self.success = response.data.msg;
-                               // Remove the setting from the display
-                               this.mutable_reports.splice(this.mutable_reports.findIndex(s=> s.id == id),1);
+                              this.failure = '';
+                              this.success = response.data.msg;
+                              // Remove the setting from the display
+                              this.mutable_reports.splice(this.mutable_reports.findIndex(s=> s.id == id),1);
                            } else {
-                               self.success = '';
-                               self.failure = response.data.msg;
+                              this.success = '';
+                              this.failure = response.data.msg;
                            }
                        })
                        .catch({});
@@ -301,7 +371,12 @@
         },
     },
     computed: {
-      ...mapGetters(['is_admin','is_viewer'])
+      ...mapGetters(['is_admin','is_viewer']),
+      filteredReports() {
+        return (this.mutable_filters.reports.length>0)
+          ? this.mutable_reports.filter(r => this.mutable_filters.reports.includes(r.master_name))
+          : [ ...this.mutable_reports ];
+      }
     },
     beforeCreate() {
       // Initialize local datastore if it is not there
