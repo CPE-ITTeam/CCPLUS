@@ -13,6 +13,7 @@ use App\Platform;
 use App\Institution;
 use App\InstitutionGroup;
 use App\HarvestLog;
+use App\GlobalProvider;
 use App\Alert;
 use App\SystemAlert;
 use Illuminate\Http\Request;
@@ -34,7 +35,7 @@ class SavedReportController extends Controller
       $thisUser = auth()->user();
 
       // Assign optional inputs to $filters array
-      $filters = array('codes' => []);
+      $filters = array('reports' => []);
 
       // Get and map the standard Counter reports
       $master_reports = Report::with('reportFields', 'children', 'reportFields.reportFilter')
@@ -232,7 +233,7 @@ class SavedReportController extends Controller
         $fields->load('reportFilter');
 
         // Get names and IDs all providers
-        $all_providers = Provider::get(['id','name']);
+        $all_providers = GlobalProvider::get(['id','name']);
 
         // Turn report->filterBy into key=>value arrays, named by the field column
         $filters = array();
@@ -242,7 +243,6 @@ class SavedReportController extends Controller
         if ($filter_data['institutiongroup_id'] <= 0) {
             $all_institutions = Institution::where('id', '>', 1)->get(['id','name']);
         }
-        $all_providers = Provider::get(['id','name']);
         $all_platforms = Platform::get(['id','name']);
         foreach ($fields as $field) {
             if ($field->reportFilter) {
@@ -344,6 +344,7 @@ class SavedReportController extends Controller
         $save_id = $request->save_id;
         $report_id = $request->report_id;
         $input_fields = json_decode($request->fields, true);
+        $exZeros = (isset($request->exclude_zeros)) ? $request->exclude_zeros : 0;
 
        // Pull the model for report_id (points to presets in global table), and get all fields for it
         $_report = Report::findorFail($report_id);
@@ -414,7 +415,7 @@ class SavedReportController extends Controller
         $saved_report->ym_from = $request->from;
         $saved_report->ym_to = $request->to;
         $saved_report->format = $request->format;
-        $saved_report->exclude_zeros = $request->zeros;
+        $saved_report->exclude_zeros = (is_null($exZeros)) ? 0 : $exZeros;
         $saved_report->save();
         return response()->json(['result' => true, 'msg' => 'Configuration saved successfully']);
     }
@@ -437,10 +438,13 @@ class SavedReportController extends Controller
         $this->validate($request, ['title' => 'required', 'date_range' => 'required']);
         $input = $request->all();
 
-       // Update the record and assign groups
+        // Update the record and assign groups
+        $exZeros = (isset($input['exclude_zeros'])) ? $input['exclude_zeros'] : 0;
+        $input['exclude_zeros'] = (is_null($exZeros)) ? 0 : $exZeros;
         $report->update($input);
 
-        return response()->json(['result' => true, 'msg' => 'Report settings successfully updated']);
+        return response()->json(['result' => true, 'msg' => 'Report settings successfully updated',
+                                 'report' => $report]);
     }
 
     /**
@@ -479,9 +483,8 @@ class SavedReportController extends Controller
 
         // Get names and IDs for providers, institutions, platforms, and groups
         // If not filtering by instutiongroup, get names and IDs all institutions
-        $all_institutions = Institution::where('id', '>', 1)->get(['id','name']);
-        $all_insts = Institution::get(['id','name']);
-        $all_provs = Provider::get(['id','name']);
+        $all_insts = Institution::where('id', '>', 1)->get(['id','name']);
+        $all_provs = GlobalProvider::get(['id','name']);
         $all_plats = Platform::get(['id','name']);
         $all_groups = InstitutionGroup::get(['id','name']);
 
@@ -507,13 +510,19 @@ class SavedReportController extends Controller
             foreach($fields as $field) {
                 $rec = array('id' => $field->id, 'name' => $field->legend, 'qry_as' => 'All');
                 if ($field->reportFilter) {
-                    if ($field->qry_as == 'institution' && count($filter_data['inst_id']) > 0 &&
-                        !($filter_data['institutiongroup_id'] > 0)) {
-                        $rec['qry_as'] = '';
-                        foreach ($filter_data['inst_id'] as $val) {
-                            $_inst = $all_institutions->where('id', $val)->first();
-                            if ($_inst) {
-                                $rec['qry_as'] .= $_inst->name . ', ';
+                    if ($field->qry_as == 'institution' &&
+                        (count($filter_data['inst_id']) > 0 || $filter_data['institutiongroup_id'] > 0)) {
+                        if ($filter_data['institutiongroup_id'] > 0) {
+                            $rec['name'] = 'Institution Group';
+                            $_group = $all_groups->where('id', $filter_data['institutiongroup_id'])->first();
+                            $rec['qry_as'] = ($_group) ? $_group->name : "";
+                        } else {
+                            $rec['qry_as'] = '';
+                            foreach ($filter_data['inst_id'] as $val) {
+                                $_inst = $all_insts->where('id', $val)->first();
+                                if ($_inst) {
+                                    $rec['qry_as'] .= $_inst->name . ', ';
+                                }
                             }
                         }
                         $rec['qry_as'] = rtrim(trim($rec['qry_as']), ',');
@@ -537,7 +546,7 @@ class SavedReportController extends Controller
                         $rec['qry_as'] = rtrim(trim($rec['qry_as']), ',');
                     } elseif ($field->qry_as == 'yop' && count($filter_data['yop']) > 0) {
                         $rec['qry_as'] = $filter_data['yop'][0] . ' to ' . $filter_data['yop'][1];
-                    } else {
+                    } elseif (!in_array($field->qry_as, ['institution','provider','platform'])) {
                         if (isset($filter_data[$field->reportFilter->report_column])) {
                             $filter_id = $filter_data[$field->reportFilter->report_column];
                             if ($field->reportFilter->model) {
@@ -545,10 +554,6 @@ class SavedReportController extends Controller
                             }
                         }
                     }
-                }
-                if ($filter_data['institutiongroup_id'] > 0) {
-                    $rec['legend'] = 'Institution Group';
-                    $rec['name'] = $all_groups->where('id', $filter_data['institutiongroup_id'])->pluck('name');
                 }
                 $rec['column'] = ($field->reportFilter) ? $field->reportFilter->report_column : null;
                 $data['fields'][] = $rec;
