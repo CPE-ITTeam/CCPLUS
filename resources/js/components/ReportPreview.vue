@@ -710,7 +710,7 @@
           }
           // If institution or group is active but unset, and the other is not active,
           // enable and initialize the other one.
-          if (this.filter_data.institution.active && this.filter_data.institution.value == [] &&
+          if (this.filter_data.institution.active && this.filter_data.institution.value.length==0 &&
              !this.filter_data.institutiongroup.active) {
             this.filter_data.institutiongroup.active = true;
             this.filter_data.institutiongroup.value = 0;
