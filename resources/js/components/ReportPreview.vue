@@ -48,7 +48,7 @@
             </v-col>
           </v-row>
           <v-row class="d-flex wrap-column-boxes ma-0" no-gutters>
-            <v-col class="d-flex pa-2" cols="2" sm="2" v-for="field in mutable_fields" :key="field.id">
+            <v-col class="d-flex pa-2" cols="2" v-for="field in mutable_fields" :key="field.id">
               <v-checkbox :label="field.text" v-model="field.active" :value="field.active"
                           @change="onFieldChange(field)" :disabled="field.isFiltered"></v-checkbox>
             </v-col>
@@ -59,7 +59,7 @@
         <v-expansion-panel-header>Filters</v-expansion-panel-header>
         <v-expansion-panel-content>
           <v-row v-if="active_filter_count > 0" class="d-flex ma-1 wrap-filters" no-gutters>
-            <div v-if='filter_data["Dbase"].active' cols="3" sm="2">
+            <div v-if='filter_data["Dbase"].active' cols="3">
               <v-col v-if='filter_data["Dbase"].value.length >= 0' class="d-flex pa-2 align-center">
                 <img v-if='filter_data["Dbase"].value.length > 0' src="/images/red-x-16.png"
                      alt="clear filter" @click="clearFilter('Dbase')"/>&nbsp;
@@ -68,7 +68,7 @@
                 ></v-autocomplete>
               </v-col>
             </div>
-            <div v-if='filter_data["platform"].active' cols="3" sm="2">
+            <div v-if='filter_data["platform"].active' cols="3">
               <v-col v-if='filter_data["platform"].value.length >= 0' class="d-flex pa-2 align-center">
                 <img v-if='filter_data["platform"].value.length > 0' src="/images/red-x-16.png"
                      alt="clear filter" @click="clearFilter('platform')"/>&nbsp;
@@ -77,7 +77,7 @@
                 ></v-autocomplete>
               </v-col>
             </div>
-            <div v-if='filter_data["provider"].active' cols="3" sm="2">
+            <div v-if='filter_data["provider"].active' cols="3">
               <v-col v-if='filter_data["provider"].value.length >= 0' class="d-flex pa-2 align-center">
                 <img v-if='filter_data["provider"].value.length > 0' src="/images/red-x-16.png"
                      alt="clear filter" @click="clearFilter('provider')"/>&nbsp;
@@ -86,8 +86,7 @@
                 ></v-autocomplete>
               </v-col>
             </div>
-            <div v-if='!filterGroup && filter_data["institution"].active'
-                 cols="3" sm="2">
+            <div v-if='filter_data["institution"].active' cols="3">
               <v-col v-if='filter_data["institution"].value.length >= 0' class="d-flex pa-2 align-center">
                 <img v-if='filter_data["institution"].value.length > 0' src="/images/red-x-16.png"
                      alt="clear filter" @click="clearFilter('institution')"/>&nbsp;
@@ -96,7 +95,7 @@
                 ></v-autocomplete>
               </v-col>
             </div>
-            <div v-if='filterGroup && filter_data["institutiongroup"].active' cols="3" sm="2">
+            <div v-if='filter_data["institutiongroup"].active' cols="3">
               <v-col v-if='filter_data["institutiongroup"].value >= 0' class="d-flex pa-2 align-center">
                 <img v-if='filter_data["institutiongroup"].value > 0' src="/images/red-x-16.png"
                      alt="clear filter" @click="clearFilter('institutiongroup')"/>&nbsp;
@@ -106,7 +105,7 @@
                 ></v-autocomplete>
               </v-col>
             </div>
-            <div v-if='filter_data["datatype"].active' cols="3" sm="2">
+            <div v-if='filter_data["datatype"].active' cols="3">
               <v-col v-if='filter_data["datatype"].value.length >= 0' class="d-flex pa-2 align-center">
                 <img v-if='filter_data["datatype"].value.length > 0' src="/images/red-x-16.png"
                      alt="clear filter" @click="clearFilter('datatype')"/>&nbsp;
@@ -115,7 +114,7 @@
                 ></v-select>
               </v-col>
             </div>
-            <div v-if='filter_data["sectiontype"].active' cols="3" sm="2">
+            <div v-if='filter_data["sectiontype"].active' cols="3">
               <v-col v-if='filter_data["sectiontype"].value.length >= 0' class="d-flex pa-2 align-center">
                 <img v-if='filter_data["sectiontype"].value.length > 0' src="/images/red-x-16.png"
                      alt="clear filter" @click="clearFilter('sectiontype')"/>&nbsp;
@@ -124,7 +123,7 @@
                 ></v-select>
               </v-col>
             </div>
-            <div v-if='filter_data["accesstype"].active' cols="3" sm="2">
+            <div v-if='filter_data["accesstype"].active' cols="3">
               <v-col v-if='filter_data["accesstype"].value.length >= 0' class="d-flex pa-2 align-center">
                 <img v-if='filter_data["accesstype"].value.length > 0' src="/images/red-x-16.png"
                      alt="clear filter" @click="clearFilter('accesstype')"/>&nbsp;
@@ -133,7 +132,7 @@
                 ></v-select>
               </v-col>
           </div>
-            <div v-if='filter_data["accessmethod"].active' cols="3" sm="2">
+            <div v-if='filter_data["accessmethod"].active' cols="3">
               <v-col v-if='filter_data["accessmethod"].value.length >= 0' class="d-flex pa-2 align-center">
                 <img v-if='filter_data["accessmethod"].value.length > 0' src="/images/red-x-16.png"
                      alt="clear filter" @click="clearFilter('accessmethod')"/>&nbsp;
@@ -142,7 +141,7 @@
                 ></v-select>
               </v-col>
             </div>
-            <div v-if='filter_data["yop"].active' cols="3" sm="2">
+            <div v-if='filter_data["yop"].active' cols="3">
               <v-col v-if='filter_data["yop"].value.length >= 0' class="d-flex pa-2 align-center">
                 <img v-if='filter_data["yop"].value.length > 0' src="/images/red-x-16.png"
                      alt="clear filter" @click="clearFilter('yop')"/>&nbsp;
@@ -259,7 +258,6 @@
       return {
         showPreview: false,
         configForm: false,
-        filterGroup: false,
         preview_text: 'Display Preview',
         loading: true,
         panels: [1],
@@ -278,7 +276,7 @@
           platform: { col:'plat_id', act:'updatePlatform', value:[], name:'', active: false },
           provider: { col:'prov_id', act:'updateProvider', value:[], name:'', active: false },
           institution: { col:'inst_id', act:'updateInstitution', value:[], name:'', active: false },
-          institutiongroup: { col:'institutiongroup_id', act:'updateInstGroup', value: -1, name:'', active: false },
+          institutiongroup: { col:'institutiongroup_id', act:'updateInstGroup', value:0, name:'', active: false },
           datatype: { col:'datatype_id', act:'updateDataType', value: [], name:'', active: false },
           sectiontype: { col:'sectiontype_id', act:'updateSectionType', value: [], name:'', active: false },
           accesstype: { col:'accesstype_id', act:'updateAccessType', value: [], name:'', active: false },
@@ -336,12 +334,15 @@
               if (hasFilter) {
                   // Turn on institution filter only if admin/manager AND not filtering by-Group
                   if (field.id == 'institution') {
-                      // Enable institution filtering
-                      if (!this.filterGroup && (this.is_admin || this.is_viewer)) {
+                      // Enable institution and institutionGroup filtering
+                      if (this.is_admin || this.is_viewer) {
                           this.filter_data.institution.active = true;
                           this.filter_data.institution.value = [];
+                          this.filter_data.institutiongroup.active = true;
+                          this.filter_data.institutiongroup.value = 0;
+                          // action only for institution, not group (group isn't a column field)
                           this.$store.dispatch(action,[]);
-                          this.active_filter_count++;
+                          this.active_filter_count += 2;
                       }
                   // Initialize other filter values
                   } else {
@@ -368,18 +369,19 @@
               // If the field has filter, clean it up
               if (hasFilter) {
                   this.filter_data[field.id].active = false;
+                  if (field.id == "institution") {
+                      this.filter_data.institutiongroup.active = false;
+                      this.filter_data.institutiongroup.value = 0;
+                      this.active_filter_count--;
+                  }
                   if (this.filter_data[field.id].value.constructor === Array) {
                       this.filter_data[field.id].value = [];
                   } else {
-                      this.filter_data[field.id].value = -1;
+                      this.filter_data[field.id].value = 0;
                   }
-
-                  // Remove the filter from the list and suppress the column
-                  if (field.id != 'institution' || !this.filterGroup) {
-                      this.$store.dispatch(action,this.filter_data[field.id].value);
-                      this.updateColumns();
-                      if (field.active) this.active_filter_count--;
-                  }
+                  this.$store.dispatch(action,this.filter_data[field.id].value);
+                  this.updateColumns();
+                  if (field.active) this.active_filter_count--;
               }
               // Turn off the column(s)
               for (var col in this.mutable_cols) {
@@ -406,6 +408,11 @@
             this.filter_data[filter].name = '';
             let _field = this.mutable_fields.find( f => f.id == filter);
             if (typeof(_field)!='undefined') _field.isFiltered = false;
+            if (filter == 'institution') {
+                this.filter_data.institutiongroup.active = true;
+            } else if (filter == 'institutiongroup') {
+                this.filter_data.institution.active = true;
+            } 
           },
         setFilter(filter) {
             let method = this.filter_data[filter].act+'Filter';
@@ -418,6 +425,13 @@
             } else {
                 if (typeof(_field)!='undefined') _field.isFiltered = (this.filter_data[filter].value.length > 0)
             }
+            if (filter == 'institution') {
+                this.filter_data.institutiongroup.active = (this.filter_data.institution.value.length>0) ? false : true;
+                this.filter_data.institutiongroup.value = 0;
+            } else if (filter == 'institutiongroup') {
+                this.filter_data.institution.active = (this.filter_data.institutiongroup.value>0) ? false : true;
+                this.filter_data.institution.value = [];
+            } 
         },
         setYOP() {
             this.failure = "";
@@ -547,7 +561,7 @@
               var fval = (typeof(this.filter_data[fld.id])=='undefined') ? '' : this.filter_data[fld.id].value;
               _flds[fld.id] = {active: fld.active, limit: fval};
             })
-            if (this.filterGroup) {   // If filtering by-inst-group, add to the cols array
+            if (this.this.filter_data.institutiongroup.value > 0) {   // If filtering by-inst-group, add to the cols array
                 _flds['institutiongroup'] = {active: false, limit: this.filter_data.institutiongroup.value};
             }
             let num_months = 1;     // default to lastMonth
@@ -641,8 +655,8 @@
                     this.filter_data[idx].value = [];
                     this.$store.dispatch(action,[]);
                 } else {
-                    this.filter_data[idx].value = -1;
-                    this.$store.dispatch(action,-1);
+                    this.filter_data[idx].value = 0;
+                    this.$store.dispatch(action,0);
                 }
             }
         }
@@ -666,7 +680,7 @@
               if (data.value.constructor === Array) {
                   this.$store.dispatch(filt,[]);
               } else {
-                  this.$store.dispatch(filt,-1);
+                  this.$store.dispatch(filt,0);
               }
           }
       }
@@ -684,18 +698,15 @@
           }
       });
 
-      // Determine which inst-filter applies (by-group or by-inst), and set this.filterGroup
-      // If preset given for group AND inst, we will filter by-group and ignore inst(s).
-      // If no preset provided for either, we will filter-by inst(s).
+      // If preset given for group AND inst, we will filter by-group and override inst(s).
+      // If no preset provided for either, we will (initially) show filters both.
       if (this.is_admin || this.is_viewer) {
           if (this.preset_filters['institutiongroup_id']>0) {
-              this.filterGroup = true;
-              // activate manually since instgroup isn't a "column"
-              this.filter_data['institutiongroup'].active = true;
-          }
-          // Since group is not a column (was skipped above), bump the counter if the filter is on
-          if (this.filterGroup && this.filter_data.institutiongroup.value == 0) {
-              this.active_filter_count++;
+            this.filter_data.institutiongroup.active = true;
+            this.filter_data.institutiongroup.value = this.preset_filters['institutiongroup_id'];
+            this.active_filter_count += (this.filter_data.institution.active) ? 0 : 1;
+            this.filter_data.institution.active = false;
+            this.filter_data.institution.value = [];
           }
       }
 
