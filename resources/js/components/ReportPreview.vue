@@ -708,8 +708,21 @@
             this.filter_data.institution.active = false;
             this.filter_data.institution.value = [];
           }
+          // If institution or group is active but unset, and the other is not active,
+          // enable and initialize the other one.
+          if (this.filter_data.institution.active && this.filter_data.institution.value == [] &&
+             !this.filter_data.institutiongroup.active) {
+            this.filter_data.institutiongroup.active = true;
+            this.filter_data.institutiongroup.value = 0;
+            this.active_filter_count++;
+          }
+          if (this.filter_data.institutiongroup.active && this.filter_data.institutiongroup.value <= 0 &&
+             !this.filter_data.institution.active) {
+            this.filter_data.institution.active = true;
+            this.filter_data.institution.value = [];
+            this.active_filter_count++;
+          }
       }
-
       // Set datatable options with store-values
       Object.assign(this.mutable_options, this.datatable_options);
 
