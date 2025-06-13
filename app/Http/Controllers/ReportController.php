@@ -34,7 +34,9 @@ class ReportController extends Controller
     private $raw_where;
     private $subq_fields;
     private $subq_where;
+    private $rpt_only;
     private $joins;
+    private $all_models;
     private $global_db;
     private $conso_db;
 
@@ -45,7 +47,7 @@ class ReportController extends Controller
      */
     public function __construct()
     {
-        global $raw_fields, $group_by, $joins, $raw_where;
+        global $raw_fields, $group_by, $joins, $raw_where, $all_models;
 
         self::$input_filters = [];
         $raw_fields = '';
@@ -56,6 +58,8 @@ class ReportController extends Controller
         $format = 'Compact';
         $joins = ['institution' => "", 'provider' => "", 'platform' => "", 'publisher' => "",
                   'datatype' => "", 'accesstype' => "", 'accessmethod' => "", 'sectiontype' => ""];
+        $all_models = ['TR' => '\\App\\TitleReport',    'DR' => '\\App\\DatabaseReport',
+                       'PR' => '\\App\\PlatformReport', 'IR' => '\\App\\ItemReport'];
     }
 
     /**
@@ -157,6 +161,8 @@ class ReportController extends Controller
      */
     public function preview(Request $request)
     {
+        global $all_models;
+
         $thisUser = auth()->user();
         $user_inst = $thisUser->inst_id;
         $conso_db = config('database.connections.consodb.database');
@@ -164,6 +170,7 @@ class ReportController extends Controller
         // Start by getting a full filter-set (all elements from the datastore)
         // Saved reports have the active fields and filters built-in
         $title = "";
+        $model = null;
         if (isset($request->saved_id)) {
             $saved_report = SavedReport::with('master', 'master.reportFields')->findOrFail($request->saved_id);
             if (!$saved_report->canManage()) {
@@ -210,6 +217,8 @@ class ReportController extends Controller
         if (!$report) {
             return response()
                 ->json(['result' => false, 'msg' => 'Report ID: ' . $preset_filters['report_id'] . ' is undefined']);
+        } else if (!isset($request->saved_id)) {
+            $model = ($preset_filters['report_id'] < 5) ? $report->name : $report->parent->name;
         }
         $all_filters = ReportFilter::all();
 
@@ -257,13 +266,21 @@ class ReportController extends Controller
                                         ->whereIn('DR.inst_id',$filterInsts)->whereIn('DR.prov_id',$filterProvs)
                                         ->orderBy('DB.name', 'ASC')->get()->toArray();
 
+        // Set platform filter options depending on preset_filters if they exist
+        $report_model = $all_models[$model];
+        $platform_ids = $report_model::distinct('plat_id')
+                                     ->whereIn('inst_id',$filterInsts)->whereIn('prov_id',$filterProvs)
+                                     ->pluck('plat_id')->toArray();
+        $filter_options['platform'] = Platform::orderBy('name', 'ASC')->whereIn('id',$platform_ids)
+                                              ->where('name','<>',' ')->get(['id','name'])->toArray();
+
         // Set options for the other filters
         foreach ($all_filters as $filter) {
             if (is_null($filter->table_name)) { // yop
                 continue;
             }
             $_key = rtrim($filter->table_name, "s");
-            if ($_key != 'institution' && $_key != 'provider' && $_key != 'database') {
+            if ($_key != 'institution' && $_key != 'provider' && $_key != 'database' && $_key != 'platform') {
                 $result = $filter->model::orderBy('name', 'ASC')->where('name','<>',' ')->get(['id','name'])->toArray();
                 $filter_options[$_key] = $result;
             }
@@ -361,7 +378,7 @@ class ReportController extends Controller
      */
     public function prepareExport($report, $fields)
     {
-        global $format;
+        global $format, $rpt_only;
         $thisUser = auth()->user();
 
         // Get/set global things
@@ -503,8 +520,10 @@ class ReportController extends Controller
             if ($format == 'COUNTER') {
                 $right_head[] = "Metric_Type";
                 $right_head[] = "Reporting_Period_Total";
-                foreach ($year_mons as $ym) {
-                    $right_head[] = $ym;
+                if (!$rpt_only) {
+                    foreach ($year_mons as $ym) {
+                        $right_head[] = $ym;
+                    }
                 }
 
             // Counts for Metrics in 'Compact' format expressed in columns labelled <metric>_YYYY_mm,
@@ -515,8 +534,10 @@ class ReportController extends Controller
                 foreach ($fields as $field) {
                     if ($field['is_metric']) {
                         if ($num_months > 1) {
-                            foreach ($year_mons as $ym) {
-                                $met_head[] = $field['legend'] . ' ' . $ym;
+                            if (!$rpt_only) {
+                                foreach ($year_mons as $ym) {
+                                    $met_head[] = $field['legend'] . ' ' . $ym;
+                                }
                             }
                             $ttl_head[] = 'Reporting Period Total' . ' ' . $field['legend'];
                         } else {
@@ -640,6 +661,8 @@ class ReportController extends Controller
      */
     private function queryAvailable($model = '')
     {
+        global $all_models;
+
         // Setup query limiters based on self::$input_filters
         $limit_to_insts = self::limitToIds('inst_id');
         $limit_to_provs = self::limitToIds('prov_id');
@@ -647,8 +670,6 @@ class ReportController extends Controller
 
         // Get counts and min/max yearmon for each master report
         $output = array();
-        $all_models = ['TR' => '\\App\\TitleReport',    'DR' => '\\App\\DatabaseReport',
-                   'PR' => '\\App\\PlatformReport', 'IR' => '\\App\\ItemReport'];
         $raw_query = "Count(*) as  count, min(yearmon) as YM_min, max(yearmon) as YM_max";
         $models = ($model == '') ? $all_models : array($all_models[$model]);
 
@@ -684,7 +705,8 @@ class ReportController extends Controller
      */
     public function getReportData(Request $request)
     {
-         global $joins, $raw_fields, $raw_where, $subq_fields, $subq_where, $group_by, $global_db, $conso_db, $format;
+         global $joins, $raw_fields, $raw_where, $subq_fields, $subq_where, $group_by, $global_db, $conso_db,
+                $format, $rpt_only, $all_models;
          $thisUser = auth()->user();
 
          // Validate and deal w/ inputs
@@ -696,6 +718,7 @@ class ReportController extends Controller
          $preview = (isset($request->preview) && $runtype == 'preview') ? $request->preview : 0;
          $format = (isset($request->format)) ? $request->format : 'COUNTER';
          $ignore_zeros = json_decode($request->zeros, true);
+         $rpt_only = (isset($request->RPTonly)) ? json_decode($request->RPTonly, true) : false;
 
          // Get/set global things
          self::$input_filters = $_filters;
@@ -741,7 +764,6 @@ class ReportController extends Controller
                     $basic_fields[$key]['legend'] = $legend;
                 }
             }
-
             // Call prepareExport to setup the output stream with headers
             $export_settings = self::prepareExport($report, array_merge($basic_fields, $metric_fields));
             $csv_file = $export_settings['filename'];
@@ -789,6 +811,24 @@ class ReportController extends Controller
                             })
                             ->orderBy('DB.name', 'ASC')->get()->toArray();
         }
+
+        // Generate platform filter-options for all reports, limit by inst/prov if set
+        $platform_ids = $limit_to_plats;
+        if (count($limit_to_plats) == 0) { // if limiting platforms, use the IDs in the limit array
+            $_model = $all_models[$master_name];
+            $platform_ids = $_model::distinct('plat_id')
+                                   ->when(count($limit_to_insts)>0, function ($query) use ($limit_to_insts) {
+                                       return $query->whereIn('inst_id', $limit_to_insts);
+                                   })
+                                   ->when(count($limit_to_provs)>0, function ($query) use ($limit_to_provs) {
+                                       return $query->whereIn('prov_id', $limit_to_provs);
+                                   })
+                                   ->pluck('plat_id')->toArray();
+        }
+        $pf_options = Platform::orderBy('name', 'ASC')->whereIn('id',$platform_ids)
+                              ->where('name','<>',' ')->get(['id','name'])->toArray();
+
+
         // Run the query for "COUNTER" formatted output
         if ($format == "COUNTER") {
             $conditions[] = array('RF.is_metric',1);
@@ -961,9 +1001,9 @@ class ReportController extends Controller
         // If not exporting, return the records as JSON
         if ($runtype != 'export') {
             if ($master_name == "DR") {
-                return response()->json(['usage' => $records, 'db_options' => $db_options], 200);
+                return response()->json(['usage'=>$records, 'pf_options'=>$pf_options, 'db_options'=>$db_options],200);
             } else {
-                return response()->json(['usage' => $records], 200);
+                return response()->json(['usage' => $records, 'pf_options'=>$pf_options], 200);
             }
         }
 
@@ -1047,16 +1087,16 @@ class ReportController extends Controller
                     $metric_count++;
                 } else {
                     $columns[] = array('active' => $fld['active'], 'field' => $fld['id'], 'value' => $fld['id'],
-                                       'text' => $fld['text']);
+                                       'text' => $fld['text'], 'is_metric' => 0);
                 }
             }
             $columns[] = array('active' => 1, 'field' => 'Metric_Type', 'value' => 'Metric_Type',
                                'text' => 'Metric_Type');
             if ($metric_count > 0) {
-                $columns[] = array('active' => 1, 'field' => 'Reporting_Period_Total',
-                                   'value' => 'Reporting_Period_Total', 'text' => 'Reporting_Period_Total');
+                $columns[] = array('active' => 1, 'field' => 'Reporting_Period_Total', 'value' => 'Reporting_Period_Total',
+                                   'text' => 'Reporting_Period_Total', 'is_metric' => 1);
                 foreach ($year_mons as $ym) {
-                    $columns[] = array('active' => 1, 'field' => $ym, 'value' => $ym, 'text' => $ym);
+                    $columns[] = array('active' => 1, 'field' => $ym, 'value' => $ym, 'text' => $ym, 'is_metric' => 1);
                 }
             }
 
@@ -1066,7 +1106,7 @@ class ReportController extends Controller
                 $metrics = array();
             }
             foreach ($input_fields as $fld) {
-                $col = array('active' => $fld['active'], 'field' => $fld['id']);
+                $col = array('active' => $fld['active'], 'field' => $fld['id'], 'is_metric' => $fld['is_metric']);
 
                 // If this is a summing-metric field, add a column for each month
                 if (preg_match('/^(searches_|total_|unique_|limit_|no_lic)/', $fld['id'])) {
@@ -1109,7 +1149,8 @@ class ReportController extends Controller
      */
     private function setupQueryFields($all_fields, $selected_fields)
     {
-        global $joins, $raw_fields, $group_by, $subq_fields, $subq_where, $global_db, $conso_db, $raw_where, $format;
+        global $joins, $raw_fields, $group_by, $subq_fields, $subq_where, $global_db, $conso_db, $raw_where,
+               $format, $rpt_only;
         $year_mons = self::createYMarray();
         $total_fields = "";
         $subq_case = "";
@@ -1152,20 +1193,22 @@ class ReportController extends Controller
                     }
                 } else {
                     if ($data->is_metric) {
-                        // For "Compact", Metric fields that sum-by-yearmon become output columns.
-                        // Assign metric-by-year as query fields
-                        foreach ($year_mons as $ym) {
-                            $raw_fields .= preg_replace('/@YM@/', $ym, $data->qry) . ' as ';
-                            $raw_fields .= $data->qry_as . '_' . self::prettydate($ym) . ',';
+                        if (!$rpt_only) {
+                            // For "Compact", Metric fields that sum-by-yearmon become output columns.
+                            // Assign metric-by-year as query fields
+                            foreach ($year_mons as $ym) {
+                                $raw_fields .= preg_replace('/@YM@/', $ym, $data->qry) . ' as ';
+                                $raw_fields .= $data->qry_as . '_' . self::prettydate($ym) . ',';
+                            }
+                            // Build raw_where string (for ignoring zero-records)
+                            // Metric fields that sum-by-yearmon become output columns. Assign metric-by-yr as query fields
+                            $raw_where .= ($raw_where != "") ? " or " : "(";
+                            $raw_where .= $data->qry_as . ">0";
                         }
                         // (if we're spanning multiple months,extend the reporting-period-total string)
                         if (sizeof($year_mons) > 1) {
                             $total_fields .= "sum(" . $data->qry_as . ") as RP_" . $data->qry_as . ',';
                         }
-                        // Build raw_where string (for ignoring zero-records)
-                        // Metric fields that sum-by-yearmon become output columns. Assign metric-by-yr as query fields
-                        $raw_where .= ($raw_where != "") ? " or " : "(";
-                        $raw_where .= $data->qry_as . ">0";
                     } else {
                         if ($data->qry != $data->qry_as) {
                             $raw_fields .= $data->qry . ' as ' . $data->qry_as . ',';
@@ -1191,8 +1234,10 @@ class ReportController extends Controller
             $subq_fields .= "yearmon, RF.qry_as as Metric_Type, sum(CASE" . $subq_case . " ELSE 0 END) as data";
 
             // For "COUNTER", Metric names become column-values and sums are displayed by yearmon.
-            foreach ($year_mons as $ym) {
-                $raw_fields .= ",sum(case yearmon when '" . $ym . "' then data else 0 end) as '" . $ym . "'";
+            if (!$rpt_only) {
+                foreach ($year_mons as $ym) {
+                    $raw_fields .= ",sum(case yearmon when '" . $ym . "' then data else 0 end) as '" . $ym . "'";
+                }
             }
             $group_by[] = "Metric_Type";
         } else {

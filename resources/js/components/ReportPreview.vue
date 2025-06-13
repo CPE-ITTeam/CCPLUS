@@ -156,15 +156,18 @@
         </v-expansion-panel-content>
       </v-expansion-panel>
     </v-expansion-panels>
-    <v-row class="d-flex pt-4" no-gutters>
-      <v-col class="d-flex pa-2" cols="4" sm="2">
+    <v-row class="d-flex px-4" no-gutters>
+      <v-col class="d-flex px-2 pt-6" cols="3">
         <v-btn class='btn' small type="button" color="primary" @click="previewData">{{ preview_text }}</v-btn>
       </v-col>
-      <v-col class="d-flex pa-2" cols="4" sm="2">
+      <v-col class="d-flex px-2 pt-6" cols="3">
         <v-btn class='btn' small type="button" color="primary" @click="showForm">Save Configuration</v-btn>
       </v-col>
-      <v-col class="d-flex pa-2" cols="4" sm="2">
+      <v-col class="d-flex px-2 pt-6" cols="3">
         <v-btn class='btn' small type="button" color="green" @click="goExport">Export</v-btn>
+      </v-col>
+      <v-col v-if="format=='COUNTER' || (filter_by_fromYM < filter_by_toYM)" class="d-flex pa-0" cols="3">
+        <v-switch v-model="RPTonly" label="Limit to reporting period totals"></v-switch>
       </v-col>
     </v-row>
     <div v-if="!configForm" class="status-message">
@@ -176,12 +179,11 @@
     <v-container v-if="showPreview" fluid>
       <v-data-table :headers="filteredHeaders" :items="report_data" :loading="loading" :options="mutable_options"
                     :footer-props="footer_props" dense @update:options="updateOptions" :key="dtKey" class="elevation-1">
-        <template slot-scope="item">
-          <tr>
-            <template slot="headers" slot-scope="head">
-              <td v-if="showColum(head.value)">{{ item[head.value] }}</td>
-            </template>
-          </tr>
+        <template v-for="header in filteredHeaders" v-slot:[`item.${header.value}`]="{ item }">
+          <template v-if="header.is_metric==1">
+            <span>{{ parseInt(item[header.value]).toLocaleString("en-US") }}</span>
+          </template>
+          <template v-else><span>{{ item[header.value] }}</span></template>
         </template>
       </v-data-table>
     </v-container>
@@ -288,6 +290,7 @@
         mutable_rangetype: this.rangetype,
         mutable_filter_options: {},
         mutable_options: {},
+        RPTonly: false,
         cur_year: '',
         success: '',
         failure: '',
@@ -456,6 +459,7 @@
           params['fields'] = JSON.stringify(_flds);
           params['zeros'] = this.zeroRecs;
           params['format'] = this.format;
+          params['RPTonly'] = this.RPTonly;
 
           if (this.runtype != 'export') {   // currently only other value is 'preview'
               return new Promise((resolve, reject) => {
@@ -463,7 +467,11 @@
                                 .then((response) => {
                     let items = response.data.usage;
                     resolve({items});
-                    // update database filter options if they cam back with the data
+                    // update platform filter options if they arrived with the data
+                    if (typeof(response.data.pf_options)!='undefined') {
+                        this.mutable_filter_options['platform'] = [ ...response.data.pf_options ];
+                    }
+                    // update database filter options if they arrived with the data
                     if (typeof(response.data.db_options)!='undefined') {
                         this.mutable_filter_options['database'] = [ ...response.data.db_options ];
                     }
@@ -593,7 +601,14 @@
         };
       },
       filteredHeaders() {
-        return this.mutable_cols.filter(h => h.active)
+        // Limit to reporting period totals only?
+        if (this.RPTonly) {
+          return (this.format == 'Compact')
+                 ? this.mutable_cols.filter(h => h.active && (h.value.substr(0,3)=='RP_' || h.is_metric==0) )
+                 : this.mutable_cols.filter(h => h.active && (h.value=='Reporting_Period_Total' || h.is_metric==0));
+        } else {
+          return this.mutable_cols.filter(h => h.active);
+        }
       },
     },
     beforeMount() {
