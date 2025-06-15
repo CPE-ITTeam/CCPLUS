@@ -761,7 +761,7 @@
             this.connectionsDialog = true;
         },
         goInst(key) {
-            window.open('/change-instance/'+key, "_blank");
+            window.open('/change-instance/'+key+'/home', "_blank");
         },
         formSubmit (event) {
             this.success = '';
