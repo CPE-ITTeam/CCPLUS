@@ -252,13 +252,13 @@
         onProvChange() {
             this.failure = '';
             // get the list of conso-provider IDs and set/update the All-Provider flags
-            let conso_list = this.providers.filter(p => p.inst_id==1).map(p2 => p2.id);
-            this.allProvs = (this.providers.length == this.form.prov.length && this.form.prov.length > 0);
+            let conso_list = this.available_providers.filter(p => p.inst_id==1).map(p2 => p2.id);
+            this.allProvs = (this.available_providers.length == this.form.prov.length && this.form.prov.length > 0);
             this.allConsoProvs = (!this.allProvs && conso_list.length == this.form.prov.length && this.form.prov.length > 0);
             // Setup prov_list with IDs
             let prov_list = [];
             if (this.allProvs) {
-                prov_list = this.providers.map(p => p.id);
+                prov_list = this.available_providers.map(p => p.id);
             } else if (this.allConsoProvs) {
                 prov_list = [ ...conso_list];
             } else {
@@ -276,7 +276,7 @@
             // Update available reports when providers changes
             this.available_reports = [];
             prov_list.forEach(pid => {
-                let cur_prov = this.providers.find(p => p.id == pid);
+                let cur_prov = this.available_providers.find(p => p.id == pid);
                 if (typeof(cur_prov) == 'undefined') return;
                 if (prov_list.length == 1) {
                     this.single_prov = { ...cur_prov };
@@ -339,23 +339,18 @@
         updateAllProvs(scope) {
           // Clear the flags and form value
           if (scope == 'Clear') {
-              this.allProvs = false;
-              this.allConsoProvs = false;
               this.form.prov = [];
-              this.available_providers = [ ...this.providers];
+              // Reset available providers if NO inst/group set, otherwise leave as-is
+              if (this.form.inst.length == 0 && this.form.inst_group_id == 0) {
+                  this.available_providers = [ ...this.providers];
+              }
 
           // Turn on all providers
           } else if (scope == 'ALL') {
-              this.allProvs = true;
-              this.allConsoProvs = false;
-              this.form.prov = this.providers.map(p => p.id);
-              this.available_providers = [ ...this.providers];
+              this.form.prov = this.available_providers.map(p => p.id);
           // Turn on all Consortium Providers"
           } else {
-              this.allProvs = false;
-              this.allConsoProvs = true;
-              this.form.prov = this.providers.filter(p => p.inst_id==1).map(p2 => p2.id);
-              this.available_providers = this.providers.filter(p => this.form.prov.includes(p.id));
+              this.form.prov = this.available_providers.filter(p => p.inst_id==1).map(p2 => p2.id);
           }
           this.onProvChange();
         },
