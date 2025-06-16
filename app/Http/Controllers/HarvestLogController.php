@@ -635,8 +635,19 @@ class HarvestLogController extends Controller
        }
 
        // Use availables (IDs) to get the provider data and return it via JSON
-       $providers = GlobalProvider::where('is_active', true)->whereIn('id',$availables)
-                            ->orderBy('name', 'ASC')->get(['id','name'])->toArray();
+       // ( include inst_id and reports relationship like index() does )
+       $providers = array();
+       $provider_data = GlobalProvider::with('consoProviders','consoProviders.reports')->whereIn('id', $availables)
+                                      ->orderBy('name', 'ASC')->get(['id','name']);
+       foreach ($provider_data as $gp) {
+            $rec = array('id' => $gp->id, 'name' => $gp->name);
+            $consoCnx = $gp->consoProviders->where('inst_id',1)->first();
+            $rec['inst_id'] = ($consoCnx) ? 1 : null;
+            $_reports = $gp->enabledReports();
+            $rec['reports'] = $_reports;
+            $providers[] = $rec;
+        }
+
        if (sizeof($providers) == 0) {
            return response()->json(['result' => false, 'msg' => 'No matching, active platforms found']);
        } else {
