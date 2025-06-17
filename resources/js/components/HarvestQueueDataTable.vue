@@ -233,18 +233,25 @@
     <v-data-table v-model="selectedRows" :headers="headers" :items="filtered_harvests" :loading="loading" item-key="id"
                   show-select :options="mutable_dt_options" @update:options="updateOptions" :footer-props="footer_props"
                   :key="dtKey" :search="search">
+      <template v-slot:top="{ pagination, options, updateOptions }">
+        <v-data-footer :pagination="pagination" :options="mutable_dt_options" @update:options="updateOptions"
+                       items-per-page-text="$vuetify.dataTable.itemsPerPageText" :items-per-page-options="dt_page_options"/>
+      </template>
       <template v-slot:item.prov_name="{ item }">
         {{ item.prov_name.substr(0,63) }}
         <span v-if="item.prov_name.length>63">...</span>
+      </template>
+      <template v-slot:item.dStatus="{ item }">
+        <span>{{ item.dStatus }}</span>
+        <span v-if="item.error_id>0">({{ item.error_id }})</span>
+      </template>
+      <template v-slot:item.error_id="{ item }">
+        <span><v-icon :title="item.status" :class="item.status">mdi-record</v-icon></span>
       </template>
       <template v-slot:item.id="{ item }">
         <span v-if="item.rawfile!=null">{<a title="Downloaded JSON" :href="'/harvests/'+item.id+'/raw'">{{ item.id }}</a>}</span>
         <span v-else>{{ item.id }}</span>
         <v-icon title="Manual Retry/Confirm Link" @click="goURL(item.retryUrl)" color="#3686B4">mdi-barley</v-icon>
-      </template>
-      <template v-slot:item.dStatus="{ item }">
-        <span>{{ item.dStatus }}</span>
-        <span v-if="item.error_id>0">&nbsp;({{ item.error_id }})</span>
       </template>
       <v-alert slot="no-results" :value="true" color="error" icon="warning">
         Your search for "{{ search }}" found no results.
@@ -274,7 +281,8 @@
           { label: 'Report', name: 'report.name' },
           { label: 'Usage Date', name: 'yearmon' },
           { label: 'Harvest ID', name: 'id'},
-          { label: 'Status', name: 'dStatus' },
+          { label: 'Result', name: 'dStatus' },
+          { label: 'Status', name: 'error_id' },
         ],
         headers: [],
         harvest_jobs: [],
@@ -603,7 +611,11 @@
           } else if (fld.label == 'Institution') {
             if (this.is_admin || this.is_viewer) this.headers.push({ text: fld.label, value: fld.name });
           } else {
-            this.headers.push({ text: fld.label, value: fld.name });
+            if (fld.name == 'error_id') {
+              this.headers.push({ text: fld.label, value: fld.name, align: 'center' });
+            } else {
+              this.headers.push({ text: fld.label, value: fld.name });
+            }
           }
       });
 
@@ -616,4 +628,11 @@
 </script>
 <style scoped>
 .x-box { width: 16px;  height: 16px; flex-shrink: 0; }
+.Harvesting { color: #00dd00; }
+.Processing { color: #00dd00; }
+.Queued { color: #00dd00; }
+.Waiting { color: #00dd00; }
+.Pending { color: #00dd00; }
+.ReQueued { color: #3333ff; }
+.Paused { color: #dd0000; }
 </style>
