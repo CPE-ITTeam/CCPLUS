@@ -746,6 +746,7 @@ class HarvestLogController extends Controller
            }
 
            // Update the harvest record and return
+           $harvest->updated_at = now();
            $harvest->save();
            $changed++;
        }
