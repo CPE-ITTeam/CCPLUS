@@ -749,7 +749,7 @@
 }
 .Success { color: #00dd00; }
 .Fail { color: #dd0000; }
-.NoRetries { color: #ff9900; }
+.NoRetries { color: #999999; }
 .BadCreds { color: #ff9900; }
-.Other { color: #999999 }
+.Other { color: #990099 }
 </style>
