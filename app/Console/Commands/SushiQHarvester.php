@@ -347,7 +347,7 @@ class SushiQHarvester extends Command
                             $sushi->detail .= " (URL: " . $request_uri . ")";
                         }
                         $this->line($ts . " QueueHarvester: COUNTER API Exception (" . $sushi->error_code . ") : " .
-                                          " (Harvest: " . $job->harvest->id . ")" . $sushi->message . ", " . $sushi->detail);
+                                          " (Harvest: " . $job->harvest->id . ") " . $sushi->message . ", " . $sushi->detail);
                         $job->harvest->error_id = $error->id;
                     }
 
@@ -401,7 +401,7 @@ class SushiQHarvester extends Command
                     }
 
                    // Force harvest status to the value from any Error
-                    if ($error) {
+                    if ($error && $job->harvest->status!='NoRetries') {
                         $job->harvest->status = $error->new_status;
                     }
 
