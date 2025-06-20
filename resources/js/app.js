@@ -48,6 +48,7 @@ Vue.component('institution-dialog', require('./components/InstitutionDialog.vue'
 Vue.component('provider-dialog', require('./components/ProviderDialog.vue').default);
 Vue.component('user-dialog', require('./components/UserDialog.vue').default);
 Vue.component('sushi-dialog', require('./components/SushiSettingDialog.vue').default);
+Vue.component('error-details', require('./components/ErrorDetails.vue').default);
 
 /**
  * Create a fresh Vue application instance with Vuetify.
