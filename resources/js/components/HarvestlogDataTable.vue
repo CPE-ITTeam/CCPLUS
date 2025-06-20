@@ -274,53 +274,8 @@
         <span v-else>&nbsp;</span>
       </template>
     </v-data-table>
-    <v-dialog v-model="ccplusErrorDetails" max-width="600px">
-        <v-card>
-          <v-card-actions>
-            <v-icon title="Close" class="close-popup" @click="ccplusErrorDetails=false" color="black">
-              mdi-close-thick
-            </v-icon>
-          </v-card-actions>
-          <v-card-title>
-            <span v-if="current_error.id<9000">COUNTER Error : {{ current_error.id }}</span>
-            <span v-else>CC-Plus Error : {{ current_error.id }}</span>
-            <v-spacer></v-spacer>
-          </v-card-title>
-          <v-card-text>
-            <v-container grid-list-md>
-              <v-row class="d-flex mb-2" no-gutters>
-                <v-col class="d-flex">{{ current_error.message }}</v-col>
-              </v-row>
-              <v-row class="d-flex mb-1" no-gutters>
-                <v-col class="d-flex pa-0" cols="3"><strong>Details:</strong></v-col>
-                <v-col class="d-flex px-4" cols="9">{{ current_error.explanation }}</v-col>
-              </v-row>
-              <v-row class="d-flex mb-1" no-gutters>
-                <v-col class="d-flex pa-0" cols="3"><strong>Suggestion:</strong></v-col>
-                <v-col class="d-flex px-4" cols="9">{{ current_error.suggestion }}</v-col>
-              </v-row>
-              <v-row v-if="current_error.detail.length>0" class="d-flex mb-1" no-gutters>
-                <v-col class="d-flex pa-0" cols="3">
-                  <strong>{{ current_error.process_step }} Step:</strong>
-                </v-col>
-                <v-col class="d-flex px-4" cols="9">{{ current_error.detail }}</v-col>
-              </v-row>
-              <v-row v-if="current_error.help_url.length>0" class="d-flex mb-1" no-gutters>
-                <v-col class="d-flex pa-0" cols="3"><strong>Help URL:</strong></v-col>
-                <v-col class="d-flex px-4" cols="9">
-                  <a :href="current_error.help_url" target="_blank">{{ current_error.help_url }}</a>
-                </v-col>
-              </v-row>
-              <v-row v-if="current_error.id<9000" class="d-flex mb-1" no-gutters>
-                <v-col class="d-flex pa-0">
-                  <a href="#" @click="goCOUNTER(current_error.id)">
-                    Open COUNTER Details <v-icon>mdi-open-in-new</v-icon>
-                  </a>
-                </v-col>
-              </v-row>
-            </v-container>
-          </v-card-text>
-        </v-card>
+    <v-dialog v-model="errorDialog" max-width="600px">
+      <error-details :error_data="current_error" @close-dialog="closeErrorDialog" ></error-details>
     </v-dialog>
   </div>
 </template>
@@ -379,7 +334,7 @@
         success: '',
         failure: '',
         loading: false,
-        ccplusErrorDetails: false,
+        errorDialog: false,
         current_error: {id:null, message:'', explanation:'', detail:'', process_step:'', help_url:''},
         update_button: "Display Records",
         search: '',
@@ -616,19 +571,11 @@
         goURL(url) {
           window.open(url, "_blank");
         },
-        goCOUNTER(errorId) {
-            let features = "";
-            let _url = "https://cop5.projectcounter.org/en/5.0.3/appendices/f-handling-errors-and-exceptions.html";
-            if ('fragmentDirective' in document) {
-              _url += "#:~:text="+errorId.toString();
-              features += "noopener";
-            }
-            window.open(_url, "_blank", features);
-        },
         showErrorDetails(error) {
             this.current_error = { ...error };
-            this.ccplusErrorDetails = true;
+            this.errorDialog = true;
         },
+        closeErrorDialog() { this.errorDialog = false; },
         // @change function for filtering/clearing all consortium providers
         filterConsoProv() {
           // Just checked the box for all consortium providers
@@ -742,11 +689,6 @@
 </script>
 <style scoped>
 .x-box { width: 16px;  height: 16px; flex-shrink: 0; }
-.close-popup {
-  position: absolute !important;
-  top: 5px;
-  right: 5px;
-}
 .Success { color: #00dd00; }
 .Fail { color: #dd0000; }
 .NoRetries { color: #999999; }
