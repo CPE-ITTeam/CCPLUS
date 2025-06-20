@@ -262,7 +262,7 @@
           {{ item.error.id }} 
           <v-icon title="View Error Details" @click="showErrorDetails(item.error)">mdi-dots-vertical</v-icon>
         </span>
-        <span v-else >Success</span>
+        <span v-else >&nbsp;</span>
       </template>
       <v-alert slot="no-results" :value="true" color="error" icon="warning">
         Your search for "{{ search }}" found no results.
@@ -638,6 +638,8 @@
       this.header_fields.forEach((fld) => {
           if (fld.label == 'Institution') {
             if (this.is_admin || this.is_viewer) this.headers.push({ text: fld.label, value: fld.name });
+          } else if (fld.label == 'Attempts') {
+            this.headers.push({ text: fld.label, value: fld.name, align:'center' });
           } else {
             this.headers.push({ text: fld.label, value: fld.name });
           }
