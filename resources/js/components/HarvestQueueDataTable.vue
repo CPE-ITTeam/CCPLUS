@@ -241,22 +241,36 @@
         {{ item.prov_name.substr(0,63) }}
         <span v-if="item.prov_name.length>63">...</span>
       </template>
-      <template v-slot:item.dStatus="{ item }">
-        <span>{{ item.dStatus }}</span>
-        <span v-if="item.error_id>0">({{ item.error_id }})</span>
-      </template>
-      <template v-slot:item.error_id="{ item }">
-        <span><v-icon :title="item.status" :class="item.status">mdi-record</v-icon></span>
-      </template>
       <template v-slot:item.id="{ item }">
         <span v-if="item.rawfile!=null">{<a title="Downloaded JSON" :href="'/harvests/'+item.id+'/raw'">{{ item.id }}</a>}</span>
         <span v-else>{{ item.id }}</span>
         <v-icon title="Manual Retry/Confirm Link" @click="goURL(item.retryUrl)" color="#3686B4">mdi-barley</v-icon>
       </template>
+      <template v-slot:item.dStatus="{ item }">
+        <div class="d-flex align-center">
+          <span>{{ item.dStatus }}</span>
+          <v-tooltip top>
+            <template v-slot:activator="{ on, attrs }">
+              <v-btn icon><v-icon size="small" v-on="on">mdi-help-circle-outline</v-icon></v-btn>
+            </template>
+            <span> {{ statusTips[item.status] }}</span>
+          </v-tooltip>
+        </div>
+      </template>
+      <template v-slot:item.error.id="{ item }">
+        <span v-if="item.error.id>0">
+          {{ item.error.id }} 
+          <v-icon title="View Error Details" @click="showErrorDetails(item.error)">mdi-dots-vertical</v-icon>
+        </span>
+        <span v-else >Success</span>
+      </template>
       <v-alert slot="no-results" :value="true" color="error" icon="warning">
         Your search for "{{ search }}" found no results.
       </v-alert>
     </v-data-table>
+    <v-dialog v-model="errorDialog" max-width="600px">
+      <error-details :error_data="current_error" @close-dialog="closeErrorDialog" ></error-details>
+    </v-dialog>
   </div>
 </template>
 
@@ -281,12 +295,14 @@
           { label: 'Report', name: 'report.name' },
           { label: 'Usage Date', name: 'yearmon' },
           { label: 'Harvest ID', name: 'id'},
-          { label: 'Result', name: 'dStatus' },
-          { label: 'Status', name: 'error_id' },
+          { label: 'Status', name: 'dStatus' },
+          { label: 'Attempts', name: 'attempts' },
+          { label: 'Last Result', name: 'error.id' },
         ],
         headers: [],
         harvest_jobs: [],
         mutable_dt_options: {},
+        dt_page_options: [10,50,100,-1],
         footer_props: { 'items-per-page-options': [10,50,100,-1] },
         selectedRows: [],
         mutable_filters: { ...this.filters },
@@ -301,6 +317,13 @@
         statuses: [ {id:'Queued', opt:'Harvest Queue'}, {id:'Harvesting', opt:'Harvesting'},
                     {id:'Pending', opt:'Queued by Vendor'}, {id:'Paused', opt:'Paused'}, {id:'ReQueued', opt:'ReQueued'},
                     {id:'Waiting', opt:'Process Queue'}, {id:'Processing', opt:'Processing'} ],
+        statusTips: {'Queued': 'Harvest will run in the current/next harvest cycle',
+                     'Harvesting': 'Harvest data is being requested and prepared for processing',
+                     'Pending': 'Harvest on-hold by provider, will be re-attempted automatically',
+                     'Paused': 'Harvest is on-hold by CC+ admin, will not run until restarted',
+                     'ReQueued': 'Harvest will move to the active queue in the next overnight cycle',
+                     'Waiting': 'Raw Harvest data has been downloaded and is in line to be processed and stored',
+                     'Processing': 'Raw Harvest data is being parsed and stored in the CC+ database'},
         mutable_options: { 'providers':[], 'institutions':[], 'groups':[], 'codes':[], 'statuses':[], 'reports':[], 'yymms':[] },
         saved_options: { 'providers':[], 'institutions':[], 'groups':[], 'codes':[], 'statuses':[], 'reports':[], 'yymms':[] },
         allSelected: {'providers':false, 'institutions':false, 'groups':false, 'codes':false, 'statuses':false, 'yymms':false},
@@ -312,6 +335,8 @@
         failure: '',
         loading: false,
         search: '',
+        errorDialog: false,
+        current_error: {id:null, message:'', explanation:'', detail:'', process_step:'', help_url:''},
       }
     },
     watch: {
@@ -589,6 +614,11 @@
           });
           return returnSet;
         },
+        showErrorDetails(error) {
+            this.current_error = { ...error };
+            this.errorDialog = true;
+        },
+        closeErrorDialog() { this.errorDialog = false; },
     },
     computed: {
       ...mapGetters(['is_manager', 'is_admin', 'is_viewer', 'all_filters', 'datatable_options']),
@@ -606,16 +636,10 @@
 
       // Setup datatable headers
       this.header_fields.forEach((fld) => {
-          if (fld.name == 'id') {
-            this.headers.push({ text: '', value: fld.name, align: 'center' });
-          } else if (fld.label == 'Institution') {
+          if (fld.label == 'Institution') {
             if (this.is_admin || this.is_viewer) this.headers.push({ text: fld.label, value: fld.name });
           } else {
-            if (fld.name == 'error_id') {
-              this.headers.push({ text: fld.label, value: fld.name, align: 'center' });
-            } else {
-              this.headers.push({ text: fld.label, value: fld.name });
-            }
+            this.headers.push({ text: fld.label, value: fld.name });
           }
       });
 
@@ -628,11 +652,4 @@
 </script>
 <style scoped>
 .x-box { width: 16px;  height: 16px; flex-shrink: 0; }
-.Harvesting { color: #00dd00; }
-.Processing { color: #00dd00; }
-.Queued { color: #00dd00; }
-.Waiting { color: #00dd00; }
-.Pending { color: #00dd00; }
-.ReQueued { color: #3333ff; }
-.Paused { color: #dd0000; }
 </style>
