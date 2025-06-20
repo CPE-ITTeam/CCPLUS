@@ -176,7 +176,7 @@ export default {
             this.homeUrl = "/consoadmin";
         } else if (this.is_manager) {
             this.homeUrl = "/institutions/"+this.user.inst_id;
-            _idx = this.navList.findIndex(nav => nav.name == "My Institution");
+            var _idx = this.navList.findIndex(nav => nav.name == "My Institution");
             this.navList[_idx].url = this.homeUrl;
         } else {  // Viewer and un-priv users set to my-reports
             this.homeUrl = "/home";
