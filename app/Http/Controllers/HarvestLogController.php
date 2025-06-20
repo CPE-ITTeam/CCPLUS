@@ -1099,7 +1099,8 @@ class HarvestLogController extends Controller
                               'Processing' => '*Processing');
 
        // Get all harvests joined with sushisettings that match the statuses
-       $all_data = HarvestLog::with('sushiSetting','sushiSetting.provider','sushiSetting.institution:id,name','report')
+       $all_data = HarvestLog::with('sushiSetting','sushiSetting.provider','sushiSetting.institution:id,name','report',
+                                    'lastError','failedHarvests','failedHarvests.ccplusError')
                              ->whereIn('status',array_keys($displayStatus))
                              ->orderBy("updated_at", "DESC")->get();
 
@@ -1135,6 +1136,25 @@ class HarvestLogController extends Controller
           $rec->report_name = $rec->report->name;
           $rec->updated = date("Y-m-d H:i", strtotime($rec->updated_at));
           $rec->dStatus = $displayStatus[$rec->status];
+          // Include last error details if they exist
+          $_error = [];
+          $lastFailed = null;
+          if ($rec->failedHarvests) {
+              $lastFailed = $rec->failedHarvests->sortByDesc('created_at')->first();
+          }
+          if ($rec->lastError) {
+              $_error = $rec->lastError->toArray();
+              $_error['detail'] = '';
+              $_error['help_url'] = '';
+              $_error['process_step'] = '';
+          } else if ($lastFailed && $rec->error_id > 0) {
+              $rec->error_id = $lastFailed->error_id;
+              $_error = $lastFailed->ccplusError->toArray();
+              $_error['detail'] = (is_null($lastFailed->detail)) ? '' : $lastFailed->detail;
+              $_error['help_url'] = (is_null($lastFailed->help_url)) ? '' : $lastFailed->help_url;
+              $_error['process_step'] = (is_null($lastFailed->process_step)) ? '' : $lastFailed->process_step;
+           }
+           $rec->error = $_error;
 
           // Add a test+confirm URL
           $beg = $rec->yearmon . '-01';
