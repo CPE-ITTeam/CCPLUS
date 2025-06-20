@@ -637,14 +637,20 @@ class HarvestLogController extends Controller
        // Use availables (IDs) to get the provider data and return it via JSON
        // ( include inst_id and reports relationship like index() does )
        $providers = array();
-       $provider_data = GlobalProvider::with('consoProviders','consoProviders.reports')->whereIn('id', $availables)
-                                      ->orderBy('name', 'ASC')->get(['id','name']);
+       $provider_data = GlobalProvider::with('sushiSettings','consoProviders','consoProviders.reports','registries')
+                                      ->whereIn('id', $availables)->orderBy('name', 'ASC')->get(['id','name']);
        foreach ($provider_data as $gp) {
             $rec = array('id' => $gp->id, 'name' => $gp->name);
             $consoCnx = $gp->consoProviders->where('inst_id',1)->first();
             $rec['inst_id'] = ($consoCnx) ? 1 : null;
+            $enabled_setting = $gp->sushiSettings->where('status','Enabled')->first();
+            $rec['sushi_enabled'] = ($enabled_setting) ? true : false;
             $_reports = $gp->enabledReports();
             $rec['reports'] = $_reports;
+            $rec['releases'] = $gp->registries->sortBy('release')->pluck('release');
+            if ($rec['releases']->count() > 1) {
+                $rec['releases']->prepend('System Default');
+            }              
             $providers[] = $rec;
         }
 
