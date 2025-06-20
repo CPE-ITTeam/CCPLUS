@@ -742,7 +742,6 @@ class HarvestLogController extends Controller
                    }
                }
                $harvest->attempts = 0;
-               $harvest->error_id = null;
                $harvest->status = 'Queued';
            }
 
