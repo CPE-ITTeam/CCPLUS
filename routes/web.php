@@ -37,6 +37,7 @@ Route::prefix('institution')->name('institution.')->group(function () {
     Route::get('/types/export/{type}', 'InstitutionTypeController@export')->name('types.export');
     Route::post('/types/import', 'InstitutionTypeController@import')->name('types.import');
 });
+Route::get('/available-institutions', 'HarvestLogController@availableInstitutions')->middleware(['auth']);
 Route::post('/institutions/import', 'InstitutionController@import')->name('institutions.import');
 Route::get('/institutions-export', 'InstitutionController@export')->name('institutions.export');
 Route::post('extend-institution-group', 'InstitutionGroupController@extend')->name('groups.extend')

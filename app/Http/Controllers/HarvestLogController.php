@@ -662,6 +662,57 @@ class HarvestLogController extends Controller
    }
 
    /**
+    * Return available institutions for an array of provider IDs
+    *
+    * @param  \Illuminate\Http\Request  $request
+    * @return \Illuminate\Http\Response
+   */
+   public function availableInstitutions(Request $request)
+   {
+       $thisUser = auth()->user();
+       abort_unless($thisUser->hasAnyRole(['Admin','Manager']), 403);
+       $provs = json_decode($request->prov_ids, true);
+
+       if (sizeof($provs) > 0) {
+           $prov_ids = $provs;
+       } else {
+           return response()->json(['result' => false, 'msg' => 'Missing expected inputs!']);
+       }
+
+       // Query the sushisettings for institutions connected to the requested inst IDs
+       if (in_array(0,$prov_ids)) {
+           $availables = SushiSetting::where('status','Enabled')->pluck('inst_id')->toArray();
+       } else {
+           $availables = SushiSetting::where('status','Enabled')->whereIn('prov_id',$prov_ids)->pluck('inst_id')->toArray();
+       }
+
+       // Use availables (IDs) to get the provider data and return it via JSON
+       // ( include inst_id and reports relationship like index() does )
+       $institutions = array();
+       $inst_data = Institution::with('sushiSettings:id,inst_id,prov_id','institutionGroups','institutionGroups.institutions')
+                               ->whereIn('id', $availables)->orderBy('name', 'ASC')->get(['id','name']);
+
+       // Loop through institutions and build output records and list of groups
+       $groups = array();
+       $group_ids = array();    // keep track of group IDs seen
+       foreach ($inst_data as $inst) {
+           $rec = array('id' => $inst->id, 'name' => $inst->name);
+           $new_groups = $inst->institutionGroups->whereNotIn('id',$group_ids);
+           foreach ($new_groups as $group) {
+               $groups[] = array('id' => $group->id, 'name' => $group->name, 'institutions' => $group->institutions);
+               $group_ids[] = $group->id;
+           }
+           $institutions[] = $rec;
+       }
+
+       if (sizeof($institutions) == 0) {
+           return response()->json(['result' => false, 'msg' => 'No matching, active institutions found']);
+       } else {
+           return response()->json(['institutions' => $institutions, 'groups' => $groups], 200);
+       }
+   }
+
+   /**
     * Update status for a given harvest
     *
     * @param  \Illuminate\Http\Request  $request
