@@ -32,7 +32,7 @@
             <strong>OR</strong>
           </v-col>
           <v-col v-if="form.inst.length==0" class="d-flex px-2" cols="3" sm="3">
-            <v-autocomplete :items="inst_groups" v-model="form.inst_group_id" @change="onGroupChange" label="Institution Group"
+            <v-autocomplete :items="group_options" v-model="form.inst_group_id" @change="onGroupChange" label="Institution Group"
                             item-text="name" item-value="id" hint="Institution group to harvest"
             ></v-autocomplete>
           </v-col>
@@ -171,6 +171,7 @@
             allInsts: false,
             available_providers: [ ...this.providers],
             institution_options: [ ...this.institutions],
+            group_options: [ ...this.inst_groups],
             available_reports: [],
             selected_insts: [],
             single_prov: {'releases': []},
@@ -197,7 +198,9 @@
                 this.updateProviders();
             }
             if (this.presets['prov_id']) this.verifyProvPreset();
-        },
+            this.group_options = [ ...this.inst_groups];
+            this.institution_options = [ ...this.institutions];
+          },
         // Verify provider preset value
         verifyProvPreset() {
             let preset_id = Number(this.presets['prov_id']);
@@ -251,6 +254,22 @@
         },
         onProvChange() {
             this.failure = '';
+            // If no institution or inst-group set, get the list of availables and update options
+            if (this.form.prov.length>0 && this.form.inst.length==0 && this.form.inst_group_id==0) {
+                let prov_ids = (this.allProvs) ? JSON.stringify([0]) : JSON.stringify(this.form.prov);
+                axios.get('/available-institutions?prov_ids='+prov_ids)
+                    .then((response) => {
+                        this.group_options = [ ...response.data.groups];
+                        this.institution_options = [ ...response.data.institutions];
+                    })
+                    .catch(error => {});
+                return;
+            // If form.prov choices cleared, reset inst/group options
+            } else if (this.form.prov.length == 0) {
+                this.institution_options = [ ...this.institutions];
+                this.group_options = [ ...this.inst_groups];
+            }
+
             // get the list of conso-provider IDs and set/update the All-Provider flags
             let conso_list = this.available_providers.filter(p => p.inst_id==1).map(p2 => p2.id);
             this.allProvs = (this.available_providers.length == this.form.prov.length && this.form.prov.length > 0);
