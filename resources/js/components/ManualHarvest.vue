@@ -18,7 +18,7 @@
                 <v-divider class="mt-1"></v-divider>
               </template>
               <template v-if="is_admin || is_viewer" v-slot:selection="{ item, index }">
-                <span v-if="index==0 && institution_options.length==form.inst.length">
+                <span v-if="index==0 && allInsts">
                   All Institutions
                 </span>
                 <span v-else-if="index==0 && !allInsts">{{ item.name }}</span>
@@ -78,7 +78,7 @@
           ></v-select>
         </v-col>
       </v-row>
-      <v-row v-if="available_reports.length>0" class="d-flex ma-2" no-gutters>
+      <v-row v-if="available_reports.length>0 && show_reports" class="d-flex ma-2" no-gutters>
         <v-col class="d-flex px-2" cols="6" sm="4">
           <v-select :items="available_reports" v-model="form.reports" item-text="legend" item-value="name" multiple chips
                     label="Report(s) to Harvest" hint="Choose which master reports to harvest" persistent-hint
@@ -233,7 +233,7 @@
         onInstChange() {
           this.failure = '';
           this.form.inst_group_id = 0;
-          this.allInsts = (this.form.inst.length == this.institutions.length) ? true : false;
+          this.allInsts = (this.form.inst.length==this.institutions.length && this.form.inst.length > 1);
           this.selected_insts = (this.allInsts) ? this.institutions.map(ii => ii.id) : [...this.form.inst];
           if (this.form.inst.length == 0) {
               this.available_providers = [ ...this.providers];
@@ -241,6 +241,8 @@
               this.updateProviders();
           }
           if (this.presets['prov_id']) this.verifyProvPreset();
+          // Update available reports
+          this.updateReports();
           this.selections_made = true;
         },
         // External axios call to return available providers
@@ -263,17 +265,23 @@
                         this.institution_options = [ ...response.data.institutions];
                     })
                     .catch(error => {});
-                return;
+                // return;
             // If form.prov choices cleared, reset inst/group options
             } else if (this.form.prov.length == 0) {
                 this.institution_options = [ ...this.institutions];
                 this.group_options = [ ...this.inst_groups];
             }
-
             // get the list of conso-provider IDs and set/update the All-Provider flags
             let conso_list = this.available_providers.filter(p => p.inst_id==1).map(p2 => p2.id);
-            this.allProvs = (this.available_providers.length == this.form.prov.length && this.form.prov.length > 0);
-            this.allConsoProvs = (!this.allProvs && conso_list.length == this.form.prov.length && this.form.prov.length > 0);
+            this.allProvs = (this.available_providers.length == this.form.prov.length && this.form.prov.length > 1);
+            this.allConsoProvs = (!this.allProvs && conso_list.length == this.form.prov.length && this.form.prov.length > 1);
+            // Update available reports
+            this.updateReports();
+            this.selections_made = true;
+        },
+        // Update available reports
+        // (U/I will hide reports prompt until prov and inst/inst_group is selected)
+        updateReports() {
             // Setup prov_list with IDs
             let prov_list = [];
             if (this.allProvs) {
@@ -292,7 +300,7 @@
                 this.single_prov = {'releases': []};
                 this.form.release = "System Default";
             }
-            // Update available reports when providers changes
+            // Loop through providers
             this.available_reports = [];
             prov_list.forEach(pid => {
                 let cur_prov = this.available_providers.find(p => p.id == pid);
@@ -307,7 +315,7 @@
                 if (this.available_reports.length == 4) return;
                 // loop across all report-type and check cur_prov to see if it should be enabled
                 this.all_reports.forEach(rpt => {
-                    // if already enabled or cur_prov missing the report in it's list, ship it
+                    // if already enabled or cur_prov missing the report in it's list, skip it
                     if (this.available_reports.some(r => r.name == rpt.name) ||
                         typeof(cur_prov.reports[rpt.name]) == 'undefined') return;
                     let add = false;
@@ -315,13 +323,12 @@
                       add = true;
                     } else if (cur_prov.reports[rpt.name].length > 0) {
                       cur_prov.reports[rpt.name].forEach( inst => {
-                        if (this.selected_insts.includes(inst)) add = true;
+                        if (this.selected_insts.includes(inst) || this.form.inst.length==0) add = true;
                       });
                     }
                     if (add) this.available_reports.push(rpt);
                 });
             });
-            this.selections_made = true;
         },
         formSubmit (event) {
             if (this.form.reports.length == 0) {
@@ -391,6 +398,10 @@
     },
     computed: {
       ...mapGetters(['is_admin', 'is_viewer']),
+      show_reports() {
+        return ( (this.form.inst.length>0 || this.form.inst_group_id!=0)
+                 && this.form.prov.length>0 );
+      },
     },
     mounted() {
       if ( !this.is_admin ) {
