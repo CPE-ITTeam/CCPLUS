@@ -659,7 +659,7 @@
       Object.keys(this.mutable_options).forEach( (key) => {
         this.mutable_options[key] = [...this[key]];
       });
-      this.mutable_updated = ["Last 24 hours","Last 7 days"];
+      this.mutable_updated = ["Last Hour","Last 24 hours","Last Week"];
 
       // Set datatable options with store-values
       Object.assign(this.mutable_dt_options, this.datatable_options);
