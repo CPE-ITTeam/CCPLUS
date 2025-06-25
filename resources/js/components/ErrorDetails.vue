@@ -37,7 +37,7 @@
         </v-row>
         <v-row v-if="error_data.id<9000" class="d-flex mb-1" no-gutters>
           <v-col class="d-flex pa-0">
-            <a href="#" @click="goCOUNTER(error_data.id)">
+            <a href="#" @click="goCOUNTER(error_data.id, error_data.counter_url)">
               Open COUNTER Details <v-icon>mdi-open-in-new</v-icon>
             </a>
           </v-col>
@@ -58,9 +58,9 @@ export default {
   },
   methods: {
     closeDialog() { this.$emit('close-dialog', true); },
-    goCOUNTER(errorId) {
+    goCOUNTER(errorId, urlbase) {
         let features = "";
-        let _url = "https://cop5.projectcounter.org/en/5.0.3/appendices/f-handling-errors-and-exceptions.html";
+        let _url = urlbase;
         if ('fragmentDirective' in document) {
           _url += "#:~:text="+errorId.toString();
           features += "noopener";
