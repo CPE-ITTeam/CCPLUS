@@ -1209,8 +1209,11 @@ class HarvestLogController extends Controller
               $_error['detail'] = (is_null($lastFailed->detail)) ? '' : $lastFailed->detail;
               $_error['help_url'] = (is_null($lastFailed->help_url)) ? '' : $lastFailed->help_url;
               $_error['process_step'] = (is_null($lastFailed->process_step)) ? '' : $lastFailed->process_step;
-           }
-           $rec->error = $_error;
+          }
+          $_error['counter_url'] = ($rec->release == '5.1')
+              ? "https://cop5.countermetrics.org/en/5.1/appendices/d-handling-errors-and-exceptions.html"
+              : "https://cop5.projectcounter.org/en/5.0.3/appendices/f-handling-errors-and-exceptions.html";
+          $rec->error = $_error;
 
           // Add a test+confirm URL
           $beg = $rec->yearmon . '-01';
@@ -1331,6 +1334,9 @@ class HarvestLogController extends Controller
            $rec['error']['process_step'] = (is_null($lastFailed->process_step)) ? '' : $lastFailed->process_step;
        }
        $rec['failed'] = [];
+       $rec['error']['counter_url'] = ($harvest->release == '5.1')
+           ? "https://cop5.countermetrics.org/en/5.1/appendices/d-handling-errors-and-exceptions.html"
+           : "https://cop5.projectcounter.org/en/5.0.3/appendices/f-handling-errors-and-exceptions.html";
 
        // Build a URL to test+confirm the error(s); let Sushi class do the work
        $beg = $harvest->yearmon . '-01';
