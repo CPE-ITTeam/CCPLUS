@@ -308,8 +308,8 @@
           { text: 'Result', value: 'error.id' },
           { text: 'Status', value: 'status', align: 'center'},
         ],
-        dt_page_options: [10,50,100,-1],
-        footer_props: { 'items-per-page-options': [10,50,100,-1] },
+        dt_page_options: [10,25,50,100,-1],
+        footer_props: { 'items-per-page-options': [10,25,50,100,-1] },
         mutable_harvests: this.harvests,
         mutable_filters: this.filters,
         inst_filter: null,
@@ -459,19 +459,6 @@
                      this.mutable_options['yymms'] = [...response.data.yymms];
                      // Make sure *something* is in the yymms array
                      if (this.mutable_options['yymms'].length == 0) this.yymms = [...this.yymms];
-                    //  this.mutable_options['reports'] = (response.data.rept_opts.length > 0)
-                    //                         ? this.reports.filter( r => response.data.rept_opts.includes(r.id) )
-                    //                         : [...this.reports];
-                    //  this.mutable_options['institutions'] = (response.data.inst_opts.length > 0 && !this.allSelected.institutions)
-                    //                         ? this.institutions.filter( i => response.data.inst_opts.includes(i.id) )
-                    //                         : [...this.institutions];
-                    //  this.mutable_options['providers'] = (response.data.prov_opts.length > 0 && !this.allSelected.providers)
-                    //                                   ? this.providers.filter( p => response.data.prov_opts.includes(p.id))
-                    //                                   : [...this.providers];
-                    //  this.mutable_options['yymms'] = (response.data.yymms.length > 0 && !this.allSelected.yymms) ?
-                    //                                  [...response.data.yymms] : [...this.yymms];
-                     // Make sure *something* is in the yymms array
-                    //  if (this.mutable_options['yymms'].length > this.yymms.length) this.yymms = [...this.mutable_options['yymms']];
                      this.update_button = "Refresh Records";
                      this.loading = false;
                      this.dtKey++;
