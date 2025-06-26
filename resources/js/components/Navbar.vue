@@ -164,8 +164,9 @@ export default {
                                                     'name':con.name, 'role':"ServerAdmin"});
               });
             }
-            // If current instance is not set, take Harvesting and Reports off the menu
-            if (this.cur_key.length == 0) {
+            // If current instance is not set (and not ServerAdmin),
+            // take Harvesting and Reports off the menu
+            if (this.cur_key.length == 0 && !this.is_serveradmin) {
               for(var i=0; i < this.navList.length; i++) {
                 if(this.navList[i].name == "Harvesting") {
                    this.navList.splice(i,2);
