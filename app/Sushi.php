@@ -221,12 +221,14 @@ class Sushi extends Model
             $uri_atts  = "&attributes_to_show=Access_Method%7CAccess_Type%7CYOP";
             $uri_atts .= ($release == "5") ? "%7CData_Type%7CSection_Type" : "";
         } elseif ($report->name == "DR") {
-            $uri_atts = "";
+            $uri_atts  = "&attributes_to_show=Access_Method";
+            $uri_atts .= ($release == "5") ? "%7CData_Type" : "";
         } elseif ($report->name == "PR") {
             $uri_atts  = "&attributes_to_show=Access_Method";
             $uri_atts .= ($release == "5") ? "%7CData_Type" : "";
         } elseif ($report->name == "IR") {
-            $uri_atts = "";
+            $uri_atts  = "&attributes_to_show=Access_Method%7CAccess_Type%7CData_Type%7CYOP";
+            $uri_atts .= "%7CInclude_Parent_Details%7CInclude_Component_Details";
         }
 
        // Construct URI for the request
