@@ -423,10 +423,8 @@ class ReportController extends Controller
         $header_rows[] = array("Institution_ID","");
         $_data = "";
         foreach ($fields as $fld) {
-            if (isset($fld['is_metric'])) {
-                if ($fld['is_metric']) {
-                    $_data .= ($_data == "") ? ucwords($fld['qry_as'], "_") : "; " . ucwords($fld['qry_as'], "_");
-                }
+            if ($fld['is_metric']) {
+                $_data .= ($_data == "") ? ucwords($fld['qry_as'], "_") : "; " . ucwords($fld['qry_as'], "_");
             }
         }
         $header_rows[] = array("Metric_Types",$_data);
@@ -760,10 +758,12 @@ class ReportController extends Controller
                 if (preg_match('/^(searches_|total_|unique_|limit_|no_lic)/', $key)) {
                     $metric_fields[$key] = $data;
                     $metric_fields[$key]['legend'] = $legend;
-                // treat as basic
+                    $metric_fields[$key]['is_metric'] = true;
+                    // treat as basic
                 } else {
                     $basic_fields[$key] = $data;
                     $basic_fields[$key]['legend'] = $legend;
+                    $basic_fields[$key]['is_metric'] = false;
                 }
             }
             // Call prepareExport to setup the output stream with headers
