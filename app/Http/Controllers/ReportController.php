@@ -423,8 +423,10 @@ class ReportController extends Controller
         $header_rows[] = array("Institution_ID","");
         $_data = "";
         foreach ($fields as $fld) {
-            if ($fld['is_metric']) {
-                $_data .= ($_data == "") ? ucwords($fld['qry_as'], "_") : "; " . ucwords($fld['qry_as'], "_");
+            if (isset($fld['is_metric'])) {
+                if ($fld['is_metric']) {
+                    $_data .= ($_data == "") ? ucwords($fld['qry_as'], "_") : "; " . ucwords($fld['qry_as'], "_");
+                }
             }
         }
         $header_rows[] = array("Metric_Types",$_data);
