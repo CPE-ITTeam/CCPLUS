@@ -379,8 +379,9 @@ class SushiQHarvester extends Command
                     }
                 }
 
-                // Force harvest status to the value from any Error
-                if ($error && $job->harvest->status!='NoRetries') {
+                // Force harvest status to the value from any Error, but leave some as-is (set above already)
+                $keep_statuses = array('NoRetries','Waiting','ReQueued','Pending');
+                if ($error && !in_array($job->harvest->status, $keep_statuses)) {
                     $job->harvest->status = $error->new_status;
                 }
 
