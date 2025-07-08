@@ -227,9 +227,9 @@ class Sushi extends Model
             $uri_atts  = "&attributes_to_show=Access_Method";
             $uri_atts .= ($release == "5") ? "%7CData_Type" : "";
         } elseif ($report->name == "IR") {
-            $uri_atts = "&Include_Parent_Details=True";
-            $uri_atts .= "&attributes_to_show=Access_Method%7CAccess_Type%7CData_Type%7CYOP";
+            $uri_atts  = "&Include_Parent_Details=True&attributes_to_show=Access_Method%7CAccess_Type%7CYOP";
             $uri_atts .= "%7CAuthors%7CPublication_Date%7CArticle_Version";
+            $uri_atts .= ($release == "5") ? "%7CData_Type" : "";
         }
 
        // Construct URI for the request
