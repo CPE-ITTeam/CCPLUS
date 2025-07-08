@@ -498,7 +498,7 @@ class Counter5Processor extends Model
        // Get COUNTER Release
         $release = $header->Release;
 
-       // Loop through all ReportItems
+        // Loop through all ReportItems
         foreach ($ReportItems as $reportitem) {
 
             if ($release == "5") {
@@ -533,7 +533,17 @@ class Counter5Processor extends Model
                 $accesstype_id = (isset($reportitem->Access_Type)) ? self::getAccessType($reportitem->Access_Type) : 1;
                 $accessmethod_id = (isset($reportitem->Access_Method)) ? self::getAccessMethod($reportitem->Access_Method) : 1;
 
-               // Get publication date and article version
+               // Get authors, publication date and article version
+                $authors = "";
+                $item_authors = (isset($reportitem->Item_Contributors)) ? $reportitem->Item_Contributors : "";
+                if ($item_authors != "") {
+                    foreach ($item_authors as $contrib) {
+                        if ($contrib->Type == "Author") {
+                            $authors .= ($authors=="") ? "" : ", ";
+                            $authors .= $contrib->Value;
+                        }
+                    }
+                }
                 $pub_date = "";
                 $item_dates = (isset($reportitem->Item_Dates)) ? $reportitem->Item_Dates : "";
                 if ($item_dates != "") {
@@ -597,10 +607,10 @@ class Counter5Processor extends Model
                     }
                 }
 
-               // Get or create the Item in the global table (link it to the parent or null from above)
-                $_item = Item::firstOrCreate( ['title_id' => $title->id],
-                    ['parent_id' => $parent_id, 'parent_datatype_id' => $parent_datatype_id]
-                );
+                // Update or create the Item record in the global table
+                $flds = array('parent_id' => $parent_id, 'parent_datatype_id' => $parent_datatype_id);
+                if (strlen($authors)>0) $flds['authors'] = $authors;
+                $_item = Item::updateOrCreate( ['title_id' => $title->id], $flds);
                 if (is_null($_item)) {
                     continue;
                 }
@@ -674,16 +684,28 @@ class Counter5Processor extends Model
                     $item_dt = (isset($_item->Data_Type)) ? self::getDataType($_item->Data_Type)
                                                           : $unknown_datatype;
                     $Item_ID['type'] = ($item_dt->name == "Journal" || $item_dt->name == "Book") ?
-                                        mb_substr($item_dt->name, 0, 1) : "I";                                
-                    $item_title = self::titleFindOrCreate($Title, $Item_ID);
+                                        mb_substr($item_dt->name, 0, 1) : "I";
+                   // Get publication date and article
+                    $pub_date = (isset($_item->Publication_Date)) ? $_item->Publication_Date : "";
+                    $article_version = (isset($_item->Article_Version)) ? $_item->Article_Version : "";
+                   // Find or create the title
+                    $item_title = self::titleFindOrCreate($Title, $Item_ID, $pub_date, $article_version);
                     if (is_null($item_title)) {  // skip silently
                         continue;
                     }
-                   // Get Publisher and Platform
+                   // Get Publisher, Platform, and Authors
                     $publisher_id = (isset($_item->Publisher)) ? self::getPublisher($_item->Publisher) : 1;
                     $platform_id = (isset($_item->Platform)) ? self::getPlatform($_item->Platform) : 1;
+                    $authors = "";
+                    $item_authors = (isset($_item->Authors)) ? $_item->Authors : "";
+                    if ($item_authors != "") {
+                        foreach ($item_authors as $author) {
+                            $authors .= ($author->Name!="") ? $author->Name . "," : "";
+                        }
+                        $authors = preg_replace("/,$/", "", $authors);
+                    }
 
-                   // Loop over performance records
+                    // Loop over performance records
                     foreach ($_item->Attribute_Performance as $Aperf) {
 
                        //  Get attributes for this Attribute_Performance
@@ -698,11 +720,10 @@ class Counter5Processor extends Model
                         $accesstype_id = (isset($Aperf->Access_Type)) ? self::getAccessType($Aperf->Access_Type) : 1;
                         $accessmethod_id = (isset($Aperf->Access_Method)) ? self::getAccessMethod($Aperf->Access_Method) : 1;
                                                 
-                       // Get or create the Item record in the global table
-                        $theItem = Item::firstOrCreate(
-                            ['title_id' => $item_title->id],
-                            ['parent_id' => $parent_id, 'parent_datatype_id' => $parent_datatype_id]
-                        );
+                       // Update or create the Item record in the global table
+                        $flds = array('parent_id' => $parent_id, 'parent_datatype_id' => $parent_datatype_id);
+                        if (strlen($authors)>0) $flds['authors'] = $authors;
+                        $theItem = Item::updateOrCreate( ['title_id' => $item_title->id], $flds);
                         if (is_null($theItem)) {
                             continue;
                         }
@@ -1073,6 +1094,17 @@ class Counter5Processor extends Model
 
         // Return a match if found
         if ($match) {
+            // update article version and publication date if input 
+            $upd = false;
+            if (strlen($match->article_version) < strlen($ver)) {
+                $match->article_version = $ver;
+                $upd = true;
+            }
+            if (strlen($match->pub_date) < strlen($pub)) {
+                $match->pub_date = $pub;
+                $upd = true;
+            }
+            if ($upd) $match->save();
             return $match;
         }
 
