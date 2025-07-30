@@ -57,10 +57,10 @@ class ReportsTableSeeder extends Seeder
                 'inherited_fields' => '46,50:[1],51,53,55,57']);
             DB::table($table)->insert(['id' => 15,'name' => 'IR_A1',
                 'legend' => 'Journal Article Requests','parent_id' => 4,
-                'inherited_fields' => '59,94:[3],97:[1],99,101']);
+                'inherited_fields' => '59,73:[3],76:[1],78,80']);
             DB::table($table)->insert(['id' => 16,'name' => 'IR_M1',
                 'legend' => 'Multimedia Item Requests','parent_id' => 4,
-                'inherited_fields' => '59,94:[4],97:[1],99']);
+                'inherited_fields' => '59,73:[4],76:[1],78']);
         }
     }
 }
