@@ -61,6 +61,9 @@ class Counter5Processor extends Model
                                 ['yearmon','=',self::$yearmon]])->delete();
         }
 
+       // set this now to save asking about it more than once
+        $unknown_datatype = self::getDataType("Unknown");
+
        // Setup array to hold per-item counts
         $ICounts = ['Total_Item_Investigations' => 0, 'Total_Item_Requests' => 0,
                     'Unique_Item_Investigations' => 0, 'Unique_Item_Requests' => 0,
@@ -109,7 +112,7 @@ class Counter5Processor extends Model
                 $sectiontype_id = (isset($reportitem->Section_Type)) ? self::getSectionType($reportitem->Section_Type)
                                                                      : 1;
                 $datatype = (isset($reportitem->Data_Type)) ? self::getDataType($reportitem->Data_Type)
-                                                            : self::getDataType("Unknown");
+                                                            : $unknown_datatype;
                // Titles for other than Journal or Book get saved as Item titles
                 $Item_ID['type'] = ($datatype->name == "Journal" || $datatype->name == "Book") 
                                     ? mb_substr($datatype->name, 0, 1) : "I";
@@ -162,7 +165,7 @@ class Counter5Processor extends Model
                     }
                     $accesstype_id = (isset($Aperf->Access_Type)) ? self::getAccessType($Aperf->Access_Type) : 1;
                     $accessmethod_id = (isset($Aperf->Access_Method)) ? self::getAccessMethod($Aperf->Access_Method) : 1;
-                    $datatype = (isset($Aperf->Data_Type)) ? self::getDataType($Aperf->Data_Type) : self::getDataType("Unknown");
+                    $datatype = (isset($Aperf->Data_Type)) ? self::getDataType($Aperf->Data_Type) : $unknown_datatype;
                    // Titles for other than Journal or Book get saved as Item titles
                     $Item_ID['type'] = ($datatype->name == "Journal" || $datatype->name == "Book") ?
                                         mb_substr($datatype->name, 0, 1) : "I";
@@ -228,6 +231,9 @@ class Counter5Processor extends Model
                                    ['yearmon','=',self::$yearmon]])->delete();
         }
 
+       // set this now to save asking about it more than once
+        $unknown_datatype = self::getDataType("Unknown");
+
        // Setup array to hold per-item counts
         $ICounts = ['Searches_Automated' => 0, 'Searches_Federated' => 0, 'Searches_Regular' => 0,
                     'Total_Item_Investigations' => 0, 'Total_Item_Requests' => 0,
@@ -270,7 +276,7 @@ class Counter5Processor extends Model
                 $accessmethod_id = (isset($reportitem->Access_Method)) ? self::getAccessMethod($reportitem->Access_Method)
                                                                        : 1;
                 $datatype = (isset($reportitem->Data_Type)) ? self::getDataType($reportitem->Data_Type)
-                                                            : self::getDataType("Unknown");
+                                                            : $unknown_datatype;
                // Loop $reportitem->Performance elements and store counts when time-periods match
                 foreach ($reportitem->Performance as $perf) {
                     if ($perf->Period->Begin_Date == self::$begin && $perf->Period->End_Date == self::$end) {
@@ -308,7 +314,7 @@ class Counter5Processor extends Model
                     $accessmethod_id = (isset($Aperf->Access_Method))
                                        ? self::getAccessMethod($Aperf->Access_Method) : 1;
                     $datatype = (isset($Aperf->Data_Type)) ? self::getDataType($Aperf->Data_Type)
-                                                           : self::getDataType("Unknown");
+                                                           : $unknown_datatype;
                     if (isset($Aperf->Performance)) {
                         $metrics = array_keys(json_decode(json_encode($Aperf->Performance),true));
                         foreach ($metrics as $metric) {
@@ -362,6 +368,9 @@ class Counter5Processor extends Model
                                    ['yearmon','=',self::$yearmon]])->delete();
         }
 
+       // set this now to save asking about it more than once
+        $unknown_datatype = self::getDataType("Unknown");
+
        // Setup array to hold per-item counts
         $ICounts = ['Searches_Platform' => 0, 'Total_Item_Investigations' => 0, 'Total_Item_Requests' => 0,
                     'Unique_Item_Investigations' => 0, 'Unique_Item_Requests' => 0,
@@ -389,7 +398,7 @@ class Counter5Processor extends Model
                // Pick up the optional attributes
                 $accessmethod_id = (isset($reportitem->Access_Method)) ? self::getAccessMethod($reportitem->Access_Method) : 1;
                 $datatype = (isset($reportitem->Data_Type)) ? self::getDataType($reportitem->Data_Type)
-                                                            : self::getDataType("Unknown");
+                                                            : $unknown_datatype;
 
                // Loop $reportitem->Performance elements and store counts when time-periods match
                 foreach ($reportitem->Performance as $perf) {
@@ -426,7 +435,7 @@ class Counter5Processor extends Model
                 foreach ($reportitem->Attribute_Performance as $Aperf) {
                     $accessmethod_id = (isset($Aperf->Access_Method)) ? self::getAccessMethod($Aperf->Access_Method) : 1;
                     $datatype = (isset($Aperf->Data_Type)) ? self::getDataType($Aperf->Data_Type)
-                                                           : self::getDataType("Unknown");
+                                                           : $unknown_datatype;
 
                    // Loop $reportitem->Performance elements and store counts when time-periods match
                     if (isset($Aperf->Performance)) {
@@ -903,10 +912,6 @@ class Counter5Processor extends Model
      */
     private static function getDataType($input_type)
     {
-        if ($input_type == "") {
-            $input_type = "Unknown";
-        }
-
        // UTF8 Encode name if it isnt already UTF-8
         $cur_encoding = mb_detect_encoding($input_type);
         if ($cur_encoding == "UTF-8" && mb_check_encoding($input_type, "UTF-8")) {
@@ -919,9 +924,7 @@ class Counter5Processor extends Model
                                             return (strtolower($d['name']) == strtolower($_type_name));
                                           })->first();
         if (!$datatype) {
-            $datatype = new DataType(['name' => $_type_name]);
-            $datatype->save();
-            self::$all_datatypes->push($datatype);
+            $datatype = self::$all_datatypes->where('name','Unknown')->first();
         }
         return $datatype;
     }
