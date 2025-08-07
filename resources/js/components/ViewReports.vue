@@ -1,41 +1,31 @@
 <template>
   <div>
-    <v-expansion-panels focusable v-model="panels">
-      <v-expansion-panel>
-  	    <v-expansion-panel-header>
-          <h2>COUNTER Report Types</h2>
-        </v-expansion-panel-header>
-        <v-expansion-panel-content>
-          <div class="d-flex pt-1"></div>
-          <v-tabs v-model="tab" grow hide-slider class="custom-tabs">
-            <v-tab v-for="report in counter_reports" :key="report.series" class="custom-tab">
-              {{ report.series }}
-            </v-tab>
-            <v-tab-item v-model="tab">
-              <div v-if="counter_reports[tab]['text'].length>0" class="d-flex py-2">
-                <span><strong>{{ counter_reports[tab]['text'] }}</strong></span>
-              </div>
-              <div v-if="counter_reports[tab]['reports'].length>0">
-                <v-data-table :headers="counter_headers" :items="counter_reports[tab]['reports']" item-key="id" disable-sort
-                              :options.sync="pagination" class="elevation-1" :hide-default-footer="hide_counter_footer"
-                              :expanded="expanded" @click:row="expandRow" show-expand>
-                  <template v-slot:expanded-item="{ item }">
-                    <td :colspan="counter_headers.length">
-                      <div class="detail-hdr">Report Fields and Filters</div>
-                      <div v-for="field in item.fields" :key="field.name" class="report-field">
-                        {{ field.name }}
-                        <span v-if="field.filter.length>0"> : <strong>{{ field.filter }} </strong></span>
-                      </div>
-                      <p>&nbsp;</p>
-                    </td>
-                  </template>
-                </v-data-table>
-              </div>
-            </v-tab-item>
-          </v-tabs>
-  	    </v-expansion-panel-content>
-	    </v-expansion-panel>
-    </v-expansion-panels>
+    <v-tabs v-model="tab" grow hide-slider class="custom-tabs">
+      <v-tab v-for="report in counter_reports" :key="report.series" class="custom-tab">
+        {{ report.series }}
+      </v-tab>
+      <v-tab-item v-model="tab">
+        <div v-if="counter_reports[tab]['text'].length>0" class="d-flex py-2">
+          <span><strong>{{ counter_reports[tab]['text'] }}</strong></span>
+        </div>
+        <div v-if="counter_reports[tab]['reports'].length>0">
+          <v-data-table :headers="counter_headers" :items="counter_reports[tab]['reports']" item-key="id" disable-sort
+                        :options.sync="pagination" class="elevation-1" :hide-default-footer="hide_counter_footer"
+                        :expanded="expanded" @click:row="expandRow" show-expand>
+            <template v-slot:expanded-item="{ item }">
+              <td :colspan="counter_headers.length">
+                <div class="detail-hdr">Report Fields and Filters</div>
+                <div v-for="field in item.fields" :key="field.name" class="report-field">
+                  {{ field.name }}
+                  <span v-if="field.filter.length>0"> : <strong>{{ field.filter }} </strong></span>
+                </div>
+                <p>&nbsp;</p>
+              </td>
+            </template>
+          </v-data-table>
+        </div>
+      </v-tab-item>
+    </v-tabs>
   </div>
 </template>
 <script>
