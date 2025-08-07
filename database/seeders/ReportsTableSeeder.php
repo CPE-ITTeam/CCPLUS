@@ -26,29 +26,29 @@ class ReportsTableSeeder extends Seeder
             DB::table($table)->insert(['id' => 3,'name' => 'PR','legend' => 'Platform Master Report', 'dorder' => 1]);
             DB::table($table)->insert(['id' => 4,'name' => 'IR','legend' => 'Item Master Report', 'dorder' => 4]);
             DB::table($table)->insert(['id' => 5,'name' => 'TR_B1',
-                'legend' => 'Book Requests (Excluding OA_Gold)','parent_id' => 1,
-                'inherited_fields' => '1,6:[2],8:[1],9:[1],18,20']);
+                'legend' => 'Book Requests (Controlled)','parent_id' => 1,
+                'inherited_fields' => '1,6:[3,22],8:[1],9:[1],18,22']);
             DB::table($table)->insert(['id' => 6,'name' => 'TR_B2',
                 'legend' => 'Book Access Denied','parent_id' => 1,
-                'inherited_fields' => '1,6:[2],9:[1],23,24']);
+                'inherited_fields' => '1,6:[3,22],9:[1],23,24']);
             DB::table($table)->insert(['id' => 7,'name' => 'TR_B3',
                 'legend' => 'Book Usage by Access Type','parent_id' => 1,
-                'inherited_fields' => '1,6:[2],9:[1],17,18,19,20,21,22']);
+                'inherited_fields' => '1,6:[3,22],9:[1],17,18,19,20,21,22']);
             DB::table($table)->insert(['id' => 8,'name' => 'TR_J1',
-                'legend' => 'Journal Requests (Excluding OA_Gold)','parent_id' => 1,
-                'inherited_fields' => '1,6:[1],8:[1],9:[1],18,20']);
+                'legend' => 'Journal Requests (Controlled)','parent_id' => 1,
+                'inherited_fields' => '1,6:[14],8:[1],9:[1],18,20']);
             DB::table($table)->insert(['id' => 9,'name' => 'TR_J2',
                 'legend' => 'Journal Access Denied','parent_id' => 1,
-                'inherited_fields' => '1,6:[1],9:[1],23,24']);
+                'inherited_fields' => '1,6:[14],9:[1],23,24']);
             DB::table($table)->insert(['id' => 10,'name' => 'TR_J3',
                 'legend' => 'Journal Usage by Access Type','parent_id' => 1,
-                'inherited_fields' => '1,6:[1],9:[1],17,18,19,20']);
+                'inherited_fields' => '1,6:[14],9:[1],17,18,19,20']);
             DB::table($table)->insert(['id' => 11,'name' => 'TR_J4',
-                'legend' => 'Journal Requests by YOP (Excluding OA_Gold)','parent_id' => 1,
-                'inherited_fields' => '1,6:[1],8:[1],9:[1],18,20']);
+                'legend' => 'Journal Requests by YOP (Controlled)','parent_id' => 1,
+                'inherited_fields' => '1,6:[14],8:[1],9:[1],18,20']);
             DB::table($table)->insert(['id' => 12,'name' => 'DR_D1',
                 'legend' => 'Database Search and Item Usage','parent_id' => 2,
-                'inherited_fields' => '26,32:[1],34,35,36,37,38']);
+                'inherited_fields' => '26,32:[1],34,35,36,37,38,39,40']);
             DB::table($table)->insert(['id' => 13,'name' => 'DR_D2',
                 'legend' => 'Database Access Denied','parent_id' => 2,
                 'inherited_fields' => '26,32:[1],43,44']);
@@ -57,10 +57,10 @@ class ReportsTableSeeder extends Seeder
                 'inherited_fields' => '46,50:[1],51,53,55,57']);
             DB::table($table)->insert(['id' => 15,'name' => 'IR_A1',
                 'legend' => 'Journal Article Requests','parent_id' => 4,
-                'inherited_fields' => '59,73:[3],76:[1],78,80']);
+                'inherited_fields' => '59,73:[1],76:[1],78,80']);
             DB::table($table)->insert(['id' => 16,'name' => 'IR_M1',
                 'legend' => 'Multimedia Item Requests','parent_id' => 4,
-                'inherited_fields' => '59,73:[4],76:[1],78']);
+                'inherited_fields' => '59,73:[2,12,13,15,25],76:[1],78']);
         }
     }
 }
