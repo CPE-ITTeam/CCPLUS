@@ -65,12 +65,18 @@ class Report extends Model
     public function parsedInherited()
     {
         $_fields = array();
-        foreach (preg_split('/,/', $this->inherited_fields) as $field) {
+        $fields_to_parse = $this->inherited_fields;
+        while (strlen($fields_to_parse) > 0) {
+            $p1 = strpos($fields_to_parse,',');
+            if (preg_match('/\[/',substr($fields_to_parse, 0, $p1)) ) {
+                $p1 = strpos($fields_to_parse,']')+1;
+            }
+            $field = ($p1) ? substr($fields_to_parse,0,$p1) : $fields_to_parse;
             $_f = preg_split('/:/', $field);
             if (!isset($_f[1])) {
                 $_fields[$_f[0]] = null;
             } else {
-                // allow for bracketed array of values
+                // handle bracketed array of values
                 if (preg_match("/\[(.*)\]/i", $_f[1], $matches)) {
                     $arr = array();
                     $values = preg_split("/,/", $matches[1]);
@@ -82,6 +88,7 @@ class Report extends Model
                      $_fields[$_f[0]] = intval($_f[1]);
                 }
             }
+            $fields_to_parse = ($p1) ? substr($fields_to_parse, $p1+1) : "";
         }
         return $_fields;
     }
