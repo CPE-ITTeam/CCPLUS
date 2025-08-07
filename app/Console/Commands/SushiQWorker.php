@@ -3,24 +3,19 @@
 namespace App\Console\Commands;
 
 use Illuminate\Console\Command;
-use Illuminate\Support\Facades\Cache;
 use DB;
 use App\Consortium;
 use App\Report;
 use App\Sushi;
-use App\SushiSetting;
 use App\SushiQueueJob;
 use App\Counter5Processor;
 use App\FailedHarvest;
-use App\HarvestLog;
 use App\CcplusError;
 use App\Severity;
 use App\Alert;
 use App\GlobalProvider;
 use App\ConnectionField;
-use \ubfr\c5tools\JsonR5Report;
-use \ubfr\c5tools\CheckResult;
-use \ubfr\c5tools\ParseException;
+use App\CounterRegistry;
 
 /*
  * NOTE:
@@ -65,12 +60,12 @@ class SushiQWorker extends Command
         try {
           $this->global_providers = GlobalProvider::where('is_active', true)->get();
         } catch (\Exception $e) {
-          $this->global_providers = array();
+          $this->global_providers = collect(array());
         }
         try {
           $this->connection_fields = ConnectionField::get();
         } catch (\Exception $e) {
-          $this->connection_fields = array();
+          $this->connection_fields = collect(array());
         }
     }
 
@@ -147,7 +142,8 @@ class SushiQWorker extends Command
             foreach ($jobs as $job) {
 
                 // Load harvest data per-job (to be sure it is as current as possible)
-                $job->load('harvest','harvest.sushiSetting','harvest.sushiSetting.provider');
+                $job->load('harvest','harvest.sushiSetting','harvest.sushiSetting.provider',
+                           'harvest.sushiSetting.provider.registries');
 
                // Skip the job if the harvest is not set for processing
                // (status of Success, Fail, Active, Stopped  need to skipped)
@@ -186,7 +182,7 @@ class SushiQWorker extends Command
                // Check the job url against all active urls and skip if there's a match
                // (this should also skip any job that gets grabbed by another worker between when
                // we built the $job_ids array and this point.)
-                if ($this->hasActiveHarvest($job->harvest->sushiSetting->provider->server_url_r5)) {
+                if ($this->hasActiveHarvest($job->harvest->sushiSetting->provider->service_url())) {
                     continue;
                 }
 
@@ -291,11 +287,8 @@ class SushiQWorker extends Command
                 $job->harvest->save();
             }
 
-            // setup array of required connectors for buildUri
-            $connectors = $this->connection_fields->whereIn('id',$setting->provider->connectors)
-                                                  ->pluck('name')->toArray();
            // Construct URI for the request
-            $request_uri = $sushi->buildUri($setting, $connectors, 'reports', $report);
+            $request_uri = $sushi->buildUri($setting, 'reports', $report, $job->harvest->release);
 
            // Make the request
             $request_status = $sushi->request($request_uri);
@@ -459,7 +452,7 @@ class SushiQWorker extends Command
                            ->select($_db . '.sus.prov_id')
                            ->pluck('prov_id')
                            ->toArray();
-            $_urls = $this->global_providers->whereIn('id',$_globalIds)->pluck('server_url_r5')->toArray();
+            $_urls = CounterRegistry::whereIn('global_id',$_globalIds)->pluck('service_url')->toArray();
             foreach ($_urls as $_url) {
                 // Test HOST of url , since https://sushi.prov.com/R5  and https://sushi.prov.com/R5/reports
                 // both WORK , and are the same service. A straight-up compare won't catch it...
