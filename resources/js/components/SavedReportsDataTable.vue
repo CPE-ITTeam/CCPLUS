@@ -371,7 +371,7 @@
         },
     },
     computed: {
-      ...mapGetters(['is_admin','is_viewer']),
+      ...mapGetters(['is_admin','is_manager','is_viewer']),
       filteredReports() {
         return (this.mutable_filters.reports.length>0)
           ? this.mutable_reports.filter(r => this.mutable_filters.reports.includes(r.master_name))
