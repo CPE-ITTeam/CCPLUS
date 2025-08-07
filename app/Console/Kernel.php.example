@@ -42,7 +42,7 @@ class Kernel extends ConsoleKernel
      *        data into the XX_report_data tables.
      *----------------------------------------------------------------------------------
      */
-        $consortia = Consortium::where('enable_harvesting',1)->get(['id','ccp_key']);
+        $consortia = Consortium::where('is_active',1)->get(['id','ccp_key']);
         if ($consortia) {
             // Schedule the server-wide harvester
             $schedule->command('ccplus:sushiharvester')->runInBackground()->everyTenMinutes()->withoutOverlapping()
