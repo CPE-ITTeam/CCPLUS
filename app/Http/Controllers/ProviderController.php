@@ -645,7 +645,6 @@ class ProviderController extends Controller
      *
      * @param  \App\Provider  $id   // Global provider ID
      */
-    // public function destroy($id)
     public function destroy(Request $request)
     {}
 
@@ -656,7 +655,6 @@ class ProviderController extends Controller
      * @param  \App\GlobalProvider  $globalProvID   // Global provider ID
      * @param  \App\Provider        $instProvID     // Institution-Specific provider ID
      */
-    // public function destroy($id)
     public function customDestroy(Request $request, $globalProvID, $instProvID)
     {
         $thisUser = auth()->user();
