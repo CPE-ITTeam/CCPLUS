@@ -22,7 +22,7 @@ class CreateGlobalProvidersTable extends Migration
           $table->string('content_provider')->nullable();
           $table->boolean('is_active')->default(1);
           $table->boolean('refreshable')->default(1);
-          // expected result values: 'success', 'failed', 'new', or null
+          // expected result values: 'success', 'failed', 'new', 'noUrl', 'orphan', or null
           $table->string('refresh_result',7)->nullable();
           $table->json('master_reports')->default("[1]");
           $table->unsignedInteger('day_of_month')->default(15);
