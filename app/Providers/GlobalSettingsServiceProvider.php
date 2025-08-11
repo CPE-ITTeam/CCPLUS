@@ -4,6 +4,7 @@ namespace App\Providers;
 use \App\GlobalSetting;
 use Illuminate\Contracts\Cache\Factory;
 use Illuminate\Support\ServiceProvider;
+use Illuminate\Support\Arr;
 
 class GlobalSettingsServiceProvider extends ServiceProvider
 {
@@ -53,7 +54,7 @@ class GlobalSettingsServiceProvider extends ServiceProvider
                   }
               }
               $data['from'] = array('address' => $data['from_address'], 'name' => $data['from_name']);
-              $values = array_except($data,['from_address','from_name']);
+              $values = Arr::except($input,['from_address','from_name']);
             } catch (\Exception $e) { }
             return $values;
         });
