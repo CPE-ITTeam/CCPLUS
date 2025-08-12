@@ -1,7 +1,7 @@
 <?php
 
 namespace App\Providers;
-use \App\GlobalSetting;
+use \App\Models\GlobalSetting;
 use Illuminate\Contracts\Cache\Factory;
 use Illuminate\Support\ServiceProvider;
 use Illuminate\Support\Arr;

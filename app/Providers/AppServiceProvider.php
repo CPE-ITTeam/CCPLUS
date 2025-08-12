@@ -2,12 +2,12 @@
 
 namespace App\Providers;
 
+use Illuminate\Support\Facades\Vite;
 use Illuminate\Support\ServiceProvider;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Collection;
 use Illuminate\Pagination\LengthAwarePaginator;
-
-//NEW: Import Schema
+use Inertia\Inertia;
 
 class AppServiceProvider extends ServiceProvider
 {
@@ -28,8 +28,14 @@ class AppServiceProvider extends ServiceProvider
      */
     public function boot()
     {
-        //
-        Schema::defaultStringLength(191); //NEW: Increase StringLength
+
+        Vite::prefetch(concurrency: 3);
+        if ($this->app->environment() !== 'local') {
+            $this->app['request']->server->set('HTTPS', true);
+        }
+
+        // set default string length
+        Schema::defaultStringLength(191);
 
         /**
          * Paginate a standard Laravel Collection.

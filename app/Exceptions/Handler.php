@@ -2,9 +2,11 @@
 
 namespace App\Exceptions;
 
-// use Exception;
-use Throwable;
 use Illuminate\Foundation\Exceptions\Handler as ExceptionHandler;
+use Illuminate\Http\JsonResponse;
+use Illuminate\Http\Request;
+use PDOException;
+use Throwable;
 
 class Handler extends ExceptionHandler
 {
@@ -28,14 +30,15 @@ class Handler extends ExceptionHandler
     ];
 
     /**
-     * Report or log an exception.
+     * Register the exception handling callbacks for the application.
      *
-     * @param  \Throwable  $exception
      * @return void
      */
-    public function report(Throwable $exception)
+    public function register(): void
     {
-        parent::report($exception);
+        $this->reportable(function (Throwable $e) {
+            //
+        });
     }
 
     /**
@@ -45,16 +48,20 @@ class Handler extends ExceptionHandler
      * @param  \Throwable  $exception
      * @return \Illuminate\Http\Response
      */
-    public function render($request, Throwable $exception)
+    public function render($request, Throwable $exception): \Symfony\Component\HttpFoundation\Response
     {
         // Database/query exceptions return formatted JSON string
-        if ( ($exception instanceof \PDOException) || ($exception instanceof \QueryException) ) {
+        if ($exception instanceof PDOException || ($exception instanceof \QueryException)) {
             $msg = "Database Error";
             foreach ($exception->errorInfo as $data) {
                 $msg .= " : " . $data;
             }
-            return response()->json(['result' => false, 'msg' => $msg, 'ccp_key' => session('ccp_con_key')]);
+            return new JsonResponse([
+                'result' => false,
+                'msg' => $msg,
+                'ccp_key' => session('ccp_con_key'),
+            ]);
         }
-        return parent::render($request, $exception);
+        return parent::render($request, $e);
     }
 }

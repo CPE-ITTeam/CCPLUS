@@ -2,8 +2,10 @@
 
 namespace App\Providers;
 
-use Illuminate\Support\Facades\Event;
-use Illuminate\Auth\Events\Registered;
+use Illuminate\Auth\Events\Failed;
+use App\Listeners\LogFailedAuthenticationAttempt;
+use Illuminate\Foundation\Support\Providers\EventServiceProvider as ServiceProvider;
+
 use Illuminate\Auth\Listeners\SendEmailVerificationNotification;
 use Illuminate\Foundation\Support\Providers\EventServiceProvider as ServiceProvider;
 
@@ -15,11 +17,8 @@ class EventServiceProvider extends ServiceProvider
      * @var array
      */
     protected $listen = [
-        Registered::class => [
-            SendEmailVerificationNotification::class,
-        ],
-        'Illuminate\Auth\Events\Failed' => [
-           'App\Listeners\LogFailedAuthenticationAttempt',
+        Failed::class => [
+           LogFailedAuthenticationAttempt::class,
         ],
     ];
 
@@ -30,8 +29,14 @@ class EventServiceProvider extends ServiceProvider
      */
     public function boot()
     {
-        parent::boot();
-
         //
+    }
+
+    /**
+     * Turn off events and listeners being automatically discovered.
+     */
+    public function shouldDiscoverEvents(): bool
+    {
+        return false;
     }
 }
