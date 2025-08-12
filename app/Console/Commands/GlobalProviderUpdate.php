@@ -6,10 +6,10 @@ use Illuminate\Support\Facades\Cache;
 use GuzzleHttp\Exception\GuzzleException;
 use GuzzleHttp\Client;
 use DB;
-use App\Report;
-use App\GlobalProvider;
-use App\ConnectionField;
-use App\CounterRegistry;
+use App\Models\Report;
+use App\Models\GlobalProvider;
+use App\Models\ConnectionField;
+use App\Models\CounterRegistry;
 
 class GlobalProviderUpdate extends Command
 {

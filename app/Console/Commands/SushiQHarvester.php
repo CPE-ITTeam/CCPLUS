@@ -5,17 +5,17 @@ namespace App\Console\Commands;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\Cache;
 use DB;
-use App\Consortium;
-use App\Report;
-use App\Sushi;
-use App\SushiQueueJob;
-use App\FailedHarvest;
-use App\HarvestLog;
-use App\CcplusError;
-use App\Severity;
+use App\Models\Consortium;
+use App\Models\Report;
+use App\Models\Sushi;
+use App\Models\SushiQueueJob;
+use App\Models\FailedHarvest;
+use App\Models\HarvestLog;
+use App\Models\CcplusError;
+use App\Models\Severity;
 // use App\Alert;
-use App\GlobalProvider;
-use App\ConnectionField;
+use App\Models\GlobalProvider;
+use App\Models\ConnectionField;
  //
  // CC Plus Queue Harvesting Script
  // Examines the global Jobs queue and processes everything.

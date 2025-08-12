@@ -4,8 +4,8 @@ namespace App\Console\Commands;
 
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\Artisan;
-use App\Consortium;
-use App\SushiSetting;
+use App\Models\Consortium;
+use App\Models\SushiSetting;
 use DB;
 use Illuminate\Support\Facades\File;
 use Illuminate\Support\Facades\Crypt;

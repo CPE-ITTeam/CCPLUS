@@ -8,12 +8,12 @@ use Illuminate\Database\QueryException;
 use GuzzleHttp\Exception\GuzzleException;
 use GuzzleHttp\Client;
 use DB;
-use App\Consortium;
-use App\Provider;
-use App\SushiSetting;
-use App\HarvestLog;
-use App\Report;
-use App\SushiQueueJob;
+use App\Models\Consortium;
+use App\Models\Provider;
+use App\Models\SushiSetting;
+use App\Models\HarvestLog;
+use App\Models\Report;
+use App\Models\SushiQueueJob;
 
 class SushiQLoader extends Command
 {

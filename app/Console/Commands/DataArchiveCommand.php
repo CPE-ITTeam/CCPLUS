@@ -8,13 +8,13 @@ use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\Storage;
 use DB;
 use Hash;
-use App\Consortium;
-use App\Provider;
-use App\GlobalProvider;
-use App\Institution;
-use App\SushiSetting;
-use App\Report;
-use App\HarvestLog;
+use App\Models\Consortium;
+use App\Models\Provider;
+use App\Models\GlobalProvider;
+use App\Models\Institution;
+use App\Models\SushiSetting;
+use App\Models\Report;
+use App\Models\HarvestLog;
 
 class DataArchiveCommand extends Command
 {

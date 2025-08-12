@@ -6,16 +6,16 @@ use Illuminate\Console\Command;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Database\QueryException;
 use DB;
-use App\Sushi;
-use App\Report;
-use App\Consortium;
-use App\Provider;
-use App\Institution;
-use App\SushiSetting;
-use App\Counter5Processor;
-use App\FailedHarvest;
-use App\HarvestLog;
-use App\ConnectionField;
+use App\Models\Sushi;
+use App\Models\Report;
+use App\Models\Consortium;
+use App\Models\Provider;
+use App\Models\Institution;
+use App\Models\SushiSetting;
+use App\Models\Counter5Processor;
+use App\Models\FailedHarvest;
+use App\Models\HarvestLog;
+use App\Models\ConnectionField;
 
 /*
  * NOTE:

@@ -4,9 +4,9 @@ namespace App\Console\Commands;
 
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\Artisan;
-use App\Consortium;
-use App\Institution;
-use App\GlobalProvider;
+use App\Models\Consortium;
+use App\Models\Institution;
+use App\Models\GlobalProvider;
 use DB;
 
 class RenameRawDataPaths extends Command

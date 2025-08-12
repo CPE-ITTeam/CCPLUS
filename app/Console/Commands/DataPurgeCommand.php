@@ -5,12 +5,12 @@ namespace App\Console\Commands;
 use DB;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\Storage;
-use App\Consortium;
-use App\Report;
-use App\GlobalProvider;
-use App\Institution;
-use App\HarvestLog;
-use App\FailedHarvest;
+use App\Models\Consortium;
+use App\Models\Report;
+use App\Models\GlobalProvider;
+use App\Models\Institution;
+use App\Models\HarvestLog;
+use App\Models\FailedHarvest;
 
 class DataPurgeCommand extends Command
 {

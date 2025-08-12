@@ -4,8 +4,8 @@ namespace App\Console\Commands;
 
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\Artisan;
-use App\Consortium;
-use App\GlobalSetting;
+use App\Models\Consortium;
+use App\Models\GlobalSetting;
 use DB;
 use Hash;
 use Route;

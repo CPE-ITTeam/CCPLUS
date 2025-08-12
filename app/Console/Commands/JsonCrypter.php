@@ -3,7 +3,7 @@
 namespace App\Console\Commands;
 
 use Illuminate\Console\Command;
-use App\Consortium;
+use App\Models\Consortium;
 use Illuminate\Support\Facades\File;
 use Illuminate\Support\Facades\Crypt;
 

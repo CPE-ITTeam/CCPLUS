@@ -4,18 +4,18 @@ namespace App\Console\Commands;
 
 use Illuminate\Console\Command;
 use DB;
-use App\Consortium;
-use App\Report;
-use App\Sushi;
-use App\SushiQueueJob;
-use App\Counter5Processor;
-use App\FailedHarvest;
-use App\CcplusError;
-use App\Severity;
-use App\Alert;
-use App\GlobalProvider;
-use App\ConnectionField;
-use App\CounterRegistry;
+use App\Models\Consortium;
+use App\Models\Report;
+use App\Models\Sushi;
+use App\Models\SushiQueueJob;
+use App\Models\Counter5Processor;
+use App\Models\FailedHarvest;
+use App\Models\CcplusError;
+use App\Models\Severity;
+use App\Models\Alert;
+use App\Models\GlobalProvider;
+use App\Models\ConnectionField;
+use App\Models\CounterRegistry;
 
 /*
  * NOTE:

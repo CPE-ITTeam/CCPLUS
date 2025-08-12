@@ -4,9 +4,9 @@ namespace App\Console\Commands;
 
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\Artisan;
-use App\Consortium;
-use App\HarvestLog;
-use App\Report;
+use App\Models\Consortium;
+use App\Models\HarvestLog;
+use App\Models\Report;
 use DB;
 
 class CleanupJson extends Command
