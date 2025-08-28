@@ -2,17 +2,12 @@
 
 namespace App\Models;
 
-use Illuminate\Notifications\Notifiable;
-use Illuminate\Contracts\Auth\MustVerifyEmail;
+use Laravel\Sanctum\HasApiTokens;
 use Illuminate\Foundation\Auth\User as Authenticatable;
-
-// use AustinHeap\Database\Encryption\Traits\HasEncryptedAttributes;
 
 class User extends Authenticatable
 {
-    use Notifiable;
-
-    // use HasEncryptedAttributes;
+    use HasApiTokens;
 
     /**
      * The database table used by the model.
@@ -39,9 +34,7 @@ class User extends Authenticatable
      *
      * @var array
      */
-    protected $hidden = [
-        'password', 'remember_token',
-    ];
+    protected $hidden = [ 'password' ];
 
     /**
      * The attributes that should be cast to native types.
@@ -65,22 +58,17 @@ class User extends Authenticatable
 
     public function canManage()
     {
-      // ServerAdmin can manage any user and is only changeable by another ServerAdmin
+        // ServerAdmin can manage any user and is only changeable by another ServerAdmin
         if (auth()->user()->hasRole("ServerAdmin")) {
             return true;
         } else {
-            if ($this->roles()->where("name", "ServerAdmin")->first()) return false;
+            if ($this->roles->where("role.name", "ServerAdmin")->first()) return false;
         }
 
-      // Admin can manage any non-ServerAdmin user
-        if (auth()->user()->hasRole("Admin")) return true;
+        // If Admin for this user's inst, allow it 
+        if (auth()->user()->hasRole("Admin", $this->inst_id)) return true;
 
-      // Managers can manage users at their own inst, but not Adminss or Viewers
-        if (auth()->user()->hasRole("Manager")) {
-            if ($this->id == auth()->id()) return true;   // Manager can manage self regardless of their other roles
-            return ($this->hasAnyRole(['ServerAdmin','Admin','Viewer'])) ? false : auth()->user()->inst_id == $this->inst_id;
-        }
-      // Users can manage themselves
+        // Users can manage themselves
         return $this->id == auth()->id();
     }
 
@@ -91,9 +79,31 @@ class User extends Authenticatable
 
     public function roles()
     {
-        return $this
-            ->belongsToMany('App\Models\Role')
-            ->withTimestamps();
+        return $this->hasMany('App\Models\UserRole','user_id')
+                    ->with('role:id,name','institution:id,name');
+    }
+
+    public function isServerAdmin()
+    {
+        return !is_null($this->roles->where("role.name", "ServerAdmin")->first());
+    }
+
+    public function isAdmin($inst=null)
+    {
+        if ($this->roles->where("role.name", "ServerAdmin")->first()) return true;
+        return (is_null($inst))
+            ? !is_null(($this->roles->where("role.name", "Admin")->first()))
+            : !is_null(($this->roles->where("role.name", "Admin")->where("inst_id", $inst)->first()));
+    }
+
+    public function allRoles()
+    {
+        $roles = array();
+        foreach ($this->roles as $r) {
+            array_push($roles, ['id'=>$r->id , 'name'=>$r->role->name,
+                                'inst_id'=>$r->inst_id, 'inst'=>$r->institution->name]);
+        }
+        return $roles;
     }
 
     public function alerts()
@@ -106,41 +116,33 @@ class User extends Authenticatable
         return $this->hasMany('App\Models\SavedReport', 'user_id');
     }
 
-    public function authorizeRoles($roles)
-    {
-        if ($this->hasAnyRole($roles)) {
-            return true;
-        }
-        abort(401, 'This action is unauthorized.');
-    }
-
     public function hasAnyRole($roles)
     {
-        if ($this->roles()->where("name", "ServerAdmin")->first()) return true;
+        if ($this->roles->where('role.name','ServerAdmin')->first()) return true;
         if (is_array($roles)) {
-            if ($this->roles()->whereIn('name', $roles)->first()) return true;
+            if ($this->roles->whereIn('role.name', $roles)->first()) return true;
         } else {
-            if ($this->roles()->where('name', $roles)->first()) return true;
+            if ($this->roles->where('role.name', $roles)->first()) return true;
         }
         return 0;
     }
 
     public function maxRole()
     {
-        return $this->roles()->max('role_id');
+        return $this->roles->max('role_id');
     }
 
     public function maxRoleName()
     {
-        $_id = $this->roles()->max('role_id');
-        $role = $this->roles()->where('role_id', $_id)->first();
-        return $role->name;
+        $_id = $this->roles->max('role_id');
+        $userRole = $this->roles->where('role_id', $_id)->first();
+        return $userRole->role->name;
     }
 
-    public function hasRole($role)
+    public function hasRole($role, $inst = null)
     {
-        if ($this->roles()->where("name", "ServerAdmin")->first()) return true;
-        if ($this->roles()->where("name", $role)->first()) return true;
+        if ($this->roles->where("role.name", "ServerAdmin")->first()) return true;
+        if ($this->roles->where("role.name", $role)->where("inst_id", $inst)->first()) return true;
         return 0;
     }
 
