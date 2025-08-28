@@ -1,7 +1,5 @@
 <?php
 
-// app/Http/Controllers/ConsortiumController.php
-
 namespace App\Http\Controllers;
 
 use Illuminate\Http\Request;
@@ -9,10 +7,18 @@ use Illuminate\Support\Facades\Artisan;
 use Symfony\Component\Console\Output\StreamOutput;
 use DB;
 use Hash;
-use App\Consortium;
+use App\Models\Consortium;
 
-class ConsortiumController extends Controller
+class ConsortiumController extends BaseController
 {
+    /**
+     * Return a (JSON) array of known, active consortia
+     */
+    public function index(Request $request) {
+        $data = Consortium::where('is_active',true)->get();
+        return response()->json(['consortia' => $data, 'result' => true], 200);
+    }
+
     /**
      * Store a newly created resource in storage.
      *
