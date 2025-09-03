@@ -1,11 +1,10 @@
-// resources/js/plugis/vuetify.js
-
-import Vue from 'vue'
-import Vuetify from 'vuetify'
-import 'vuetify/dist/vuetify.min.css'
-
-Vue.use(Vuetify)
-
-const opts = {}
-
-export default new Vuetify(opts)
+// resources/js/plugins/vuetify.js
+import 'vuetify/styles';
+import "vuetify/dist/vuetify-labs.css"
+import '@mdi/font/css/materialdesignicons.css';
+import { createVuetify } from 'vuetify';
+// Create Vuetify instance
+const vuetify = createVuetify({
+    theme: { defaultTheme: 'light' },
+});
+export default vuetify;
