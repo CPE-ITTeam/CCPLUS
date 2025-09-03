@@ -11,24 +11,22 @@ class ResetPassword extends Mailable
 {
     use Queueable, SerializesModels;
 
-    public $token;
-    public $consortium;
+    public $reset_link;
 
     /**
      * Create a new message instance.
      *
      * @return void
      */
-    public function __construct($consortium, $token)
+    public function __construct($reset_link)
     {
-        $this->token = $token;
-        $this->consortium = $consortium;
+        $this->reset_link = $reset_link;
     }
 
     /**
      * Build the message.
      *
-     * @return $this
+     * @return $this->view()
      */
     public function build()
     {
