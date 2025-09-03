@@ -38,7 +38,6 @@ class GlobalSettingsServiceProvider extends ServiceProvider
             return $values;
         });
         config()->set('ccplus', $config_settings);
-
         // mail settings from global_settings table
         $mail_settings = $cache->remember('mail', 60, function() use ($settings)
         {
@@ -53,10 +52,16 @@ class GlobalSettingsServiceProvider extends ServiceProvider
                       unset($data[$k]);
                   }
               }
+              $default_mailer = $data['mailer'];
               $data['from'] = array('address' => $data['from_address'], 'name' => $data['from_name']);
-              $values = Arr::except($input,['from_address','from_name']);
+              $data['transport'] = $default_mailer;
+              $values = Arr::except($data,['from_address','from_name']);
+              $mailer_data = array(
+                    'default' => $default_mailer,
+                    'mailers' => array( $default_mailer => $values )
+              );
             } catch (\Exception $e) { }
-            return $values;
+            return $mailer_data;
         });
         config()->set('mail', $mail_settings);
     }
