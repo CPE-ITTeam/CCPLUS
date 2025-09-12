@@ -2,19 +2,17 @@
 
 namespace App\Http\Controllers;
 
-use App\InstitutionType;
-use App\Institution;
+use App\Models\InstitutionType;
+use App\Models\Institution;
 use Illuminate\Http\Request;
 use PhpOffice\PhpSpreadsheet\Spreadsheet;
 use PhpOffice\PhpSpreadsheet\Writer\Xlsx;
-// use PhpOffice\PhpSpreadsheet\Writer\Xls;
 
 class InstitutionTypeController extends Controller
 {
 
     public function __construct()
     {
-        $this->middleware('auth');
         $this->middleware('role:Admin');
     }
 
@@ -25,8 +23,9 @@ class InstitutionTypeController extends Controller
        */
     public function index(Request $request)
     {
-        $data = InstitutionType::orderBy('name', 'ASC')->get()->toArray();
-        return view('institutiontypes.index', compact('data'));
+        $data = InstitutionType::orderBy('name', 'ASC')->get(['id','name'])->toArray();
+        // return view('institutiontypes.index', compact('data'));
+        return response()->json(['records' => $data], 200);
     }
 
       /**
@@ -130,9 +129,9 @@ class InstitutionTypeController extends Controller
     /**
      * Export institution types from the database.
      *
-     * @param  string  $type    // 'xls' or 'xlsx'
+     * @param  string  $output_type 'xlsx'
      */
-    public function export($output_type)
+    public function export($output_type = 'xlsx')
     {
         // Get all types
         $types = InstitutionType::orderBy('id', 'ASC')->get();
@@ -206,9 +205,6 @@ class InstitutionTypeController extends Controller
         if ($output_type == 'xlsx') {
             $writer = new \PhpOffice\PhpSpreadsheet\Writer\Xlsx($spreadsheet);
             header('Content-Type: application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
-        // } elseif ($output_type == 'xls') {
-        //     $writer = new \PhpOffice\PhpSpreadsheet\Writer\Xls($spreadsheet);
-        //     header('Content-Type: application/vnd.ms-excel');
         }
         header('Content-Disposition: attachment;filename=' . $fileName);
         header('Cache-Control: max-age=0');
