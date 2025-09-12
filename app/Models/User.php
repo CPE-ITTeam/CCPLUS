@@ -88,12 +88,40 @@ class User extends Authenticatable
         return !is_null($this->roles->where("role.name", "ServerAdmin")->first());
     }
 
+    public function isConsoAdmin()
+    {
+        if ($this->roles->where("role.name", "ServerAdmin")->first()) return true;
+        return !is_null($this->roles->where('inst_id',1)->where('role.name','Admin')->first());
+    }
+
     public function isAdmin($inst=null)
     {
         if ($this->roles->where("role.name", "ServerAdmin")->first()) return true;
         return (is_null($inst))
             ? !is_null(($this->roles->where("role.name", "Admin")->first()))
             : !is_null(($this->roles->where("role.name", "Admin")->where("inst_id", $inst)->first()));
+    }
+
+    public function adminInsts() {
+        if ($this->roles->whereIn("role.name", ["ServerAdmin","Admin"])->first()) return [1];
+        $insts = array();
+        foreach ($this->roles as $uRole) {
+            if ($uRole->role->name == 'Admin') {
+                $insts[] = $uRole->inst_id;
+            }
+        }
+        return $insts;
+    }
+
+    public function viewerInsts() {
+        if ($this->roles->whereIn("role.name", ["ServerAdmin","Admin"])->first()) return [1];
+        $insts = array();
+        foreach ($this->roles as $uRole) {
+            if ($uRole->role->name == 'Admin' || $uRole->role->name == 'Viewer') {
+                $insts[] = $uRole->inst_id;
+            }
+        }
+        return $insts;
     }
 
     public function allRoles()
