@@ -2,28 +2,22 @@
 
 namespace App\Http\Controllers;
 
-use App\Institution;
-use App\InstitutionGroup;
-use App\Provider;
-use App\Role;
-use App\Report;
-use App\SushiSetting;
-use App\HarvestLog;
-use App\GlobalProvider;
-use App\ConnectionField;
-use App\Consortium;
+use App\Models\Institution;
+use App\Models\InstitutionGroup;
+use App\Models\Provider;
+use App\Models\Role;
+use App\Models\Report;
+use App\Models\SushiSetting;
+use App\Models\HarvestLog;
+use App\Models\GlobalProvider;
+use App\Models\ConnectionField;
+use App\Models\Consortium;
 use Illuminate\Http\Request;
 use PhpOffice\PhpSpreadsheet\Spreadsheet;
 use PhpOffice\PhpSpreadsheet\Writer\Xlsx;
-// use PhpOffice\PhpSpreadsheet\Writer\Xls;
 
 class InstitutionController extends Controller
 {
-    public function __construct()
-    {
-        $this->middleware(['auth']);
-    }
-
     /**
      * Display a listing of the resource.
      *
@@ -58,67 +52,45 @@ class InstitutionController extends Controller
                 }
             }
         }
-        // Get all groups regardless of JSON or not
-        $all_groups = InstitutionGroup::with('institutions:id')->orderBy('name', 'ASC')->get(['id','name']);
 
-        // Skip querying for records unless we're returning json
-        // The vue-component will run a request for initial data once it is mounted
-        if ($json) {
-
-            // Prep variables for use in querying
-            $filter_stat = null;
-            if ($filters['stat'] != 'ALL'){
-                $filter_stat = ($filters['stat'] == 'Active') ? 1 : 0;
-            }
-
-            // Handle filter-by-group by limiting to specific inst_ids
-            $limit_to_insts = array();
-            if (sizeof($filters['groups']) > 0) {
-                foreach ($filters['groups'] as $group_id) {
-                    $group = $all_groups->where('id',$group_id)->first();
-                    if ($group) {
-                        $_insts = $group->institutions->pluck('id')->toArray();
-                        $limit_to_insts =  array_merge(
-                              array_intersect($limit_to_insts, $_insts),
-                              array_diff($limit_to_insts, $_insts),
-                              array_diff($_insts, $limit_to_insts)
-                        );
-                    }
+        // Limit institutions returned based on users's role(s)
+        $limit_to_insts = array();
+        if (!$thisUser->isServerAdmin()) {
+            foreach ($thisUser->roles as $userRole) {
+                if ($userRole->role->name == 'Admin' && $userRole->institution->id == 1) {
+                    $limit_to_insts = [];
+                    break;
+                } else {
+                    $limit_to_insts[] = $userRole->institution->id;
                 }
             }
-
-            // Get institution records
-            $inst_data = Institution::with('institutionGroups:id,name','sushiSettings')
-                                       ->when(!is_null($filter_stat), function ($qry) use ($filter_stat) {
-                                           return $qry->where('is_active', $filter_stat);
-                                       })
-                                       ->when(sizeof($limit_to_insts) > 0 , function ($qry) use ($limit_to_insts) {
-                                           return $qry->whereIn('id', $limit_to_insts);
-                                       })
-                                       ->orderBy('name', 'ASC')
-                                       ->get(['id','name','local_id','is_active']);
-
-            // Add group memberships
-            $institutions = $inst_data->map( function($inst) {
-                $inst->group_string = "";
-                $inst->groups = $inst->institutionGroups()->pluck('institution_group_id')->all();
-                foreach ($inst->institutionGroups as $group) {
-                    $inst->group_string .= ($inst->group_string == "") ? "" : ", ";
-                    $inst->group_string .= $group->name;
-                }
-                $harvest_count = $inst->sushiSettings->whereNotNull('last_harvest')->count();
-                $inst->can_delete = ($harvest_count > 0 || $inst->id == 1) ? false : true;
-                $inst->status = ($inst->is_active) ? "Active" : "Inactive";
-                return $inst;
-            });
-            return response()->json(['institutions' => $institutions], 200);
-
-        // Not returning JSON, pass only what the index/vue-component needs to initialize the page
-        } else {
-          $cur_instance = Consortium::where('ccp_key', session('ccp_con_key'))->first();
-          $conso_name = ($cur_instance) ? $cur_instance->name : "Template";
-          return view('institutions.index', compact('conso_name', 'all_groups', 'filters'));
         }
+
+        // Get institution records
+        $inst_data = Institution::with('institutionGroups:id,name','sushiSettings')
+                                    // ->when(!is_null($filter_stat), function ($qry) use ($filter_stat) {
+                                    //     return $qry->where('is_active', $filter_stat);
+                                    // })
+                                    ->when(count($limit_to_insts) > 0 , function ($qry) use ($limit_to_insts) {
+                                        return $qry->whereIn('id', $limit_to_insts);
+                                    })
+                                    ->orderBy('name', 'ASC')
+                                    ->get(['id','name','local_id','is_active']);
+
+        // Add group memberships
+        $institutions = $inst_data->map( function($inst) {
+            $inst->group_string = "";
+            $inst->groups = $inst->institutionGroups()->pluck('institution_group_id')->all();
+            foreach ($inst->institutionGroups as $group) {
+                $inst->group_string .= ($inst->group_string == "") ? "" : ", ";
+                $inst->group_string .= $group->name;
+            }
+            $harvest_count = $inst->sushiSettings->whereNotNull('last_harvest')->count();
+            $inst->can_delete = ($harvest_count > 0 || $inst->id == 1) ? false : true;
+            $inst->status = ($inst->is_active) ? "Active" : "Inactive";
+            return $inst;
+        });
+        return response()->json(['records' => $institutions], 200);
     }
 
     /**
@@ -200,7 +172,7 @@ class InstitutionController extends Controller
     /**
      * Display the specified resource.
      *
-     * @param  \App\Institution  $institution
+     * @param  \App\Models\Institution  $institution
      * @return \Illuminate\Http\Response
      */
     public function show($id)
@@ -378,7 +350,7 @@ class InstitutionController extends Controller
     /**
      * Show the form for editing the specified resource.
      *
-     * @param  \App\Institution  $institution
+     * @param  \App\Models\Institution  $institution
      * @return \Illuminate\Http\Response
      */
     public function edit($id)
@@ -390,7 +362,7 @@ class InstitutionController extends Controller
      * Update the specified resource in storage.
      *
      * @param  \Illuminate\Http\Request  $request
-     * @param  \App\Institution  $institution
+     * @param  \App\Models\Institution  $institution
      * @return \Illuminate\Http\Response
      */
     public function update(Request $request, $id)
@@ -484,7 +456,7 @@ class InstitutionController extends Controller
     /**
      * Remove the specified resource from storage.
      *
-     * @param  \App\Institution  $institution
+     * @param  \App\Models\Institution  $institution
      * @return \Illuminate\Http\Response
      */
     public function destroy($id)
