@@ -15,12 +15,6 @@ return Application::configure(basePath: dirname(__DIR__))
         health: '/up',
     )
     ->withMiddleware(function (Middleware $middleware) {
-        $middleware->alias([
-            'role' => CheckRole::class,
-        ]);
-
-        $middleware->statefulApi();
-
         $middleware->priority([
             StartSession::class,
             AssignConsortiumDb::class,
@@ -28,19 +22,27 @@ return Application::configure(basePath: dirname(__DIR__))
             \Illuminate\Http\Middleware\HandleCors::class,
         ]);
 
+        $middleware->statefulApi();
+
         // Group Session and ConsortiumDb middleware with Sanctum for protected routes
         $middleware->group('ccplusAuth', [
-            StartSession::class,
             AssignConsortiumDb::class,
             'auth:sanctum',
         ]);
 
-        $middleware->web(append: [
+        $middleware->prependToGroup('api', [
+            StartSession::class,
+        ]);
+        $middleware->appendToGroup('web', [
             \Illuminate\Http\Middleware\AddLinkHeadersForPreloadedAssets::class,
         ]);
 
         $middleware->validateCsrfTokens(except: [
             '/logout'
+        ]);
+
+        $middleware->alias([
+            'role' => CheckRole::class,
         ]);
 
         $middleware->trustProxies(
