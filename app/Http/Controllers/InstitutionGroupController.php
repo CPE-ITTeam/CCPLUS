@@ -2,9 +2,9 @@
 
 namespace App\Http\Controllers;
 
-use App\InstitutionGroup;
-use App\Institution;
-use App\Consortium;
+use App\Models\InstitutionGroup;
+use App\Models\Institution;
+use App\Models\Consortium;
 use Illuminate\Http\Request;
 use PhpOffice\PhpSpreadsheet\Spreadsheet;
 use PhpOffice\PhpSpreadsheet\Writer\Xlsx;
@@ -14,12 +14,11 @@ class InstitutionGroupController extends Controller
 {
     public function __construct()
     {
-        $this->middleware('auth');
         $this->middleware('role:Admin');
     }
 
     /**
-     * Display a listing of the resource.
+     * Return a JSON array of the resource.
      *
      * @return \Illuminate\Http\Response
      */
@@ -34,9 +33,7 @@ class InstitutionGroupController extends Controller
             $group->count = sizeof($members);
             $data[] = $group->toArray();
         }
-        $cur_instance = Consortium::where('ccp_key', session('ccp_con_key'))->first();
-        $conso_name = ($cur_instance) ? $cur_instance->name : "Template";
-        return view('institutiongroups.index', compact('conso_name', 'data'));
+        return response()->json(['records' => $data, 'result' => true], 200);
     }
 
     /**
