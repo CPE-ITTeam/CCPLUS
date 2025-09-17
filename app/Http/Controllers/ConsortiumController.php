@@ -16,7 +16,7 @@ class ConsortiumController extends BaseController
      */
     public function index(Request $request) {
         $data = Consortium::where('is_active',true)->get();
-        return response()->json(['consortia' => $data, 'result' => true], 200);
+        return response()->json(['records' => $data, 'result' => true], 200);
     }
 
     /**
