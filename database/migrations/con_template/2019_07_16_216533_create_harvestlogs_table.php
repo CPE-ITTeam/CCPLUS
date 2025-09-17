@@ -20,7 +20,7 @@ class CreateHarvestLogsTable extends Migration
             // Status should be: 'Success', 'Fail', 'New', 'Queued', 'Harvesting', 'Paused', 'Waiting', 'Pending', 'Processing'
             //                   'Stopped', or 'ReQueued'
             $table->string('status', 10);
-            $table->unsignedInteger('sushisettings_id');
+            $table->unsignedInteger('credentials_id');
             $table->unsignedInteger('report_id');
             $table->string('release', 4)->nullable();
             $table->string('yearmon', 7);
@@ -30,8 +30,8 @@ class CreateHarvestLogsTable extends Migration
             $table->string('rawfile')->nullable();
             $table->timestamps();
 
-            $table->unique(['sushisettings_id', 'report_id', 'yearmon']);
-            $table->foreign('sushisettings_id')->references('id')->on('sushisettings')->onDelete('cascade');
+            $table->unique(['credentials_id', 'report_id', 'yearmon']);
+            $table->foreign('credentials_id')->references('id')->on('credentials_id')->onDelete('cascade');
             $table->foreign('report_id')->references('id')->on($global_db . '.reports')->onDelete('cascade');
         });
     }
