@@ -33,14 +33,15 @@ class GlobalSettingSeeder extends Seeder
                                  ['id' => 8,  'type' =>'config', 'name' => 'cookie_life', 'value' => '90'],
                                  ['id' => 9,  'type' =>'config', 'name' => 'max_name_length', 'value' => '191'],
                                  ['id' => 10, 'type' =>'config', 'name' => 'first_yearmon_51', 'value' => '2025-01'],
-                                 ['id' => 11, 'type' =>'mail', 'name' => 'mailer', 'value' => 'smtp'],
-                                 ['id' => 12, 'type' =>'mail', 'name' => 'host', 'value' => null],
-                                 ['id' => 13, 'type' =>'mail', 'name' => 'port', 'value' => 465],
-                                 ['id' => 14, 'type' =>'mail', 'name' => 'mail_username', 'value' => null],
-                                 ['id' => 15, 'type' =>'mail', 'name' => 'mail_password', 'value' => null],
-                                 ['id' => 16, 'type' =>'mail', 'name' => 'encryption', 'value' => 'ssl'],
-                                 ['id' => 17, 'type' =>'mail', 'name' => 'from_address', 'value' => null],
-                                 ['id' => 18, 'type' =>'mail', 'name' => 'from_name', 'value' => 'CC-Plus-System'],
+                                 ['id' => 11, 'type' =>'config', 'name' => 'time_zone', 'value' => 'America/New_York'],
+                                 ['id' => 12, 'type' =>'mail', 'name' => 'mailer', 'value' => 'smtp'],
+                                 ['id' => 13, 'type' =>'mail', 'name' => 'host', 'value' => null],
+                                 ['id' => 14, 'type' =>'mail', 'name' => 'port', 'value' => 465],
+                                 ['id' => 15, 'type' =>'mail', 'name' => 'mail_username', 'value' => null],
+                                 ['id' => 16, 'type' =>'mail', 'name' => 'mail_password', 'value' => null],
+                                 ['id' => 17, 'type' =>'mail', 'name' => 'encryption', 'value' => 'ssl'],
+                                 ['id' => 18, 'type' =>'mail', 'name' => 'from_address', 'value' => null],
+                                 ['id' => 19, 'type' =>'mail', 'name' => 'from_name', 'value' => 'CC-Plus-System'],
                               ]);
         }
     }
