@@ -2,13 +2,13 @@
 
 namespace App\Http\Controllers;
 
-use App\GlobalProvider;
-use App\ConnectionField;
-use App\Consortium;
-use App\CounterRegistry;
-use App\Provider;
-use App\Report;
-use App\SushiSetting;
+use App\Models\GlobalProvider;
+use App\Models\ConnectionField;
+use App\Models\Consortium;
+use App\Models\CounterRegistry;
+use App\Models\Provider;
+use App\Models\Report;
+use App\Models\Credential;
 use Illuminate\Http\Request;
 use GuzzleHttp\Client;
 use DB;
@@ -293,7 +293,7 @@ class CounterRegistryController extends Controller
                 $global_provider->load('registries');
     
                 // Check for changed connectors (in the default/max release) - if new ones are now required, we need
-                // to update SushiSettings.
+                // to update credentials.
                 $cur_connectors = $global_provider->connectors();
                 $connectors_changed = ($cur_connectors != $old_connectors);
             }

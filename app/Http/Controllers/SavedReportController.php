@@ -3,19 +3,19 @@
 namespace App\Http\Controllers;
 
 use DB;
-use App\Consortium;
-use App\SavedReport;
-use App\Report;
-use App\ReportField;
-use App\ReportFilter;
-use App\Provider;
-use App\Platform;
-use App\Institution;
-use App\InstitutionGroup;
-use App\HarvestLog;
-use App\GlobalProvider;
-use App\Alert;
-use App\SystemAlert;
+use App\Models\Consortium;
+use App\Models\SavedReport;
+use App\Models\Report;
+use App\Models\ReportField;
+use App\Models\ReportFilter;
+use App\Models\Provider;
+use App\Models\Platform;
+use App\Models\Institution;
+use App\Models\InstitutionGroup;
+use App\Models\HarvestLog;
+use App\Models\GlobalProvider;
+use App\Models\Alert;
+use App\Models\SystemAlert;
 use Illuminate\Http\Request;
 
 class SavedReportController extends Controller
@@ -28,91 +28,91 @@ class SavedReportController extends Controller
     /**
      * Display a listing of the resource.
      *
-     * @return \Illuminate\Http\Response
+     * @return Inertia::render
      */
     public function index()
     {
-      $thisUser = auth()->user();
+        $thisUser = auth()->user();
 
-      // Assign optional inputs to $filters array
-      $filters = array('reports' => []);
+        // Assign optional inputs to $filters array
+        $filters = array('reports' => []);
 
-      // Get and map the standard Counter reports
-      $master_reports = Report::with('reportFields', 'children', 'reportFields.reportFilter')
-                              ->where('parent_id',0)->orderBy('name', 'asc')->get();
+        // Get and map the standard Counter reports
+        $master_reports = Report::with('reportFields', 'children', 'reportFields.reportFilter')
+                                ->where('parent_id',0)->orderBy('name', 'asc')->get();
 
-      // Setup array of counter reports; [0] holds intro info, [1]->[n] hold report-series-by-master
-      $counter_reports = array();
-      $intro = array('series' => " >>> ", 'text' => "Select a tab to view standard COUNTER-5 report definitions by type",
-                     'reports' => array());
-      $counter_reports[] = $intro;
+        // Setup array of counter reports; [0] holds intro info, [1]->[n] hold report-series-by-master
+        $counter_reports = array();
+        $intro = array('series' => " >>> ", 'text' => "Select a tab to view standard COUNTER-5 report definitions by type",
+                        'reports' => array());
+        $counter_reports[] = $intro;
 
-      // Get the current consortium
-      $con = Consortium::where("ccp_key", session("ccp_con_key"))->first();
-      // Only display consortium name for admins
-      $conso = ($con && $thisUser->hasRole('Admin')) ? $con->name : "";
+        // Get the current consortium
+        $con = Consortium::where("ccp_key", session("ccp_con_key"))->first();
+        // Only display consortium name for admins
+        $conso = ($con && $thisUser->hasRole('Admin')) ? $con->name : "";
 
-      // Procoess all master reports
-      foreach ($master_reports as $master) {
-          $title = preg_replace('/Master /','',$master->legend) . 's';
-          $series = array('series' => $title, 'text' => '', 'reports' => array());
-          $rpt = array('id' => $master->id, 'name' => $master->name, 'legend' => $master->legend, 'master' => "--Master--",
-                       'field_count' => $master->reportFields->count());
+        // Procoess all master reports
+        foreach ($master_reports as $master) {
+            $title = preg_replace('/Master /','',$master->legend) . 's';
+            $series = array('series' => $title, 'text' => '', 'reports' => array());
+            $rpt = array('id' => $master->id, 'name' => $master->name, 'legend' => $master->legend, 'master' => "--Master--",
+                        'field_count' => $master->reportFields->count());
 
-          // Get report fields and filters for master
-          $fields = $master->reportFields->where('active', true)->values();
+            // Get report fields and filters for master
+            $fields = $master->reportFields->where('active', true)->values();
 
-          // Set any connected filters to 'All'
-          $field_data = array();
-          foreach ($fields as $field) {
-              $rec = array('name' => $field->legend);
-              $rec['filter'] =  ($field->reportFilter) ? "All" : '';
-              $field_data[] = $rec;
-          }
-          $rpt['fields'] = $field_data;
-          $series['reports'][] = $rpt;
+            // Set any connected filters to 'All'
+            $field_data = array();
+            foreach ($fields as $field) {
+                $rec = array('name' => $field->legend);
+                $rec['filter'] =  ($field->reportFilter) ? "All" : '';
+                $field_data[] = $rec;
+            }
+            $rpt['fields'] = $field_data;
+            $series['reports'][] = $rpt;
 
-          // Build report records for children of this master, including fields and filters
-          foreach ($master->children as $child) {
-              $rpt = array('id' => $child->id, 'name' => $child->name, 'legend' => $child->legend,
-                          'master' => $master->name, 'field_count' => $child->fieldCount());
-              $field_data = array();
-              $inherited = $child->parsedInherited();
-              foreach ($inherited as $key => $value) {
-                  $field = $master->reportFields->find($key);
-                  if (!$field) continue;
-                  $rec = array('name' => $field->legend, 'filter' => '');
+            // Build report records for children of this master, including fields and filters
+            foreach ($master->children as $child) {
+                $rpt = array('id' => $child->id, 'name' => $child->name, 'legend' => $child->legend,
+                            'master' => $master->name, 'field_count' => $child->fieldCount());
+                $field_data = array();
+                $inherited = $child->parsedInherited();
+                foreach ($inherited as $key => $value) {
+                    $field = $master->reportFields->find($key);
+                    if (!$field) continue;
+                    $rec = array('name' => $field->legend, 'filter' => '');
 
-                  // Get filter preset if present
-                  if ($field->reportFilter) {
-                      if ($value > 0) {
-                          if ($field->reportFilter->model) {
-                              $rec['filter'] = $field->reportFilter->model::where('id', $value)->value('name');
-                          }
-                      } else {
-                          $rec['filter'] = 'All';
-                      }
-                  }
-                  $field_data[] = $rec;
-              }
-              $rpt['fields'] = $field_data;
-              $series['reports'][] = $rpt;
-          }
-          $counter_reports[] = $series;
-      }
+                    // Get filter preset if present
+                    if ($field->reportFilter) {
+                        if ($value > 0) {
+                            if ($field->reportFilter->model) {
+                                $rec['filter'] = $field->reportFilter->model::where('id', $value)->value('name');
+                            }
+                        } else {
+                            $rec['filter'] = 'All';
+                        }
+                    }
+                    $field_data[] = $rec;
+                }
+                $rpt['fields'] = $field_data;
+                $series['reports'][] = $rpt;
+            }
+            $counter_reports[] = $series;
+        }
 
-      // Pass FiscalYr start month (default to Jan if not set)
-      $fy_month = 1;
-      $userFY = $thisUser->getFY();
-      if ( !is_null($userFY) ) {
-          $date = date_parse($userFY);
-          $fy_month = $date['month'];
-      }
-      // Get formatted array of saved user reports
-      $report_data = $this->savedUserReports(auth()->id());
+        // Pass FiscalYr start month (default to Jan if not set)
+        $fy_month = 1;
+        $userFY = $thisUser->getFY();
+        if ( !is_null($userFY) ) {
+            $date = date_parse($userFY);
+            $fy_month = $date['month'];
+        }
+        // Get formatted array of saved user reports
+        $report_data = $this->savedUserReports(auth()->id());
 
-      //   return view('savedreports.my-saved', compact('report_data','counter_reports','conso'));
-      return view('reports.index', compact('report_data','counter_reports','filters','conso','fy_month'));
+        // Load the view with the data
+        // return Inertia::render('home', compact('report_data','counter_reports','filters','conso','fy_month'));
     }
 
     /**
@@ -151,13 +151,13 @@ class SavedReportController extends Controller
         // Get 10 most recent harvests
         $harvests = HarvestLog::with(
             'report:id,name',
-            'sushiSetting',
-            'sushiSetting.institution:id,name',
-            'sushiSetting.provider:id,name'
+            'credential',
+            'credential.institution:id,name',
+            'credential.provider:id,name'
         )
-                              ->join('sushisettings', 'harvestlogs.sushisettings_id', '=', 'sushisettings.id')
+                              ->join('credentials', 'harvestlogs.credentials_id', '=', 'credentials.id')
                               ->when($limit_to_insts, function ($query, $limit_to_insts) {
-                                    return $query->whereIn('sushisettings.inst_id', $limit_to_insts);
+                                    return $query->whereIn('credentials.inst_id', $limit_to_insts);
                               })
                               ->orderBy('harvestlogs.created_at', 'DESC')->limit(10)
                               ->get('harvestlogs.*')->toArray();
@@ -172,7 +172,7 @@ class SavedReportController extends Controller
             'alertSetting.reportField',
             'user:id,name',
             'harvest',
-            'harvest.sushiSetting'
+            'harvest.credential'
         )
                      ->latest()->limit(5)->get();
 
@@ -424,7 +424,7 @@ class SavedReportController extends Controller
      * Update the specified resource in storage.
      *
      * @param  \Illuminate\Http\Request  $request
-     * @param  \App\SavedReport $id
+     * @param  \App\Models\SavedReport $id
      * @return \Illuminate\Http\Response
      */
     public function update(Request $request, $id)
@@ -450,7 +450,7 @@ class SavedReportController extends Controller
     /**
      * Remove the specified resource from storage.
      *
-     * @param  \App\SavedReport  $id
+     * @param  \App\Models\SavedReport  $id
      * @return \Illuminate\Http\Response
      */
     public function destroy($id)
@@ -478,7 +478,7 @@ class SavedReportController extends Controller
         $all_filters = ReportFilter::get(['id','table_name']);
 
         // Setup raw fields for what we need from the harvestlog
-        $count_fields  = "sushisettings.inst_id, ";
+        $count_fields  = "credentials.inst_id, ";
         $count_fields .= "count(*) as total, sum(case when harvestlogs.status='Success' then 1 else 0 end) as success";
 
         // Get names and IDs for providers, institutions, platforms, and groups
@@ -571,14 +571,14 @@ class SavedReportController extends Controller
             }
 
             // Pull by-institution harvest/error counts, add to report_data
-            $inst_harv = HarvestLog::join('sushisettings', 'harvestlogs.sushisettings_id', '=', 'sushisettings.id')
+            $inst_harv = HarvestLog::join('credentials', 'harvestlogs.credentials_id', '=', 'credentials.id')
                                   ->when($limit_to_insts, function ($query, $limit_to_insts) {
-                                        return $query->whereIn('sushisettings.inst_id', $limit_to_insts);
+                                        return $query->whereIn('credentials.inst_id', $limit_to_insts);
                                   })
                                   ->where('report_id', '=', $report->master->id)
                                   ->where('yearmon', '=', $last_harvest)
                                   ->selectRaw($count_fields)
-                                  ->groupBy('sushisettings.inst_id')
+                                  ->groupBy('credentials.inst_id')
                                   ->get(['inst_id','total','success'])
                                   ->toArray();
 

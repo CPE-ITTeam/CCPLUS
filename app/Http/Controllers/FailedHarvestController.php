@@ -2,21 +2,16 @@
 
 namespace App\Http\Controllers;
 
-use App\FailedHarvest;
-use App\Institution;
-use App\Provider;
-use App\Report;
-use App\SushiSetting;
-use App\HarvestLog;
+use App\Models\FailedHarvest;
+use App\Models\Institution;
+use App\Models\Provider;
+use App\Models\Report;
+use App\Models\Credential;
+use App\Models\HarvestLog;
 use Illuminate\Http\Request;
 
 class FailedHarvestController extends Controller
 {
-    public function __construct()
-    {
-        $this->middleware('auth');
-    }
-
     /**
      * Display a listing of the resource.
      *
@@ -96,17 +91,17 @@ class FailedHarvestController extends Controller
         $header  = "Failed Harvests";
         $header .= ($details == "") ? "" : " : " . $details;
 
-        // Get the sushisettings implicated by inst and prov
-        $setting_ids = SushiSetting::when($inst, function ($qry, $inst) {
-                                      return $qry->where('inst_id', $inst);
-        })
-                                ->when($prov, function ($qry, $prov) {
-                                      return $qry->where('prov_id', $prov);
-                                })
-                                ->pluck('id')->toArray();
+        // Get the credentials implicated by inst and prov
+        $credential_ids = Credential::when($inst, function ($qry, $inst) {
+                                        return $qry->where('inst_id', $inst);
+                                    })
+                                    ->when($prov, function ($qry, $prov) {
+                                        return $qry->where('prov_id', $prov);
+                                    })
+                                    ->pluck('id')->toArray();
 
-        // Get the harvestlogs connected to the sushisettings and the other filters
-        $harvest_ids = HarvestLog::whereIn('sushisettings_id', $setting_ids)
+        // Get the harvestlogs connected to the credentials and the other filters
+        $harvest_ids = HarvestLog::whereIn('credentials_id', $credential_ids)
                                  ->when($rept, function ($qry, $rept) {
                                      return $qry->where('report_id', $rept);
                                  })
@@ -121,9 +116,9 @@ class FailedHarvestController extends Controller
         // Get the failedharvest records
         $data = FailedHarvest::with(
             'harvest',
-            'harvest.sushiSetting',
-            'harvest.sushiSetting.institution:id,name',
-            'harvest.sushiSetting.provider:id,name',
+            'harvest.credential',
+            'harvest.credential.institution:id,name',
+            'harvest.credential.provider:id,name',
             'harvest.report:id,name',
             'ccplusError',
             'ccplusError.severity'
