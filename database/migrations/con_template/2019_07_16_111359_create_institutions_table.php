@@ -20,7 +20,6 @@ class CreateInstitutionsTable extends Migration
             // local_id can be null, but IF SET,  must be unique - enforced in controller
             $table->string('local_id')->nullable();
             $table->string('notes')->nullable();
-            $table->string('sushiIPRange')->nullable();
             $table->string('shibURL')->nullable();
             $table->unsignedInteger('fte')->nullable();
             $table->unsignedInteger('type_id')->default(1);
