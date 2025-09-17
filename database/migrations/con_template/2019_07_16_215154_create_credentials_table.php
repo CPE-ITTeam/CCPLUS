@@ -13,7 +13,7 @@ class CreateSushiSettingsTable extends Migration
      */
     public function up()
     {
-        Schema::create('sushisettings', function (Blueprint $table) {
+        Schema::create('credentials', function (Blueprint $table) {
 
             $global_db = DB::connection('globaldb')->getDatabaseName();
 
@@ -42,6 +42,6 @@ class CreateSushiSettingsTable extends Migration
      */
     public function down()
     {
-        Schema::dropIfExists('sushisettings');
+        Schema::dropIfExists('credentials');
     }
 }
