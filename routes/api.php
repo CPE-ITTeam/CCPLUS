@@ -16,10 +16,12 @@ Route::middleware('ccplusAuth')->group( function () {
     Route::get('/user', function (Request $request) {
        return $request->user();
     });
-    Route::get('getCreds', 'App\Http\Controllers\SushiSettingController@index')->name('getCreds');
+    Route::get('getCreds', 'App\Http\Controllers\CredentialController@index')->name('getCreds');
     Route::get('getInsts', 'App\Http\Controllers\InstitutionController@index')->name('getInsts');
     Route::get('getInstTypes', 'App\Http\Controllers\InstitutionTypeController@index')->name('getInstTypes');
     Route::get('getInstGroups', 'App\Http\Controllers\InstitutionGroupController@index')->name('getInstGroups');
     Route::get('getPlatforms', 'App\Http\Controllers\GlobalProviderController@index')->name('getPlatforms');
     Route::get('getUsers', 'App\Http\Controllers\UserController@index')->name('getUsers');
+    Route::get('getSettings/{type}', 'App\Http\Controllers\GlobalSettingController@index')->name('getSettings');
+    Route::post('setSettings', 'App\Http\Controllers\GlobalSettingController@store')->name('setSettings');
 });
