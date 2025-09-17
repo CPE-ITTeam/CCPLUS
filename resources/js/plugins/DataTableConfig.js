@@ -1,7 +1,7 @@
   // Dataset config map
 export const tableSetup = {
     consortia: {
-      url: '/consoList',
+      url: '',
       headers: [
         { title: 'Status', key: 'status' },
         { title: 'Consortium Name', key: 'name' },
@@ -16,7 +16,8 @@ export const tableSetup = {
       url: '/api/getCreds',
       headers: [
         { title: 'Connected', key: 'connected' },
-        { title: 'Name', key: 'name' },
+        { title: 'Name', key: 'provider.name' },
+        { title: 'Institution', key: 'institution.name' },
         { title: 'PR', key: 'PR', class: 'narrow-col' },
         { title: 'DR', key: 'DR', class: 'narrow-col' },
         { title: 'TR', key: 'TR', class: 'narrow-col' },
