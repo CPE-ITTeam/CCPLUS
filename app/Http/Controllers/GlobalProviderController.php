@@ -2,19 +2,16 @@
 
 namespace App\Http\Controllers;
 
-use App\GlobalProvider;
-use App\Consortium;
-use App\Report;
-use App\Provider;
-use App\SushiSetting;
-use App\ConnectionField;
-use App\CounterRegistry;
+use App\Models\GlobalProvider;
+use App\Models\Consortium;
+use App\Models\Report;
+use App\Models\Provider;
+use App\Models\ConnectionField;
+use App\Models\CounterRegistry;
 use Illuminate\Http\Request;
 use PhpOffice\PhpSpreadsheet\Spreadsheet;
 use PhpOffice\PhpSpreadsheet\Writer\Xlsx;
 use DB;
-use GuzzleHttp\Exception\GuzzleException;
-use GuzzleHttp\Client;
 
 class GlobalProviderController extends Controller
 {
@@ -36,7 +33,7 @@ class GlobalProviderController extends Controller
     public function index(Request $request)
     {
         global $masterReports, $allConnectors;
-        $json = ($request->input('json')) ? true : false;
+        // $json = ($request->input('json')) ? true : false;
 
         // Assign optional inputs to $filters array
         $filters = array('stat' => 'ALL', 'refresh' => 'ALL');
@@ -62,104 +59,94 @@ class GlobalProviderController extends Controller
         $this->getConnectionFields();
         $all_connectors = $allConnectors->toArray();
 
-        // Skip querying for records unless we're returning json
-        // The vue-component will run a request for initial data once it is mounted
-        $providers = array();
-        if ($json) {
-
-            // Prep variables for use in querying
-            $filter_stat = null;
-            if ($filters['stat'] != 'ALL') {
-                $filter_stat = ($filters['stat'] == 'Active') ? 1 : 0;
-            }
-            $filter_refresh = null;
-            $filter_no_registryID = null;
-            $filter_not_refreshable = null;
-            if ($filters['refresh'] == 'Refresh Disabled') {
-                $filter_not_refreshable = true;
-            } else if ($filters['refresh'] == 'No Registry ID') {
-                $filter_no_registryID = true;
-            } else if ($filters['refresh'] == 'Deprecated') {
-                $filter_refresh = 'orphan';
-            } else if ($filters['refresh'] != 'ALL') {
-                $filter_refresh = strtolower($filters['refresh']);
-            }
-
-            // Get provider records and filter as-needed
-            $gp_data = GlobalProvider::when(!is_null($filter_stat), function ($qry) use ($filter_stat) {
-                                          return $qry->where('is_active', $filter_stat);
-                                       })
-                                       ->when($filter_refresh, function ($qry) use ($filter_refresh) {
-                                          return $qry->where('refresh_result',$filter_refresh);
-                                       })
-                                       ->when($filter_not_refreshable, function ($qry) {
-                                          return $qry->where('refreshable',0);
-                                       })
-                                       ->when($filter_no_registryID, function ($qry) {
-                                          return $qry->whereNull('registry_id')->orWhere('registry_id',"");
-                                       })
-                                       ->orderBy('name', 'ASC')->get();
-
-            // get all the consortium instances and preserve the current instance database setting
-            $instances = Consortium::get();
-
-            // Build the providers array to pass back to the datatable
-            $providers = array();
-            foreach ($gp_data as $gp) {
-                $provider = $gp->toArray();
-                $provider['status'] = ($gp->is_active) ? "Active" : "Inactive";
-                $provider['registry_id'] = (is_null($gp->registry_id) || $gp->registry_id=="") ? null : $gp->registry_id;
-
-                // Set release-related fields
-                $provider['registries'] = array();
-                $provider['releases'] = array();
-                $provider['release'] = $gp->default_release();
-                $provider['service_url'] = $gp->service_url();
-                foreach ($gp->registries->sortBy('release') as $registry) {
-                    $reg = $registry->toArray();
-                    $reg['connector_state'] = $this->connectorState($registry->connectors);
-                    $reg['is_selected'] = ($registry->release == $provider['release']);
-                    $provider['registries'][] = $reg;
-                    $provider['releases'][] = trim($registry->release);
-                }
-                if (is_null($gp->selected_release)) {
-                    $provider['selected_release'] = $provider['release'];
-                }
-    
-                // Build arrays of booleans for connecion fields and reports for the U/I chackboxes
-                $provider['report_state'] = $this->reportState($gp->master_reports);
-
-                // Walk all instances scan for harvests connected to this provider
-                // If any are found, the can_delete flag will be set to false to disable deletion option in the U/I
-                $provider['can_delete'] = true;
-                $provider['connection_count'] = 0;
-                $connections = array();
-                foreach ($instances as $instance) {
-                    // Collect details from the instance for this provider
-                    $details = $this->instanceDetails($instance->ccp_key, $gp);
-                    if ($details['harvest_count'] > 0) {
-                        $provider['can_delete'] = false;
-                    }
-                    if ($details['connections'] > 0) {
-                        $connections[] = array('key'=>$instance->ccp_key, 'name'=>$instance->name, 'num'=>$details['connections'],
-                                               'last_harvest'=>$details['last_harvest']);
-                        $provider['connection_count'] += 1;
-                    }
-                }
-                $parsedUrl = parse_url($provider['service_url']);
-                $provider['host_domain'] = (isset($parsedUrl['host'])) ? $parsedUrl['host'] : "-missing-";
-                $provider['connections'] = $connections;
-                $provider['updated'] = (is_null($gp->updated_at)) ? "" : date("Y-m-d H:i", strtotime($gp->updated_at));
-                $providers[] = $provider;
-            }
-
-            // Restore the database habdle return the data array
-            return response()->json(['providers' => $providers], 200);
-
-          // Not returning JSON, pass only what the index/vue-component needs to initialize the page
-        } else {
-          return view('globalproviders.index', compact('providers', 'masterReports', 'all_connectors', 'filters'));
+        // Prep variables for use in querying
+        $filter_stat = null;
+        if ($filters['stat'] != 'ALL') {
+            $filter_stat = ($filters['stat'] == 'Active') ? 1 : 0;
         }
+        $filter_refresh = null;
+        $filter_no_registryID = null;
+        $filter_not_refreshable = null;
+        if ($filters['refresh'] == 'Refresh Disabled') {
+            $filter_not_refreshable = true;
+        } else if ($filters['refresh'] == 'No Registry ID') {
+            $filter_no_registryID = true;
+        } else if ($filters['refresh'] == 'Deprecated') {
+            $filter_refresh = 'orphan';
+        } else if ($filters['refresh'] != 'ALL') {
+            $filter_refresh = strtolower($filters['refresh']);
+        }
+
+        // Get provider records and filter as-needed
+        $gp_data = GlobalProvider::when(!is_null($filter_stat), function ($qry) use ($filter_stat) {
+                                        return $qry->where('is_active', $filter_stat);
+                                    })
+                                    ->when($filter_refresh, function ($qry) use ($filter_refresh) {
+                                        return $qry->where('refresh_result',$filter_refresh);
+                                    })
+                                    ->when($filter_not_refreshable, function ($qry) {
+                                        return $qry->where('refreshable',0);
+                                    })
+                                    ->when($filter_no_registryID, function ($qry) {
+                                        return $qry->whereNull('registry_id')->orWhere('registry_id',"");
+                                    })
+                                    ->orderBy('name', 'ASC')->get();
+
+        // get all the consortium instances and preserve the current instance database setting
+        $instances = Consortium::get();
+
+        // Build the providers array to pass back to the datatable
+        $providers = array();
+        foreach ($gp_data as $gp) {
+            $provider = $gp->toArray();
+            $provider['status'] = ($gp->is_active) ? "Active" : "Inactive";
+            $provider['registry_id'] = (is_null($gp->registry_id) || $gp->registry_id=="") ? null : $gp->registry_id;
+
+            // Set release-related fields
+            $provider['registries'] = array();
+            $provider['releases'] = array();
+            $provider['release'] = $gp->default_release();
+            $provider['service_url'] = $gp->service_url();
+            foreach ($gp->registries->sortBy('release') as $registry) {
+                $reg = $registry->toArray();
+                $reg['connector_state'] = $this->connectorState($registry->connectors);
+                $reg['is_selected'] = ($registry->release == $provider['release']);
+                $provider['registries'][] = $reg;
+                $provider['releases'][] = trim($registry->release);
+            }
+            if (is_null($gp->selected_release)) {
+                $provider['selected_release'] = $provider['release'];
+            }
+
+            // Build arrays of booleans for connecion fields and reports for the U/I chackboxes
+            $provider['report_state'] = $this->reportState($gp->master_reports);
+
+            // Walk all instances scan for harvests connected to this provider
+            // If any are found, the can_delete flag will be set to false to disable deletion option in the U/I
+            $provider['can_delete'] = true;
+            $provider['connection_count'] = 0;
+            $connections = array();
+            foreach ($instances as $instance) {
+                // Collect details from the instance for this provider
+                $details = $this->instanceDetails($instance->ccp_key, $gp);
+                if ($details['harvest_count'] > 0) {
+                    $provider['can_delete'] = false;
+                }
+                if ($details['connections'] > 0) {
+                    $connections[] = array('key'=>$instance->ccp_key, 'name'=>$instance->name, 'num'=>$details['connections'],
+                                            'last_harvest'=>$details['last_harvest']);
+                    $provider['connection_count'] += 1;
+                }
+            }
+            $parsedUrl = parse_url($provider['service_url']);
+            $provider['host_domain'] = (isset($parsedUrl['host'])) ? $parsedUrl['host'] : "-missing-";
+            $provider['connections'] = $connections;
+            $provider['updated'] = (is_null($gp->updated_at)) ? "" : date("Y-m-d H:i", strtotime($gp->updated_at));
+            $providers[] = $provider;
+        }
+
+        // Return the data array
+        return response()->json(['records' => $providers], 200);
     }
 
     /**
@@ -959,7 +946,7 @@ class GlobalProviderController extends Controller
     private function instanceDetails($instanceKey, $gp) {
 
         // Query the tables directly for what we're after, starting with connection count
-        $qry  = "Select count(*) as num, max(last_harvest) as last from ccplus_" . $instanceKey . ".sushisettings ";
+        $qry  = "Select count(*) as num, max(last_harvest) as last from ccplus_" . $instanceKey . ".credentials ";
         $qry .= "where prov_id = " . $gp->id;
         $result = DB::select($qry);
         $connections = $result[0]->num;
