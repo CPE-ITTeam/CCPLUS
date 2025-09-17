@@ -13,11 +13,11 @@ import InstitutionsTable from '@/components/tables/InstitutionsTable.vue';
 import InstitutionTypesTable from '@/components/tables/InstitutionTypesTable.vue';
 import InstitutionGroupsTable from '@/components/tables/InstitutionGroupsTable.vue';
 import UsersTable from '@/components/tables/UsersTable.vue';
-// import Consortia from '@/components/tables/Consortia.vue';
-// import Credentials from '@/components/tables/Credentials.vue';
-// import PlatformsTable from '@/components/tables/PlatformsTable.vue';
-// import ServerSettings from '@/components/panels/ServerSettings.vue';
-// import MailSettings from '@/components/panels/MailSettings.vue';
+import CredentialsTable from '@/components/tables/CredentialsTable.vue';
+import PlatformsTable from '@/components/tables/PlatformsTable.vue';
+import Consortia from '@/components/tables/Consortia.vue';
+import ServerSettings from '@/components/panels/ServerSettings.vue';
+import MailSettings from '@/components/panels/MailSettings.vue';
 // import ManualHarvest from '@/components/panels/ManualHarvest.vue';
 // import HarvestQueue from '@/components/tables/HarvestQueue.vue';
 // import HarvestLog from '@/components/tables/HarvestLog.vue';
@@ -85,13 +85,13 @@ export const router = createRouter({
         { path: '/platforms', name: 'Platforms',
           meta: { title: 'Platforms', layout: AuthenticatedLayout, role: 'Admin', level:2 }, 
           children: [
-            { path: '/admin/credentials', name: 'PlaceHCredentialsolder',
+            { path: '/admin/credentials', name: 'Credentials',
               meta: { title: 'Credentials', layout: AuthenticatedLayout, role: 'Admin', level:3 }, 
-              component: markRaw(PlaceHolder),
+              component: markRaw(CredentialsTable),
             },
             { path: '/admin/platforms', name: 'PlatformsTable',
               meta: { title: 'Platforms', layout: AuthenticatedLayout, role: 'Admin', level:3 }, 
-              component: markRaw(PlaceHolder),
+              component: markRaw(PlatformsTable),
             },
           ]
         },
@@ -99,16 +99,16 @@ export const router = createRouter({
           meta: { title: 'Server Admin', layout: AuthenticatedLayout, role: 'ServerAdmin', level:2 }, 
           children: [
             { path: '/admin/consortia', name: 'Consortia',
-              meta: { title: 'PlaceHolder', layout: AuthenticatedLayout, role: 'ServerAdmin', level:3 }, 
-              component: markRaw(PlaceHolder),
+              meta: { title: 'Consortia', layout: AuthenticatedLayout, role: 'ServerAdmin', level:3 }, 
+              component: markRaw(Consortia),
             },
             { path: '/admin/PlaceHolder', name: 'ServerSettings',
               meta: { title: 'Server Settings', layout: AuthenticatedLayout, role: 'ServerAdmin', level:3 }, 
-              component: markRaw(PlaceHolder),
+              component: markRaw(ServerSettings),
             },
             { path: '/admin/PlaceHolder', name: 'MailSettings',
               meta: { title: 'Mail Settings', layout: AuthenticatedLayout, role: 'ServerAdmin', level:3 }, 
-              component: markRaw(PlaceHolder),
+              component: markRaw(MailSettings),
             },
           ]
         },
