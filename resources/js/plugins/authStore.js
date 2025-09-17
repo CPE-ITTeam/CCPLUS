@@ -139,19 +139,20 @@ export const useAuthStore = defineStore('useAuthStore', {
     },
     ccGet(url) {
       return axios({ method: 'get', url: url,
-        headers: {
-          Authorization: 'Bearer ' + this.token,
-          Accept: "application/json",
-        }
-      });
+                     headers: {
+                       Authorization: 'Bearer ' + this.token,
+                       Accept: "application/json",
+                     }
+                   });
     },
-    // ccPost(url, postData) {
-    //   return axios({ method: 'get', url: 'url', data: {...postData},
-    //     headers: {
-    //       Authorization: 'Bearer ' + this.token,
-    //       Accept: "application/json",
-    //     }
-    //   });
-    // }
+    async ccPost(url, content) {
+      const response = await axios({ method: 'post', url: url, data: content,
+                                    headers: {
+                                      Authorization: 'Bearer ' + this.token,
+                                      Accept: "application/json",
+                                    }
+                                  });
+      return response.data;
+    }
   }
 });
