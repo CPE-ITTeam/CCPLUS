@@ -5,19 +5,19 @@ namespace App\Http\Controllers;
 use Illuminate\Http\Request;
 use Illuminate\Database\QueryException;
 use DB;
-use App\HarvestLog;
-use App\Consortium;
-use App\FailedHarvest;
-use App\Report;
-use App\Provider;
-use App\GlobalProvider;
-use App\Institution;
-use App\InstitutionGroup;
-use App\Sushi;
-use App\SushiSetting;
-use App\SushiQueueJob;
-use App\ConnectionField;
-use App\CcplusError;
+use App\Models\HarvestLog;
+use App\Models\Consortium;
+use App\Models\FailedHarvest;
+use App\Models\Report;
+use App\Models\Provider;
+use App\Models\GlobalProvider;
+use App\Models\Institution;
+use App\Models\InstitutionGroup;
+use App\Models\Credential;
+use App\Models\Sushi;
+use App\Models\SushiQueueJob;
+use App\Models\ConnectionField;
+use App\Models\CcplusError;
 use Storage;
 use Illuminate\Support\Facades\File;
 use Illuminate\Support\Facades\Crypt;
@@ -114,33 +114,33 @@ class HarvestLogController extends Controller
            // Only display consortium name for admins
            $conso = ($con && $thisUser->hasRole('Admin')) ? $con->name : "";
 
-           // Get IDs of all possible providers from the sushisettings table
+           // Get IDs of all possible providers from the credentials table
            if ($show_all) {
-               $possible_providers = SushiSetting::distinct('prov_id')->pluck('prov_id')->toArray();
+               $possible_providers = Credential::distinct('prov_id')->pluck('prov_id')->toArray();
            } else {
-               $possible_providers = SushiSetting::where('inst_id',$user_inst)->distinct('prov_id')->pluck('prov_id')->toArray();
+               $possible_providers = Credential::where('inst_id',$user_inst)->distinct('prov_id')->pluck('prov_id')->toArray();
            }
 
            // Setup arrays for institutions and providers
            if ($show_all) {
-               $institutions = Institution::with('sushiSettings:id,inst_id,prov_id')
+               $institutions = Institution::with('credentials:id,inst_id,prov_id')
                                           ->orderBy('name', 'ASC')->get(['id','name'])->toArray();
            } else {
-               $institutions = Institution::with('sushiSettings:id,inst_id,prov_id')
+               $institutions = Institution::with('credentials:id,inst_id,prov_id')
                                           ->where('id',$user_inst)->get(['id','name'])->toArray();
                $conso = $institutions[0]['name'];
            }
-           $provider_data = GlobalProvider::with('sushiSettings','consoProviders','consoProviders.reports','registries')
+           $provider_data = GlobalProvider::with('credentials','consoProviders','consoProviders.reports','registries')
                                           ->whereIn('id', $possible_providers)->orderBy('name', 'ASC')->get(['id','name']);
 
-                                          // Add in a flag for whether or not the provider has enabled sushi settings
+                                          // Add in a flag for whether or not the provider has enabled credentials
            $providers = array();
            foreach ($provider_data as $gp) {
               $rec = array('id' => $gp->id, 'name' => $gp->name);
               $consoCnx = $gp->consoProviders->where('inst_id',1)->first();
               $rec['inst_id'] = ($consoCnx) ? 1 : null;
-              $enabled_setting = $gp->sushiSettings->where('status','Enabled')->first();
-              $rec['sushi_enabled'] = ($enabled_setting) ? true : false;
+              $enabled_cred = $gp->credentials->where('status','Enabled')->first();
+              $rec['sushi_enabled'] = ($enabled_cred) ? true : false;
               $_reports = $gp->enabledReports();
               $rec['reports'] = $_reports;
               $rec['releases'] = $gp->registries->sortBy('release')->pluck('release');
@@ -163,14 +163,15 @@ class HarvestLogController extends Controller
            array_unshift($codes, 'No Error');
 
            // Setup the initial page view
-           return view('harvests.index', compact('harvests','institutions','groups','providers','reports','bounds','filters',
-                                                 'codes','presets','conso'));
+//           return Inertia::render('Harvesting',
+//                                  compact('harvests','institutions','groups','providers','reports','bounds',
+//                                          'filters','codes','presets'));
        }
 
        // Skip querying for records unless we're returning json
        // The vue-component will run a request for JSON data once it is mounted
        if ($json) {
-           // Setup limit_to_insts with the instID's we'll pull settings for
+           // Setup limit_to_insts with the instID's we'll pull creds for
            $limit_to_insts = array();
            if ($show_all) {
                // if checkbox for all-consortium is on, clear inst and group Filters
@@ -203,27 +204,27 @@ class HarvestLogController extends Controller
 
            }
 
-           // Setup limit_to_provs with the provID's we'll pull settings for
+           // Setup limit_to_provs with the provID's we'll pull creds for
            $limit_to_provs = array();   // default to no limit
            if ($show_all && in_array(0,$filters["providers"])) {   //  Get all consortium providers?
-               $limit_to_provs = GlobalProvider::with('sushiSettings', 'sushiSettings.institution:id,is_active')
+               $limit_to_provs = GlobalProvider::with('credentials', 'credentials.institution:id,is_active')
                                                ->pluck('id')->toArray();
            } else if (!in_array(-1,$filters["providers"]) && count($filters['providers']) > 0) {
                $limit_to_provs = $filters['providers'];
            }
 
-           // Get the harvest rows based on sushisettings
-           $settings = SushiSetting::when(count($limit_to_insts) > 0, function ($qry) use ($limit_to_insts) {
-                                       return $qry->whereIn('inst_id', $limit_to_insts);
-                                   })
-                                   ->when(count($limit_to_provs) > 0, function ($qry) use ($limit_to_provs) {
-                                       return $qry->whereIn('prov_id', $limit_to_provs);
-                                   })->get(['id','inst_id','prov_id']);
-           $settings_ids = $settings->pluck('id')->toArray();
+           // Get the harvest rows based on credentials
+           $credentials = Credential::when(count($limit_to_insts) > 0, function ($qry) use ($limit_to_insts) {
+                                        return $qry->whereIn('inst_id', $limit_to_insts);
+                                    })
+                                    ->when(count($limit_to_provs) > 0, function ($qry) use ($limit_to_provs) {
+                                        return $qry->whereIn('prov_id', $limit_to_provs);
+                                    })->get(['id','inst_id','prov_id']);
+           $credential_ids = $credentials->pluck('id')->toArray();
            $harvest_data = HarvestLog::
-               with('report:id,name','sushiSetting','sushiSetting.institution:id,name','sushiSetting.provider',
+               with('report:id,name','credential','credential.institution:id,name','credential.provider',
                     'lastError','failedHarvests','failedHarvests.ccplusError')
-               ->whereIn('sushisettings_id', $settings_ids)
+               ->whereIn('credentials_id', $credential_ids)
                ->orderBy('updated_at', 'DESC')
                ->when(sizeof($filters['reports']) > 0, function ($qry) use ($filters) {
                    return $qry->whereIn('report_id', $filters['reports']);
@@ -264,10 +265,10 @@ class HarvestLogController extends Controller
                array_unshift($codes, 'No Error');
            }
            $rept_ids = $harvest_data->unique('report_id')->sortBy('report_id')->pluck('report_id')->toArray();
-           $prov_ids = $harvest_data->unique('sushiSetting.provider')->sortBy('sushiSetting.provider.name')
-                                    ->pluck('sushiSetting.prov_id')->toArray();
-           $inst_ids = $harvest_data->unique('sushiSetting.institution')->sortBy('sushiSetting.institution.name')
-                                    ->pluck('sushiSetting.inst_id')->toArray();
+           $prov_ids = $harvest_data->unique('credential.provider')->sortBy('credential.provider.name')
+                                    ->pluck('credential.prov_id')->toArray();
+           $inst_ids = $harvest_data->unique('credential.institution')->sortBy('credential.institution.name')
+                                    ->pluck('credential.inst_id')->toArray();
            $yymms = $harvest_data->unique('yearmon')->sortByDesc('yearmon')->pluck('yearmon')->toArray();
 
            // Format records for display , limit to 500 output records
@@ -333,11 +334,11 @@ class HarvestLogController extends Controller
            $presets['inst_id'] = ($is_admin) ? $input['inst'] : $user_inst;
        }
 
-       // Get IDs of all possible prov_ids from the sushisettings table
+       // Get IDs of all possible prov_ids from the credentials table
        $inst_groups = array();
        if ($is_admin) {     // Admin view
-           $possible_providers = SushiSetting::distinct('prov_id')->pluck('prov_id')->toArray();
-           $institutions = Institution::with('sushiSettings:id,inst_id,prov_id')->where('is_active', true)
+           $possible_providers = Credential::distinct('prov_id')->pluck('prov_id')->toArray();
+           $institutions = Institution::with('credentials:id,inst_id,prov_id')->where('is_active', true)
                                       ->orderBy('name', 'ASC')->get(['id','name'])->toArray();
            $group_data = InstitutionGroup::with('institutions')->orderBy('name', 'ASC')->get(['id','name']);
 
@@ -349,8 +350,8 @@ class HarvestLogController extends Controller
            }
 
        } else {    // manager view
-           $possible_providers = SushiSetting::where('inst_id',$user_inst)->distinct('prov_id')->pluck('prov_id')->toArray();
-           $institutions = Institution::with('sushiSettings:id,inst_id,prov_id')->where('id', $user_inst)
+           $possible_providers = Credential::where('inst_id',$user_inst)->distinct('prov_id')->pluck('prov_id')->toArray();
+           $institutions = Institution::with('credentials:id,inst_id,prov_id')->where('id', $user_inst)
                                       ->get(['id','name'])->toArray();
        }
 
@@ -447,7 +448,7 @@ class HarvestLogController extends Controller
                }
            }
        }
-       $global_providers = GlobalProvider::with('sushiSettings','sushiSettings.institution:id,is_active','consoProviders',
+       $global_providers = GlobalProvider::with('credentials','credentials.institution:id,is_active','consoProviders',
                                                 'consoProviders.reports','registries')
                                          ->where('is_active',true)->whereIn('id',$global_ids)->get();
 
@@ -497,19 +498,19 @@ class HarvestLogController extends Controller
                $consoProv = $global_provider->consoProviders->where('inst_id',1)->first();
                $conso_reports = ($consoProv) ? $consoProv->reports->pluck('id')->toArray() : [];
 
-               // Loop through all sushisettings
-               foreach ($global_provider->sushiSettings as $setting) {
+               // Loop through all credentials
+               foreach ($global_provider->credentials as $cred) {
                   // If institution is inactive or this inst_id is not in the $inst_ids array, skip it
-                   if ($setting->status != "Enabled" ||
-                       !$setting->institution->is_active || !in_array($setting->inst_id,$inst_ids)) {
+                   if ($cred->status != "Enabled" ||
+                       !$cred->institution->is_active || !in_array($cred->inst_id,$inst_ids)) {
                        continue;
                    }
 
-                  // Set reports to process based on consortium-wide and, if defined, institution-specific settings_ids
+                  // Set reports to process based on consortium-wide and, if defined, institution-specific credential_ids
                    $report_ids = array();
                    foreach ($global_provider->consoProviders as $conso_provider) {
-                        // if inst-specific provider for an inst different from the current setting, skip it
-                        if ($conso_provider->inst_id != 1 && $conso_provider->inst_id != $setting->inst_id) {
+                        // if inst-specific provider for an inst different from the current cred, skip it
+                        if ($conso_provider->inst_id != 1 && $conso_provider->inst_id != $cred->inst_id) {
                             continue;
                         }
                        $_ids = $conso_provider->reports->pluck('id')->toArray();
@@ -531,7 +532,7 @@ class HarvestLogController extends Controller
                        }
 
                        // Get the harvest record, if it exists
-                       $harvest = HarvestLog::where([['sushisettings_id', '=', $setting->id],
+                       $harvest = HarvestLog::where([['credentials_id', '=', $cred->id],
                                                      ['report_id', '=', $report->id],
                                                      ['yearmon', '=', $yearmon]
                                                     ])->first();
@@ -548,7 +549,7 @@ class HarvestLogController extends Controller
                            $updated_ids[] = $harvest->id;
                        // Insert new HarvestLog record
                        } else {
-                           $harvest = HarvestLog::create(['status' => $state, 'sushisettings_id' => $setting->id,
+                           $harvest = HarvestLog::create(['status' => $state, 'credentials_id' => $cred->id,
                                                 'release' => $release, 'report_id' => $report->id, 'yearmon' => $yearmon,
                                                 'source' => $report->source, 'attempts' => 0]);
                             $created_ids[] = $harvest->id;
@@ -580,8 +581,8 @@ class HarvestLogController extends Controller
        // Setup full details for new harvest entries
        $new = array();
        if (count($created_ids) > 0) {
-           $new_data = HarvestLog::whereIn('id', $created_ids)->with('report:id,name','sushiSetting',
-                               'sushiSetting.institution:id,name','sushiSetting.provider:id,name',
+           $new_data = HarvestLog::whereIn('id', $created_ids)->with('report:id,name','credential',
+                               'credential.institution:id,name','credential.provider:id,name',
                                'lastError','failedHarvests','failedHarvests.ccplusError')->get();
            foreach ($new_data as $rec) {
                $new[] = $this->formatRecord($rec);
@@ -593,8 +594,8 @@ class HarvestLogController extends Controller
        // Setup full details for updated harvest entries
        $updated = array();
        if (count($updated_ids) > 0) {
-           $upd_data = HarvestLog::whereIn('id', $updated_ids)->with('report:id,name','sushiSetting',
-                               'sushiSetting.institution:id,name','sushiSetting.provider:id,name',
+           $upd_data = HarvestLog::whereIn('id', $updated_ids)->with('report:id,name','credential',
+                               'credential.institution:id,name','credential.provider:id,name',
                                'lastError','failedHarvests','failedHarvests.ccplusError')->get();
            foreach ($upd_data as $rec) {
                $updated[] = $this->formatRecord($rec);
@@ -620,7 +621,7 @@ class HarvestLogController extends Controller
        $group_id = json_decode($request->group_id, true);
        $insts = json_decode($request->inst_ids, true);
 
-       // Setup an array of inst_ids for querying against the sushisettings
+       // Setup an array of inst_ids for querying against the credentials
        if ($group_id > 0) {
            $group = InstitutionGroup::with('institutions')->findOrFail($group_id);
            $inst_ids = $group->institutions->pluck('id')->toArray();
@@ -630,24 +631,24 @@ class HarvestLogController extends Controller
            return response()->json(['result' => false, 'msg' => 'Missing expected inputs!']);
        }
 
-       // Query the sushisettings for providers connected to the requested inst IDs
+       // Query the credentials for providers connected to the requested inst IDs
        if (in_array(0,$inst_ids)) {
-           $availables = SushiSetting::where('status','Enabled')->pluck('prov_id')->toArray();
+           $availables = Credential::where('status','Enabled')->pluck('prov_id')->toArray();
        } else {
-           $availables = SushiSetting::where('status','Enabled')->whereIn('inst_id',$inst_ids)->pluck('prov_id')->toArray();
+           $availables = Credential::where('status','Enabled')->whereIn('inst_id',$inst_ids)->pluck('prov_id')->toArray();
        }
 
        // Use availables (IDs) to get the provider data and return it via JSON
        // ( include inst_id and reports relationship like index() does )
        $providers = array();
-       $provider_data = GlobalProvider::with('sushiSettings','consoProviders','consoProviders.reports','registries')
+       $provider_data = GlobalProvider::with('credentials','consoProviders','consoProviders.reports','registries')
                                       ->whereIn('id', $availables)->orderBy('name', 'ASC')->get(['id','name']);
        foreach ($provider_data as $gp) {
             $rec = array('id' => $gp->id, 'name' => $gp->name);
             $consoCnx = $gp->consoProviders->where('inst_id',1)->first();
             $rec['inst_id'] = ($consoCnx) ? 1 : null;
-            $enabled_setting = $gp->sushiSettings->where('status','Enabled')->first();
-            $rec['sushi_enabled'] = ($enabled_setting) ? true : false;
+            $enabled_cred = $gp->credentials->where('status','Enabled')->first();
+            $rec['sushi_enabled'] = ($enabled_cred) ? true : false;
             $_reports = $gp->enabledReports();
             $rec['reports'] = $_reports;
             $rec['releases'] = $gp->registries->sortBy('release')->pluck('release');
@@ -682,17 +683,17 @@ class HarvestLogController extends Controller
            return response()->json(['result' => false, 'msg' => 'Missing expected inputs!']);
        }
 
-       // Query the sushisettings for institutions connected to the requested inst IDs
+       // Query the credentials for institutions connected to the requested inst IDs
        if (in_array(0,$prov_ids)) {
-           $availables = SushiSetting::where('status','Enabled')->pluck('inst_id')->toArray();
+           $availables = Credential::where('status','Enabled')->pluck('inst_id')->toArray();
        } else {
-           $availables = SushiSetting::where('status','Enabled')->whereIn('prov_id',$prov_ids)->pluck('inst_id')->toArray();
+           $availables = Credential::where('status','Enabled')->whereIn('prov_id',$prov_ids)->pluck('inst_id')->toArray();
        }
 
        // Use availables (IDs) to get the provider data and return it via JSON
        // ( include inst_id and reports relationship like index() does )
        $institutions = array();
-       $inst_data = Institution::with('sushiSettings:id,inst_id,prov_id','institutionGroups','institutionGroups.institutions')
+       $inst_data = Institution::with('credentials:id,inst_id,prov_id','institutionGroups','institutionGroups.institutions')
                                ->whereIn('id', $availables)->orderBy('name', 'ASC')->get(['id','name']);
 
        // Loop through institutions and build output records and list of groups
@@ -755,24 +756,24 @@ class HarvestLogController extends Controller
        // Get and process the harvest(s)
        $changed = 0;
        $skipped = [];
-       $harvests = HarvestLog::with('sushiSetting','sushiSetting.institution','sushiSetting.provider',
-                                    'sushiSetting.provider.registries')
+       $harvests = HarvestLog::with('credential','credential.institution','credential.provider',
+                                    'credential.provider.registries')
                              ->whereIn('id',$input['ids'])->get();
        foreach ($harvests as $harvest) {
            // keep track of original status
            $original_status = $harvest->status;
 
-           // Disallow ReStart on any harvest where sushi settings are not Enabled, or provider or institution are
+           // Disallow ReStart on any harvest where credentials are not Enabled, or provider or institution are
            // are not active
-           if ( ($status_action == 'ReStart') && ($harvest->sushiSetting->status != 'Enabled' ||
-                !$harvest->sushiSetting->institution->is_active || !$harvest->sushiSetting->provider->is_active) ) {
+           if ( ($status_action == 'ReStart') && ($harvest->credential->status != 'Enabled' ||
+                !$harvest->credential->institution->is_active || !$harvest->credential->provider->is_active) ) {
                $skipped[] = $harvest->id;
                continue;
            }
 
            // Confirm that a "forcedRelease" is available for this harvests' provider
            if (!is_null($forceRelease)) {
-               $registry = $harvest->sushiSetting->provider->registries->where('release',$forceRelease)->first();
+               $registry = $harvest->credential->provider->registries->where('release',$forceRelease)->first();
                if (!$registry) {
                    $skipped[] = $harvest->id;
                    continue;
@@ -790,8 +791,8 @@ class HarvestLogController extends Controller
            // Setting Queued means attempts get set to zero
            // Restart will reset attempts and create a SushiQueueJob if one does not exist
            } else if ($status_action == 'ReStart') {
-               $sushiJob = SushiQueueJob::where('consortium_id',$con->id)->where('harvest_id',$harvest->id)->first();
-               if (!$sushiJob) {
+               $_job = SushiQueueJob::where('consortium_id',$con->id)->where('harvest_id',$harvest->id)->first();
+               if (!$_job) {
                    try {
                        $newjob = SushiQueueJob::create(['consortium_id' => $con->id,
                                                         'harvest_id' => $harvest->id,
@@ -835,8 +836,8 @@ class HarvestLogController extends Controller
    */
    public function edit($id)
    {
-       $harvest = HarvestLog::with('report:id,name','sushiSetting', 'sushiSetting.institution:id,name',
-                                   'sushiSetting.provider:id,name')
+       $harvest = HarvestLog::with('report:id,name','credential', 'credential.institution:id,name',
+                                   'credential.provider:id,name')
                             ->findOrFail($id);
 
        // Get any failed attempts, pass as an array
@@ -902,7 +903,7 @@ class HarvestLogController extends Controller
        }
        $harvest->status = $request->input('status');
        $harvest->save();
-       $harvest->load('report:id,name','sushiSetting','sushiSetting.institution:id,name','sushiSetting.provider:id,name');
+       $harvest->load('report:id,name','credential','credential.institution:id,name','credential.provider:id,name');
        $harvest->updated = ($harvest->updated_at) ? date("Y-m-d H:i", strtotime($harvest->updated_at)) : " ";
 
        return response()->json(['result' => true, 'harvest' => $harvest]);
@@ -919,7 +920,7 @@ class HarvestLogController extends Controller
        $thisUser = auth()->user();
        $harvest = HarvestLog::findOrFail($id);
        if (!$thisUser->hasRole(['Admin'])) {
-           if (!$thisUser->hasRole(['Manager']) || $harvest->sushiSetting->inst_id != $thisUser->inst_id) {
+           if (!$thisUser->hasRole(['Manager']) || $harvest->credential->inst_id != $thisUser->inst_id) {
                return response()->json(['result' => false, 'msg' => 'Error - Not authorized']);
            }
        }
@@ -931,7 +932,7 @@ class HarvestLogController extends Controller
        }
 
        if (!is_null(config('ccplus.reports_path'))) {
-           // Set the path and filename based on config and harvest sushsettings
+           // Set the path and filename based on config and harvest credentials
            $return_name = "";
            $filename  = config('ccplus.reports_path') . $con->id . '/';
            if ($harvest->status == 'Waiting') {
@@ -940,7 +941,7 @@ class HarvestLogController extends Controller
                $filename = (count($matches) > 0) ? $matches[0] : "/_xyzzy_/not-found";
                $return_name = substr($filename, strrpos($filename,'/',0)+1);
            } else {
-               $filename .= $harvest->sushiSetting->inst_id . '/' . $harvest->sushiSetting->prov_id . '/';
+               $filename .= $harvest->credential->inst_id . '/' . $harvest->credential->prov_id . '/';
                $filename .= (is_null($harvest->rawfile)) ? 'not-found' : $harvest->rawfile;
                $return_name = $harvest->rawfile;
            }
@@ -980,11 +981,11 @@ class HarvestLogController extends Controller
        }
 
        // Delete stored data for the harvest
-       $related_sushi_ids = $this->deleteStoredData( [$id] );
+       $related_credential_ids = $this->deleteStoredData( [$id] );
 
-       // Update last_harvest setting for affected sushi settings based on what's left
-       if ( count($related_sushi_ids) > 0) {
-           $this->resetLastHarvest($related_sushi_ids);
+       // Update last_harvest setting for affected credentials based on what's left
+       if ( count($related_credential_ids) > 0) {
+           $this->resetLastHarvest($related_credential_ids);
        }
 
        // Delete the harvestlog record itself
@@ -1013,7 +1014,7 @@ class HarvestLogController extends Controller
        }
 
        // Get the harvests requested
-       $harvest_data = HarvestLog::with('sushiSetting','report')->whereIn('id', $input['harvests'])->get();
+       $harvest_data = HarvestLog::with('credential','report')->whereIn('id', $input['harvests'])->get();
        $skipped = 0;
        $msg = "Result: ";
 
@@ -1040,14 +1041,14 @@ class HarvestLogController extends Controller
        $result = SushiQueueJob::where('consortium_id',$con->id)->whereIn('harvest_id', $deleteable_ids)->delete();
 
        // Delete stored data for the harvest(s)
-       $related_sushi_ids = $this->deleteStoredData($deleteable_ids);
+       $related_credential_ids = $this->deleteStoredData($deleteable_ids);
 
        // Delete the harvest record(s)
        $result = HarvestLog::whereIn('id', $deleteable_ids)->delete();
 
-       // Update last_harvest setting for affected sushi settings based on what's left
-       if ( count($related_sushi_ids) > 0) {
-           $this->resetLastHarvest($related_sushi_ids);
+       // Update last_harvest setting for affected credentials based on what's left
+       if ( count($related_credential_ids) > 0) {
+           $this->resetLastHarvest($related_credential_ids);
        }
 
        // return result
@@ -1157,18 +1158,18 @@ class HarvestLogController extends Controller
                               'Paused' => 'Paused', 'ReQueued' => 'ReQueued', 'Waiting' => 'Process Queue',
                               'Processing' => '*Processing');
 
-       // Get all harvests joined with sushisettings that match the statuses
-       $all_data = HarvestLog::with('sushiSetting','sushiSetting.provider','sushiSetting.institution:id,name','report',
+       // Get all harvests joined with credentials that match the statuses
+       $all_data = HarvestLog::with('credential','credential.provider','credential.institution:id,name','report',
                                     'lastError','failedHarvests','failedHarvests.ccplusError')
                              ->whereIn('status',array_keys($displayStatus))
                              ->orderBy("updated_at", "DESC")->get();
 
        // Apply filters if set
        $data = $all_data->when(count($limit_to_insts) > 0, function ($qry) use ($limit_to_insts) {
-                                return $qry->whereIn('sushiSetting.inst_id', $limit_to_insts);
+                                return $qry->whereIn('credential.inst_id', $limit_to_insts);
                         })
                         ->when(count($filters['providers']) > 0, function ($qry) use ($filters) {
-                            return $qry->whereIn('sushiSetting.prov_id', $filters['providers']);
+                            return $qry->whereIn('credential.prov_id', $filters['providers']);
                         })
                         ->when(count($filters["reports"]) > 0, function ($qry) use ($filters) {
                             return $qry->whereIn("report_id", $filters["reports"]);
@@ -1188,10 +1189,10 @@ class HarvestLogController extends Controller
        $truncated = false;
        $harvests = array();
        foreach ($data as $rec) {
-          $rec->prov_id = $rec->sushiSetting->prov_id;
-          $rec->inst_id = $rec->sushiSetting->inst_id;
-          $rec->prov_name = $rec->sushiSetting->provider->name;
-          $rec->inst_name = $rec->sushiSetting->institution->name;
+          $rec->prov_id = $rec->credential->prov_id;
+          $rec->inst_id = $rec->credential->inst_id;
+          $rec->prov_name = $rec->credential->provider->name;
+          $rec->inst_name = $rec->credential->institution->name;
           $rec->report_name = $rec->report->name;
           $rec->updated = date("Y-m-d H:i", strtotime($rec->updated_at));
           $rec->dStatus = $displayStatus[$rec->status];
@@ -1223,7 +1224,7 @@ class HarvestLogController extends Controller
           $end = $rec->yearmon . '-' . date('t', strtotime($beg));
           $sushi = new Sushi($beg, $end);
           // set url for manual retry/confirm icon using buildUri
-          $rec->retryUrl = $sushi->buildUri($rec->sushiSetting, 'reports', $rec->report, $rec->release);
+          $rec->retryUrl = $sushi->buildUri($rec->credential, 'reports', $rec->report, $rec->release);
           // add record to the outbound array
           $harvests[] = $rec->toArray();
 
@@ -1244,10 +1245,10 @@ class HarvestLogController extends Controller
                                : $all_data->unique('yearmon')->sortBy('yearmon')->pluck('yearmon')->toArray();
        $stats = ($has_filters) ? $data->unique('status')->sortBy('status')->pluck('status')->toArray()
                                : $all_data->unique('status')->sortBy('status')->pluck('status')->toArray();
-       $insts = ($has_filters) ? $data->unique('sushiSetting.inst_id')->pluck('sushiSetting.inst_id')->toArray()
-                               : $all_data->unique('sushiSetting.inst_id')->pluck('sushiSetting.inst_id')->toArray();
-       $provs = ($has_filters) ? $data->unique('sushiSetting.prov_id')->pluck('sushiSetting.prov_id')->toArray()
-                               : $all_data->unique('sushiSetting.prov_id')->pluck('sushiSetting.prov_id')->toArray();
+       $insts = ($has_filters) ? $data->unique('credential.inst_id')->pluck('credential.inst_id')->toArray()
+                               : $all_data->unique('credential.inst_id')->pluck('credential.inst_id')->toArray();
+       $provs = ($has_filters) ? $data->unique('credential.prov_id')->pluck('credential.prov_id')->toArray()
+                               : $all_data->unique('credential.prov_id')->pluck('credential.prov_id')->toArray();
        $codes = ($has_filters) ? $data->where('error_id','>',0)->unique('error_id')->sortBy('error_id')
                                       ->pluck('error_id')->toArray()
                                : $all_data->where('error_id','>',0)->unique('error_id')->sortBy('error_id')
@@ -1305,12 +1306,12 @@ class HarvestLogController extends Controller
    }
 
    // Build a consistent output record using an input harvest record
-   // input should include Report, SushiSetting with institution+provider and failedHarvests with ccplusError
+   // input should include Report, Credential with institution+provider and failedHarvests with ccplusError
    private function formatRecord($harvest) {
        $rec = array('id' => $harvest->id, 'yearmon' => $harvest->yearmon, 'attempts' => $harvest->attempts,
-                    'inst_name' => $harvest->sushiSetting->institution->name,
-                    'prov_name' => $harvest->sushiSetting->provider->name,
-                    'prov_inst_id' => $harvest->sushiSetting->provider->inst_id,
+                    'inst_name' => $harvest->credential->institution->name,
+                    'prov_name' => $harvest->credential->provider->name,
+                    'prov_inst_id' => $harvest->credential->provider->inst_id,
                     'release' => $harvest->release,
                     'report_name' => $harvest->report->name,
                     'status' => $harvest->status, 'rawfile' => $harvest->rawfile,
@@ -1347,9 +1348,9 @@ class HarvestLogController extends Controller
        $sushi = new Sushi($beg, $end);
  
        // setup required connectors for buildUri
-       $prov_connectors = $harvest->sushiSetting->provider->connectors();
+       $prov_connectors = $harvest->credential->provider->connectors();
        $connectors = $this->connection_fields->whereIn('id',$prov_connectors)->pluck('name')->toArray();
-       $rec['retryUrl'] = $sushi->buildUri($harvest->sushiSetting, 'reports', $harvest->report, $harvest->release);
+       $rec['retryUrl'] = $sushi->buildUri($harvest->credential, 'reports', $harvest->report, $harvest->release);
        return $rec;
    }
 
@@ -1357,46 +1358,46 @@ class HarvestLogController extends Controller
     * delete stored data records for a given array of harvest ids
     *
     * @param  Array  $harvest_ids
-    * @return Array  $reset_ids : arraay of affected sushi setting IDs
+    * @return Array  $reset_ids : array of affected credential IDs
     */
    private function deleteStoredData($harvest_ids)
    {
-       $reset_ids = array();  // will hold sushi setting Ids needing updating
+       $reset_ids = array();  // will hold credential Ids needing updating
        $conso_db = config('database.connections.consodb.database');
-       $harvests = HarvestLog::with('sushiSetting','report')->whereIn('id',$harvest_ids)->get();
+       $harvests = HarvestLog::with('credential','report')->whereIn('id',$harvest_ids)->get();
        foreach ($harvests as $harvest) {
-           if (!$harvest->report || !$harvest->sushiSetting) continue;
+           if (!$harvest->report || !$harvest->credential) continue;
            $table = $conso_db . "." . strtolower($harvest->report->name) . "_report_data";
            // Delete the data rows
            $result = DB::table($table)
-                       ->where('inst_id',$harvest->sushiSetting->inst_id)
-                       ->where('prov_id',$harvest->sushiSetting->prov_id)
+                       ->where('inst_id',$harvest->credential->inst_id)
+                       ->where('prov_id',$harvest->credential->prov_id)
                        ->where('yearmon',$harvest->yearmon)
                        ->delete();
-           // If we just deleted a harvest that matches the last_harvest for it's related sushisetting,
-           // add the sushisetting_id to $reset_ids (there could be multiple deletions, so we'll track
+           // If we just deleted a harvest that matches the last_harvest for it's related credential,
+           // add the credentials_id to $reset_ids (there could be multiple deletions, so we'll track
            // the IDs and update them after deleting all the data records).
-           if ($harvest->sushiSetting->last_harvest == $harvest->yearmon &&
-               !in_array($harvest->sushisettings_id,$reset_ids)) {
-               $reset_ids[] = $harvest->sushisettings_id;
+           if ($harvest->credential->last_harvest == $harvest->yearmon &&
+               !in_array($harvest->credentials_id,$reset_ids)) {
+               $reset_ids[] = $harvest->credentials_id;
            }
        }
        return $reset_ids;
    }
 
    /**
-    * Update last_harvest for havest sushisetting(s)
+    * Update last_harvest for harvest credential(s)
     *
-    * @param  Array  $setting_ids
+    * @param  Array  $cred_ids
     */
-   private function resetLastHarvest($setting_ids)
+   private function resetLastHarvest($cred_ids)
    {
-       // Update affected sushi settings
+       // Update affected credentials
 
-       $sushi_settings = SushiSetting::with('harvestLogs')->whereIn('id',$setting_ids)->get();
-       foreach ($sushi_settings as $setting) {
-           $setting->last_harvest = $setting->harvestLogs->where('status','Success')->max('yearmon');
-           $setting->save();
+       $credentials = Credemtial::with('harvestLogs')->whereIn('id',$cred_ids)->get();
+       foreach ($credentials as $cred) {
+           $cred->last_harvest = $cred->harvestLogs->where('status','Success')->max('yearmon');
+           $cred->save();
        }
    }
 
