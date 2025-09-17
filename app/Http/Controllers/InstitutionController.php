@@ -7,7 +7,7 @@ use App\Models\InstitutionGroup;
 use App\Models\Provider;
 use App\Models\Role;
 use App\Models\Report;
-use App\Models\SushiSetting;
+use App\Models\Credential;
 use App\Models\HarvestLog;
 use App\Models\GlobalProvider;
 use App\Models\ConnectionField;
@@ -67,7 +67,7 @@ class InstitutionController extends Controller
         }
 
         // Get institution records
-        $inst_data = Institution::with('institutionGroups:id,name','sushiSettings')
+        $inst_data = Institution::with('institutionGroups:id,name','credentials')
                                     // ->when(!is_null($filter_stat), function ($qry) use ($filter_stat) {
                                     //     return $qry->where('is_active', $filter_stat);
                                     // })
@@ -85,7 +85,7 @@ class InstitutionController extends Controller
                 $inst->group_string .= ($inst->group_string == "") ? "" : ", ";
                 $inst->group_string .= $group->name;
             }
-            $harvest_count = $inst->sushiSettings->whereNotNull('last_harvest')->count();
+            $harvest_count = $inst->credentials->whereNotNull('last_harvest')->count();
             $inst->can_delete = ($harvest_count > 0 || $inst->id == 1) ? false : true;
             $inst->status = ($inst->is_active) ? "Active" : "Inactive";
             return $inst;
@@ -143,21 +143,21 @@ class InstitutionController extends Controller
             }
         }
 
-        // If requested, create a sushi-setting to give a "starting point" for connecting it later
+        // If requested, create a credentials to give a "starting point" for connecting it later
         $stub = (isset($input['sushi_stub'])) ? $input['sushi_stub'] : 0;
         if ($stub) {
             $providers = Provider::with('globalProv')->where('inst_id',1)->where('is_active',1)->get();
             foreach ($providers as $provider) {
                 if ($provider->globalProv->is_active == 0) continue;
-                $sushi_setting = new SushiSetting;
-                $sushi_setting->inst_id = $new_id;
-                $sushi_setting->prov_id = $provider->global_id;
+                $credential = new Credential;
+                $credential->inst_id = $new_id;
+                $credential->prov_id = $provider->global_id;
                 // Mark required conenction fields
                 foreach ($provider->globalProv->connectionFields() as $cnx) {
-                    $sushi_setting->{$cnx['name']} = ($cnx['required']) ? "-required-" : null;
+                    $credential->{$cnx['name']} = ($cnx['required']) ? "-required-" : null;
                 }
-                $sushi_setting->status = "Incomplete";
-                $sushi_setting->save();
+                $credential->status = "Incomplete";
+                $credential->save();
             }
         }
 
@@ -184,13 +184,13 @@ class InstitutionController extends Controller
         $isAdmin = ($thisUser->hasRole('Admin'));
         $localAdmin = (!$thisUser->hasRole('Admin'));
 
-        // Get the institution and sushi settings
+        // Get the institution and credentials
         $institution = Institution::with('users', 'users.roles','institutionGroups','institutionGroups.institutions:id,name')
                                   ->findOrFail($id);
-        $sushi_settings = SushiSetting::with('provider','lastHarvest')->where('inst_id',$institution->id)->get();
+        $credentials = Credential::with('provider','lastHarvest')->where('inst_id',$institution->id)->get();
 
         // Get most recent harvest and set can_delete flag
-        $last_harvest = $sushi_settings->max('last_harvest');
+        $last_harvest = $credentials->max('last_harvest');
         $institution['can_delete'] = ($id > 1 && is_null($last_harvest)) ? true : false;
         $institution['default_fiscalYr'] = config('ccplus.fiscalYr');
 
@@ -200,8 +200,8 @@ class InstitutionController extends Controller
         $institution['groups'] = $all_groups->whereIn('id',$groupIds)->values()->toArray();
         $all_groups = $all_groups->toArray();
 
-        // Add on Sushi Settings
-        $institution['sushiSettings'] = $sushi_settings;
+        // Add on credentials
+        $institution['credentials'] = $credentials;
 
         // Limit roles in UI to current user's max role
         $all_roles = Role::where('id', '<=', $thisUser->maxRole())->orderBy('id', 'DESC')
@@ -294,13 +294,13 @@ class InstitutionController extends Controller
                 $_rec['day_of_month'] = $rec->day_of_month;
                 $_rec['host_domain'] = $rec->host_domain;          
                 $_rec['allow_inst_specific'] = ($prov_data->inst_id == 1) ? $prov_data->allow_inst_specific : 0;
-                // last harvest is based on THIS INST ($id) sushisetting for the provider-global
-                $_setting = $sushi_settings->where('prov_id',$prov_data->global_id)->first();
-                if ($_setting) {
-                    $_rec['last_harvest_id']  = $_setting->last_harvest_id;
-                    if ($_setting->lastHarvest) {
-                        $_rec['last_harvest']  = $_setting->lastHarvest->yearmon . " (run ";
-                        $_rec['last_harvest'] .= substr($_setting->lastHarvest->updated_at,0,10) . ")";
+                // last harvest is based on THIS INST ($id) credential for the provider-global
+                $_cred = $credentials->where('prov_id',$prov_data->global_id)->first();
+                if ($_cred) {
+                    $_rec['last_harvest_id']  = $_cred->last_harvest_id;
+                    if ($_cred->lastHarvest) {
+                        $_rec['last_harvest']  = $_cred->lastHarvest->yearmon . " (run ";
+                        $_rec['last_harvest'] .= substr($_cred->lastHarvest->updated_at,0,10) . ")";
                     } else {
                         $_rec['last_harvest'] = null;
                     }
@@ -335,10 +335,10 @@ class InstitutionController extends Controller
         $unset_global = GlobalProvider::where('is_active', true)->whereNotIn('id',$existingIds)->orderBy('name', 'ASC')->get();
 
         // Get 10 most recent harvests
-        $harvests = HarvestLog::with('report:id,name', 'sushiSetting', 'sushiSetting.institution:id,name',
-                                     'sushiSetting.provider:id,name')
-                              ->join('sushisettings', 'harvestlogs.sushisettings_id', '=', 'sushisettings.id')
-                              ->where('sushisettings.inst_id', $id)
+        $harvests = HarvestLog::with('report:id,name', 'credential', 'credential.institution:id,name',
+                                     'credential.provider:id,name')
+                              ->join('credentials', 'harvestlogs.credentials_id', '=', 'credentials.id')
+                              ->where('credentials.inst_id', $id)
                               ->orderBy('harvestlogs.updated_at', 'DESC')->limit(10)
                               ->get('harvestlogs.*')
                               ->toArray();
@@ -420,26 +420,26 @@ class InstitutionController extends Controller
             }
             $institution->load('institutionGroups');
 
-            // If is_active is changing, check and update related sushi settings
-            $settings = SushiSetting::with('provider')->where('inst_id',$institution->id)->get();
+            // If is_active is changing, check and update related credentials
+            $credentials = Credential::with('provider')->where('inst_id',$institution->id)->get();
             if ($was_active != $institution->is_active) {
-                foreach ($settings as $setting) {
+                foreach ($credentials as $credential) {
                     // Went from Active to Inactive
                     if ($was_active) {
-                        if ($setting->status != 'Disabled') {
-                            $setting->update(['status' => 'Suspended']);
+                        if ($credential->status != 'Disabled') {
+                            $credential->update(['status' => 'Suspended']);
                         }
                     // Went from Inactive to Active
                     } else {
-                        $setting->resetStatus();
+                        $credential->resetStatus();
                     }
                 }
             }
 
             // Return updated institution data
-            $harvest_count = $settings->whereNotNull('last_harvest')->count();
+            $harvest_count = $credentials->whereNotNull('last_harvest')->count();
             $institution->can_delete = ($harvest_count > 0 || $institution->id == 1) ? false : true;
-            $institution->sushiSettings = $settings->toArray();
+            $institution->credentials = $credentials->toArray();
         }
 
         // Tack on a string for all the group memberships
@@ -670,7 +670,7 @@ class InstitutionController extends Controller
     }
 
     /**
-     * Import institutions (including sushi-settings) from a CSV file to the database.
+     * Import institutions (including credentials) from a CSV file to the database.
      *
      * @param  \Illuminate\Http\Request  $request
      * @return \Illuminate\Http\Response
