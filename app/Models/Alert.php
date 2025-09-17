@@ -63,7 +63,7 @@ class Alert extends BaseModel
         if (is_null($this->harvest_id)) {
             return $this->alertSetting->institution;
         } else {
-            return $this->harvest->sushiSetting->institution;
+            return $this->harvest->credential->institution;
         }
     }
 

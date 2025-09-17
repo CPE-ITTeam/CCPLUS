@@ -167,20 +167,20 @@ class Sushi extends Model
     }
 
    /**
-    * Build and return a COUNTER API request URI based on a setting and report
+    * Build and return a COUNTER API request URI based on a cred and report
     *
-    * @param SushiSetting $setting
+    * @param Credential $cred
     * @param String $method
     * @param Report $report
     * @param String $release
     * @return string $request_uri
     */
-    public function buildUri($setting, $method = "reports", $report, $release="")
+    public function buildUri($cred, $method = "reports", $report, $release="")
     {
        // Set URL based on release from the provider registr(ies); default to max if not found or release not set
-        $registry = $setting->provider->registries->where('release',$release)->first();
-        $service_url = ($registry) ? $registry->service_url : $setting->provider->service_url();
-       // Begin setting up the URI by cleaning/standardizing the service_url string in the setting
+        $registry = $cred->provider->registries->where('release',$release)->first();
+        $service_url = ($registry) ? $registry->service_url : $cred->provider->service_url();
+       // Begin setting up the URI by cleaning/standardizing the service_url string in the cred
         $_url = rtrim($service_url);                          // remove trailing whitespace
         $_url = preg_replace('/\/reports\/?$/i', '', $_url);  // take off any methods with any leading slashes
         $_url = preg_replace('/\/status\/?$/i', '', $_url);   //   "   "   "     "      "   "     "        "
@@ -190,24 +190,24 @@ class Sushi extends Model
 
        // Construct and execute the Request
         $uri_auth = "";
-        $connectors = $setting->provider->connectionFields();
+        $connectors = $cred->provider->connectionFields();
         foreach ($connectors as $cnx) {
             if ($cnx['required']) {
                 $name = $cnx['name'];
                 $argv = ($uri_auth == "") ? "?" : "&";
                 if ($name == 'extra_args') {
-                    // Tack on extra_args intact from the setting
-                    $argv .= $setting->extra_args;
+                    // Tack on extra_args intact from the cred
+                    $argv .= $cred->extra_args;
                 } else {
-                    $argv .= $name . "=" . urlencode( $setting->{$name} );
+                    $argv .= $name . "=" . urlencode( $cred->{$name} );
                 }
                 $uri_auth .= $argv;
             }
         }
 
         // If a platform value is set, add it
-        if (!is_null($setting->provider->platform_parm)) {
-            $uri_auth .= "&platform=" . $setting->provider->platform_parm;
+        if (!is_null($cred->provider->platform_parm)) {
+            $uri_auth .= "&platform=" . $cred->provider->platform_parm;
         }
 
         // Return the URI if we're not building a report request

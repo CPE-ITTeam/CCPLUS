@@ -21,7 +21,7 @@ class Severity extends Model
       */
 
     // Check the migration ant the SeveritiesTableSeeder.
-    // The ID is not auto-incemented and is assigned in ranges to either Alerts or Sushi calls
+    // The ID is not auto-incemented and is assigned in ranges to either Alerts or Harvests
     protected $fillable = [ 'id', 'name'];
 
     public function failedHarvests()

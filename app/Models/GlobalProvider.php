@@ -6,7 +6,7 @@ use App\Models\Report;
 use App\Models\ConnectionField;
 use App\Models\Consortium;
 use App\Models\Provider;
-use App\Models\SushiSetting;
+use App\Models\Credential;
 use Illuminate\Database\Eloquent\Model;
 
 class GlobalProvider extends Model
@@ -58,9 +58,9 @@ class GlobalProvider extends Model
         return $connectors;
     }
 
-    public function sushiSettings()
+    public function credentials()
     {
-        return $this->hasMany('App\Models\SushiSetting', 'prov_id');
+        return $this->hasMany('App\Models\Credential', 'prov_id');
     }
 
     public function titleReports()
@@ -237,47 +237,47 @@ class GlobalProvider extends Model
                 }
             }
 
-            // Check/update sushi settings
-            // Get all (.not.disabled) settings for this global from the current conso instances
-            $settings = SushiSetting::with('institution')->where('prov_id',$this->id)
-                                    ->where('status','<>','Disabled')->get();
+            // Check/update credentials
+            // Get all (.not.disabled) credentials for this global from the current conso instances
+            $credentials = Credential::with('institution')->where('prov_id',$this->id)
+                                     ->where('status','<>','Disabled')->get();
 
-            // Check, and possibly update, status for related sushi settings (skip disabled settings)
-            foreach ($settings as $setting) {
-                $setting_updates = array();
+            // Check, and possibly update, status for related credentials (skip if disabled)
+            foreach ($credentials as $cred) {
+                $cred_updates = array();
                 // Clear all unused fields with values, regardless of completeness
                 foreach ($unused_fields as $uf) {
-                    if (strlen($setting->{$uf}) > 0) {
-                        $setting_updates[$uf]= '';
+                    if (strlen($cred->{$uf}) > 0) {
+                        $cred_updates[$uf]= '';
                     }
                 }
-                if ($setting->isComplete()) {
-                    // Setting is marked Enabled, but provider just went inactive, suspend it
-                    if ($setting->status == 'Enabled' && $was_active && !$con_prov->is_active ) {
-                        $setting_updates['status'] = 'Suspended';
+                if ($cred->isComplete()) {
+                    // cred is marked Enabled, but provider just went inactive, suspend it
+                    if ($cred->status == 'Enabled' && $was_active && !$con_prov->is_active ) {
+                        $cred_updates['status'] = 'Suspended';
                     }
-                    // Setting is marked Suspended, but provider is now active with active institution, enable it
-                    if ($setting->status == 'Suspended' && !$was_active && $con_prov->is_active &&
-                        $setting->institution->is_active) {
-                        $setting_updates['status'] = 'Enabled';
+                    // cred is marked Suspended, but provider is now active with active institution, enable it
+                    if ($cred->status == 'Suspended' && !$was_active && $con_prov->is_active &&
+                        $cred->institution->is_active) {
+                        $cred_updates['status'] = 'Enabled';
                     }
-                    // Setting status is marked Incomplete
-                    if ($setting->status == 'Incomplete') {
+                    // cred status is marked Incomplete
+                    if ($cred->status == 'Incomplete') {
                         // if provider and institution are active, enable it, otherwise mark suspended
-                        $setting_updates['status'] = ($con_prov->is_active && $setting->institution->is_active) ?
+                        $cred_updates['status'] = ($con_prov->is_active && $cred->institution->is_active) ?
                                                         'Enabled' : 'Suspended';
                     }
-                // If required connectors are missing value(s), mark them and update setting status to Incomplete
+                // If required connectors are missing value(s), mark them and update cred status to Incomplete
                 } else {
-                    $setting_updates['status'] = 'Incomplete';
+                    $cred_updates['status'] = 'Incomplete';
                     foreach ($fields as $fld) {
-                        if ($setting->$fld == null || $setting->$fld == '') {
-                            $setting_updates[$fld] = "-required-";
+                        if ($cred->$fld == null || $cred->$fld == '') {
+                            $cred_updates[$fld] = "-required-";
                         }
                     }
                 }
-                if (count($setting_updates) > 0) {
-                    $setting->update($setting_updates);
+                if (count($cred_updates) > 0) {
+                    $cred->update($cred_updates);
                 }
             }
         }

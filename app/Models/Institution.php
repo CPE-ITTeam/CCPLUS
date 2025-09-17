@@ -20,8 +20,7 @@ class Institution extends Model
      * @var array
      */
     protected $fillable = [
-         'id', 'name', 'local_id', 'is_active', 'notes', 'type_id', 'password', 'sushiIPRange',
-         'shibURL', 'fte'
+         'id', 'name', 'local_id', 'is_active', 'notes', 'type_id', 'password', 'shibURL', 'fte'
     ];
     protected $casts =['id'=>'integer', 'is_active'=>'integer', 'type_id'=>'integer'];
 
@@ -69,9 +68,9 @@ class Institution extends Model
         return $this->hasMany('App\Models\Provider');
     }
 
-    public function sushiSettings()
+    public function credentials()
     {
-        return $this->hasMany('App\Models\SushiSetting', 'inst_id');
+        return $this->hasMany('App\Models\Credential', 'inst_id');
     }
 
     public function alertSettings()

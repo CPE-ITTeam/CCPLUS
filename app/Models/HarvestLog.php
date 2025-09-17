@@ -18,7 +18,7 @@ class HarvestLog extends Model
    * @var array
    */
     protected $fillable = [
-        'status', 'sushisettings_id', 'release', 'report_id', 'yearmon', 'source', 'attempts', 'error_id', 'rawfile'
+        'status', 'credentials_id', 'release', 'report_id', 'yearmon', 'source', 'attempts', 'error_id', 'rawfile'
     ];
 
     public function failedHarvests()
@@ -31,9 +31,9 @@ class HarvestLog extends Model
         return $this->belongsTo('App\Models\Report', 'report_id');
     }
 
-    public function sushiSetting()
+    public function credential()
     {
-        return $this->belongsTo('App\Models\SushiSetting', 'sushisettings_id');
+        return $this->belongsTo('App\Models\Credential', 'credentials_id');
     }
 
     public function canManage()
@@ -44,7 +44,7 @@ class HarvestLog extends Model
         }
       // Managers can manage harvests for their own inst only
         if (auth()->user()->hasRole("Manager")) {
-            return auth()->user()->inst_id == $this->sushiSetting->inst_id;
+            return auth()->user()->inst_id == $this->Credential->inst_id;
         }
       // Otherwise, return false
         return false;
