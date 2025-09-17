@@ -1,12 +1,16 @@
 <!-- components/DatasetViewer.vue -->
 <script setup>
   import { ref, watch, onMounted, computed } from 'vue';
+  import { storeToRefs } from 'pinia';
   import { useAuthStore } from '@/plugins/authStore.js';
+  import { useCCPlusStore } from '@/plugins/CCPlusStore.js';
   import { tableSetup } from '@/plugins/DataTableConfig.js';
   import DataToolbar from './DataToolbar.vue';
   import DataTable from './DataTable.vue';
 
   const { ccGet } = useAuthStore();
+  const { consortia } = storeToRefs(useCCPlusStore());
+  
   const props = defineProps({
     datasetKey: { type: String, required: true }
   });
@@ -26,9 +30,12 @@
   const loadDataset = async (datasetKey) => {
     const config = datasetConfig[datasetKey];
     try {
-      // const { data } = await ccGet(key.url);
-      const { data } = await ccGet(config.url);
-      items.value = [ ...data.records ];
+      if (datasetKey == 'consortia') {
+        items.value = [ ...consortia.value ];
+      } else {
+        const { data } = await ccGet(config.url);
+        items.value = [ ...data.records ];
+      }
       headers.value = config.headers.map(h => ({
         title: h.title,
         key: String(h.key),
