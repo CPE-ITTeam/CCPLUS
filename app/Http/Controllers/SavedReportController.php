@@ -20,15 +20,10 @@ use Illuminate\Http\Request;
 
 class SavedReportController extends Controller
 {
-    public function __construct()
-    {
-        $this->middleware(['auth']);
-    }
-
     /**
-     * Display a listing of the resource.
+     * Return a listing of the resource.
      *
-     * @return Inertia::render
+     * @return JSON
      */
     public function index()
     {
@@ -111,8 +106,7 @@ class SavedReportController extends Controller
         // Get formatted array of saved user reports
         $report_data = $this->savedUserReports(auth()->id());
 
-        // Load the view with the data
-        // return Inertia::render('home', compact('report_data','counter_reports','filters','conso','fy_month'));
+        return response()->json(['records' => $report_data], 200);
     }
 
     /**
