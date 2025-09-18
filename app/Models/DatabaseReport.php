@@ -29,36 +29,36 @@ class DatabaseReport extends Model
 
     public function database()
     {
-        return $this->belongsTo('App\DataBase', 'db_id');
+        return $this->belongsTo('App\Models\DataBase', 'db_id');
     }
 
     public function provider()
     {
-        return $this->belongsTo('App\GlobalProvider', 'prov_id');
+        return $this->belongsTo('App\Models\GlobalProvider', 'prov_id');
     }
 
     public function publisher()
     {
-        return $this->belongsTo('App\Platform', 'publisher_id');
+        return $this->belongsTo('App\Models\Platform', 'publisher_id');
     }
 
     public function platform()
     {
-        return $this->belongsTo('App\Platform', 'plat_id');
+        return $this->belongsTo('App\Models\Platform', 'plat_id');
     }
 
     public function institution()
     {
-        return $this->belongsTo('App\Institution', 'inst_id');
+        return $this->belongsTo('App\Models\Institution', 'inst_id');
     }
 
     public function accessMethod()
     {
-        return $this->belongsTo('App\AccessMethod', 'accessmethod_id');
+        return $this->belongsTo('App\Models\AccessMethod', 'accessmethod_id');
     }
 
     public function dataType()
     {
-        return $this->belongsTo('App\DataType', 'datatype_id');
+        return $this->belongsTo('App\Models\DataType', 'datatype_id');
     }
 }

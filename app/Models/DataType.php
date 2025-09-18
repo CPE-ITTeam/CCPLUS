@@ -23,21 +23,21 @@ class DataType extends Model
 
     public function databaseReports()
     {
-        return $this->hasMany('App\DatabaseReport');
+        return $this->hasMany('App\Models\DatabaseReport');
     }
 
     public function platformReports()
     {
-        return $this->hasMany('App\PlatformReport');
+        return $this->hasMany('App\Models\PlatformReport');
     }
 
     public function titleReports()
     {
-        return $this->hasMany('App\TitleReport');
+        return $this->hasMany('App\Models\TitleReport');
     }
 
     public function itemReports()
     {
-        return $this->hasMany('App\ItemReport');
+        return $this->hasMany('App\Models\ItemReport');
     }
 }
