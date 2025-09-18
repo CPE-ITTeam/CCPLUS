@@ -23,5 +23,9 @@ Route::middleware('ccplusAuth')->group( function () {
     Route::get('getPlatforms', 'App\Http\Controllers\GlobalProviderController@index')->name('getPlatforms');
     Route::get('getUsers', 'App\Http\Controllers\UserController@index')->name('getUsers');
     Route::get('getSettings/{type}', 'App\Http\Controllers\GlobalSettingController@index')->name('getSettings');
+    Route::get('getHarvests', 'App\Http\Controllers\HarvestLogController@index')->name('getHarvests');
+    Route::get('getJobs', 'App\Http\Controllers\HarvestLogController@harvestQueue')->name('getJobs');
+    Route::get('getSavedReports', 'App\Http\Controllers\SavedReportController@index')->name('getSavedReports');
+//
     Route::post('setSettings', 'App\Http\Controllers\GlobalSettingController@store')->name('setSettings');
 });
