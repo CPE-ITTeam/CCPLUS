@@ -4,7 +4,7 @@
   import { storeToRefs } from 'pinia';
   import { useAuthStore } from '@/plugins/authStore.js';
   import { useCCPlusStore } from '@/plugins/CCPlusStore.js';
-  import { tableSetup } from '@/plugins/DataTableConfig.js';
+  import { tableSetup } from '@/composables/DataTableConfig.js';
   import DataToolbar from './DataToolbar.vue';
   import DataTable from './DataTable.vue';
 
