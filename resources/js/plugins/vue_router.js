@@ -18,11 +18,11 @@ import PlatformsTable from '@/components/tables/PlatformsTable.vue';
 import Consortia from '@/components/tables/Consortia.vue';
 import ServerSettings from '@/components/panels/ServerSettings.vue';
 import MailSettings from '@/components/panels/MailSettings.vue';
+import HarvestQueue from '@/components/tables/HarvestQueue.vue';
+import HarvestLog from '@/components/tables/HarvestLog.vue';
+import SavedReports from '@/components/tables/SavedReports.vue';
 // import ManualHarvest from '@/components/panels/ManualHarvest.vue';
-// import HarvestQueue from '@/components/tables/HarvestQueue.vue';
-// import HarvestLog from '@/components/tables/HarvestLog.vue';
 // import ReportScope from '@/components/panels/ReportScope.vue';
-// import SavedReports from '@/components/tables/SavedReports.vue';
 // import ReportPreview from '@/components/panels/ReportPreview.vue';
 // Pinia datastore
 import { createPinia } from 'pinia';
@@ -124,11 +124,11 @@ export const router = createRouter({
         },
         { path: '/harvests/queue', name: 'HarvestQueue',
           meta: { title: 'Harvest Queue', layout: AuthenticatedLayout, role: 'Admin', level:2 }, 
-          component: markRaw(PlaceHolder),
+          component: markRaw(HarvestQueue),
         },
         { path: '/harvests/log', name: 'HarvestLog',
           meta: { title: 'Harvest Log', layout: AuthenticatedLayout, role: 'Admin', level:2 }, 
-          component: markRaw(PlaceHolder),
+          component: markRaw(HarvestLog),
         },
       ]
     },
@@ -142,7 +142,7 @@ export const router = createRouter({
         },
         { path: '/reports/saved', name: 'SavedReports',
           meta: { title: 'Saved Reports', layout: AuthenticatedLayout, role: 'Viewer', level:2 }, 
-          component: markRaw(PlaceHolder),
+          component: markRaw(SavedReports),
         },
         { path: '/reports/preview', name: 'ReportPreview',
           meta: { title: 'Preview and Export', layout: AuthenticatedLayout, role: 'Viewer', level:2 }, 
