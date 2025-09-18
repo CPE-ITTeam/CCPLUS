@@ -91,23 +91,27 @@
               <v-tabs-window v-model="activeTab">
                 <v-tabs-window-item v-for="(child, tabIndex) in page.children" :key="tabIndex"
                                     :value="tabIndex" transition="false" reverse-transition="false">
-                  <v-expansion-panels multiple class="mt-6 rounded-lg" v-model="panel">
-                    <v-expansion-panel v-for="(grandchild, gcidx) in child.children" :key="gcidx" class="rounded-lg border">
-                      <v-expansion-panel-title>
-                        {{ grandchild.meta.title }}
-                      </v-expansion-panel-title>
-                      <v-expansion-panel-text class="rounded-lg">
-                        <component :is="grandchild.component" />
-                      </v-expansion-panel-text>
-                    </v-expansion-panel>
-                  </v-expansion-panels>
-                </v-tabs-window-item>
+                  <div v-if="child.children">
+                    <v-expansion-panels multiple class="mt-6 rounded-lg" v-model="panel">
+                      <v-expansion-panel v-for="(grandchild, gcidx) in child.children"
+                                        :key="gcidx" class="rounded-lg border">
+                        <v-expansion-panel-title>
+                          {{ grandchild.meta.title }}
+                        </v-expansion-panel-title>
+                        <v-expansion-panel-text class="rounded-lg">
+                          <component :is="grandchild.component" />
+                        </v-expansion-panel-text>
+                      </v-expansion-panel>
+                    </v-expansion-panels>
+                  </div>
+                  <div v-else>
+                    <component :is="child.component" />
+                  </div>
+              </v-tabs-window-item>
               </v-tabs-window>
             </v-tabs-window-item>
           </v-tabs-window>
         </v-card-text>
-<!--
--->
       </v-main>
 
       <v-spacer></v-spacer>
