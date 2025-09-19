@@ -88,86 +88,88 @@
 </script>
 <template>
   <v-form @submit.prevent="formSubmit" v-model="mailFormValid">
-    <v-row>
-      <FlexCol>
-        <v-label>Mail Configuration</v-label>
-        <v-row class="mt-2">
-          <v-col>
-            <v-select label="Mail Protocol & Encryption" :items="presetItems" v-model="mailPreset" 
-                      @change="updatePreset()" placeholder="Select a mail configuration" item-title="text"
-                      item-value="text" variant="outlined" hide-details="auto" class="mb-2" />
-          </v-col>
-        </v-row>
-        <v-row v-if="mailPreset.text=='Custom'">
-          <v-col>
-            <v-select label="Protocol" :items="mailers" v-model="mailSettings.mailer" placeholder="Select protocol"
-                    :rules="[required]" variant="outlined" hide-details="auto" class="mb-2" />
-          </v-col>
-        </v-row>
-        <v-row v-if="mailPreset.text=='Custom'">
-          <v-col>
-            <v-text-field label="Port" v-model="mailSettings.port" placeholder="e.g. 587"
-                    :rules="[numberRule]" variant="outlined" hide-details="auto" class="mb-2" />
-          </v-col>
-        </v-row>
-        <v-row v-if="mailPreset.text=='Custom'">
-          <v-col>
-            <v-select label="Encryption" :items="crypts" v-model="mailSettings.encryption" placeholder="Select encryption type"
-                    :rules="[required]" variant="outlined" hide-details="auto" class="mb-2" />
-          </v-col>
-        </v-row>
-      </FlexCol>
-      <FlexCol>
-        <v-label>Mail Configuration</v-label>
-        <v-row class="mt-2">
-          <v-col>
-            <v-text-field label="Host Name" v-model="mailSettings.host" placeholder="e.g. smtp.example.com"
-                  variant="outlined" hide-details="auto" class="mb-2" />
-          </v-col>
-        </v-row>
-        <v-row>
-          <v-col>
-            <v-text-field label="User Name" v-model="mailSettings.mail_username" placeholder="Enter username"
-                  variant="outlined" hide-details="auto" class="mb-2" />
-          </v-col>
-        </v-row>
-        <v-row>
-          <v-col>
-            <v-text-field label="Password" v-model="mailSettings.mail_password" :type="pw_show ? 'text' : 'password'"
-                  :append-icon="pw_show ? 'mdi-eye' : 'mdi-eye-off'" @click:append="pw_show = !pw_show"
-                  placeholder="Enter Password" variant="outlined" hide-details="auto" class="mb-2" />
-          </v-col>
-        </v-row>
-      </FlexCol>
-      <FlexCol>
-        <v-label>Sender Info</v-label>
-        <v-row class="mt-2">
-          <v-col>
-            <v-text-field label="From Name" v-model="mailSettings.from_name" placeholder="e.g. Admin"
-                  variant="outlined" hide-details="auto" class="mb-2" />
-          </v-col>
-        </v-row>
-        <v-row>
-          <v-col>
-            <v-text-field label="From Email" v-model="mailSettings.from_address" placeholder="e.g. admin@example.com"
-                  :rules="[emailRule]" variant="outlined" hide-details="auto" class="mb-2" />
-          </v-col>
-        </v-row>
-      </FlexCol>
-      <FlexCol>
-        <v-label>More Settings</v-label>
-        <p>&nbsp;</p><p>Reserved for future use.</p>
-      </FlexCol>
-    </v-row>
-    <div class="status-message" v-if="success || failure">
-        <span v-if="failure" class="d-flex mx-1 redNotice">{{ failure }}</span>
-        <span v-else-if="success" class="d-flex mx-1 greenNotice">{{ success }}</span>
-    </div>
-    <v-row>
-      <FlexCol>
-        <v-btn type="submit" color="primary" class="mt-4">Save Mail Settings</v-btn>
-      </FlexCol>
-    </v-row>
+    <v-sheet>
+      <v-row>
+        <FlexCol>
+          <v-label>Mail Configuration</v-label>
+          <v-row class="mt-2">
+            <v-col>
+              <v-select label="Mail Protocol & Encryption" :items="presetItems" v-model="mailPreset" 
+                        @change="updatePreset()" placeholder="Select a mail configuration" item-title="text"
+                        item-value="text" variant="outlined" hide-details="auto" class="mb-2" />
+            </v-col>
+          </v-row>
+          <v-row v-if="mailPreset.text=='Custom'">
+            <v-col>
+              <v-select label="Protocol" :items="mailers" v-model="mailSettings.mailer" placeholder="Select protocol"
+                      :rules="[required]" variant="outlined" hide-details="auto" class="mb-2" />
+            </v-col>
+          </v-row>
+          <v-row v-if="mailPreset.text=='Custom'">
+            <v-col>
+              <v-text-field label="Port" v-model="mailSettings.port" placeholder="e.g. 587"
+                      :rules="[numberRule]" variant="outlined" hide-details="auto" class="mb-2" />
+            </v-col>
+          </v-row>
+          <v-row v-if="mailPreset.text=='Custom'">
+            <v-col>
+              <v-select label="Encryption" :items="crypts" v-model="mailSettings.encryption" placeholder="Select encryption type"
+                      :rules="[required]" variant="outlined" hide-details="auto" class="mb-2" />
+            </v-col>
+          </v-row>
+        </FlexCol>
+        <FlexCol>
+          <v-label>Mail Configuration</v-label>
+          <v-row class="mt-2">
+            <v-col>
+              <v-text-field label="Host Name" v-model="mailSettings.host" placeholder="e.g. smtp.example.com"
+                    variant="outlined" hide-details="auto" class="mb-2" />
+            </v-col>
+          </v-row>
+          <v-row>
+            <v-col>
+              <v-text-field label="User Name" v-model="mailSettings.mail_username" placeholder="Enter username"
+                    variant="outlined" hide-details="auto" class="mb-2" />
+            </v-col>
+          </v-row>
+          <v-row>
+            <v-col>
+              <v-text-field label="Password" v-model="mailSettings.mail_password" :type="pw_show ? 'text' : 'password'"
+                    :append-icon="pw_show ? 'mdi-eye' : 'mdi-eye-off'" @click:append="pw_show = !pw_show"
+                    placeholder="Enter Password" variant="outlined" hide-details="auto" class="mb-2" />
+            </v-col>
+          </v-row>
+        </FlexCol>
+        <FlexCol>
+          <v-label>Sender Info</v-label>
+          <v-row class="mt-2">
+            <v-col>
+              <v-text-field label="From Name" v-model="mailSettings.from_name" placeholder="e.g. Admin"
+                    variant="outlined" hide-details="auto" class="mb-2" />
+            </v-col>
+          </v-row>
+          <v-row>
+            <v-col>
+              <v-text-field label="From Email" v-model="mailSettings.from_address" placeholder="e.g. admin@example.com"
+                    :rules="[emailRule]" variant="outlined" hide-details="auto" class="mb-2" />
+            </v-col>
+          </v-row>
+        </FlexCol>
+        <FlexCol>
+          <v-label>More Settings</v-label>
+          <p>&nbsp;</p><p>Reserved for future use.</p>
+        </FlexCol>
+      </v-row>
+      <div class="status-message" v-if="success || failure">
+          <span v-if="failure" class="d-flex mx-1 redNotice">{{ failure }}</span>
+          <span v-else-if="success" class="d-flex mx-1 greenNotice">{{ success }}</span>
+      </div>
+      <v-row>
+        <FlexCol>
+          <v-btn type="submit" color="primary" class="mt-4">Save Mail Settings</v-btn>
+        </FlexCol>
+      </v-row>
+    </v-sheet>
   </v-form>
 </template>
 <style scoped>
