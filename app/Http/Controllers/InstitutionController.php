@@ -21,61 +21,27 @@ class InstitutionController extends Controller
     /**
      * Display a listing of the resource.
      *
-     * @return \Illuminate\Http\Response
+     * @param  String $role    // 'admin' or 'viewer'
+     * @return JSON
      */
-    public function index(Request $request)
+    public function index($role)
     {
+        // Set and confirm the role returning data for
         $thisUser = auth()->user();
-        abort_unless($thisUser->hasAnyRole(['Admin']), 403);
-
-        $json = ($request->input('json')) ? true : false;
-
-        // Assign optional inputs to $filters array
-        $filters = array('stat' => 'ALL', 'groups' => []);
-        if ($request->input('filters')) {
-            $filter_data = json_decode($request->input('filters'));
-            foreach ($filter_data as $key => $val) {
-                if ($key == 'stat' && (is_null($val) || $val == '')) continue;
-                if ($key == 'groups' && sizeof($val) == 0) continue;
-                $filters[$key] = $val;
-            }
-        } else {
-            $keys = array_keys($filters);
-            foreach ($keys as $key) {
-                if ($request->input($key)) {
-                    if ($key == 'stat') {
-                        if (is_null($request->input('stat')) || $request->input('stat') == '') continue;
-                    } else if ($key == 'groups') {
-                        if (sizeof($request->input('groups')) == 0) continue;
-                    }
-                    $filters[$key] = $request->input($key);
-                }
-            }
-        }
-
-        // Limit institutions returned based on users's role(s)
-        $limit_to_insts = array();
-        if (!$thisUser->isServerAdmin()) {
-            foreach ($thisUser->roles as $userRole) {
-                if ($userRole->role->name == 'Admin' && $userRole->institution->id == 1) {
-                    $limit_to_insts = [];
-                    break;
-                } else {
-                    $limit_to_insts[] = $userRole->institution->id;
-                }
-            }
-        }
+        $type = ($role=='admin') ? 'admin' : 'viewer';
+        abort_unless($type=='viewer' || $thisUser->hasAnyRole(['Admin']), 403);
+    
+        // Limit institutions returned based on users's role(s) and what's been requested
+        $_insts = ($type == 'admin') ? $thisUser->adminInsts() : $thisUser->viewerInsts();
+        $limit_to_insts = ($_insts == [1]) ? [] : $_insts;
 
         // Get institution records
         $inst_data = Institution::with('institutionGroups:id,name','credentials')
-                                    // ->when(!is_null($filter_stat), function ($qry) use ($filter_stat) {
-                                    //     return $qry->where('is_active', $filter_stat);
-                                    // })
-                                    ->when(count($limit_to_insts) > 0 , function ($qry) use ($limit_to_insts) {
-                                        return $qry->whereIn('id', $limit_to_insts);
-                                    })
-                                    ->orderBy('name', 'ASC')
-                                    ->get(['id','name','local_id','is_active']);
+                                ->when(count($limit_to_insts) > 0 , function ($qry) use ($limit_to_insts) {
+                                    return $qry->whereIn('id', $limit_to_insts);
+                                })
+                                ->orderBy('name', 'ASC')
+                                ->get(['id','name','local_id','is_active']);
 
         // Add group memberships
         $institutions = $inst_data->map( function($inst) {
