@@ -27,70 +27,37 @@ class GlobalProviderController extends Controller
     /**
      * Display a listing of the resource.
      *
-     * @param  \Illuminate\Http\Request  $request
+     * @param  String $role    // 'admin' or 'viewer'
      * @return \Illuminate\Http\Response
      */
-    public function index(Request $request)
+    public function index($role)
     {
         global $masterReports, $allConnectors;
-        // $json = ($request->input('json')) ? true : false;
 
-        // Assign optional inputs to $filters array
-        $filters = array('stat' => 'ALL', 'refresh' => 'ALL');
-        if ($request->input('filters')) {
-            $filter_data = json_decode($request->input('filters'));
-            foreach ($filter_data as $key => $val) {
-                if (is_null($val) || $val == '') continue;
-                $filters[$key] = $val;
-            }
-        } else {
-            $keys = array_keys($filters);
-            foreach ($keys as $key) {
-                if ($request->input($key)) {
-                    if (!is_null($request->input($key)) && $request->input($key) == '') {
-                        $filters[$key] = $request->input($key);
-                    }
-                }
-            }
-        }
+        // Set and confirm the role returning data for
+        $thisUser = auth()->user();
+        $type = ($role=='admin') ? 'admin' : 'viewer';
+        abort_unless($type=='viewer' || $thisUser->hasAnyRole(['Admin']), 403);
+
+        // Set institution limits based on users's role(s) and what's been requested
+        $_insts = ($type == 'admin') ? $thisUser->adminInsts() : $thisUser->viewerInsts();
+        $limit_to_insts = ($_insts == [1]) ? [] : $_insts;
+
+        // Pull globalProvider IDs based on the consortium providers defined for institutions in
+        // $limit_to_insts. Admins and Viewers both get consortium-wide providers (where inst_id=1)
+        $globalIDs = Provider::where('inst_id',1)
+                             ->when(count($limit_to_insts) > 0, function ($qry) use ($limit_to_insts) {
+                                return $qry->orWhereIn('inst_id',$limit_to_insts);
+                             })
+                             ->select('global_id')->distinct()->pluck('global_id')->toArray();
 
         // Pull master reports and connection fields regardless of JSON flag
         $this->getMasterReports();
         $this->getConnectionFields();
         $all_connectors = $allConnectors->toArray();
 
-        // Prep variables for use in querying
-        $filter_stat = null;
-        if ($filters['stat'] != 'ALL') {
-            $filter_stat = ($filters['stat'] == 'Active') ? 1 : 0;
-        }
-        $filter_refresh = null;
-        $filter_no_registryID = null;
-        $filter_not_refreshable = null;
-        if ($filters['refresh'] == 'Refresh Disabled') {
-            $filter_not_refreshable = true;
-        } else if ($filters['refresh'] == 'No Registry ID') {
-            $filter_no_registryID = true;
-        } else if ($filters['refresh'] == 'Deprecated') {
-            $filter_refresh = 'orphan';
-        } else if ($filters['refresh'] != 'ALL') {
-            $filter_refresh = strtolower($filters['refresh']);
-        }
-
         // Get provider records and filter as-needed
-        $gp_data = GlobalProvider::when(!is_null($filter_stat), function ($qry) use ($filter_stat) {
-                                        return $qry->where('is_active', $filter_stat);
-                                    })
-                                    ->when($filter_refresh, function ($qry) use ($filter_refresh) {
-                                        return $qry->where('refresh_result',$filter_refresh);
-                                    })
-                                    ->when($filter_not_refreshable, function ($qry) {
-                                        return $qry->where('refreshable',0);
-                                    })
-                                    ->when($filter_no_registryID, function ($qry) {
-                                        return $qry->whereNull('registry_id')->orWhere('registry_id',"");
-                                    })
-                                    ->orderBy('name', 'ASC')->get();
+        $gp_data = GlobalProvider::whereIn('id', $globalIDs)->orderBy('name', 'ASC')->get();
 
         // get all the consortium instances and preserve the current instance database setting
         $instances = Consortium::get();
