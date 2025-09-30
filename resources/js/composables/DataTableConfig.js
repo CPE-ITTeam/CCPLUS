@@ -5,10 +5,9 @@ export const tableSetup = {
       headers: [
         { title: 'Status', key: 'status' },
         { title: 'Consortium Name', key: 'name' },
-        { title: 'Display Name', key: 'displayName' },
-        { title: 'DB Key', key: 'databaseKey' },
-        { title: 'Admin', key: 'admin' },
-        { title: 'Email', key: 'email' },
+        { title: 'DB Key', key: 'ccp_key' },
+        { title: 'Name', key: 'admin_name' },
+        { title: 'Email', key: 'admin_email' },
       ],
       searchFields: [ 'name', 'displayName', 'databaseKey', 'admin', 'email' ]
     },
@@ -26,7 +25,7 @@ export const tableSetup = {
       searchFields: ['name', 'abbrev', 'dataHost']
     },
     institutions: {
-      url: '/api/getInsts',
+      url: '/api/getInsts/admin',
       headers: [
         { title: 'Status', key: 'status' },
         { title: 'Institution Name', key: 'name' },
@@ -52,7 +51,7 @@ export const tableSetup = {
       searchFields: ['id', 'name']
     },
     platforms: {
-      url: '/api/getPlatforms',
+      url: '/api/getPlatforms/admin',
       headers: [
         { title: 'Status', key: 'status' },
         { title: 'Abbr', key: 'abbrev' },
