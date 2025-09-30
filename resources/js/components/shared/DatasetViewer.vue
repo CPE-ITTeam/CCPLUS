@@ -51,7 +51,7 @@
   // Add actions column dynamically
   const computedHeaders = computed(() => [
     ...headers.value,
-    { title: 'Actions', key: 'actions' },
+    { title: 'Actions', key: 'actions', align: 'end' },
   ]);
 
   function handleToggle(value) {
