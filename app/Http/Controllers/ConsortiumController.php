@@ -16,6 +16,24 @@ class ConsortiumController extends BaseController
      */
     public function index(Request $request) {
         $data = Consortium::where('is_active',true)->get();
+
+        // Set default conso-admin to ServerAdmin in case one is not defined
+        $defaultName  = "Server Administrator";
+        $defaultEmail = config('ccplus.server_admin');
+
+        // Add an administrator name and email for each instance to the data records
+        $where = " where UR.inst_id=1 and UU.id=UR.user_id and RR.id=UR.role_id and RR.name='Admin') is not null";
+        foreach ($data as $idx => $con) {
+            $qry  = "select name,email from ccplus_" . $con->ccp_key . ".users as UU where UU.inst_id=1 and ";
+            $qry .= "(select UR.user_id from ccplus_" . $con->ccp_key . ".user_roles as UR ";
+            $qry .= "left join ccplus_" . $con->ccp_key . ".roles as RR on RR.id=UR.role_id";
+            // Set the first result from the user table, or default it
+            $result = DB::select($qry.$where);
+            $data[$idx]['admin_name']  = (count($result) > 0) ? $result[0]->name  : $defaultName;
+            $data[$idx]['admin_email'] = (count($result) > 0) ? $result[0]->email : $defaultEmail;
+            // Return is_active as "status" string
+            $data[$idx]['status'] = ($con->is_active) ? "Active" : "Inactive";
+        }
         return response()->json(['records' => $data, 'result' => true], 200);
     }
 
