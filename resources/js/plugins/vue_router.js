@@ -21,7 +21,7 @@ import MailSettings from '@/components/panels/MailSettings.vue';
 import HarvestQueue from '@/components/tables/HarvestQueue.vue';
 import HarvestLog from '@/components/tables/HarvestLog.vue';
 import SavedReports from '@/components/tables/SavedReports.vue';
-// import ManualHarvest from '@/components/panels/ManualHarvest.vue';
+import ManualHarvest from '@/components/panels/ManualHarvest.vue';
 // import ReportScope from '@/components/panels/ReportScope.vue';
 // import ReportPreview from '@/components/panels/ReportPreview.vue';
 // Pinia datastore
@@ -120,7 +120,7 @@ export const router = createRouter({
       children: [
         { path: '/harvests/manual', name: 'ManualHarvest',
           meta: { title: 'Manual Harvest', layout: AuthenticatedLayout, role: 'Admin', level:2 }, 
-          component: markRaw(PlaceHolder),
+          component: markRaw(ManualHarvest),
         },
         { path: '/harvests/queue', name: 'HarvestQueue',
           meta: { title: 'Harvest Queue', layout: AuthenticatedLayout, role: 'Admin', level:2 }, 
