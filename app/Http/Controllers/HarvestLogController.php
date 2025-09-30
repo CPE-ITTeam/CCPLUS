@@ -18,6 +18,8 @@ use App\Models\Sushi;
 use App\Models\SushiQueueJob;
 use App\Models\ConnectionField;
 use App\Models\CcplusError;
+use App\Services\HarvestService;
+use App\Models\ReportField;
 use Storage;
 use Illuminate\Support\Facades\File;
 use Illuminate\Support\Facades\Crypt;
@@ -25,8 +27,9 @@ use Illuminate\Support\Facades\Crypt;
 class HarvestLogController extends Controller
 {
    private $connection_fields;
+   protected $harvestService;
 
-   public function __construct()
+   public function __construct(HarvestService $harvestService)
    {
        $this->middleware('auth');
        // Load all connection fields
@@ -35,6 +38,7 @@ class HarvestLogController extends Controller
        } catch (\Exception $e) {
            $this->connection_fields = collect();
        }
+       $this->harvestService = $harvestService;
    }
 
    /**
@@ -93,64 +97,88 @@ class HarvestLogController extends Controller
         return response()->json(['records' => $harvests], 200);
    }
 
-   /**
-    * Setup wizard for manual harvesting
-    *
-    * @param  \Illuminate\Http\Request  $request
-    * @return \Illuminate\Http\Response
-    */
-   public function create(Request $request)
-   {
-       $thisUser = auth()->user();
-       abort_unless($thisUser->hasAnyRole(['Admin','Manager']), 403);
-       if ($thisUser->hasRole('Admin')) {
-           $is_admin = true;
-       } else {
-           $user_inst =$thisUser->inst_id;
-           $is_admin = false;
-       }
+    /**
+     * Return options for Manual Harvesting
+     *
+     * @param  \Illuminate\Http\Request  $request
+     * @return JSON (array of options)
+     */
+    public function create(Request $request)
+    {
+        $thisUser = auth()->user();
 
-       // Allow for inbound provider and institution arguments
-       $input = $request->all();
-       $presets = array('inst_id' => null);
-       $presets['prov_id'] = (isset($input['prov'])) ? $input['prov'] : null;
-       if (isset($input['inst'])) {
-           $presets['inst_id'] = ($is_admin) ? $input['inst'] : $user_inst;
-       }
+        // Get an array of platforms and institutions with successful harvests (to limit choices below)
+        $provs_with_data = $this->harvestService->hasHarvests('prov_id');
+        $insts_with_data = $this->harvestService->hasHarvests('inst_id');
 
-       // Get IDs of all possible prov_ids from the credentials table
-       $inst_groups = array();
-       if ($is_admin) {     // Admin view
-           $possible_providers = Credential::distinct('prov_id')->pluck('prov_id')->toArray();
-           $institutions = Institution::with('credentials:id,inst_id,prov_id')->where('is_active', true)
-                                      ->orderBy('name', 'ASC')->get(['id','name'])->toArray();
-           $group_data = InstitutionGroup::with('institutions')->orderBy('name', 'ASC')->get(['id','name']);
+        // limit institutions by user rols(s)
+        $_insts = $thisUser->viewerInsts(); // returns [1] for conso or serverAdmin
+        $limit_by_inst = ($_insts === [1]) ? array() : $_insts;
+        // Pull globalProvider IDs based on the consortium providers defined for institutions
+        // in $limit_by_inst ; everyone gets consortium-wide providers (where inst_id=1)
+        $global_ids = Provider::when(count($limit_by_inst) > 0, function ($qry) use ($limit_by_inst) {
+                                return $qry->where('inst_id',1)->orWhereIn('inst_id',$limit_by_inst);
+                             })
+                             ->select('global_id')->distinct()->pluck('global_id')->toArray();
 
-           // Set/Update inst_groups; skip groups with no members
-           foreach ($group_data as $key => $group) {
-               if ( $group->institutions->count() > 0 ) {
-                   $inst_groups[] = $group;
-               }
-           }
+        // Setup option arrays for the report creator
+        $institutions = Institution::whereIn('id', $insts_with_data)->orderBy('name', 'ASC')->where('id', '<>', 1)
+                                   ->when(count($limit_by_inst)>0, function ($qry) use ($limit_by_inst) {
+                                       return $qry->whereIn('id', $limit_by_inst);
+                                   })->get(['id','name'])->toArray();
 
-       } else {    // manager view
-           $possible_providers = Credential::where('inst_id',$user_inst)->distinct('prov_id')->pluck('prov_id')->toArray();
-           $institutions = Institution::with('credentials:id,inst_id,prov_id')->where('id', $user_inst)
-                                      ->get(['id','name'])->toArray();
-       }
+        // Admins see groups, but only ones that have members
+        $groups = array();
+        if ($thisUser->isAdmin()) {
+            $data = InstitutionGroup::with('institutions:id,name')->orderBy('name', 'ASC')->get();
+            foreach ($data as $group) {
+                if ( $group->institutions->count() > 0 ) {
+                    $groups[] = array('id' => $group->id, 'name' => $group->name, 'institutions' => $group->institutions);
+                }
+            }
+        }
 
-       // Setup providers aray for U/I
-       $provider_data = GlobalProvider::with('registries')->whereIn('id', $possible_providers)->where('is_active', true)
-                                      ->orderBy('name', 'ASC')->get(['id','name']);
-       $providers = $provider_data->map( function ($rec) {
-           $rec->releases = $rec->registries->pluck('release');
-           return $rec;
-       })->toArray();
+        // Pull platforms that have data
+        $limit_by_prov = array_intersect($global_ids, $provs_with_data);
+        $globals = GlobalProvider::with('consoProviders','consoProviders.reports')->whereIn('id',$limit_by_prov)
+                                 ->orderBy('name','ASC')->get(['id','name']);
 
-       // Get all the master reports
-       $all_reports = Report::where('revision',5)->where('parent_id',0)->orderBy('dorder','ASC')->get(['id','name'])->toArray();
-       return view('harvests.create', compact('institutions','inst_groups','providers','all_reports','presets'));
-   }
+        // Filter out limited/unrelated platforms and add report assignments and institution
+        $platforms = array();
+        foreach ($globals as $global) {
+            $global_inst_ids = $global->connectedInstitutions();
+            if (count($limit_by_inst) == 0 || count(array_intersect($global_inst_ids, $limit_by_inst)) > 0) {
+                $global->reports = $global->enabledReports();
+                $global->institutions = $global_inst_ids;
+                $platforms[] = $global;
+            }
+        }
+
+        // Report creator component wants reports ordered by ID (not dorder)
+        $all_reports = Report::with('children')->orderBy('id', 'asc')->get();
+        $master_reports = $all_reports->where('parent_id',0)->select(['id','legend','name'])->toArray();
+
+        // Get report fields and tack on filter column for those that have one
+        $field_data = ReportField::orderBy('id', 'asc')->with('reportFilter')->get();
+        $fields = array();
+        foreach ($field_data as $rec) {
+            $column = ($rec->reportFilter) ? $rec->reportFilter->report_column : null;
+            $fields[] = ['id' => $rec->id, 'qry' => $rec->qry_as, 'report_id' => $rec->report_id, 'column' => $column];
+        }
+
+        // set FiscalYr for the user, default to Jan if missing
+        $fy_month = 1;
+        $userFY = $thisUser->getFY();
+        if ( !is_null($userFY) ) {
+            $date = date_parse($userFY);
+            $fy_month = $date['month'];
+        }
+
+        $data = array('institutions' => $institutions, 'groups' => $groups, 'platforms' => $platforms,
+                      'all_reports' => $all_reports, 'master_reports' => $master_reports, 'fields' => $fields,
+                      'fyMo' => $fy_month);
+        return response()->json(['records' => $data], 200);
+    }
 
    /**
     * Store a newly created resource in storage.
@@ -163,7 +191,7 @@ class HarvestLogController extends Controller
        $thisUser = auth()->user();
        abort_unless($thisUser->hasAnyRole(['Admin','Manager']), 403);
        $this->validate($request,
-           ['prov' => 'required', 'reports' => 'required', 'fromYM' => 'required', 'toYM' => 'required', 'when' => 'required']
+           ['plat' => 'required', 'reports' => 'required', 'fromYM' => 'required', 'toYM' => 'required', 'when' => 'required']
        );
        $input = $request->all();
        if (!isset($input["inst"]) || !isset($input["inst_group_id"])) {
@@ -209,30 +237,30 @@ class HarvestLogController extends Controller
        // Get detail on (master) reports requested
        $master_reports = Report::where('parent_id',0)->orderBy('dorder','ASC')->get(['id','name']);
 
-       // Get provider info
-       if (in_array(0,$input["prov"])) {    //  Get all consortium-enabled global providers?
+       // Get platform info
+       if (in_array(0,$input["plat"])) {    //  Get all consortium-enabled global platforms?
            $global_ids = Provider::where('is_active',true)->where('inst_id',1)->pluck('global_id')->toArray();
        } else {
-           $prov_ids = $input["prov"];
+           $plat_ids = $input["plat"];
            $global_ids = array();
-           // prov_ids with  -1  means ALL, set global_ids based whose asking (admin or not)
+           // plat_ids with  -1  means ALL, set global_ids based whose asking (admin or not)
            if ($is_admin) {
-               if (in_array(-1, $prov_ids) || count($prov_ids) == 0) {
+               if (in_array(-1, $plat_ids) || count($plat_ids) == 0) {
                    $global_ids = Provider::where('is_active',true)->pluck('global_id')->toArray();
                } else {
-                   $global_ids = Provider::where('is_active',true)->whereIn('global_id',$prov_ids)->pluck('global_id')->toArray();
+                   $global_ids = Provider::where('is_active',true)->whereIn('global_id',$plat_ids)->pluck('global_id')->toArray();
                }
            } else {
-               if (in_array(-1, $prov_ids) || count($prov_ids) == 0) {
+               if (in_array(-1, $plat_ids) || count($plat_ids) == 0) {
                    $global_ids = Provider::where('is_active',true)->whereIn('inst_id',[1,$user_inst])
                                          ->pluck('global_id')->toArray();
                } else {
                    $global_ids = Provider::where('is_active',true)->whereIn('inst_id',[1,$user_inst])
-                                         ->whereIn('global_id',$prov_ids)->pluck('global_id')->toArray();
+                                         ->whereIn('global_id',$plat_ids)->pluck('global_id')->toArray();
                }
            }
        }
-       $global_providers = GlobalProvider::with('credentials','credentials.institution:id,is_active','consoProviders',
+       $global_platforms = GlobalProvider::with('credentials','credentials.institution:id,is_active','consoProviders',
                                                 'consoProviders.reports','registries')
                                          ->where('is_active',true)->whereIn('id',$global_ids)->get();
 
@@ -259,12 +287,12 @@ class HarvestLogController extends Controller
        $updated_ids = [];
        foreach ($year_mons as $yearmon) {
            // Loop for all global providers
-           foreach ($global_providers as $global_provider) {
+           foreach ($global_platforms as $global_platform) {
 
                // Set the COUNTER release to be harvested 
-               $release = $global_provider->default_release();
+               $release = $global_platform->default_release();
                if ($input_release == 'System Default' && !is_null($firstYM)) {
-                   $available_releases = $global_provider->registries->sortByDesc('release')->pluck('release')->toArray();
+                   $available_releases = $global_platform->registries->sortByDesc('release')->pluck('release')->toArray();
                    if ($available_releases > 1 && in_array("5.1",$available_releases)) {
                        $idx51 = array_search("5.1", $available_releases);
                        // requested yearmon before 5.1 default begin date
@@ -279,11 +307,11 @@ class HarvestLogController extends Controller
                     }
                }
                // Set an array with the report_ids enabled consortium-wide
-               $consoProv = $global_provider->consoProviders->where('inst_id',1)->first();
+               $consoProv = $global_platform->consoProviders->where('inst_id',1)->first();
                $conso_reports = ($consoProv) ? $consoProv->reports->pluck('id')->toArray() : [];
 
                // Loop through all credentials
-               foreach ($global_provider->credentials as $cred) {
+               foreach ($global_platform->credentials as $cred) {
                   // If institution is inactive or this inst_id is not in the $inst_ids array, skip it
                    if ($cred->status != "Enabled" ||
                        !$cred->institution->is_active || !in_array($cred->inst_id,$inst_ids)) {
@@ -292,7 +320,7 @@ class HarvestLogController extends Controller
 
                   // Set reports to process based on consortium-wide and, if defined, institution-specific credential_ids
                    $report_ids = array();
-                   foreach ($global_provider->consoProviders as $conso_provider) {
+                   foreach ($global_platform->consoProviders as $conso_provider) {
                         // if inst-specific provider for an inst different from the current cred, skip it
                         if ($conso_provider->inst_id != 1 && $conso_provider->inst_id != $cred->inst_id) {
                             continue;
