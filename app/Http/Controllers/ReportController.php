@@ -22,6 +22,7 @@ use App\Models\SectionType;
 use App\Models\AccessType;
 use App\Models\AccessMethod;
 use App\Models\HarvestLog;
+use App\Services\HarvestService;
 use League\Csv\Writer;
 use SplTempFileObject;
 
@@ -39,13 +40,14 @@ class ReportController extends Controller
     private $all_models;
     private $global_db;
     private $conso_db;
+    protected $harvestService;
 
     /**
      * Create a new controller instance.
      *
      * @return void
      */
-    public function __construct()
+    public function __construct(HarvestService $harvestService)
     {
         global $raw_fields, $group_by, $joins, $raw_where, $all_models;
 
@@ -60,6 +62,7 @@ class ReportController extends Controller
                   'datatype' => "", 'accesstype' => "", 'accessmethod' => "", 'sectiontype' => ""];
         $all_models = ['TR' => '\\App\Models\\TitleReport',    'DR' => '\\App\Models\\DatabaseReport',
                        'PR' => '\\App\Models\\PlatformReport', 'IR' => '\\App\Models\\ItemReport'];
+        $this->harvestService = $harvestService;
     }
 
     /**
@@ -163,13 +166,13 @@ class ReportController extends Controller
         $thisUser = auth()->user();
 
         // Get an array of providers with successful harvests (to limit choices below)
-        $provs_with_data = self::hasHarvests('prov_id');
+        $provs_with_data = $this->harvestService->hasHarvests('prov_id');
         $limit_by_inst = array();
 
         // Setup arrays for the report creator
         if ($thisUser->hasAnyRole(['Admin','Viewer'])) {
-            $insts_with_data = self::hasHarvests('inst_id');
-            $institutions = Institution::whereIn('id', $insts_with_data)->orderBy('name', 'ASC')->where('id', '<>', 1)
+        $insts_with_data = $this->harvestService->hasHarvests('inst_id');
+        $institutions = Institution::whereIn('id', $insts_with_data)->orderBy('name', 'ASC')->where('id', '<>', 1)
                                        ->get(['id','name'])->toArray();
             $data = InstitutionGroup::with('institutions:id,name')->orderBy('name', 'ASC')->get();
             // Keep only groups that have members
@@ -307,11 +310,11 @@ class ReportController extends Controller
 
         // Providers and insts inclusion as options depend on successful harvests
         $show_all = ($thisUser->hasAnyRole(['Admin','Viewer']));
-        $provs_with_data = self::hasHarvests('prov_id');
+        $provs_with_data = $this->harvestService->hasHarvests('prov_id');
         $limit_by_inst = array();
         $_insts = array();
         if ($show_all) {
-            $_insts = self::hasHarvests('inst_id');
+            $_insts = $this->harvestService->hasHarvests('inst_id');
             $filter_options['institution'] = Institution::whereIn('id', $_insts)->where('id', '>', 1)
                                                         ->orderBy('name', 'ASC')->get(['id','name'])->toArray();
         } else {  // Managers and Users are limited their own inst
@@ -693,29 +696,6 @@ class ReportController extends Controller
         }
         return view('reports.show', compact('report', 'fields', 'filters'));
     }
-
-    /**
-     * Return an array IDs of institutions or providers with successful harvests
-     *
-     * @param  String  $column :  "prov_id" or "inst_id"
-     * @return \Illuminate\Http\Response
-     */
-    public function hasHarvests($column)
-    {
-        // Setup the query
-        $raw_query = $column . ",count(*) as count";
-        $_join = config('database.connections.consodb.database') . '.credentials as Set';
-
-        //Run it
-        $ids_with_data = HarvestLog::join($_join, 'harvestlogs.credentials_id', 'Set.id')
-                                   ->selectRaw($raw_query)
-                                   ->where('harvestlogs.status', 'Success')
-                                   ->groupBy($column)
-                                   ->pluck($column)->toArray();
-        // Return the IDs
-        return $ids_with_data;
-    }
-
     /**
      * Return dates-available for each master report type, within contraints
      *
