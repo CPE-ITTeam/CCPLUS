@@ -1,5 +1,5 @@
 <script setup>
-  import { ref, onBeforeMount, defineProps } from 'vue';
+  import { ref, onBeforeMount } from 'vue';
   const modelValue = defineModel({type: String, required: true, default: ''});
   const props = defineProps({
     label: { type: String, required: true },
