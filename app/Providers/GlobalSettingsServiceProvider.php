@@ -42,6 +42,7 @@ class GlobalSettingsServiceProvider extends ServiceProvider
         $mail_settings = $cache->remember('mail', 60, function() use ($settings)
         {
             $values = array();
+            $mailer_data = array();
             try {
               $data = $settings->where('type','mail')->pluck('value', 'name')->all();
               // clear "mail_" prefix off the array keys if they exist
