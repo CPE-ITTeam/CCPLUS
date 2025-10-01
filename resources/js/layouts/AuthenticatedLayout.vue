@@ -3,7 +3,6 @@
   import { ref, onMounted, onBeforeMount, watch } from 'vue';
   import { useRouter,useRoute } from 'vue-router';
   import { useAuthStore } from '@/plugins/authStore.js';
-  import { useExternalLinks } from '@/composables/useExternalLinks.js';
 
   import AppHeader from './AppHeader.vue'
   // Data
@@ -23,7 +22,6 @@
   const is_admin = authStore.is_admin;
   const is_serveradmin = authStore.is_serveradmin;
   // External links
-  const { openCop, openCounterApi, openRegistry, openRegistryApi } = useExternalLinks();
   function userDialogDone ({ result, msg, user, new_inst }) {
     userDialog.value = false;
   }
