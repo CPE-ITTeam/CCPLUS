@@ -4,6 +4,7 @@ import vuetify from 'vite-plugin-vuetify';
 import laravel from 'laravel-vite-plugin';
 
 export default defineConfig({
+    base: '/',
     css: {
         preprocessorOptions: {
             scss: {
@@ -27,4 +28,8 @@ export default defineConfig({
            refresh: true,
         }),
     ],
+    build: {
+        outDir: 'public',
+        emptyOutDir: false,
+    },
 });
