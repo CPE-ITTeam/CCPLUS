@@ -51,6 +51,7 @@ export const useAuthStore = defineStore('useAuthStore', {
         const response = await axios.post('/api/login', {
           email: credentials.email,
           consortium: credentials.consortium,
+          conso_id: credentials.conso_id,
           password: credentials.password,
         });
         if (response.data.success) {

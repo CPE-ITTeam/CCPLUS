@@ -8,7 +8,7 @@ const router = useRouter();
 const route = useRoute();
 const pw_show = ref(false);
 const preset_conso = ref('');
-const consortium = ref('');
+const consortium = ref();
 const email = ref('');
 const password = ref('');
 // Pinia Datastores
@@ -25,15 +25,16 @@ const fetchConsortia = async () => {
     const result = await getConsortia();
     if (consortia.value.length == 1) {
       preset_conso.value = consortia.value[0].name;
-      consortium.value = consortia.value[0].ccp_key;
+      consortium.value = consortia.value[0];
     }
   } catch {}
 }
 async function formSubmit() {
   await login({
     email: email.value,
-    consortium: consortium.value,
+    consortium: consortium.value['ccp_key'],
     password: password.value,
+    conso_id: consortium.value['id'],
   });
 }
 function triggerApiCall(url) {
@@ -70,8 +71,8 @@ onMounted(() => {
           <h5>Logging into {{ preset_conso }}</h5>
         </v-col>
         <v-col v-else class="d-flex pa-0 justify-start" cols="12">
-          <v-select :items='consortia' v-model='consortium' label="Consortium"
-                    item-title="name" item-value="ccp_key" autofocus density="compact"
+          <v-select :items='consortia' v-model='consortium' label="Consortium" 
+                    item-title="name" return-object autofocus density="compact"
           ></v-select>
         </v-col>
       </v-row>
