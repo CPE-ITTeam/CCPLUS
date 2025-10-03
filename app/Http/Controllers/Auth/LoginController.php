@@ -35,8 +35,8 @@ class LoginController extends BaseController
         if(Auth::attempt(['email' => $request->email, 'password' => $request->password])) { 
             // Regenerate the session and store database key in it
             $request->session()->regenerate();
-            $request->session()->put('ccp_con_key', $key);
             $user = Auth::user();
+            $request->session()->put(['ccp_con_key'=>$key, 'conso_id'=>$request->conso_id, 'user_id'=>$user->id]);
             $success['token'] =  $user->createToken('CCPlus')->plainTextToken; 
             $success['user'] = $user;
             $success['roles'] = $user->allRoles();
@@ -56,7 +56,7 @@ class LoginController extends BaseController
         Auth::logout();
         $request->session()->invalidate();
         $request->session()->regenerateToken();
-        $request->session()->put('ccp_con_key', '');
+        $request->session()->put(['ccp_con_key'=>'','conso_id'=>null,'user_id' =>null]);
         return redirect('/login');
     }
 }
