@@ -106,10 +106,6 @@ class HarvestLogController extends Controller
     {
         $thisUser = auth()->user();
 
-        // Get an array of platforms and institutions with successful harvests (to limit choices below)
-        $provs_with_data = $this->harvestService->hasHarvests('prov_id');
-        $insts_with_data = $this->harvestService->hasHarvests('inst_id');
-
         // limit institutions by user rols(s)
         $_insts = $thisUser->viewerInsts(); // returns [1] for conso or serverAdmin
         $limit_by_inst = ($_insts === [1]) ? array() : $_insts;
@@ -121,8 +117,7 @@ class HarvestLogController extends Controller
                              ->select('global_id')->distinct()->pluck('global_id')->toArray();
 
         // Setup option arrays for the report creator
-        $institutions = Institution::whereIn('id', $insts_with_data)->orderBy('name', 'ASC')->where('id', '<>', 1)
-                                   ->when(count($limit_by_inst)>0, function ($qry) use ($limit_by_inst) {
+        $institutions = Institution::when(count($limit_by_inst)>0, function ($qry) use ($limit_by_inst) {
                                        return $qry->whereIn('id', $limit_by_inst);
                                    })->get(['id','name'])->toArray();
 
@@ -137,12 +132,9 @@ class HarvestLogController extends Controller
             }
         }
 
-        // Pull platforms that have data
-        $limit_by_prov = array_intersect($global_ids, $provs_with_data);
-        $globals = GlobalProvider::with('consoProviders','consoProviders.reports')->whereIn('id',$limit_by_prov)
+        // Build platforms from globals connected to insts in limit_by_inst and add report assignments
+        $globals = GlobalProvider::with('consoProviders','consoProviders.reports')->whereIn('id',$global_ids)
                                  ->orderBy('name','ASC')->get(['id','name']);
-
-        // Filter out limited/unrelated platforms and add report assignments and institution
         $platforms = array();
         foreach ($globals as $global) {
             $global_inst_ids = $global->connectedInstitutions();
