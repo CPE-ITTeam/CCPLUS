@@ -31,7 +31,6 @@ class HarvestLogController extends Controller
 
    public function __construct(HarvestService $harvestService)
    {
-       $this->middleware('auth');
        // Load all connection fields
        try {
            $this->connection_fields = ConnectionField::get();
