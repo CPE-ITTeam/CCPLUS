@@ -380,9 +380,11 @@ class SushiQHarvester extends Command
                 }
 
                 // Force harvest status to the value from any Error, but leave some as-is (set above already)
-                $keep_statuses = array('NoRetries','Waiting','ReQueued','Pending');
-                if ($error && !in_array($job->harvest->status, $keep_statuses)) {
-                    $job->harvest->status = $error->new_status;
+                if ($error) {
+                    $keep_statuses = array('NoRetries','Waiting','ReQueued','Pending');
+                    if (!in_array($error->new_status, $keep_statuses)) {
+                        $job->harvest->status = $error->new_status;
+                    }
                 }
 
                 // Sleep 2 seconds *before* saving the harvest record (keeping it technically "Active"),
