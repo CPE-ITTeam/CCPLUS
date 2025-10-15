@@ -22,7 +22,10 @@ import HarvestQueue from '@/components/tables/HarvestQueue.vue';
 import HarvestLog from '@/components/tables/HarvestLog.vue';
 import SavedReports from '@/components/tables/SavedReports.vue';
 import ManualHarvest from '@/components/panels/ManualHarvest.vue';
-// import ReportScope from '@/components/panels/ReportScope.vue';
+import CreateReport from '@/components/panels/CreateReport.vue';
+// import RolesTable from '@/pages/RolesTable.vue';
+// import ConnectionsTable from '@/pages/ConnectionsTable.vue';
+// import CredentialsAudit from '@/pages/CredentialsAudit.vue';
 // import ReportPreview from '@/components/panels/ReportPreview.vue';
 // Pinia datastore
 import { createPinia } from 'pinia';
@@ -80,37 +83,25 @@ export const router = createRouter({
               meta: { title: 'Users', layout: AuthenticatedLayout, role: 'Admin', level:3 }, 
               component: markRaw(UsersTable),
             },
-          ]
-        },
-        { path: '/platforms', name: 'Platforms',
-          meta: { title: 'Platforms', layout: AuthenticatedLayout, role: 'Admin', level:2 }, 
-          children: [
-            { path: '/admin/credentials', name: 'Credentials',
-              meta: { title: 'Credentials', layout: AuthenticatedLayout, role: 'Admin', level:3 }, 
-              component: markRaw(CredentialsTable),
-            },
-            { path: '/admin/platforms', name: 'PlatformsTable',
-              meta: { title: 'Platforms', layout: AuthenticatedLayout, role: 'Admin', level:3 }, 
-              component: markRaw(PlatformsTable),
+            { path: '/admin/roles', name: 'RolesTable',
+              meta: { title: 'Permissions', layout: AuthenticatedLayout, role: 'Admin', level:3 }, 
+              component: markRaw(PlaceHolder),
             },
           ]
         },
-        { path: '/admin/serveradmin', name: 'ServerAdmin',
-          meta: { title: 'Server Admin', layout: AuthenticatedLayout, role: 'ServerAdmin', level:2 }, 
+        { path: '/admin/credentials', name: 'Credentials',
+          meta: { title: 'Credentials', layout: AuthenticatedLayout, role: 'Admin', level:2 }, 
+          component: markRaw(CredentialsTable),
           children: [
-            { path: '/admin/consortia', name: 'Consortia',
-              meta: { title: 'Consortia', layout: AuthenticatedLayout, role: 'ServerAdmin', level:3 }, 
-              component: markRaw(Consortia),
+            { path: '/admin/connections', name: 'ConnectionsTable',
+              meta: { title: 'Connections and Credentials', layout: AuthenticatedLayout, role: 'Admin', level:3 }, 
+              component: markRaw(PlaceHolder),
             },
-            { path: '/admin/PlaceHolder', name: 'ServerSettings',
-              meta: { title: 'Server Settings', layout: AuthenticatedLayout, role: 'ServerAdmin', level:3 }, 
-              component: markRaw(ServerSettings),
+            { path: '/admin/credentialsaudit', name: 'CredentialsAudit',
+              meta: { title: 'Credentials Audit', layout: AuthenticatedLayout, role: 'Admin', level:3 }, 
+              component: markRaw(PlaceHolder),
             },
-            { path: '/admin/PlaceHolder', name: 'MailSettings',
-              meta: { title: 'Mail Settings', layout: AuthenticatedLayout, role: 'ServerAdmin', level:3 }, 
-              component: markRaw(MailSettings),
-            },
-          ]
+          ],
         },
       ]  
     },
@@ -136,9 +127,9 @@ export const router = createRouter({
       path: '/reports', name: 'Reports',
       meta: { title: 'Reports', layout: AuthenticatedLayout, role: 'Viewer', level:1 },
       children: [
-        { path: '/reports/create', name: 'ReportScope',
+        { path: '/reports/create', name: 'CreateReport',
           meta: { title: 'Create a Report', layout: AuthenticatedLayout, role: 'Viewer', level:2 }, 
-          component: markRaw(PlaceHolder),
+          component: markRaw(CreateReport),
         },
         { path: '/reports/saved', name: 'SavedReports',
           meta: { title: 'Saved Reports', layout: AuthenticatedLayout, role: 'Viewer', level:2 }, 
@@ -150,7 +141,33 @@ export const router = createRouter({
         },
       ]
     },
-  ]
+    { path: '/admin/serveradmin', name: 'Server',
+      meta: { title: 'Server', layout: AuthenticatedLayout, role: 'ServerAdmin', level:1 }, 
+      children: [
+        { path: '/admin/consortia', name: 'Consortia',
+          meta: { title: 'Consortia', layout: AuthenticatedLayout, role: 'ServerAdmin', level:2 }, 
+          component: markRaw(Consortia),
+        },
+        { path: '/admin/platforms', name: 'PlatformsTable',
+          meta: { title: 'Platforms', layout: AuthenticatedLayout, role: 'Admin', level:2 }, 
+          component: markRaw(PlatformsTable),
+        },
+        { path: '/admin/serveradmin', name: 'ServerAdmin',
+          meta: { title: 'Server', layout: AuthenticatedLayout, role: 'ServerAdmin', level:2 }, 
+          children: [
+            { path: '/admin/serversettings', name: 'ServerSettings',
+              meta: { title: 'Server Settings', layout: AuthenticatedLayout, role: 'ServerAdmin', level:3 }, 
+              component: markRaw(ServerSettings),
+            },
+            { path: '/admin/mailsettings', name: 'MailSettings',
+              meta: { title: 'Mail Settings', layout: AuthenticatedLayout, role: 'ServerAdmin', level:3 }, 
+              component: markRaw(MailSettings),
+            },
+          ]
+        },
+      ]
+    },
+  ],
 });
 
 // Add router to pinia stores
