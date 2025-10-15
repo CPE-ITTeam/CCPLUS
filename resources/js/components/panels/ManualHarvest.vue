@@ -332,7 +332,13 @@
   });
 </script>
 <template>
-  <div>
+  <div v-if="institution_options.length == 0" class="d-flex pa-4">
+     <h3>Instititions must be configured in order to create harvests</h3>
+  </div>
+  <div v-else-if="available_platforms.length == 0" class="d-flex pa-4">
+    <h3>Platforms must be connected in order to create harvests</h3>
+  </div>
+  <div v-else>
     <div v-if="selections_made">
       <v-btn color="gray" small @click="resetForm">Reset Selections</v-btn>
     </div>
@@ -402,8 +408,8 @@
       </v-row>
       <v-row v-if="form.reports.length>0" class="d-flex flex-row ma-2 align-center" no-gutters>
         <v-col class="d-flex px-2" cols="2" sm="2"><h5>Month(s) to Harvest</h5></v-col>
-        <YmInput v-model="form.fromYM" label="From" />
-        <YmInput v-model="form.toYM" label="To" :minYM="minYM" :key="toKey"/>
+        <YmInput v-model="form.fromYM" label="From" :cols="2"/>
+        <YmInput v-model="form.toYM" label="To" :minYM="minYM" :cols="2" :key="toKey"/>
       </v-row>
       <v-row v-if="form.reports.length>0" class="d-flex ma-2" no-gutters>
         <v-col class="d-flex px-2" cols="12">
