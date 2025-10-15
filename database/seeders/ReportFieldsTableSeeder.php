@@ -65,35 +65,35 @@ class ReportFieldsTableSeeder extends Seeder
             DB::table($table)->insert(['id' => 17,'report_id' => 1, 'legend' => 'Total Item Investigations',
                 'qry' => 'sum(IF (yearmon="@YM@",total_item_investigations,0))',
                 'qry_counter' => ' WHEN RF.qry_as="total_item_investigations" THEN total_item_investigations',
-                'qry_as' => 'total_item_investigations', 'is_metric' => 1, 'active' => 1]);
+                'qry_as' => 'total_item_investigations', 'is_metric' => 1, 'metric_type' => 'usage', 'active' => 1]);
             DB::table($table)->insert(['id' => 18,'report_id' => 1, 'legend' => 'Total Item Requests',
                 'qry' => 'sum(IF (yearmon="@YM@",total_item_requests,0))',
                 'qry_counter' => ' WHEN RF.qry_as="total_item_requests" THEN total_item_requests',
-                'qry_as' => 'total_item_requests', 'is_metric' => 1, 'active' => 1]);
+                'qry_as' => 'total_item_requests', 'is_metric' => 1, 'metric_type' => 'usage', 'active' => 1]);
             DB::table($table)->insert(['id' => 19,'report_id' => 1, 'legend' => 'Unique Item Investigations',
                 'qry' => 'sum(IF (yearmon="@YM@",unique_item_investigations,0))',
                 'qry_counter' => ' WHEN RF.qry_as="unique_item_investigations" THEN unique_item_investigations',
-                'qry_as' => 'unique_item_investigations', 'is_metric' => 1, 'active' => 1]);
+                'qry_as' => 'unique_item_investigations', 'is_metric' => 1, 'metric_type' => 'usage', 'active' => 1]);
             DB::table($table)->insert(['id' => 20,'report_id' => 1, 'legend' => 'Unique Item Requests',
                 'qry' => 'sum(IF (yearmon="@YM@",unique_item_requests,0))',
                 'qry_counter' => ' WHEN RF.qry_as="unique_item_requests" THEN unique_item_requests',
-                'qry_as' => 'unique_item_requests', 'is_metric' => 1, 'active' => 1]);
+                'qry_as' => 'unique_item_requests', 'is_metric' => 1, 'metric_type' => 'usage', 'active' => 1]);
             DB::table($table)->insert(['id' => 21,'report_id' => 1, 'legend' => 'Unique Title Investigations',
                 'qry' => 'sum(IF (yearmon="@YM@",unique_title_investigations,0))',
                 'qry_counter' => ' WHEN RF.qry_as="unique_title_investigations" THEN unique_title_investigations',
-                'qry_as' => 'unique_title_investigations', 'is_metric' => 1, 'active' => 1]);
+                'qry_as' => 'unique_title_investigations', 'is_metric' => 1, 'metric_type' => 'usage', 'active' => 1]);
             DB::table($table)->insert(['id' => 22,'report_id' => 1, 'legend' => 'Unique Title Requests',
                 'qry' => 'sum(IF (yearmon="@YM@",unique_title_requests,0))',
                 'qry_counter' => ' WHEN RF.qry_as="unique_title_requests" THEN unique_title_requests',
-                'qry_as' => 'unique_title_requests', 'is_metric' => 1, 'active' => 1]);
+                'qry_as' => 'unique_title_requests', 'is_metric' => 1, 'metric_type' => 'usage', 'active' => 1]);
             DB::table($table)->insert(['id' => 23,'report_id' => 1, 'legend' => 'Limit Exceeded',
                 'qry' => 'sum(IF (yearmon="@YM@",limit_exceeded,0))',
                 'qry_counter' => ' WHEN RF.qry_as="limit_exceeded" THEN limit_exceeded',
-                'qry_as' => 'limit_exceeded', 'is_metric' => 1, 'active' => 1]);
+                'qry_as' => 'limit_exceeded', 'is_metric' => 1, 'metric_type' => 'turnaway', 'active' => 1]);
             DB::table($table)->insert(['id' => 24,'report_id' => 1, 'legend' => 'No License',
                 'qry' => 'sum(IF (yearmon="@YM@",no_license,0))',
                 'qry_counter' => ' WHEN RF.qry_as="no_license" THEN no_license',
-                'qry_as' => 'no_license', 'is_metric' => 1, 'active' => 1]);
+                'qry_as' => 'no_license', 'is_metric' => 1, 'metric_type' => 'turnaway', 'active' => 1]);
             // DB::table($table)->insert(['id' => 25, 'report_id' => 1, 'legend' => 'Reporting Period Total',
             //     'is_metric' => 1]);
 
@@ -124,47 +124,47 @@ class ReportFieldsTableSeeder extends Seeder
             DB::table($table)->insert(['id' => 34,'report_id' => 2, 'legend' => 'Searches Automated',
                 'qry' => 'sum(IF (yearmon="@YM@",searches_automated,0))',
                 'qry_counter' => ' WHEN RF.qry_as="searches_automated" THEN searches_automated',
-                'qry_as' => 'searches_automated', 'is_metric' => 1, 'active' => 1]);
+                'qry_as' => 'searches_automated', 'is_metric' => 1, 'metric_type' => 'search', 'active' => 1]);
             DB::table($table)->insert(['id' => 35,'report_id' => 2, 'legend' => 'Searches Federated',
                 'qry' => 'sum(IF (yearmon="@YM@",searches_federated,0))',
                 'qry_counter' => ' WHEN RF.qry_as="searches_federated" THEN searches_federated',
-                'qry_as' => 'searches_federated', 'is_metric' => 1, 'active' => 1]);
+                'qry_as' => 'searches_federated', 'is_metric' => 1, 'metric_type' => 'search', 'active' => 1]);
             DB::table($table)->insert(['id' => 36,'report_id' => 2, 'legend' => 'Searches Regular',
                 'qry' => 'sum(IF (yearmon="@YM@",searches_regular,0))',
                 'qry_counter' => ' WHEN RF.qry_as="searches_regular" THEN searches_regular',
-                'qry_as' => 'searches_regular', 'is_metric' => 1, 'active' => 1]);
+                'qry_as' => 'searches_regular', 'is_metric' => 1, 'metric_type' => 'search', 'active' => 1]);
             DB::table($table)->insert(['id' => 37,'report_id' => 2, 'legend' => 'Total Item Investigations',
                 'qry' => 'sum(IF (yearmon="@YM@",total_item_investigations,0))',
                 'qry_counter' => ' WHEN RF.qry_as="total_item_investigations" THEN total_item_investigations',
-                'qry_as' => 'total_item_investigations', 'is_metric' => 1, 'active' => 1]);
+                'qry_as' => 'total_item_investigations', 'is_metric' => 1, 'metric_type' => 'usage', 'active' => 1]);
             DB::table($table)->insert(['id' => 38,'report_id' => 2, 'legend' => 'Total Item Requests',
                 'qry' => 'sum(IF (yearmon="@YM@",total_item_requests,0))',
                 'qry_counter' => ' WHEN RF.qry_as="total_item_requests" THEN total_item_requests',
-                'qry_as' => 'total_item_requests', 'is_metric' => 1, 'active' => 1]);
+                'qry_as' => 'total_item_requests', 'is_metric' => 1, 'metric_type' => 'usage', 'active' => 1]);
             DB::table($table)->insert(['id' => 39,'report_id' => 2, 'legend' => 'Unique Item Investigations',
                 'qry' => 'sum(IF (yearmon="@YM@",unique_item_investigations,0))',
                 'qry_counter' => ' WHEN RF.qry_as="unique_item_investigations" THEN unique_item_investigations',
-                'qry_as' => 'unique_item_investigations', 'is_metric' => 1, 'active' => 1]);
+                'qry_as' => 'unique_item_investigations', 'is_metric' => 1, 'metric_type' => 'usage', 'active' => 1]);
             DB::table($table)->insert(['id' => 40,'report_id' => 2, 'legend' => 'Unique Item Requests',
                 'qry' => 'sum(IF (yearmon="@YM@",unique_item_requests,0))',
                 'qry_counter' => ' WHEN RF.qry_as="unique_item_requests" THEN unique_item_requests',
-                'qry_as' => 'unique_item_requests', 'is_metric' => 1, 'active' => 1]);
+                'qry_as' => 'unique_item_requests', 'is_metric' => 1, 'metric_type' => 'usage', 'active' => 1]);
             DB::table($table)->insert(['id' => 41,'report_id' => 2, 'legend' => 'Unique Title Investigations',
                 'qry' => 'sum(IF (yearmon="@YM@",unique_title_investigations,0))',
                 'qry_counter' => ' WHEN RF.qry_as="unique_title_investigations" THEN unique_title_investigations',
-                'qry_as' => 'unique_title_investigations', 'is_metric' => 1, 'active' => 1]);
+                'qry_as' => 'unique_title_investigations', 'is_metric' => 1, 'metric_type' => 'usage', 'active' => 1]);
             DB::table($table)->insert(['id' => 42,'report_id' => 2, 'legend' => 'Unique Title Requests',
                 'qry' => 'sum(IF (yearmon="@YM@",unique_title_requests,0))',
                 'qry_counter' => ' WHEN RF.qry_as="unique_title_requests" THEN unique_title_requests',
-                'qry_as' => 'unique_title_requests', 'is_metric' => 1, 'active' => 1]);
+                'qry_as' => 'unique_title_requests', 'is_metric' => 1, 'metric_type' => 'usage', 'active' => 1]);
             DB::table($table)->insert(['id' => 43,'report_id' => 2, 'legend' => 'Limit Exceeded',
                 'qry' => 'sum(IF (yearmon="@YM@",limit_exceeded,0))',
                 'qry_counter' => ' WHEN RF.qry_as="limit_exceeded" THEN limit_exceeded',
-                'qry_as' => 'limit_exceeded', 'is_metric' => 1, 'active' => 1]);
+                'qry_as' => 'limit_exceeded', 'is_metric' => 1, 'metric_type' => 'turnaway', 'active' => 1]);
             DB::table($table)->insert(['id' => 44,'report_id' => 2, 'legend' => 'No License',
                 'qry' => 'sum(IF (yearmon="@YM@",no_license,0))',
                 'qry_counter' => ' WHEN RF.qry_as="no_license" THEN no_license',
-                'qry_as' => 'no_license', 'is_metric' => 1, 'active' => 1]);
+                'qry_as' => 'no_license', 'is_metric' => 1, 'metric_type' => 'turnaway', 'active' => 1]);
             // DB::table($table)->insert(['id' => 45, 'report_id' => 2, 'legend' => 'Reporting Period Total',
             //     'is_metric' => 1]);
 
@@ -189,31 +189,31 @@ class ReportFieldsTableSeeder extends Seeder
             DB::table($table)->insert(['id' => 51, 'report_id' => 3, 'legend' => 'Searches Platform',
                 'qry' => 'sum(IF (yearmon="@YM@",searches_platform,0))',
                 'qry_counter' => ' WHEN RF.qry_as="searches_platform" THEN searches_platform',
-                'qry_as' => 'searches_platform', 'active' => 1, 'is_metric' => 1]);
+                'qry_as' => 'searches_platform', 'active' => 1, 'metric_type' => 'search', 'is_metric' => 1]);
             DB::table($table)->insert(['id' => 52, 'report_id' => 3, 'legend' => 'Total Item Investigations',
                 'qry' => 'sum(IF (yearmon="@YM@",total_item_investigations,0))',
                 'qry_counter' => ' WHEN RF.qry_as="total_item_investigations" THEN total_item_investigations',
-                'qry_as' => 'total_item_investigations', 'active' => 1, 'is_metric' => 1]);
+                'qry_as' => 'total_item_investigations', 'active' => 1, 'metric_type' => 'usage', 'is_metric' => 1]);
             DB::table($table)->insert(['id' => 53, 'report_id' => 3, 'legend' => 'Total Item Requests',
                 'qry' => 'sum(IF (yearmon="@YM@",total_item_requests,0))',
                 'qry_counter' => ' WHEN RF.qry_as="total_item_requests" THEN total_item_requests',
-                'qry_as' => 'total_item_requests', 'active' => 1, 'is_metric' => 1]);
+                'qry_as' => 'total_item_requests', 'active' => 1, 'metric_type' => 'usage', 'is_metric' => 1]);
             DB::table($table)->insert(['id' => 54, 'report_id' => 3, 'legend' => 'Unique Item Investigations',
                 'qry' => 'sum(IF (yearmon="@YM@",unique_item_investigations,0))',
                 'qry_counter' => ' WHEN RF.qry_as="unique_item_investigations" THEN unique_item_investigations',
-                'qry_as' => 'unique_item_investigations', 'active' => 1, 'is_metric' => 1]);
+                'qry_as' => 'unique_item_investigations', 'active' => 1, 'metric_type' => 'usage', 'is_metric' => 1]);
             DB::table($table)->insert(['id' => 55, 'report_id' => 3, 'legend' => 'Unique Item Requests',
                 'qry' => 'sum(IF (yearmon="@YM@",unique_item_requests,0))',
                 'qry_counter' => ' WHEN RF.qry_as="unique_item_requests" THEN unique_item_requests',
-                'qry_as' => 'unique_item_requests', 'active' => 1, 'is_metric' => 1]);
+                'qry_as' => 'unique_item_requests', 'active' => 1, 'metric_type' => 'usage', 'is_metric' => 1]);
             DB::table($table)->insert(['id' => 56, 'report_id' => 3, 'legend' => 'Unique Title Investigations',
                 'qry' => 'sum(IF (yearmon="@YM@",unique_title_investigations,0))',
                 'qry_counter' => ' WHEN RF.qry_as="unique_title_investigations" THEN unique_title_investigations',
-                'qry_as' => 'unique_title_investigations', 'active' => 1, 'is_metric' => 1]);
+                'qry_as' => 'unique_title_investigations', 'active' => 1, 'metric_type' => 'usage', 'is_metric' => 1]);
             DB::table($table)->insert(['id' => 57, 'report_id' => 3, 'legend' => 'Unique Title Requests',
                 'qry' => 'sum(IF (yearmon="@YM@",unique_title_requests,0))',
                 'qry_counter' => ' WHEN RF.qry_as="unique_title_requests" THEN unique_title_requests',
-                'qry_as' => 'unique_title_requests', 'active' => 1, 'is_metric' => 1]);
+                'qry_as' => 'unique_title_requests', 'active' => 1, 'metric_type' => 'usage', 'is_metric' => 1]);
             // DB::table($table)->insert(['id' => 58,'report_id' => 3, 'legend' => 'Reporting Period Total',
             //     'is_metric' => 1]);
 
@@ -265,27 +265,27 @@ class ReportFieldsTableSeeder extends Seeder
             DB::table($table)->insert(['id' => 77,'report_id' => 4, 'legend' => 'Total Item Investigations',
                 'qry' => 'sum(IF (yearmon="@YM@",total_item_investigations,0))',
                 'qry_counter' => ' WHEN RF.qry_as="total_item_investigations" THEN total_item_investigations',
-                'qry_as' => 'total_item_investigations', 'is_metric' => 1, 'active' => 1]);
+                'qry_as' => 'total_item_investigations', 'is_metric' => 1, 'metric_type' => 'usage', 'active' => 1]);
             DB::table($table)->insert(['id' => 78, 'report_id' => 4, 'legend' => 'Total Item Requests',
                 'qry' => 'sum(IF (yearmon="@YM@",total_item_requests,0))',
                 'qry_counter' => ' WHEN RF.qry_as="total_item_requests" THEN total_item_requests',
-                'qry_as' => 'total_item_requests', 'is_metric' => 1, 'active' => 1]);
+                'qry_as' => 'total_item_requests', 'is_metric' => 1, 'metric_type' => 'usage', 'active' => 1]);
             DB::table($table)->insert(['id' => 79,'report_id' => 4, 'legend' => 'Unique Item Investigations',
                 'qry' => 'sum(IF (yearmon="@YM@",unique_item_investigations,0))',
                 'qry_counter' => ' WHEN RF.qry_as="unique_item_investigations" THEN unique_item_investigations',
-                'qry_as' => 'unique_item_investigations', 'is_metric' => 1, 'active' => 1]);
+                'qry_as' => 'unique_item_investigations', 'is_metric' => 1, 'metric_type' => 'usage', 'active' => 1]);
             DB::table($table)->insert(['id' => 80, 'report_id' => 4, 'legend' => 'Unique Item Requests',
                 'qry' => 'sum(IF (yearmon="@YM@",unique_item_requests,0))',
                 'qry_counter' => ' WHEN RF.qry_as="unique_item_requests" THEN unique_item_requests',
-                'qry_as' => 'unique_item_requests', 'is_metric' => 1, 'active' => 1]);
+                'qry_as' => 'unique_item_requests', 'is_metric' => 1, 'metric_type' => 'usage', 'active' => 1]);
             DB::table($table)->insert(['id' => 81,'report_id' => 4, 'legend' => 'Limit Exceeded',
                 'qry' => 'sum(IF (yearmon="@YM@",limit_exceeded,0))',
                 'qry_counter' => ' WHEN RF.qry_as="limit_exceeded" THEN limit_exceeded',
-                'qry_as' => 'limit_exceeded', 'is_metric' => 1, 'active' => 1]);
+                'qry_as' => 'limit_exceeded', 'is_metric' => 1, 'metric_type' => 'turnaway', 'active' => 1]);
             DB::table($table)->insert(['id' => 82,'report_id' => 4, 'legend' => 'No License',
                 'qry' => 'sum(IF (yearmon="@YM@",no_license,0))',
                 'qry_counter' => ' WHEN RF.qry_as="no_license" THEN no_license',
-                'qry_as' => 'no_license', 'is_metric' => 1, 'active' => 1]);
+                'qry_as' => 'no_license', 'is_metric' => 1, 'metric_type' => 'turnaway', 'active' => 1]);
             // DB::table($table)->insert(['id' => 83, 'report_id' => 4, 'legend' => 'Reporting Period Total',
             //     'is_metric' => 1]);
         }
