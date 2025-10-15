@@ -10,6 +10,7 @@ export const useCCPlusStore = defineStore('useCCPlusStore', {
       reportConfig: null,
       reportData: [],
       consortia: [],
+      reportDates: '',
     }
   },
   persist: {  // persist for the session
