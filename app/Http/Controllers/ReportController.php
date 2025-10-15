@@ -12,6 +12,7 @@ use App\Models\ReportField;
 use App\Models\ReportFilter;
 use App\Models\SavedReport;
 use App\Models\Institution;
+use App\Models\InstitutionType;
 use App\Models\InstitutionGroup;
 use App\Models\GlobalProvider;
 use App\Models\Provider;
@@ -156,73 +157,116 @@ class ReportController extends Controller
     }
 
     /**
-     * Setup wizard for creating usage report summaries
+     * Return options for Report Creator component
      *
-     * @param  \Illuminate\Http\Request  $request
-     * @return \Illuminate\Http\Response
+     * @param  String $type    // 'conso' -OR- valid CCP_KEY for a named consortium
+     * @return JSON (array of options)
      */
-    public function create(Request $request)
+    public function create($type)
     {
         $thisUser = auth()->user();
+        $serverAdmin = $thisUser->isServerAdmin();
 
-        // Get an array of providers with successful harvests (to limit choices below)
+        // Only serverAdmin gets to request via ccp_key. If key is valid,
+        // set the consodb database
+        $original_conso_db = config('database.connections.consodb.database');
+        if ($thisUser->isServerAdmin() && $type != 'conso') {
+            $con = Consortium::where("ccp_key", $type)->first();
+            if ($con) {
+                config(['database.connections.consodb.database' => "ccplus_" . $type]);
+                DB::reconnect('consodb');
+            }
+        }
+        $return_data = array();
+
+        // Get an array of platforms and institutions with successful harvests (to limit choices below)
         $provs_with_data = $this->harvestService->hasHarvests('prov_id');
-        $limit_by_inst = array();
-
-        // Setup arrays for the report creator
-        if ($thisUser->hasAnyRole(['Admin','Viewer'])) {
         $insts_with_data = $this->harvestService->hasHarvests('inst_id');
-        $institutions = Institution::whereIn('id', $insts_with_data)->orderBy('name', 'ASC')->where('id', '<>', 1)
-                                       ->get(['id','name'])->toArray();
+
+        // limit institutions by user rols(s)
+        $_insts = $thisUser->viewerInsts(); // returns [1] for conso or serverAdmin
+        $limit_by_inst = ($_insts === [1]) ? array() : $_insts;
+
+        // Pull globalProvider IDs based on the consortium providers defined for institutions
+        // in $limit_by_inst ; everyone gets consortium-wide providers (where inst_id=1)
+        $global_ids = Provider::when(count($limit_by_inst) > 0, function ($qry) use ($limit_by_inst) {
+                                return $qry->where('inst_id',1)->orWhereIn('inst_id',$limit_by_inst);
+                            })->select('global_id')->distinct()->pluck('global_id')->toArray();
+
+        // Get allowed/visible institutions
+        $return_data['institutions'] =
+            Institution::whereIn('id', $insts_with_data)->orderBy('name', 'ASC')->where('id', '<>', 1)
+                        ->when(count($limit_by_inst)>0, function ($qry) use ($limit_by_inst) {
+                            return $qry->whereIn('id', $limit_by_inst);
+                        })->get(['id','name'])->toArray();
+
+        // Admins see groups, but only ones that have members
+        $return_data['groups'] = array();
+        if ($thisUser->isAdmin()) {
             $data = InstitutionGroup::with('institutions:id,name')->orderBy('name', 'ASC')->get();
-            // Keep only groups that have members
-            $inst_groups = array();
             foreach ($data as $group) {
                 if ( $group->institutions->count() > 0 ) {
-                    $inst_groups[] = array('id' => $group->id, 'name' => $group->name, 'institutions' => $group->institutions);
+                    $return_data['groups'][] =
+                        array('id' => $group->id, 'name' => $group->name, 'institutions' => $group->institutions);
                 }
             }
-        } else {    // limited view
-            $user_inst = $thisUser->inst_id;
-            $institutions = Institution::where('id', '=', $user_inst)->get(['id','name'])->toArray();
-            $inst_groups = array();
-            $limit_by_inst = array(1,$user_inst);
         }
-        $globals = GlobalProvider::with('consoProviders','consoProviders.reports')->whereIn('id',$provs_with_data)
-                                 ->orderBy('name','ASC')->get(['id','name']);
 
-        // Filter out limited providers and add report assignments and institution
-        $providers = array();
+        // Pull global platforms that have data
+        $limit_by_prov = array_intersect($global_ids, $provs_with_data);
+        $globals = GlobalProvider::with('consoProviders','consoProviders.reports')->whereIn('id',$limit_by_prov)
+                                ->orderBy('name','ASC')->get(['id','name']);
+
+        $globals = GlobalProvider::with('consoProviders','consoProviders.reports')->whereIn('id',$global_ids)
+                                ->orderBy('name','ASC')->get(['id','name']);
+
+        // Build platforms from globals connected to insts in limit_by_inst and add report assignments
+        $return_data['platforms'] = array();
         foreach ($globals as $global) {
             $global_inst_ids = $global->connectedInstitutions();
             if (count($limit_by_inst) == 0 || count(array_intersect($global_inst_ids, $limit_by_inst)) > 0) {
                 $global->reports = $global->enabledReports();
                 $global->institutions = $global_inst_ids;
-                $providers[] = $global;
+                $return_data['platforms'][] = $global;
             }
         }
 
-        // Vue Component wants reports ordered by ID (not dorder)
-        $reports = Report::with('children')->orderBy('id', 'asc')->get()->toArray();
-
+        // Get report fields w/ filter column (for those that have one)
         $field_data = ReportField::orderBy('id', 'asc')->with('reportFilter')->get();
-        $fields = array();
+        $return_data['all_fields'] = array();
         foreach ($field_data as $rec) {
             $column = ($rec->reportFilter) ? $rec->reportFilter->report_column : null;
-            $fields[] = ['id' => $rec->id, 'qry' => $rec->qry_as, 'report_id' => $rec->report_id, 'column' => $column];
+            $return_data['all_fields'][] =
+                ['id'=>$rec->id, 'qry'=>$rec->qry_as, 'report_id'=>$rec->report_id, 'column'=>$column];
         }
 
+        // Get institution_types
+        $return_data['institution_types'] = InstitutionType::get();
+
+        // Reset the consodb setting if it was changed
+        if ($thisUser->isServerAdmin() && $type != 'conso') {
+            config(['database.connections.consodb.database' => $original_conso_db]);
+            DB::reconnect('consodb');
+        }
+
+        // Get options from the global tables
+        $return_data['access_methods'] = AccessMethod::get();
+        $return_data['usage_metrics'] = ReportField::usageMetrics()->get();
+        $return_data['search_metrics'] = ReportField::searchMetrics()->get();
+        $return_data['turnaway_metrics'] = ReportField::turnawayMetrics()->get();
+        $return_data['access_types'] = AccessType::get();
+        $return_data['data_types'] = DataType::get();
+        // Return reports ordered by ID (not dorder) including children (standard COUNTER views)
+        $return_data['reports'] = Report::with('children')->where('parent_id',0)->orderBy('id', 'asc')->get();
+
         // set FiscalYr for the user, default to Jan if missing
-        $fy_month = 1;
+        $return_data['fyMo'] = 1;
         $userFY = $thisUser->getFY();
         if ( !is_null($userFY) ) {
             $date = date_parse($userFY);
-            $fy_month = $date['month'];
+            $return_data['fyMo'] = $date['month'];
         }
-
-        $con = Consortium::where("ccp_key", session("ccp_con_key"))->first();
-        $conso = ($con) ? $con->name : '';
-        return view('reports.create', compact('institutions','inst_groups','providers','reports','fields','fy_month','conso'));
+        return response()->json(['records' => $return_data], 200);
     }
 
     /**
