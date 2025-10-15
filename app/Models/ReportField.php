@@ -19,7 +19,7 @@ class ReportField extends Model
    * @var array
    */
     protected $fillable = ['report_id', 'legend', 'joins', 'qry', 'qry_counter', 'qry_as', 'group_it',
-                           'report_filter_id', 'active', 'is_metric'];
+                           'report_filter_id', 'active', 'is_metric', 'metric_type'];
 
     public function report()
     {
@@ -43,4 +43,20 @@ class ReportField extends Model
     {
         return $this->belongsTo('App\Models\ReportFilter', 'report_filter_id');
     }
+
+    public static function usageMetrics()
+    {
+        return self::where('metric_type','usage');
+    }
+
+    public static function searchMetrics()
+    {
+        return self::where('metric_type','search');
+    }
+
+    public static function turnawayMetrics()
+    {
+        return self::where('metric_type','turnaway');
+    }
+
 }
