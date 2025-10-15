@@ -31,8 +31,12 @@ export const useAuthStore = defineStore('useAuthStore', {
     user_inst_id: state => {
       return (state.isAuthenticated) ? state.user.inst_id : null;
     },
-    user_FYmo: state => {
+    user_FYMo: state => {
       return (state.isAuthenticated) ? state.user.fiscalYr : '';
+    },
+    user_FYmm: state => {
+      return (state.isAuthenticated) ?
+          new Date(Date.parse(state.user.fiscalYr +" 1, 2019")).getMonth()+1 : '';
     },
     getToken: (state) => state.token,
     getToken: (state) => state.token,
