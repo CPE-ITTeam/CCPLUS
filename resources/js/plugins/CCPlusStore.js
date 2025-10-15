@@ -25,7 +25,9 @@ export const useCCPlusStore = defineStore('useCCPlusStore', {
     updateReportData(data) {
       this.$state.reportData = data;
     },
-
+    updateReportDates(data) {
+      this.$state.reportDates = data;
+    },
     async getConsortia() {
       try {
         const { data } = await useFetch("/api/consoList").get().json();
