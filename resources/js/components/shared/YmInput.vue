@@ -39,6 +39,6 @@
 </script>
 <template>
   <v-col class="d-flex px-2" :cols="cols">
-    <v-select v-model="modelValue" :items='options' :label="label" @input="emitValue"></v-select>
+    <v-select v-model="modelValue" :items='options' :label="label" @change="emitValue"></v-select>
   </v-col>
 </template>
