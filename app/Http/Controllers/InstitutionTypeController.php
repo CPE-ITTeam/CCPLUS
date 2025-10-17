@@ -10,12 +10,6 @@ use PhpOffice\PhpSpreadsheet\Writer\Xlsx;
 
 class InstitutionTypeController extends Controller
 {
-
-    public function __construct()
-    {
-        $this->middleware('role:Admin');
-    }
-
       /**
        * Display a listing of the resource.
        *
