@@ -23,9 +23,9 @@ import HarvestLog from '@/components/tables/HarvestLog.vue';
 import SavedReports from '@/components/tables/SavedReports.vue';
 import ManualHarvest from '@/components/panels/ManualHarvest.vue';
 import CreateReport from '@/components/panels/CreateReport.vue';
-// import RolesTable from '@/pages/RolesTable.vue';
-// import ConnectionsTable from '@/pages/ConnectionsTable.vue';
-// import CredentialsAudit from '@/pages/CredentialsAudit.vue';
+import RolesTable from '@/components/tables/RolesTable.vue';
+// import ConnectionsTable from '@/components/tables/ConnectionsTable.vue';
+// import CredentialsAudit from '@/components/panels/CredentialsAudit.vue';
 // import ReportPreview from '@/components/panels/ReportPreview.vue';
 // Pinia datastore
 import { createPinia } from 'pinia';
@@ -85,7 +85,7 @@ export const router = createRouter({
             },
             { path: '/admin/roles', name: 'RolesTable',
               meta: { title: 'Permissions', layout: AuthenticatedLayout, role: 'Admin', level:3 }, 
-              component: markRaw(PlaceHolder),
+              component: markRaw(RolesTable),
             },
           ]
         },
