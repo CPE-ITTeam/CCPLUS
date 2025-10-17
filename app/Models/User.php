@@ -103,7 +103,7 @@ class User extends Authenticatable
     }
 
     public function adminInsts() {
-        if ($this->roles->whereIn("role.name", ["ServerAdmin","Admin"])->first()) return [1];
+        if ($this->roles->whereIn("role.name", ["ServerAdmin"])->first()) return [1];
         $insts = array();
         foreach ($this->roles as $uRole) {
             if ($uRole->role->name == 'Admin') {
