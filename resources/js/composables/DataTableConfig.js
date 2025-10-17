@@ -70,11 +70,22 @@ export const tableSetup = {
         { title: 'Status', key: 'status' },
         { title: 'Email', key: 'email' },
         { title: 'Institution', key: 'institution.name' },
-        { title: 'Consortium Key', key: 'consortiumKey' },
-        { title: 'Role', key: 'role_string' },
+        { title: 'Consortium Key', key: 'ccp_key' },
         { title: 'Last Login', key: 'last_login' },
       ],
-      searchFields: [ 'username', 'email', 'institution.name', 'consortiumKey', 'role' ]
+      searchFields: [ 'email', 'institution.name', 'ccp_key' ]
+    },
+    roles: {
+      url: '/api/getRoles',
+      headers: [
+        { title: 'Status', key: 'status' },
+        { title: 'Name', key: 'name' },
+        { title: 'Email', key: 'email' },
+        { title: 'Institution', key: 'institution.name' },
+        { title: 'Consortium Key', key: 'ccp_key' },
+        { title: 'Role', key: 'role' },
+      ],
+      searchFields: [ 'name', 'email', 'institution.name', 'ccp_key', 'role' ]
     },
     harvests: {
       url: '/api/getHarvests',
