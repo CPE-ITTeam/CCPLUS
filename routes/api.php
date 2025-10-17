@@ -22,6 +22,7 @@ Route::middleware('ccplusAuth')->group( function () {
     Route::get('getInstGroups', 'App\Http\Controllers\InstitutionGroupController@index')->name('getInstGroups');
     Route::get('getPlatforms/{role}', 'App\Http\Controllers\GlobalProviderController@index')->name('getPlatforms');
     Route::get('getUsers', 'App\Http\Controllers\UserController@index')->name('getUsers');
+    Route::get('getRoles', 'App\Http\Controllers\RoleController@index')->name('getRoles');
     Route::get('getSettings/{type}', 'App\Http\Controllers\GlobalSettingController@index')->name('getSettings');
     Route::get('getHarvests', 'App\Http\Controllers\HarvestLogController@index')->name('getHarvests');
     Route::get('getJobs', 'App\Http\Controllers\HarvestLogController@harvestQueue')->name('getJobs');
