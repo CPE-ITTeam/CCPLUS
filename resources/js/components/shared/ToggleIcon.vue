@@ -6,7 +6,7 @@
     modelValue: [ String, Boolean, { conso: Boolean, available: Boolean, requested: Boolean }],
     toggleable: { type: Boolean },
     statusMap: { type: Array },
-    size: { type: Number }
+    size: { type: Number, default: 36 }
   });
   const emit = defineEmits(['update:modelValue']);
 
