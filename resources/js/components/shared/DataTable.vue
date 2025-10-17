@@ -84,6 +84,12 @@
         </span>
       </template>
 
+      <!-- Email Key -->
+      <template #item.email="{ item }">
+        <span v-if="!item.email.includes('@')">{{ item.email }}</span>
+        <span v-else><a :href="'mailto:'+item.email">{{ item.email }}</a></span>
+      </template>
+
       <!-- Actions column -->
       <template #item.actions="{ item }">
         <div class="d-flex ga-2 justify-end">
