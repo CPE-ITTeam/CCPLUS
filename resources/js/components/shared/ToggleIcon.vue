@@ -3,10 +3,20 @@
   import { computed } from 'vue';
 
   const props = defineProps({
-    modelValue: [ String, Boolean, { conso: Boolean, available: Boolean, requested: Boolean }],
+    
+    modelValue: {
+      validator: (value) => { // validator allows modelValue to be string or object
+        const isString = typeof value === 'string';
+        const isObject = typeof value === 'object' && value !== null;
+        if (!isString && !isObject) {
+          console.warn('Invalid prop: "modelValue" must be a string or an object.');
+        }
+        return isString || isObject;
+      }
+    },
     toggleable: { type: Boolean },
     statusMap: { type: Array },
-    size: { type: Number, default: 36 }
+    size: { type: Number, default: 32 }
   });
   const emit = defineEmits(['update:modelValue']);
 
@@ -24,7 +34,7 @@
   const meta = computed(() => {
     if (!isObjectValue.value) {
       const map = props.statusMap ?? defaultMap;
-      const entry = map[String(props.modelValue)] || { icon: 'mdi-help-circle', color: '#999999' };
+      const entry = map[props.modelValue] || { icon: 'mdi-help-circle', color: '#999999' };
       return {
         ...entry,
         clickable: props.toggleable ?? false,
@@ -53,7 +63,7 @@
   });
 
   const tooltip = computed(() => {
-    if (!isObjectValue.value) return String(props.modelValue);
+    if (!isObjectValue.value) return props.modelValue;
 
     const { conso, available, requested } = props.modelValue;
     if (!available) return 'Unavailable';
@@ -77,7 +87,7 @@
         { 'false': true },
       ];
 
-      const next = toggles[String(props.modelValue)];
+      const next = toggles[props.modelValue];
       if (next) emit('update:modelValue', next);
       return;
     }
