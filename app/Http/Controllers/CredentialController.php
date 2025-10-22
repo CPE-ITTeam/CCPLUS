@@ -74,7 +74,8 @@ class CredentialController extends Controller
             $rec['platform'] = $cred->provider->toArray();
             $rec['platform']['service_url'] = $cred->provider->service_url();
             $rec['platform']['connectors'] = array();
-            $rec['institution'] = $cred->institution->toArray();
+            $rec['institution'] = ($cred->institution) ? $cred->institution->toArray()
+                                                       : array('id'=>null,'name'=>'');
             $required = $cred->provider->connectors();
             foreach ($global_connectors as $gc) {
                 $cnx = $gc->toArray();
