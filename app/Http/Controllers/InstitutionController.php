@@ -90,6 +90,13 @@ class InstitutionController extends Controller
             }
         }
 
+        // Reset the consodb setting if it was changed
+        if ($thisUser->isServerAdmin() && count($instances) > 0 && $cur_db_key != $original_db_key) {
+            config(['database.connections.consodb.database' => "ccplus_" . $original_db_key]);
+            session(['ccp_con_key' => $original_db_key]);
+            DB::reconnect('consodb');
+        }
+
         return response()->json(['records' => $data], 200);
     }
 
