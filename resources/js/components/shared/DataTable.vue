@@ -1,6 +1,6 @@
 <!-- components/shared/DataTable.vue -->
 <script setup>
-  import { ref, computed } from 'vue';
+  import { ref, computed, onUpdated  } from 'vue';
   import ToggleIcon from './ToggleIcon.vue';
 
   const props = defineProps({
@@ -11,7 +11,7 @@
     searchFields: { type: Array, required: true },
     selectedRows: { type: Array, required: true }
   });
-
+  var isLoading = ref(true);
   const selectedRows = ref([...props.selectedRows]);
   const hasStatusColumn = computed(() => props.headers.some(h => h.key === 'status'));
   const hasConnectedColumn = computed(() => props.headers.some(h => h.key === 'connected'));
@@ -21,9 +21,12 @@
     return props.items;
   });
 
+// TODO: Use props.searchFields 
+
   function updateSelected () {
     emit('update:selectedRows', selectedRows.value);
   }
+  onUpdated(() => isLoading.value=false);
 </script>
 
 <template>
@@ -32,7 +35,7 @@
       ✅ {{ selectedRows.length }} item{{ selectedRows.length=== 1 ? '' : 's' }} selected
     </div>
     <v-data-table :headers="props.headers" :items="filteredItems" item-value="id" show-select
-                  return-object v-model="selectedRows" @change="updateSelected">
+                  return-object v-model="selectedRows" :loading="isLoading" @change="updateSelected">
       <!-- Status -->
       <template v-if="hasStatusColumn" #item.status="{ item }">
         <ToggleIcon v-model="item.status" :toggleable="true" />
