@@ -38,9 +38,9 @@
       }
       headers.value = config.headers.map(h => ({
         title: h.title,
-        key: String(h.key),
+        key: h.key,
       }));
-      searchFields.value = config.searchFields.map(f => String(f));
+      searchFields.value = [ ...config.searchFields];
     } catch (error) {
       console.error('Error fetching records for '+datasetKey+' : ', error);
     }
