@@ -13,7 +13,6 @@ import InstitutionsTable from '@/components/tables/InstitutionsTable.vue';
 import InstitutionTypesTable from '@/components/tables/InstitutionTypesTable.vue';
 import InstitutionGroupsTable from '@/components/tables/InstitutionGroupsTable.vue';
 import UsersTable from '@/components/tables/UsersTable.vue';
-import CredentialsTable from '@/components/tables/CredentialsTable.vue';
 import PlatformsTable from '@/components/tables/PlatformsTable.vue';
 import Consortia from '@/components/tables/Consortia.vue';
 import ServerSettings from '@/components/panels/ServerSettings.vue';
@@ -24,8 +23,9 @@ import SavedReports from '@/components/tables/SavedReports.vue';
 import ManualHarvest from '@/components/panels/ManualHarvest.vue';
 import CreateReport from '@/components/panels/CreateReport.vue';
 import RolesTable from '@/components/tables/RolesTable.vue';
-// import ConnectionsTable from '@/components/tables/ConnectionsTable.vue';
+import ConnectionsTable from '@/components/tables/ConnectionsTable.vue';
 // import CredentialsAudit from '@/components/panels/CredentialsAudit.vue';
+// import PermissionsTable from '@/components/tables/PermissionsTable.vue';
 // import ReportPreview from '@/components/panels/ReportPreview.vue';
 // Pinia datastore
 import { createPinia } from 'pinia';
@@ -84,18 +84,21 @@ export const router = createRouter({
               component: markRaw(UsersTable),
             },
             { path: '/admin/roles', name: 'RolesTable',
-              meta: { title: 'Permissions', layout: AuthenticatedLayout, role: 'Admin', level:3 }, 
+              meta: { title: 'Roles', layout: AuthenticatedLayout, role: 'Admin', level:3 }, 
               component: markRaw(RolesTable),
+            },
+            { path: '/admin/roles', name: 'PermissionsTable',
+              meta: { title: 'Permissions', layout: AuthenticatedLayout, role: 'Admin', level:3 }, 
+              component: markRaw(PlaceHolder),
             },
           ]
         },
         { path: '/admin/credentials', name: 'Credentials',
           meta: { title: 'Credentials', layout: AuthenticatedLayout, role: 'Admin', level:2 }, 
-          component: markRaw(CredentialsTable),
           children: [
             { path: '/admin/connections', name: 'ConnectionsTable',
               meta: { title: 'Connections and Credentials', layout: AuthenticatedLayout, role: 'Admin', level:3 }, 
-              component: markRaw(PlaceHolder),
+              component: markRaw(ConnectionsTable),
             },
             { path: '/admin/credentialsaudit', name: 'CredentialsAudit',
               meta: { title: 'Credentials Audit', layout: AuthenticatedLayout, role: 'Admin', level:3 }, 
