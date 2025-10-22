@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use DB;
 use App\Models\Institution;
 use App\Models\InstitutionGroup;
 use App\Models\Provider;
@@ -18,6 +19,8 @@ use PhpOffice\PhpSpreadsheet\Writer\Xlsx;
 
 class InstitutionController extends Controller
 {
+    private $thisUser;
+
     /**
      * Display a listing of the resource.
      *
@@ -26,37 +29,68 @@ class InstitutionController extends Controller
      */
     public function index($role)
     {
-        // Set and confirm the role returning data for
+        global $thisUser;
         $thisUser = auth()->user();
+
+        // Set and confirm the role returning data for
         $type = ($role=='admin') ? 'admin' : 'viewer';
         abort_unless($type=='viewer' || $thisUser->hasAnyRole(['Admin']), 403);
     
-        // Limit institutions returned based on users's role(s) and what's been requested
-        $_insts = ($type == 'admin') ? $thisUser->adminInsts() : $thisUser->viewerInsts();
-        $limit_to_insts = ($_insts == [1]) ? [] : $_insts;
+        // Initialize some arrays/values
+        $data = array();
+        $limit_to_insts = [];
+        $server_admin = config('ccplus.server_admin');
 
-        // Get institution records
-        $inst_data = Institution::with('institutionGroups:id,name','credentials')
-                                ->when(count($limit_to_insts) > 0 , function ($qry) use ($limit_to_insts) {
-                                    return $qry->whereIn('id', $limit_to_insts);
-                                })
-                                ->orderBy('name', 'ASC')
-                                ->get(['id','name','local_id','is_active']);
+        // serverAdmin sees all users across all instances, otherwise return for current session DB
+        $original_db_key = session('ccp_con_key');
+        $cur_db_key = $original_db_key;
+        $where = ($thisUser->isServerAdmin()) ? array(['is_active',1]) : array(['ccp_key',$original_db_key]);
+        $instances = Consortium::where($where)->get(['id','ccp_key','name'])->toArray();
 
-        // Add group memberships
-        $institutions = $inst_data->map( function($inst) {
-            $inst->group_string = "";
-            $inst->groups = $inst->institutionGroups()->pluck('institution_group_id')->all();
-            foreach ($inst->institutionGroups as $group) {
-                $inst->group_string .= ($inst->group_string == "") ? "" : ", ";
-                $inst->group_string .= $group->name;
+        foreach ($instances as $conso) {
+            $cur_db_key = $conso['ccp_key'];
+
+            // Switch conso assignment
+            if ($cur_db_key != $original_db_key) {
+                config(['database.connections.consodb.database' => "ccplus_" . $cur_db_key]);
+                session(['ccp_con_key' => $cur_db_key]);
+                DB::reconnect('consodb');
             }
-            $harvest_count = $inst->credentials->whereNotNull('last_harvest')->count();
-            $inst->can_delete = ($harvest_count > 0 || $inst->id == 1) ? false : true;
-            $inst->status = ($inst->is_active) ? "Active" : "Inactive";
-            return $inst;
-        });
-        return response()->json(['records' => $institutions], 200);
+
+            // Limit by institution based on users's role(s)
+            if (!$thisUser->isServerAdmin()) {
+                $limit_to_insts = ($type == 'admin') ? $thisUser->adminInsts() : $thisUser->viewerInsts();
+                if ($limit_to_insts === [1]) $limit_to_insts = [];
+            }
+
+            // Get institution records
+            $inst_data = Institution::with('institutionGroups:id,name','credentials','institutionType')
+                                    ->when(count($limit_to_insts) > 0 , function ($qry) use ($limit_to_insts) {
+                                        return $qry->whereIn('id', $limit_to_insts);
+                                    })
+                                    ->orderBy('name', 'ASC')
+                                    ->get(['id','name','local_id','is_active']);
+
+            // Add group memberships
+            foreach ($inst_data as $rec) {
+                $inst = $rec->toArray();
+                $inst['ccp_key'] = $cur_db_key;
+                $inst['status'] = ($rec->is_active) ? "Active" : "Inactive";
+                $inst['group_string'] = "";
+                $inst['groups'] = $rec->institutionGroups()->pluck('institution_group_id')->all();
+                foreach ($rec->institutionGroups as $group) {
+                    $inst['group_string'] .= ($inst['group_string'] == "") ? "" : ", ";
+                    $inst['group_string'] .= $group->name;
+                }
+                $harvest_count = $rec->credentials->whereNotNull('last_harvest')->count();
+                $inst['type'] = ($rec->institutionType) ? $rec->institutionType->name : "(Not classified)";
+                $inst['can_delete'] = ($harvest_count > 0 || $rec->id == 1) ? false : true;
+                $inst['role'] = $this->userRole($rec->id);
+                $data[] = $inst;
+            }
+        }
+
+        return response()->json(['records' => $data], 200);
     }
 
     /**
@@ -864,4 +898,23 @@ class InstitutionController extends Controller
         return $rpt_state;
     }
 
+    /**
+     * Return an string for the current user's role(s)
+     */
+    private function userRole($instId) {
+
+        global $thisUser;
+        if ( $thisUser->isServerAdmin() ) {
+            return "ServerAdmin";
+        } else if ( $thisUser->hasRole('Admin',1) ) {
+            return "Consortium Admin";
+        } else if ( $thisUser->hasRole('Admin',$instId) ) {
+            return "Admin";
+        } else if ( $thisUser->hasRole('Viewer',1) ) {
+            return "Consortium Viewer";
+        } else if ( $thisUser->hasRole('Viewer',$instId) ) {
+            return "Viewer";
+        }
+        return "None";
+    }
 }
