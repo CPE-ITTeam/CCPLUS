@@ -11,28 +11,17 @@ export const tableSetup = {
       ],
       searchFields: [ 'name', 'displayName', 'databaseKey', 'admin', 'email' ]
     },
-    credentials: {
-      url: '/api/getCreds',
-      headers: [
-        { title: 'Connected', key: 'connected' },
-        { title: 'Name', key: 'provider.name' },
-        { title: 'Institution', key: 'institution.name' },
-        { title: 'PR', key: 'PR', class: 'narrow-col' },
-        { title: 'DR', key: 'DR', class: 'narrow-col' },
-        { title: 'TR', key: 'TR', class: 'narrow-col' },
-        { title: 'IR', key: 'IR', class: 'narrow-col' },
-      ],
-      searchFields: ['name', 'abbrev', 'dataHost']
-    },
     institutions: {
       url: '/api/getInsts/admin',
       headers: [
         { title: 'Status', key: 'status' },
         { title: 'Institution Name', key: 'name' },
+        { title: 'Group(s)', key: 'group_string' },
         { title: 'Type', key: 'type' },
-        { title: 'Consortium', key: 'consortiumKey' },
+        { title: 'Consortium', key: 'ccp_key' },
+        { title: 'Role', key: 'role' },
       ],
-      searchFields: ['name', 'type', 'groups', 'consortiumKey']
+      searchFields: ['name', 'groups', 'type', 'ccp_key', 'role']
     },
     institutionGroups: {
       url: '/api/getInstGroups',
@@ -49,6 +38,21 @@ export const tableSetup = {
         { title: 'Name', key: 'name' },
       ],
       searchFields: ['id', 'name']
+    },
+    connections: {
+      url: '/api/getCreds',
+      headers: [
+        { title: 'Platform', key: 'platform.name' },
+        { title: 'Institution', key: 'institution.name' },
+        { title: 'Customer ID', key: 'customerId' },
+        { title: 'Requestor ID', key: 'requestorId' },
+        { title: 'API Key', key: 'apiKey' },
+        { title: 'PR', key: 'PR', class: 'narrow-col' },
+        { title: 'DR', key: 'DR', class: 'narrow-col' },
+        { title: 'TR', key: 'TR', class: 'narrow-col' },
+        { title: 'IR', key: 'IR', class: 'narrow-col' },
+      ],
+      searchFields: ['value', 'platform', 'institution', 'customerId', 'requestorId', 'apiKey']
     },
     platforms: {
       url: '/api/getPlatforms/admin',
