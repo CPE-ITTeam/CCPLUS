@@ -36,15 +36,11 @@ class Provider extends Model
    */
     public function canManage()
     {
-      // Admin can manage any provider
-        if (auth()->user()->hasRole("Admin")) {
+        // ServerAdmin can manage any institution
+        if (auth()->user()->isServerAdmin()) {
             return true;
         }
-      // Managers can manage providers for their own inst
-        if (auth()->user()->hasRole("Manager")) {
-            return (auth()->user()->inst_id == $this->inst_id);
-        }
-        return false;
+        return (auth()->user()->hasRole("Admin", $this->inst_id));
     }
 
     public function institution()

@@ -26,16 +26,11 @@ class Institution extends Model
 
     public function canManage()
     {
-      // Admin can manage any institution
-        if (auth()->user()->hasRole("Admin")) {
-            return true;
-        }
-      // Managers can only manage their own institution
-        if (auth()->user()->hasRole("Manager")) {
-            return auth()->user()->inst_id == $this->id;
-        }
-
-        return false;
+      // ServerAdmin can manage any institution
+      if (auth()->user()->isServerAdmin()) {
+        return true;
+      }
+      return (auth()->user()->hasRole("Admin", $this->id));
     }
 
     public function institutionType()
