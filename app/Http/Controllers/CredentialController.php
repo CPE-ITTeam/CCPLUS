@@ -21,11 +21,6 @@ use Illuminate\Support\Facades\Crypt;
 
 class CredentialController extends Controller
 {
-    public function __construct()
-    {
-        $this->middleware(['auth']);
-    }
-
     /**
      * Display a listing of the resource.
      *
@@ -34,109 +29,80 @@ class CredentialController extends Controller
     public function index(Request $request)
     {
         $thisUser = auth()->user();
-        abort_unless($thisUser->hasAnyRole(['Admin','Manager']), 403);
-        $json = ($request->input('json')) ? true : false;
+        abort_unless($thisUser->hasRole('Admin'), 403);
 
-        // Assign optional inputs to $filters array
-        $filters = array('inst' => [], 'group' => 0, 'prov' => [], 'harv_stat' => []);
-        if ($request->input('filters')) {
-            $filter_data = json_decode($request->input('filters'));
-            foreach ($filter_data as $key => $val) {
-                $filters[$key] = $val;
-            }
-        } else {
-            $keys = array_keys($filters);
-            foreach ($keys as $key) {
-                if ($request->input($key)) {
-                    $filters[$key] = $request->input($key);
-                }
-            }
-        }
+//Note:: may want a conso-argument to support a switcher on the U/I component (for ServerAdmin)
+//       since the number of records could be huge for all instances, we should probably only
+//       return a single-instance set of credentials here
 
-        // If filtering by group, get the institution IDs for the group
-        $group_insts = array();
-        if ($filters['group'] != 0) {
-            $group = InstitutionGroup::with('institutions:id,name')->find($filters['group']);
-            if ($group) {
-                $group_insts = $group->institutions->pluck('id')->toArray();
-            }
-        }
-
-        // Apply context (if given) to institution and provider filters
-        $context = 1;
-        if ($request->input('context')) {
-            $context = ($request->input('context') > 0) ? $request->input('context') : 1;
-        }
-        $consoOnly = ($request->input('consoOnly') > 0);
-        $limit_prov_ids = (count($filters['prov']) > 0) ? $filters['prov'] : [];
-        if ($context > 1 || $consoOnly) {
-            $providers = Provider::whereIn('inst_id',[1,$context])->get(['id','inst_id','global_id']);
-            $global_ids = $providers->pluck('global_id')->toArray();
-            if ($context > 1) {
-                $filters['inst'] = array($context);
-                $limit_prov_ids = (count($limit_prov_ids) == 0) ? $global_ids
-                                                                : array_intersect($global_ids, $limit_prov_ids);
-            }
-            if ($consoOnly) {
-                $conso_prov_ids = $providers->where('inst_id',1)->pluck('global_id')->toArray();
-                $limit_prov_ids = (count($limit_prov_ids) == 0) ? $conso_prov_ids
-                                                                : array_intersect($conso_prov_ids, $limit_prov_ids);
-            }
-        }
+        // Get Providers for this user's role(s)
+        $limit_to_insts = $thisUser->adminInsts();
+        if ($limit_to_insts === [1]) $limit_to_insts = [];
+        $providers = Provider::when(count($limit_to_insts) > 0, function ($qry) use ($limit_to_insts) {
+                                        return $qry->whereIn('inst_id',[1,$limit_to_insts]);                                                  
+                                   })
+                             ->get(['id','inst_id','global_id']);
 
         // Get credentials
+        $providerIds = $providers->unique('global_id')->pluck('global_id')->toArray();
         $data = Credential::with('institution:id,name,is_active','provider')
-                                ->when(count($filters['inst']) > 0, function ($qry) use ($filters) {
-                                    return $qry->whereIn('inst_id', $filters['inst']);
-                                })
-                                ->when($filters['group'] > 0, function ($qry) use ($group_insts) {
-                                    return $qry->whereIn('inst_id', $group_insts);
-                                })
-                                ->when(count($filters['harv_stat']) > 0, function ($qry) use ($filters) {
-                                    return $qry->whereIn('status', $filters['harv_stat']);
-                                })
-                                ->when(count($limit_prov_ids) > 0, function ($qry) use ($limit_prov_ids) {
-                                    return $qry->whereIn('prov_id', $limit_prov_ids);
-                                })
-                                ->get();
+                          ->whereIn('prov_id', $providerIds)->get();
 
-        // Build an array of connection_fields used across all providers
-        $global_connectors = ConnectionField::get();
-        $providerIds = $data->unique('prov_id')->pluck('prov_id')->toArray();
-        if ( count($filters['prov']) > 0 ) {
-            $providerIds = array_unique(array_merge($providerIds,$filters['prov']));
-        }
-        $required_cnx_ids = array();
-        $global_providers = GlobalProvider::with('registries')->whereIn('id',$providerIds)->get();
-        foreach ($global_providers as $prov) {
-            $required_cnx_ids = array_unique(array_merge($required_cnx_ids, $prov->connectors()));
-            if (count($required_cnx_ids) == count($global_connectors)) {
-                break;
+        // Get and map global providers
+        $gdata = GlobalProvider::with('registries')->whereIn('id',$providerIds)->get();
+        $globals = $gdata->map(function ($rec) use ($providers) {
+            $consoCnx = $providers->where('global_id',$rec->id)->where('inst_id',1)->first();
+            if ($consoCnx) {
+                $rec->conso_reports = $consoCnx->reports->pluck('id')->toArray();
+            } else {
+                $rec->conso_reports = [];
             }
-        }
-        $all_connectors = array();
-        foreach ($global_connectors as $gc) {
-            $cnx = $gc->toArray();
-            $cnx['required'] = (in_array($gc->id,$required_cnx_ids)) ? true : false;
-            $all_connectors[] = $cnx;
-        }
+            return $rec;
+        });
+
+        // Get master report definitions
+        $master_reports = Report::where('parent_id',0)->orderBy('dorder','ASC')->get(['id','name']);
 
         // Add provider global connectors and can_edit flag to the credentials
         $credentials = array();
-        foreach ($data as $rec) {
-            $credential = $rec->toArray();
-            $credential['can_edit'] = $rec->canManage();
-            $credential['provider']['connectors'] = array();
-            $credential['provider']['service_url'] = $rec->provider->service_url();
-            if (!$rec->provider) continue;
-            $required = $rec->provider->connectors();
+        $global_connectors = ConnectionField::get();
+        foreach ($data as $cred) {
+            if (!$cred->provider) continue;
+            $rec = array('value' => $cred->id, 'customerId' => $cred->customer_id,
+                         'requestorId' => $cred->requestor_id, 'apiKey' => $cred->api_key
+                        );
+            $rec['platform'] = $cred->provider->toArray();
+            $rec['platform']['service_url'] = $cred->provider->service_url();
+            $rec['platform']['connectors'] = array();
+            $rec['institution'] = $cred->institution->toArray();
+            $required = $cred->provider->connectors();
             foreach ($global_connectors as $gc) {
                 $cnx = $gc->toArray();
                 $cnx['required'] = in_array($gc->id, $required);
-                $credential['provider']['connectors'][] = $cnx;
+                $rec['platform']['connectors'][] = $cnx;
             }
-            $credential['connected'] = ($rec->status == 'Enabled') ? true : false;
-            $credentials[] = $credential;
+            $rec['connected'] = ($cred->status == 'Enabled') ? true : false;
+
+            $combined_ids = array();
+            $global = $globals->where('id',$cred->prov_id)->first();
+            $reports = array();
+            if ($global) {
+                $inst_reports = array();
+                $instCnx = $providers->where('global_id',$global->id)
+                                     ->where('inst_id',$cred->inst_id)->first();
+                if ($instCnx) {
+                    $inst_reports = $instCnx->reports->pluck('id')->toArray();
+                }
+                $combined_ids = array_unique(array_merge($global->conso_reports, $inst_reports));
+                $master_ids = $global->master_reports;
+                $reports = $this->reportFlags($master_reports, $master_ids, $global->conso_reports, $combined_ids);
+            } else {
+                $reports = $this->reportFlags($master_reports,[],[],[]);
+            }
+            foreach ($reports as $key => $value) {
+                $rec[$key] = $value;
+            }
+            $credentials[] = $rec;
         }
 
         // Return the data array
@@ -1083,6 +1049,26 @@ class CredentialController extends Controller
         header('Cache-Control: max-age=0');
         $writer->save('php://output');
 
+    }
+
+    /**
+     * Return an array of boolean flags from provider reports columns
+     *
+     * @param  Collection master_reports
+     * @param  Array  $global_reports  (ID's)
+     * @param  Array  $conso_enabled  (ID's)
+     * @param  Array  $requested (ID's)
+     * @return Array  $flags
+     */
+     private function reportFlags($master_reports, $global_reports, $conso_enabled, $requested) {
+        $flags = array();
+        foreach ($master_reports as $rpt) {
+            $flags[$rpt->name] = array();
+            $flags[$rpt->name]['available'] = (in_array($rpt->id, $global_reports)) ? true : false;
+            $flags[$rpt->name]['conso'] = (in_array($rpt->id, $conso_enabled)) ? true : false;
+            $flags[$rpt->name]['requested'] = (in_array($rpt->id, $requested)) ? true : false;
+        }
+        return $flags;
     }
 
 }
