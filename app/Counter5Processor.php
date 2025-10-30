@@ -549,7 +549,7 @@ class Counter5Processor extends Model
                     foreach ($item_authors as $contrib) {
                         if ($contrib->Type == "Author") {
                             $authors .= ($authors=="") ? "" : ", ";
-                            $authors .= $contrib->Value;
+                            $authors .= $contrib->Name;
                         }
                     }
                 }
