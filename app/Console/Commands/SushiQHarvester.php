@@ -191,10 +191,10 @@ class SushiQHarvester extends Command
                         $this->line($ts . " QueueHarvester: Provider: " . $setting->provider->name .
                                             " is INACTIVE , queue entry removed and harvest status set to Fail.");
                     }
-                    $job->delete();
                     $job->harvest->error_id = 9060;
                     $job->harvest->status = 'Fail';
                     $job->harvest->save();
+                    $job->delete();
                     continue;
                 }
                 if (!$setting->institution->is_active) {
@@ -207,10 +207,10 @@ class SushiQHarvester extends Command
                         $this->line($ts . " QueueHarvester: Institution: " . $setting->institution->name .
                                             " is INACTIVE , queue entry removed and harvest status set to Fail.");
                     }
-                    $job->delete();
                     $job->harvest->error_id = 9070;
                     $job->harvest->status = 'Fail';
                     $job->harvest->save();
+                    $job->delete();
                     continue;
                 }
 
@@ -230,6 +230,45 @@ class SushiQHarvester extends Command
                 // Examine the response
                 $error = null;
                 $valid_report = false;
+
+                // If request failed, set a FailedHarvest record and update the harvest record
+                if ($request_status == "Fail") {
+                    $error_msg = '';
+                    // Turn severity string into an ID
+                    $severity_id = $all_severities->where('name', 'LIKE', $sushi->severity . '%')->pluck('id');
+                    if ($severity_id === null) {  // if not found, set to 'Error' and prepend it to the message
+                        $severity_id = $all_severities->where('name', 'Error')->pluck('id');
+                        $error_msg .= $sushi->severity . " : ";
+                    }
+
+                    // Clean up the message in case this is a new code for the errors table
+                    $error_msg .= substr(preg_replace('/(.*)(https?:\/\/.*)$/', '$1', $sushi->message), 0, 60);
+
+                    // Get/Create entry from the sushi_errors table
+                    if ($sushi->error_code == 0) {  // Reserve 0 for "No Error"
+                        $sushi->error_code = 9000;
+                    }
+                    $error = CcplusError::firstOrCreate(
+                            ['id' => $sushi->error_code],
+                            ['id' => $sushi->error_code, 'message' => $error_msg, 'severity' => $severity_id]
+                    );
+                    FailedHarvest::insert(['harvest_id' => $job->harvest->id, 'process_step' => $sushi->step,
+                                            'error_id' => $error->id, 'detail' => $sushi->detail,
+                                            'help_url' => $sushi->help_url, 'created_at' => $ts]);
+                    if ($sushi->error_code != 9010) {
+                        $sushi->detail .= " (URL: " . $request_uri . ")";
+                    }
+                    $this->line($ts . " QueueHarvester: COUNTER API Exception (" . $sushi->error_code . ") : " .
+                                        " (Harvest: " . $job->harvest->id . ") " . $sushi->message . ", " . $sushi->detail);
+
+                    $job->harvest->error_id = $error->id;
+                    $job->harvest->status = 'Fail';
+                    $job->harvest->save();
+                    $job->delete();
+                    continue;
+                }
+
+                // Sushi said "Success"?
                 if ($request_status == "Success") {
                     // Skip validation for 3030 (no data)
                     if ($sushi->error_code != 3030) {
@@ -296,38 +335,8 @@ class SushiQHarvester extends Command
                 // If request is pending (in a provider queue, not a CC+ queue), just set harvest status
                 // the record updates when we fall out of the remaining if-else blocks
                 } else if ($request_status == "Pending") {
+                    // $valid_report remains false....
                     $job->harvest->status = "Pending";
-
-                // If request failed, update the Logs
-                } else {    // Fail
-                    $error_msg = '';
-                    // Turn severity string into an ID
-                    $severity_id = $all_severities->where('name', 'LIKE', $sushi->severity . '%')->pluck('id');
-                    if ($severity_id === null) {  // if not found, set to 'Error' and prepend it to the message
-                        $severity_id = $all_severities->where('name', 'Error')->pluck('id');
-                        $error_msg .= $sushi->severity . " : ";
-                    }
-
-                    // Clean up the message in case this is a new code for the errors table
-                    $error_msg .= substr(preg_replace('/(.*)(https?:\/\/.*)$/', '$1', $sushi->message), 0, 60);
-
-                    // Get/Create entry from the sushi_errors table
-                    if ($sushi->error_code == 0) {  // Reserve 0 for "No Error"
-                        $sushi->error_code = 9000;
-                    }
-                    $error = CcplusError::firstOrCreate(
-                            ['id' => $sushi->error_code],
-                            ['id' => $sushi->error_code, 'message' => $error_msg, 'severity' => $severity_id]
-                    );
-                    FailedHarvest::insert(['harvest_id' => $job->harvest->id, 'process_step' => $sushi->step,
-                                            'error_id' => $error->id, 'detail' => $sushi->detail,
-                                            'help_url' => $sushi->help_url, 'created_at' => $ts]);
-                    if ($sushi->error_code != 9010) {
-                        $sushi->detail .= " (URL: " . $request_uri . ")";
-                    }
-                    $this->line($ts . " QueueHarvester: COUNTER API Exception (" . $sushi->error_code . ") : " .
-                                        " (Harvest: " . $job->harvest->id . ") " . $sushi->message . ", " . $sushi->detail);
-                    $job->harvest->error_id = $error->id;
                 }
 
                 // If we have a validated report, mark the harvestlog
