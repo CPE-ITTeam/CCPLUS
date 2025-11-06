@@ -666,9 +666,11 @@
       this.$store.subscribe((mutation, state) => { localStorage.setItem('store', JSON.stringify(state)); });
 
       // If inbound filters given (as a PROP) , get the initial records
-      if (this.filters.institutions.length > 0 || this.filters.providers.length > 0) {
-          this.updateLogRecords();
-      }
+      this.filters['updated'] = 'Last 24 hours';
+      this.updateLogRecords();
+      // if (this.filters.institutions.length > 0 || this.filters.providers.length > 0) {
+      //     this.updateLogRecords();
+      // }
 
       console.log('HarvestLogData Component mounted.');
     }
