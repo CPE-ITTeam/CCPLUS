@@ -114,6 +114,10 @@ class HarvestLogController extends Controller
            // Only display consortium name for admins
            $conso = ($con && $thisUser->hasRole('Admin')) ? $con->name : "";
 
+           // Get provider IDs of all providers that have a harvest
+           $harvested_providers = HarvestLog::join('sushisettings', 'harvestlogs.sushisettings_id', '=', 'sushisettings.id')
+                                            ->distinct('sushisettings.prov_id')->pluck('prov_id')->toArray();
+
            // Get IDs of all possible providers from the sushisettings table
            if ($show_all) {
                $possible_providers = SushiSetting::distinct('prov_id')->pluck('prov_id')->toArray();
@@ -130,10 +134,13 @@ class HarvestLogController extends Controller
                                           ->where('id',$user_inst)->get(['id','name'])->toArray();
                $conso = $institutions[0]['name'];
            }
-           $provider_data = GlobalProvider::with('sushiSettings','consoProviders','consoProviders.reports','registries')
-                                          ->whereIn('id', $possible_providers)->orderBy('name', 'ASC')->get(['id','name']);
 
-                                          // Add in a flag for whether or not the provider has enabled sushi settings
+           // Return possible providers with a harvest
+           $provider_data = GlobalProvider::with('sushiSettings','consoProviders','consoProviders.reports','registries')
+                                          ->whereIn('id', $possible_providers)->whereIn('id', $harvested_providers)
+                                          ->orderBy('name', 'ASC')->get(['id','name']);
+
+           // Add in a flag for whether or not the provider has enabled sushi settings
            $providers = array();
            foreach ($provider_data as $gp) {
               $rec = array('id' => $gp->id, 'name' => $gp->name);
@@ -200,7 +207,6 @@ class HarvestLogController extends Controller
            // Limit status if an empty array is passed in
            if (count($filters["harv_stat"]) == 0) {
                $filters["harv_stat"] = array('Success','Fail','BadCreds');
-
            }
 
            // Setup limit_to_provs with the provID's we'll pull settings for
@@ -257,7 +263,6 @@ class HarvestLogController extends Controller
                ->get();
 
            // Make arrays for updating the filter options in the U/I
-
            $codes = $harvest_data->where('error_id','>',0)->unique('error_id')->sortBy('error_id')->pluck('error_id')->toArray();
            $includes_noError = $harvest_data->where('error_id',0)->first();
            if ($includes_noError) {
