@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\InstitutionGroup;
 use App\Models\Institution;
 use App\Models\Consortium;
+use App\Models\InstitutionType;
 use Illuminate\Http\Request;
 use PhpOffice\PhpSpreadsheet\Spreadsheet;
 use PhpOffice\PhpSpreadsheet\Writer\Xlsx;
@@ -33,7 +34,12 @@ class InstitutionGroupController extends Controller
             $group->count = sizeof($members);
             $data[] = $group->toArray();
         }
-        return response()->json(['records' => $data, 'result' => true], 200);
+
+        // send institution types for filter option
+        $filter_options = array();
+        $filter_options['type'] = InstitutionType::get(['id','name'])->toArray();
+
+        return response()->json(['records' => $data, 'options' => $filter_options, 'result' => true], 200);
     }
 
     /**
