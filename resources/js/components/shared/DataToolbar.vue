@@ -1,5 +1,9 @@
 <!-- components/shared/DataToolbar.vue -->
 <script setup>
+  import { ref, computed } from 'vue';
+  import { storeToRefs } from 'pinia';
+  import { useAuthStore } from '@/plugins/authStore.js';
+  import { useCCPlusStore } from '@/plugins/CCPlusStore.js';
   import FlexCol from './FlexCol.vue';
   import SearchAndSelect from './SearchAndSelect.vue';
   import FiltersAndActions from './FiltersAndActions.vue';
@@ -7,9 +11,22 @@
   const props = defineProps({
     search: { type: String, required: true },
     showSelectedOnly: { type: Boolean, required: true },
-    dataset: { type: String, required: true }
+    dataset: { type: String, required: true },
+    filter_options: { type: Object, required: false, default:{} }
   });
+
+  const authStore = useAuthStore();
+  const { consortia } = storeToRefs(useCCPlusStore());
+  const is_serveradmin = authStore.is_serveradmin;
+  var consoKey = ref(authStore.ccp_key);
+  const consoOnly = computed(() => {
+    return (consoKey.value == '' && is_serveradmin);
+  });
+
+// ToDo:: Catch emits from child components
+
   const emit = defineEmits([
+    'update:conso',
     'update:search',
     'update:showSelectedOnly',
     'add',
@@ -19,28 +36,27 @@
   ]);
 </script>
 
+
 <template>
-  <v-row class="my-6">
-    <!-- Search + Selected Toggle -->
-    <FlexCol>
-      <v-row>
+  <!-- Search + Selected Toggle -->
+  <v-row class="my-2" no-gutters>
+    <FlexCol v-if="!consoOnly" cols="4">
+      <v-row no-gutters >
         <SearchAndSelect :search="search" :showSelectedOnly="showSelectedOnly"
                          @update:search="$emit('update:search', $event)"
                          @update:showSelectedOnly="$emit('update:showSelectedOnly', $event)"/>
       </v-row>
     </FlexCol>
-    <!-- Dataset-Specific Filters + Add -->
-    <FlexCol>
-      <v-row>
-        <FiltersAndActions :dataset="dataset" @customAction="$emit('customAction', $event)"
-                           @add="$emit('add')"/>
-      </v-row>
-    </FlexCol>
-    <!-- Export / Import -->
-    <FlexCol>
-      <v-row>
-        <ExportAndImport @export="$emit('export')" @import="$emit('import')" />
-      </v-row>
-    </FlexCol>
+    <v-col v-if="is_serveradmin && consortia.length>1 && props.dataset!='jobs'" class="flex px-4" cols="3">
+      <v-autocomplete v-model="consoKey" label="Consortium" :items="consortia" item-title="name"
+                      item-value="ccp_key" @update:modelValue="$emit('update:conso', $event)" />
+    </v-col>
+    <!-- Export, Import, & Add -->
+    <ExportAndImport v-if="!consoOnly" @export="$emit('export')" @import="$emit('import')" @add="$emit('add')"/>
+  </v-row>
+  <!-- Search + Selected Toggle -->
+  <v-row v-if="!consoOnly" class="my-2">
+    <FlexCol></FlexCol>
+    <FiltersAndActions :filters="filter_options" @customAction="$emit('customAction', $event)" />
   </v-row>
 </template>
