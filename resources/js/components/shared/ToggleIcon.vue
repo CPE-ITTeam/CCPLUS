@@ -15,7 +15,7 @@
       }
     },
     toggleable: { type: Boolean },
-    statusMap: { type: Array },
+    statusMap: { type: Object },
     size: { type: Number, default: 32 }
   });
   const emit = defineEmits(['update:modelValue']);
