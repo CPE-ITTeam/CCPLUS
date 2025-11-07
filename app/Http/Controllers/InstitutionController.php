@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use DB;
 use App\Models\Institution;
+use App\Models\InstitutionType;
 use App\Models\InstitutionGroup;
 use App\Models\Provider;
 use App\Models\Role;
@@ -41,63 +42,51 @@ class InstitutionController extends Controller
         $limit_to_insts = [];
         $server_admin = config('ccplus.server_admin');
 
-        // serverAdmin sees all users across all instances, otherwise return for current session DB
-        $original_db_key = session('ccp_con_key');
-        $cur_db_key = $original_db_key;
-        $where = ($thisUser->isServerAdmin()) ? array(['is_active',1]) : array(['ccp_key',$original_db_key]);
-        $instances = Consortium::where($where)->get(['id','ccp_key','name'])->toArray();
+        // Setup options for filters
+        $filter_options = array('statuses' => array('ALL','Active','Inactive'));
 
-        foreach ($instances as $conso) {
-            $cur_db_key = $conso['ccp_key'];
+        // Include institution types
+        $filter_options['type'] = InstitutionType::get(['id','name'])->toArray();
+        $filter_options['groups'] = array();
 
-            // Switch conso assignment
-            if ($cur_db_key != $original_db_key) {
-                config(['database.connections.consodb.database' => "ccplus_" . $cur_db_key]);
-                session(['ccp_con_key' => $cur_db_key]);
-                DB::reconnect('consodb');
-            }
+        $seen_group_ids = array();
 
-            // Limit by institution based on users's role(s)
-            if (!$thisUser->isServerAdmin()) {
-                $limit_to_insts = ($type == 'admin') ? $thisUser->adminInsts() : $thisUser->viewerInsts();
-                if ($limit_to_insts === [1]) $limit_to_insts = [];
-            }
+        // Limit by institution based on users's role(s)
+        if (!$thisUser->isServerAdmin()) {
+            $limit_to_insts = ($type == 'admin') ? $thisUser->adminInsts() : $thisUser->viewerInsts();
+            if ($limit_to_insts === [1]) $limit_to_insts = [];
+        }
 
-            // Get institution records
-            $inst_data = Institution::with('institutionGroups:id,name','credentials','institutionType')
-                                    ->when(count($limit_to_insts) > 0 , function ($qry) use ($limit_to_insts) {
-                                        return $qry->whereIn('id', $limit_to_insts);
-                                    })
-                                    ->orderBy('name', 'ASC')
-                                    ->get(['id','name','local_id','is_active']);
+        // Get institution records
+        $inst_data = Institution::with('institutionGroups:id,name','credentials','institutionType')
+                                ->when(count($limit_to_insts) > 0 , function ($qry) use ($limit_to_insts) {
+                                    return $qry->whereIn('id', $limit_to_insts);
+                                })
+                                ->orderBy('name', 'ASC')
+                                ->get(['id','name','local_id','is_active']);
 
-            // Add group memberships
-            foreach ($inst_data as $rec) {
-                $inst = $rec->toArray();
-                $inst['ccp_key'] = $cur_db_key;
-                $inst['status'] = ($rec->is_active) ? "Active" : "Inactive";
-                $inst['group_string'] = "";
-                $inst['groups'] = $rec->institutionGroups()->pluck('institution_group_id')->all();
-                foreach ($rec->institutionGroups as $group) {
-                    $inst['group_string'] .= ($inst['group_string'] == "") ? "" : ", ";
-                    $inst['group_string'] .= $group->name;
+        // Add group memberships
+        foreach ($inst_data as $rec) {
+            $inst = $rec->toArray();
+            $inst['status'] = ($rec->is_active) ? "Active" : "Inactive";
+            $inst['group_string'] = "";
+            $inst['groups'] = $rec->institutionGroups()->pluck('institution_group_id')->all();
+            foreach ($rec->institutionGroups as $group) {
+                $inst['group_string'] .= ($inst['group_string'] == "") ? "" : ", ";
+                $inst['group_string'] .= $group->name;
+                if (!in_array($group->id,$seen_group_ids)) {
+                    array_push($seen_group_ids, $group->id);
+                    $filter_options['groups'][] = array('id' => $group->id, 'name' => $group->name);
                 }
-                $harvest_count = $rec->credentials->whereNotNull('last_harvest')->count();
-                $inst['type'] = ($rec->institutionType) ? $rec->institutionType->name : "(Not classified)";
-                $inst['can_delete'] = ($harvest_count > 0 || $rec->id == 1) ? false : true;
-                $inst['role'] = $this->userRole($rec->id);
-                $data[] = $inst;
             }
+            $harvest_count = $rec->credentials->whereNotNull('last_harvest')->count();
+            $inst['type'] = ($rec->institutionType) ? $rec->institutionType->name : "(Not classified)";
+            $inst['can_delete'] = ($harvest_count > 0 || $rec->id == 1) ? false : true;
+            $inst['role'] = $this->userRole($rec->id);
+            $data[] = $inst;
         }
 
-        // Reset the consodb setting if it was changed
-        if ($thisUser->isServerAdmin() && count($instances) > 0 && $cur_db_key != $original_db_key) {
-            config(['database.connections.consodb.database' => "ccplus_" . $original_db_key]);
-            session(['ccp_con_key' => $original_db_key]);
-            DB::reconnect('consodb');
-        }
-
-        return response()->json(['records' => $data], 200);
+        return response()->json(['records' => $data, 'options' => $filter_options], 200);
     }
 
     /**
