@@ -31,10 +31,6 @@ class CredentialController extends Controller
         $thisUser = auth()->user();
         abort_unless($thisUser->hasRole('Admin'), 403);
 
-//Note:: may want a conso-argument to support a switcher on the U/I component (for ServerAdmin)
-//       since the number of records could be huge for all instances, we should probably only
-//       return a single-instance set of credentials here
-
         // Get Providers for this user's role(s)
         $limit_to_insts = $thisUser->adminInsts();
         if ($limit_to_insts === [1]) $limit_to_insts = [];
@@ -60,6 +56,15 @@ class CredentialController extends Controller
             return $rec;
         });
 
+        // Setup filtering options for the datatable
+        $filter_options = array('statuses' => array('ALL','Active','Inactive'));
+        // $filter_options['platforms'] = $gdata->pluck('id','name')->toArray();
+        $filter_options['platforms'] = $gdata->map(function ($plat) {
+            return [ 'id' => $plat->id, 'name' => $plat->name ];
+        });
+        $instIds = $providers->pluck('inst_id')->toArray();
+        $filter_options['institutions'] = Institution::whereIn('id',$instIds)->get(['id','name'])->toArray();
+
         // Get master report definitions
         $master_reports = Report::where('parent_id',0)->orderBy('dorder','ASC')->get(['id','name']);
 
@@ -71,16 +76,21 @@ class CredentialController extends Controller
             $rec = array('value' => $cred->id, 'customerId' => $cred->customer_id,
                          'requestorId' => $cred->requestor_id, 'apiKey' => $cred->api_key
                         );
-            $rec['platform'] = $cred->provider->toArray();
-            $rec['platform']['service_url'] = $cred->provider->service_url();
-            $rec['platform']['connectors'] = array();
-            $rec['institution'] = ($cred->institution) ? $cred->institution->toArray()
-                                                       : array('id'=>null,'name'=>'');
+// commented -for now- may need more return differently depending on edits/updates/etc,
+            // $rec['platform'] = $cred->provider->toArray();
+            // $rec['platform']['service_url'] = $cred->provider->service_url();
+            // $rec['platform']['connectors'] = array();
+            $rec['platform'] = $cred->provider->name;
+            $rec['service_url'] = $cred->provider->service_url();
+            $rec['connectors'] = array();
+            $rec['institution'] = ($cred->institution) ? $cred->institution->name : '';
             $required = $cred->provider->connectors();
             foreach ($global_connectors as $gc) {
                 $cnx = $gc->toArray();
                 $cnx['required'] = in_array($gc->id, $required);
-                $rec['platform']['connectors'][] = $cnx;
+// commented -for now- may need more return differently depending on edits/updates/etc,
+                // $rec['platform']['connectors'][] = $cnx;
+                $rec['connectors'][] = $cnx;
             }
             $rec['connected'] = ($cred->status == 'Enabled') ? true : false;
 
@@ -107,7 +117,7 @@ class CredentialController extends Controller
         }
 
         // Return the data array
-        return response()->json(['records' => $credentials], 200);
+        return response()->json(['records' => $credentials, 'options' => $filter_options, 'result' => true], 200);
     }
 
     /**
