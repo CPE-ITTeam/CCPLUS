@@ -8,7 +8,7 @@
   // Data
   const activePage = ref(0);
   const activeTab = ref(0);
-  const panel = ref([0, 1]);
+  const panel = ref(0);
   var homeUrl = ref("/");
   var userDialog = ref(false);
   var pages = ref([]);
@@ -90,7 +90,7 @@
                 <v-tabs-window-item v-for="(child, tabIndex) in page.children" :key="tabIndex"
                                     :value="tabIndex" transition="false" reverse-transition="false">
                   <div v-if="child.children">
-                    <v-expansion-panels multiple class="mt-6 rounded-lg" v-model="panel">
+                    <v-expansion-panels class="mt-6 rounded-lg" v-model="panel">
                       <v-expansion-panel v-for="(grandchild, gcidx) in child.children"
                                         :key="gcidx" class="rounded-lg border">
                         <v-expansion-panel-title>
