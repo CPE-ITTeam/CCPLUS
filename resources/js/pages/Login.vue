@@ -16,7 +16,7 @@ const {
   authErrorMessage: errorMessage,
   authSuccessMessage: successMessage,
 } = storeToRefs(useAuthStore());
-const { login, clearLoginError } = useAuthStore();
+const { login, clearLoginError, setConsoKey } = useAuthStore();
 const { consortia } = storeToRefs(useCCPlusStore());
 const { getConsortia } = useCCPlusStore();
 // Functions
@@ -26,15 +26,18 @@ const fetchConsortia = async () => {
     if (consortia.value.length == 1) {
       preset_conso.value = consortia.value[0].name;
       consortium.value = consortia.value[0];
+      setConsoKey(consortium.value['ccp_key']);
     }
   } catch {}
 }
 async function formSubmit() {
+  let consoKey = (typeof(consortium.value)!='undefined') ? consortium.value['ccp_key'] : '';
+  let consoId = (typeof(consortium.value)!='undefined') ? consortium.value['id'] : 0;
   await login({
     email: email.value,
-    consortium: consortium.value['ccp_key'],
+    consortium: consoKey,
     password: password.value,
-    conso_id: consortium.value['id'],
+    conso_id: consoId,
   });
 }
 function triggerApiCall(url) {

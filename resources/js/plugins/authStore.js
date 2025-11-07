@@ -1,11 +1,12 @@
 // Pinia store : plugins/authStore.js
 import { defineStore } from 'pinia';
-import { useLocalStorage, createFetch } from '@vueuse/core';
+import { useLocalStorage } from '@vueuse/core';
 import axios from 'axios';
 
 export const useAuthStore = defineStore('useAuthStore', {
   state: () => ({
     isAuthenticated: false,
+    ccp_key: '',
     user: {'id': null, 'name': '', 'inst_id': null},
     roles: [],
     token: useLocalStorage('user-token', null),
@@ -62,6 +63,7 @@ export const useAuthStore = defineStore('useAuthStore', {
           this.token = response.data.data.token;
           this.user = { ...response.data.data.user };
           this.roles = [ ...response.data.data.roles ];
+          this.ccp_key = response.data.data.consoKey;
           this.isAuthenticated = true;
           if ( this.is_admin ) {
             this.router.push('/admin');
@@ -129,6 +131,16 @@ export const useAuthStore = defineStore('useAuthStore', {
       } catch (error) {
         console.error('Logout attempt failed:', error);
       }
+    },
+    // Set key in datastore and update session key
+    async setConsoKey(key) {
+      if (!this.is_serveradmin) return false;
+      this.ccp_key = key;
+      try {
+        const response = await axios.post('/api/updateSessionKey', {
+          key: 'ccp_con_key', value: key,
+        });
+      } catch (error) {}
     },
     setLoginError(message) {
       this.authErrorMessage = message;
