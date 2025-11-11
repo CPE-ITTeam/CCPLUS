@@ -18,7 +18,7 @@
   // Get mail settings
   const getSettings = async () => {
     try {
-      const { data } = await ccGet("/api/getSettings/config");
+      const { data } = await ccGet("/api/settings/get/config");
       configSettings.value = {...data.records};
     } catch (error) {
       console.log('Error fetching settings: '+error.message);
@@ -26,7 +26,7 @@
   }
   async function formSubmit() {
     try {
-      const response = await ccPost("/api/setSettings", { settings: configSettings.value });
+      const response = await ccPost("/api/settings/store", { settings: configSettings.value });
       if (response.result) {
         success.value = response.msg
       } else {
@@ -50,7 +50,7 @@
   });
 </script>
 <template>
-  <sheet>
+  <v-sheet>
     <v-form @submit.prevent="formSubmit" v-model="formValid">
       <v-row>
         <FlexCol>
@@ -132,7 +132,7 @@
         </FlexCol>
       </v-row>
     </v-form>
-  </sheet>
+  </v-sheet>
 </template>
 <style scoped>
  .redNotice { color: #ee0000; }
