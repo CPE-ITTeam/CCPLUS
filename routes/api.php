@@ -12,25 +12,85 @@ Route::post('forgotPass','App\Http\Controllers\Auth\ForgotPasswordController@sub
 Route::post('resetPass/','App\Http\Controllers\Auth\ForgotPasswordController@submitResetForm')
         ->name('resetPass');
 
+// Routes requiring authentication
 Route::middleware('ccplusAuth')->group( function () {
     Route::post('/updateSessionKey','App\Http\Controllers\SessionController@updateKey')->name('updateKey');
     Route::get('/user', function (Request $request) {
        return $request->user();
     });
-    Route::get('getCreds', 'App\Http\Controllers\CredentialController@index')->name('getCreds');
-    Route::get('getInsts/{role}', 'App\Http\Controllers\InstitutionController@index')->name('getInsts');
-    Route::get('getInstTypes', 'App\Http\Controllers\InstitutionTypeController@index')->name('getInstTypes');
-    Route::get('getInstGroups', 'App\Http\Controllers\InstitutionGroupController@index')->name('getInstGroups');
-    Route::get('getPlatforms/{role}', 'App\Http\Controllers\GlobalProviderController@index')->name('getPlatforms');
-    Route::get('getUsers', 'App\Http\Controllers\UserController@index')->name('getUsers');
-    Route::get('getRoles', 'App\Http\Controllers\RoleController@index')->name('getRoles');
-    Route::get('getSettings/{type}', 'App\Http\Controllers\GlobalSettingController@index')->name('getSettings');
-    Route::get('getHarvests', 'App\Http\Controllers\HarvestLogController@index')->name('getHarvests');
-    Route::get('getJobs', 'App\Http\Controllers\HarvestLogController@harvestQueue')->name('getJobs');
-    Route::get('getManualOptions', 'App\Http\Controllers\HarvestLogController@create')->name('getManualOptions');
-    Route::get('getSavedReports', 'App\Http\Controllers\SavedReportController@index')->name('getSavedReports');
-    Route::get('getReportOptions/{type}', 'App\Http\Controllers\ReportController@create')->name('getReportOptions');
-//
-    Route::post('setSettings', 'App\Http\Controllers\GlobalSettingController@store')->name('setSettings');
-    Route::post('storeHarvests', 'App\Http\Controllers\HarvestLogController@store')->name('storeHarvests');
+    // Routes grouped by prefix
+    Route::prefix('consortia')->group(function () {
+        Route::get('/get', 'App\Http\Controllers\ConsortiumController@index')->name('consortia.index');
+        Route::post('/store', 'App\Http\Controllers\ConsortiumController@store')->name('consortia.store');
+        Route::patch('/update/{consortium}', 'App\Http\Controllers\ConsortiumController@update')->name('consortia.update');
+    });
+    Route::prefix('credentials')->group(function () {
+        Route::get('/get', 'App\Http\Controllers\CredentialController@index')->name('credentials.index');
+        Route::post('/store', 'App\Http\Controllers\CredentialController@store')->name('credentials.store');
+        Route::patch('/update/{credential}', 'App\Http\Controllers\CredentialController@update')->name('credentials.update');
+        Route::delete('/delete/{credential}', 'App\Http\Controllers\CredentialController@destroy')->name('credentials.destroy');
+    });
+    Route::prefix('institutions')->group(function () {
+        Route::get('/get/{role}', 'App\Http\Controllers\InstitutionController@index')->name('institutions.index');
+        Route::post('/store', 'App\Http\Controllers\InstitutionController@store')->name('institutions.store');
+        Route::patch('/update/{institution}', 'App\Http\Controllers\InstitutionController@update')->name('institutions.update');
+        Route::delete('/delete/{institution}', 'App\Http\Controllers\InstitutionController@destroy')->name('institutions.destroy');
+    });
+    Route::prefix('types')->group(function () {
+        Route::get('/get', 'App\Http\Controllers\InstitutionTypeController@index')->name('types.index');
+        Route::post('/store', 'App\Http\Controllers\InstitutionTypeController@store')->name('types.store');
+        Route::patch('/update/{type}', 'App\Http\Controllers\InstitutionTypeController@update')->name('types.update');
+        Route::delete('/delete/{type}', 'App\Http\Controllers\InstitutionTypeController@destroy')->name('types.destroy');
+    });
+    Route::prefix('groups')->group(function () {
+        Route::get('/get', 'App\Http\Controllers\InstitutionGroupController@index')->name('groups.index');
+        Route::post('/store', 'App\Http\Controllers\InstitutionGroupController@store')->name('groups.store');
+        Route::patch('/update/{group}', 'App\Http\Controllers\InstitutionGroupController@update')->name('groups.update');
+        Route::delete('/delete/{group}', 'App\Http\Controllers\InstitutionGroupController@destroy')->name('groups.destroy');
+    });
+    Route::prefix('platforms')->group(function () {
+        Route::get('/get/{role}', 'App\Http\Controllers\GlobalProviderController@index')->name('platforms.index');
+        Route::post('/store', 'App\Http\Controllers\GlobalProviderController@store')->name('platforms.store');
+        Route::patch('/update/{platform}', 'App\Http\Controllers\GlobalProviderController@update')->name('platforms.update');
+        Route::delete('/delete/{platform}', 'App\Http\Controllers\GlobalProviderController@destroy')->name('platforms.destroy');
+    });
+    Route::prefix('users')->group(function () {
+        Route::get('/get', 'App\Http\Controllers\UserController@index')->name('users.index');
+        Route::post('/store', 'App\Http\Controllers\UserController@store')->name('users.store');
+        Route::patch('/update/{user}', 'App\Http\Controllers\UserController@update')->name('users.update');
+        Route::delete('/delete/{user}', 'App\Http\Controllers\UserController@destroy')->name('users.destroy');
+    });
+    Route::prefix('roles')->group(function () {
+        Route::get('/get', 'App\Http\Controllers\RoleController@index')->name('roles.index');
+        Route::post('/store', 'App\Http\Controllers\RoleController@store')->name('roles.store');
+        Route::patch('/update/{role}', 'App\Http\Controllers\RoleController@update')->name('roles.update');
+        Route::delete('/delete/{role}', 'App\Http\Controllers\RoleController@destroy')->name('roles.destroy');
+    });
+    Route::prefix('settings')->group(function () {
+        Route::get('/get/{type}', 'App\Http\Controllers\GlobalSettingController@index')->name('settings.index');
+        Route::post('/store', 'App\Http\Controllers\GlobalSettingController@store')->name('settings.store');
+        // Route::post('setSettings', 'App\Http\Controllers\GlobalSettingController@store')->name('setSettings');
+        Route::patch('/update/{setting}', 'App\Http\Controllers\GlobalSettingController@update')->name('settings.update');
+    });
+    Route::prefix('harvests')->group(function () {
+        Route::get('/get', 'App\Http\Controllers\HarvestLogController@index')->name('harvests.index');
+        Route::get('/options', 'App\Http\Controllers\HarvestLogController@create')->name('harvests.options');
+        Route::post('/store', 'App\Http\Controllers\HarvestLogController@store')->name('harvests.store');
+        Route::patch('/update/{harvest}', 'App\Http\Controllers\HarvestLogController@update')->name('harvests.update');
+        Route::delete('/delete/{harvest}', 'App\Http\Controllers\HarvestLogController@destroy')->name('harvests.destroy');
+    });
+    Route::prefix('jobs')->group(function () {
+        Route::get('/get', 'App\Http\Controllers\HarvestLogController@harvestQueue')->name('jobs.index');
+        Route::patch('/update/{harvest}', 'App\Http\Controllers\HarvestLogController@update')->name('jobs.update');
+        Route::delete('/delete/{harvest}', 'App\Http\Controllers\HarvestLogController@destroy')->name('jobs.destroy');
+    });
+    Route::prefix('savedreports')->group(function () {
+        Route::get('/get', 'App\Http\Controllers\SavedReportController@index')->name('savedreports.index');
+        Route::post('/store', 'App\Http\Controllers\SavedReportController@store')->name('savedreports.store');
+        Route::patch('/update/{savedreport}', 'App\Http\Controllers\SavedReportController@update')->name('savedreports.update');
+        Route::delete('/delete/{savedreport}', 'App\Http\Controllers\SavedReportController@destroy')->name('savedreports.destroy');
+    });
+    Route::prefix('reports')->group(function () {
+        Route::get('/options', 'App\Http\Controllers\ReportController@create')->name('reports.options');
+    });
 });
