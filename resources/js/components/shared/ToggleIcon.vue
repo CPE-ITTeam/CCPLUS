@@ -75,18 +75,13 @@
 
   function handleClick() {
     if (!meta.value.clickable) return;
-
     if (!isObjectValue.value) {
       if (!props.toggleable) return;
-      const toggles = [
-        { 'active': 'inactive' },
-        { 'inactive': 'active' },
-        { 'connected': 'disconnected' },
-        { 'disconnected': 'connected' },
-        { 'true': false },
-        { 'false': true },
-      ];
-
+      const toggles = {
+        'Active': 'Inactive', 'Inactive': 'Active',
+        'connected': 'disconnected', 'disconnected': 'connected',
+        'true': false, 'false': true,
+      };
       const next = toggles[props.modelValue];
       if (next) emit('update:modelValue', next);
       return;
