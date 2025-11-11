@@ -32,7 +32,8 @@
     return props.schema.fields.map(f => f.label);
   });
 
-  defineEmits(['submit', 'cancel']);
+  // defineEmits(['submit', 'cancel']);
+  const emit = defineEmits(['submit', 'cancel']);
 
   function isToggleField(field) {
     return field.type === 'toggle' ||
@@ -71,7 +72,7 @@
     <v-form v-if="props.schema.fields.length" ref="formRef" @submit.prevent="submitForm">
       <v-container>
         <v-row v-for="field in props.schema.fields" :key="field.name" class="mb-3">
-          <v-col v-if="!field.static" cols="12">
+          <v-col v-if="!field.static" cols="12" class="d-flex ma-0 pa-0">
             <!-- Read-only display -->
             <div v-if="!field.editable || field.renderAsText">
               <strong>{{ field.label }}:</strong>
@@ -89,36 +90,34 @@
             <v-text-field v-else-if="field.type==='password'" v-model="formValues[field.name]" :label="field.label"
                           :type="pw_show ? 'text' : 'password'" :append-icon="pw_show ? 'mdi-eye' : 'mdi-eye-off'"
                           @click:append="pw_show = !pw_show" variant="outlined" :hint="field.helperText"
-                          persistent-hint :rules="field.required ? [requiredRule] : []" />
+                          persistent-hint :rules="field.required ? [requiredRule] : []" density="compact"/>
 
             <!-- Textarea -->
             <v-textarea v-else-if="field.type==='textarea'" v-model="formValues[field.name]" :label="field.label"
                         :rules="field.required ? [requiredRule] : []" variant="outlined" :prepend-icon="field.icon"
-                        :hint="field.helperText" persistent-hint />
+                        :hint="field.helperText" persistent-hint density="compact"/>
 
             <!-- Select inputs -->
             <v-select v-else-if="field.type==='select'" v-model="formValues[field.name]" :label="field.label"
                       :items="schema.options[field.name].items" item-title="name" item-value="id" variant="outlined"
                       :prepend-icon="field.icon" :hint="field.helperText" persistent-hint
-                      :rules="field.required ? [requiredRule] : []" />
+                      :rules="field.required ? [requiredRule] : []" density="compact"/>
             <v-combobox v-else-if="field.type==='mselect'" v-model="formValues[field.name]" :label="field.label"
                         :items="schema.options[field.name].items" item-title="name" item-value="id" multiple
                         persistent-hint :prepend-icon="field.icon" :hint="field.helperText" variant="outlined"
-                        :rules="field.required ? [requiredRule] : []" />
+                        :rules="field.required ? [requiredRule] : []" density="compact"/>
           
                       
             <!-- Fallback text input -->
             <v-text-field v-else v-model="formValues[field.name]" :label="field.label" variant="outlined"
-                          :prepend-icon="field.icon" :hint="field.helperText" persistent-hint />
+                          :prepend-icon="field.icon" :hint="field.helperText" persistent-hint density="compact"/>
           </v-col>
         </v-row>
 
         <v-row>
           <v-col cols="12" class="text-left">
             <v-btn color="primary" @click="submitForm">Save</v-btn>
-            <v-btn variant="text" class="ml-2" @click="emit('cancel')"
-              >Cancel</v-btn
-            >
+            <v-btn variant="text" class="ml-2" @click="emit('cancel')">Cancel</v-btn>
           </v-col>
         </v-row>
       </v-container>
