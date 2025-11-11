@@ -8,7 +8,7 @@
   // Data
   const activePage = ref(0);
   const activeTab = ref(0);
-  const panel = ref(0);
+  const panel = ref([0, 1]);
   var homeUrl = ref("/");
   var userDialog = ref(false);
   var pages = ref([]);
@@ -24,6 +24,27 @@
   // External links
   function userDialogDone ({ result, msg, user, new_inst }) {
     userDialog.value = false;
+  }
+
+  // Increment component key(s) for all components EXCEPT the one
+  // responsible for changing the consoKey (it's already updated)
+  function handleChangeConso(changed) {
+    pages.value.forEach( page => {
+      if (typeof(page.children) != 'undefined') {
+        page.children.forEach( child => {
+          if (typeof(child.component) != 'undefined') {
+            if (child.name!=changed) { child.meta.key++; }
+          }
+          if (typeof(child.children) != 'undefined') {
+            child.children.forEach( grandchild => {
+              if (typeof(grandchild.component) != 'undefined') {
+                if (grandchild.name!=changed) { grandchild.meta.key++; }
+              }
+            });
+          }
+        });
+      }
+    });
   }
 
   // Force to tab:0 on page switches
@@ -90,20 +111,22 @@
                 <v-tabs-window-item v-for="(child, tabIndex) in page.children" :key="tabIndex"
                                     :value="tabIndex" transition="false" reverse-transition="false">
                   <div v-if="child.children">
-                    <v-expansion-panels class="mt-6 rounded-lg" v-model="panel">
+                    <v-expansion-panels multiple class="mt-6 rounded-lg" v-model="panel">
                       <v-expansion-panel v-for="(grandchild, gcidx) in child.children"
                                         :key="gcidx" class="rounded-lg border">
                         <v-expansion-panel-title>
                           {{ grandchild.meta.title }}
                         </v-expansion-panel-title>
                         <v-expansion-panel-text class="rounded-lg">
-                          <component :is="grandchild.component" />
+                          <component :is="grandchild.component" :key="grandchild.meta.key"
+                                     @update:conso="handleChangeConso(child.name)" />
                         </v-expansion-panel-text>
                       </v-expansion-panel>
                     </v-expansion-panels>
                   </div>
                   <div v-else>
-                    <component :is="child.component" />
+                    <component :is="child.component" :key="child.meta.key"
+                               @update:conso="handleChangeConso(child.name)"/>
                   </div>
               </v-tabs-window-item>
               </v-tabs-window>
