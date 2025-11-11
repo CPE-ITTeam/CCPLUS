@@ -61,15 +61,14 @@ class InstitutionController extends Controller
         $inst_data = Institution::with('institutionGroups:id,name','credentials','institutionType')
                                 ->when(count($limit_to_insts) > 0 , function ($qry) use ($limit_to_insts) {
                                     return $qry->whereIn('id', $limit_to_insts);
-                                })
-                                ->orderBy('name', 'ASC')
-                                ->get(['id','name','local_id','is_active']);
+                                })->orderBy('name', 'ASC')->get();
 
         // Add group memberships
         foreach ($inst_data as $rec) {
-            $inst = $rec->toArray();
+            $inst = array('id' => $rec->id, 'name' => $rec->name, 'is_active' => $rec->is_active,
+                          'local_id' => $rec->local_id, 'fte' => $rec->fte, 'notes' => $rec->notes,
+                          'group_string' => '');
             $inst['status'] = ($rec->is_active) ? "Active" : "Inactive";
-            $inst['group_string'] = "";
             $inst['groups'] = $rec->institutionGroups()->pluck('institution_group_id')->all();
             foreach ($rec->institutionGroups as $group) {
                 $inst['group_string'] .= ($inst['group_string'] == "") ? "" : ", ";
@@ -85,7 +84,6 @@ class InstitutionController extends Controller
             $inst['role'] = $this->userRole($rec->id);
             $data[] = $inst;
         }
-
         return response()->json(['records' => $data, 'options' => $filter_options], 200);
     }
 
@@ -361,20 +359,28 @@ class InstitutionController extends Controller
      * @param  \App\Models\Institution  $institution
      * @return \Illuminate\Http\Response
      */
-    public function update(Request $request, $id)
+    public function update(Request $request, Institution $institution)
     {
+        global $thisUser;
         $thisUser = auth()->user();
-        $institution = Institution::with('institutionGroups')->findOrFail($id);
+
         if (!$institution->canManage()) {
             return response()->json(['result' => false, 'msg' => 'Update failed (403) - Forbidden']);
         }
         $was_active = $institution->is_active;
+        $institution->load('institutionGroups','institutionType');
 
        // Validate form inputs
         $this->validate($request, ['is_active' => 'required']);
         $input = $request->all();
 
-       // Make sure that local ID is unique if not set null
+        // if only updating is_active, do it now
+        if (count($input) == 1) {
+            $institution->update([ 'is_active' => $input['is_active'] ]);
+            return response()->json(['result' => true]);
+        }
+
+        // Make sure that local ID is unique if not set null
         if (isset($input['local_id'])) {
             $newID = trim($input['local_id']);
             if ($institution->local_id != $newID) {
@@ -408,10 +414,18 @@ class InstitutionController extends Controller
         } else {
             // Update the record and assign groups
             $institution->update($input);
-            if (isset($input['institution_groups'])) {
-                $institution->institutionGroups()->detach();
-                foreach ($request->input('institution_groups') as $g) {
+            if (isset($input['groups'])) {
+                $existing_group_ids = $institution->institutionGroups->pluck('id')->toArray();
+                $input_ids = array_column($input['groups'],'id');
+                $detach_ids = array_diff($existing_group_ids,$input_ids);
+                $attach_ids = array_diff($input_ids,$existing_group_ids);
+                // Add new groups
+                foreach ($attach_ids as $g) {
                     $institution->institutionGroups()->attach($g);
+                }
+                // Detach cleared groups
+                foreach ($detach_ids as $g) {
+                    $institution->institutionGroups()->detach($g);
                 }
             }
             $institution->load('institutionGroups');
@@ -438,15 +452,22 @@ class InstitutionController extends Controller
             $institution->credentials = $credentials->toArray();
         }
 
-        // Tack on a string for all the group memberships
-        $institution->groups = $institution->institutionGroups()->get();
+        // Add groups as an array and a string for group memberships
+        $groups = array();
         $institution->group_string = "";
         foreach ($institution->institutionGroups as $group) {
+            $groups[] = array('id' => $group->id, 'name' => $group->name);
             $institution->group_string .= ($institution->group_string == "") ? "" : ", ";
             $institution->group_string .= $group->name;
         }
+        $institution->groups = $groups;
 
-        return response()->json(['result' => true, 'msg' => 'Settings successfully updated', 'institution' => $institution]);
+        // Set strings for status, role, and type to match what index() sets
+        $institution->status = ($institution->is_active) ? 'Active' : 'Inactive';
+        $institution->role = $this->userRole($institution->id);
+        $institution->type = ($institution->institutionType) ? $institution->institutionType->name : "(Not classified)";
+
+        return response()->json(['result' => true, 'msg' => 'Settings successfully updated', 'record' => $institution]);
     }
 
     /**
@@ -455,12 +476,11 @@ class InstitutionController extends Controller
      * @param  \App\Models\Institution  $institution
      * @return \Illuminate\Http\Response
      */
-    public function destroy($id)
+    public function destroy(Institution $institution)
     {
         if (!auth()->user()->hasRole("Admin")) {
             return response()->json(['result' => false, 'msg' => 'Update failed (403) - Forbidden']);
         }
-        $institution = Institution::findOrFail($id);
 
         try {
             $institution->delete();
