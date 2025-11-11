@@ -25,7 +25,7 @@
   // Get mail settings
   const getSettings = async () => {
     try {
-      const { data } = await ccGet("/api/getSettings/mail");
+      const { data } = await ccGet("/api/settings/get/mail");
       mailSettings.value = {...data.records};
       // check for match against presets and if not, set as custom
       var matched;
@@ -66,7 +66,7 @@
   }
   async function formSubmit() {
     try {
-      const response = await ccPost("/api/setSettings", { settings: mailSettings.value });
+      const response = await ccPost("/api/settings/store", { settings: mailSettings.value });
       if (response.result) {
         success.value = response.msg
       } else {
