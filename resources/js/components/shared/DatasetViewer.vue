@@ -1,19 +1,16 @@
 <!-- components/DatasetViewer.vue -->
 <script setup>
-  import { ref, watch, onBeforeMount, computed } from 'vue';
-  import { storeToRefs } from 'pinia';
+  import { ref, reactive, watch, onBeforeMount, computed } from 'vue';
   import { useAuthStore } from '@/plugins/authStore.js';
-  import { useCCPlusStore } from '@/plugins/CCPlusStore.js';
   import { tableSetup } from '@/composables/DataTableConfig.js';
   import DataToolbar from './DataToolbar.vue';
   import DataTable from './DataTable.vue';
   import DataForm from './DataForm.vue';
 
   const authStore = useAuthStore();
-  const { ccGet, setConsoKey } = useAuthStore();
-  const { consortia } = storeToRefs(useCCPlusStore());
-  var consoKey = ref(authStore.ccp_key);
-
+  const is_admin = authStore.is_admin;
+  const { ccGet, ccPatch, setConsoKey } = useAuthStore();
+  var consoKey = ref(authStore.ccp_key);  
   const props = defineProps({
     datasetKey: { type: String, required: true }
   });
@@ -23,7 +20,7 @@
 
   // Reactive state
   var dtKey = ref(0);
-  const items = ref([]);
+  var items = reactive([]);
   const headers = ref([]);
   const searchFields = ref([]);
   const search = ref('');
@@ -33,7 +30,10 @@
   const editingItem = ref(null);
   const filterOptions = ref({});
   const editableFields = ref([]);
-  var urlOptions = {};
+  const updateUrl = ref('');
+  var itemOptions = {};
+  var success = ref('');
+  var failure = ref('');
 
   const dialogTitle = computed(() => {
     const config = datasetConfig[props.datasetKey];
@@ -58,19 +58,18 @@
   const loadDataset = async (datasetKey) => {
     const config = datasetConfig[datasetKey];
     try {
-      if (datasetKey == 'consortia') {
-        items.value = [ ...consortia.value ];
-      } else {
-        if (consoKey.value=='') return;
-//NOTE:: config.urls need to pass back filter options (named by config.name)
-        const { data } = await ccGet(config.url);
-        items.value = [ ...data.records ];
-        urlOptions = { ...data.options };
+      if (consoKey.value=='') return;
+//NOTE:: config.urls should also provide filter options (named by config.name)
+      let itemsUrl = config.urlRoot+'/get';
+      if (datasetKey == 'institutions' || datasetKey== 'platforms') {
+        itemsUrl += (is_admin) ? '/admin' : '/viewer';
       }
+      const { data } = await ccGet(itemsUrl);
+      items = [ ...data.records ];
+      itemOptions = { ...data.options };
     } catch (error) {
       console.error('Error fetching records for '+datasetKey+' : ', error);
     }
-
     // set datatable header, display, and editor options
     headers.value = [{ title: "", key: "" }];
     config.fields.forEach( (fld, idx) => {
@@ -83,16 +82,17 @@
       // Set filterOptions for select, mselect and toggle
       if ( (fld.type == 'select' || fld.type == 'mselect' || fld.type == 'toggle') &&
            !config.fields[idx].static && fld.options == 'fromURL' &&
-           typeof(urlOptions[fld.name]) != 'undefined' ) {
+           typeof(itemOptions[fld.name]) != 'undefined' ) {
         filterOptions.value[fld.name] = {
           'label': fld.name, 'type': fld.type, 'val': fld.optVal, 'txt': fld.optTxt,
-          'items': [...urlOptions[fld.name]]
+          'items': [...itemOptions[fld.name]]
         };
       }
     });
     // Set arrays for searchable and editable fields
     searchFields.value = config.fields.filter(fld => fld.searchable).map(f => f.name);
     editableFields.value = config.fields.filter(fld => fld.editable).map(f => f.name);
+    updateUrl.value = config.urlRoot+'/update';
   }
 
   function handleToggle(value) {
@@ -104,27 +104,68 @@
     consoKey.value = value;
     setConsoKey(value);
     loadDataset(props.datasetKey);
+    emit('update:conso', value);
     dtKey.value++;
   }
 
   function handleEdit(item) {
     editingItem.value = item;
     dialogOpen.value = true;
-    console.log('Editing item:', editingItem.value);
   }
 
-  function handleDelete(item) {
-    console.log('Delete clicked for:', item);
-    // TODO: Add confirmation and deletion logic here
+  async function handleDelete(item) {
+    const config = datasetConfig[props.datasetKey];
+    let destroyUrl = config.urlRoot+'/delete/'+editingItem.value.id;
+    try {
+      const response = await ccPatch(destroyUrl);
+      if (response.result) {
+        items.splice(items.findIndex( ii => ii.id == editingItem.value.id),1);
+        success.value = response.msg
+      } else {
+        failure.value = response.msg
+      }
+    } catch (error) {
+      console.error('Error deleting:', error);
+    }
+    editingItem.value = null;
   }
 
-  function handleStatusUpdate(id, key, value) {
-    const item = items.value.find(i => i.id === id);
-    if (item) item[key] = value;
+  async function handleStatusUpdate(id, value) {
+    const idx = items.findIndex(ii => ii.id == id);
+    if (idx >= 0) {
+      let _item = Object.assign({}, items[idx])
+      _item['is_active'] = (value == 'Active') ? 1 : 0;
+      try {
+        let url = updateUrl.value+'/'+id;
+        const response = await ccPatch(url, {'is_active': _item['is_active']});
+        if (response.result) {
+          _item['status'] = value;
+          items.splice(idx,1,_item);
+          dtKey.value++;
+        } else {
+          failure.value = response.msg
+        }
+      } catch {
+        console.error('Error updating status', error);
+      }
+    }
   }
 
-  function handleFormSubmit(updatedValues) {
-    console.log('Form submitted:', updatedValues);
+  async function handleFormSubmit(updatedValues) {
+    try {
+      let url = updateUrl.value+'/'+editingItem.value.id;
+      const response = await ccPatch(url, updatedValues);
+      if (response.result) {
+        const idx = items.findIndex(ii => ii.id == editingItem.value.id);
+        items.splice(idx,1,response.record);
+        success.value = response.msg
+        dtKey.value++;
+      } else {
+        failure.value = response.msg
+      }
+    } catch (error) {
+      console.error('Error updating:', error);
+    }
     dialogOpen.value = false;
     editingItem.value = null;
   }
@@ -133,21 +174,23 @@
     dialogOpen.value = false;
     editingItem.value = null;
   }
-
+  const emit = defineEmits(['update:conso']);
   onBeforeMount(() => loadDataset(props.datasetKey));
   watch(() => props.datasetKey, (newKey) => loadDataset(newKey));
 </script>
-
+<!--
+  TODO:: Need to add a div/row for success/failure strings
+-->
 <template>
   <v-sheet>
     <DataToolbar :search="search" :showSelectedOnly="showSelectedOnly" :dataset="props.datasetKey"
                  :filter_options="filterOptions" @update:search="search = $event"
                  @update:showSelectedOnly="handleToggle" @update:conso="handleChangeConso" />
 
-    <DataTable v-if="consoKey!=''" :items="items" :search="search" :showSelectedOnly="showSelectedOnly"
-               :headers="headers" :key="dtKey" :editableFields="editableFields" :searchFields="searchFields"
-               :selectedRows="selectedRows" @update:selectedRows="selectedRows = $event" @edit="handleEdit"
-               @delete="handleDelete" @update:status="handleStatusUpdate" />
+    <DataTable v-if="consoKey!=''" :items="items" :search="search" :dataset="props.datasetKey" :key="dtKey"
+               :showSelectedOnly="showSelectedOnly" :headers="headers" :editableFields="editableFields"
+               :searchFields="searchFields" :selectedRows="selectedRows" @update:selectedRows="selectedRows = $event"
+               @edit="handleEdit" @delete="handleDelete" @update:status="handleStatusUpdate" />
 
     <v-dialog v-if="editingItem && isEditable" v-model="dialogOpen" max-width="600px">
       <v-card>
