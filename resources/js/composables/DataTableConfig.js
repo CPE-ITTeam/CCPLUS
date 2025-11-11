@@ -15,7 +15,7 @@
     // NOTE:: Adding a 'cols' property will override default (2) in FiltersAndActions composable
     //
     consortia: {
-      url: '', dialogTitle: 'Consortium', 
+      urlRoot: '/api/consortia', dialogTitle: 'Consortium', 
       fields: [
         { name: 'status',      type: 'text', header: true,  editable: true, searchable: false, label: 'Status',
           options: 'fromURL', icon: '', helperText: '' },
@@ -38,27 +38,33 @@
       sortby: 'name',
     },
     institutions: {
-      url: '/api/getInsts/admin', dialogTitle: 'Institution',
+      urlRoot: '/api/institutions', dialogTitle: 'Institution',
       fields: [
-        { name: 'status',  type: 'toggle',    header: true, editable: true,  searchable: false, label: 'Status',
+        { name: 'status',  type: 'toggle',    header: true,  editable: true,  searchable: false, label: 'Status',
           options: 'fromURL', icon: '', helperText: '' },
-        { name: 'name',    type: 'text',      header: true, editable: true,  searchable: true,  label: 'Institution Name',
+        { name: 'name',    type: 'text',      header: true,  editable: true,  searchable: true,  label: 'Institution Name',
           icon: '', helperText: '' },
-        { name: 'group_string', type: 'text', header: true, editable: false, searchable: true,  label: 'Groups',
+        { name: 'local_id', type: 'text',     header: false, editable: true,  searchable: true,  label: 'Local ID',
           icon: '', helperText: '' },
-        { name: 'groups',  type: 'mselect',   header: false, editable: true, searchable: false, label: 'Groups',
+        { name: 'group_string', type: 'text', header: true,  editable: false, searchable: true,  label: 'Groups',
+          icon: '', helperText: '' },
+        { name: 'groups',  type: 'mselect',   header: false, editable: true,  searchable: false, label: 'Groups',
           options: 'fromURL', optVal: 'id', optTxt: 'name', icon: '', helperText: '' },
-        { name: 'type',    type: 'select',    header: true, editable: true,  searchable: true,  label: 'Institution Type',
+        { name: 'type',    type: 'select',    header: true,  editable: true,  searchable: true,  label: 'Institution Type',
           options: 'fromURL', optVal: 'id', optTxt: 'name', icon: '', helperText: '' },
-        { name: 'role',    type: 'select',    header: true, editable: false, searchable: true,  label: 'Role',
+        { name: 'role',    type: 'select',    header: true,  editable: false, searchable: true,  label: 'Role',
           options: 'fromURL', optVal: 'id', optTxt: 'name', icon: '', helperText: '' },
-      ],
+        { name: 'fte',     type: 'number',    header: false, editable: true,  searchable: false, label: 'FTE',
+          icon: '', helperText: '' },
+        { name: 'notes', type: 'textarea',    header: false, editable: true,  searchable: true,  label: 'Notes',
+        icon: '', helperText: '' },
+        ],
       required: ['name', 'type', 'status'],
       static: ['group_string'],
       sortby: 'name',
     },
     institutionGroups: {
-      url: '/api/getInstGroups', dialogTitle: 'Institution Group',
+      urlRoot: '/api/groups', dialogTitle: 'Institution Group',
       fields: [
         { name: 'name',         type: 'text',   header: true, editable: true,  searchable: true, label: 'Group',
           icon: '', helperText: '' },
@@ -73,7 +79,7 @@
       sortby: 'name',
     },
     institutionTypes: {
-      url: '/api/getInstTypes', dialogTitle: 'Institution Type',
+      urlRoot: '/api/types', dialogTitle: 'Institution Type',
       fields:[
         // { title: 'Type Value', key: 'id' },
         { name: 'id',   type: 'number', header: false, editable: false, searchable: false, label: 'ID',
@@ -86,7 +92,7 @@
       sortby: 'name',
     },
     connections: {
-      url: '/api/getCreds', dialogTitle: 'Credentials',
+      urlRoot: '/api/credentials', dialogTitle: 'Credentials',
       // Report columns are type=select to offer options based on user's role
       fields: [
         { name: 'id',          type: 'number', header: false, editable: false, searchable: false, label: 'ID',
@@ -119,7 +125,7 @@
       sortby: 'platform',
     },
     platforms: {
-      url: '/api/getPlatforms/admin', dialogTitle: 'Platform',
+      urlRoot: '/api/platforms', dialogTitle: 'Platform',
       fields: [
         { name: 'id',            type: 'number',  header: false, editable: false, searchable: false, label: 'ID',
           icon: '', helperText: '' },
@@ -149,7 +155,7 @@
       sortby: 'name',
     },
     users: {
-      url: '/api/getUsers', dialogTitle: 'User',
+      urlRoot: '/api/users', dialogTitle: 'User',
       fields:[
         { name: 'id',          type: 'number', header: false, editable: false, searchable: false, label: 'ID',
           icon: '', helperText: '' },
@@ -173,7 +179,7 @@
       sortby: 'email',
     },
     roles: {
-      url: '/api/getRoles', dialogTitle: 'User Roles',
+      urlRoot: '/api/roles', dialogTitle: 'User Roles',
       fields:[
         { name: 'role_id',   type: 'number', header: false, editable: false, searchable: false, label: 'ID',
           icon: '', helperText: '' },
@@ -193,7 +199,7 @@
       sortby: 'email',
     },
     harvests: {
-      url: '/api/getHarvests', dialogTitle:'',
+      urlRoot: '/api/harvests', dialogTitle:'',
       fields: [
         { name: 'id',          type: 'number', header: false, editable: false, searchable: false, label: 'ID',
           icon: '', helperText: '' },
@@ -219,7 +225,7 @@
       sortby: 'updated',
     },
     jobs: {
-      url: '/api/getJobs', dialogTitle:'',
+      urlRoot: '/api/jobs', dialogTitle:'',
       fields: [
         { name: 'id',          type: 'number', header: false, editable: false, searchable: false, label: 'ID',
           icon: '', helperText: '' },
@@ -244,7 +250,7 @@
       sortby: 'created',
     },
     savedreports: {
-      url: '/api/getSavedReports', dialogTitle: 'Saved Report',
+      urlRoot: '/api/savedreports', dialogTitle: 'Saved Report',
       fields: [
         { name: 'id',            type: 'number', header: false, editable: false, searchable: false, label: 'ID',
           icon: '', helperText: '' },
