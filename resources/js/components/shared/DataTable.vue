@@ -1,12 +1,13 @@
 <!-- components/shared/DataTable.vue -->
 <script setup>
-  import { ref, computed, onUpdated  } from 'vue';
+  import { ref, computed, onMounted } from 'vue';
   import ToggleIcon from './ToggleIcon.vue';
 
   const props = defineProps({
     headers: { type: Array, required: true },
     items: { type: Array, required: true },
     search: { type: String, required: true },
+    dataset: { type: String, required: true },
     showSelectedOnly: { type: Boolean, required: true },
     searchFields: { type: Array, required: true },
     selectedRows: { type: Array, required: true },
@@ -42,9 +43,11 @@
       })
     );
   });
+  const confirmDialog = ref(false);
+  var curItem = ref({});
   var isLoading = ref(true);
 
-  const emit = defineEmits(['update:selectedRows', 'edit', 'delete']);
+  const emit = defineEmits(['update:selectedRows', 'update:status', 'edit', 'delete']);
 
   // Emit edit event
   function emitEdit(item) {
@@ -71,8 +74,21 @@
     };
     return labels[field] || field;
   }
-  // onMounted(() => isLoading.value=false);
-  onUpdated(() => isLoading.value=false);
+  function enableDialog(item) {
+    curItem.value = {...item};
+    confirmDialog.value = true;
+  }
+  function cancelDialog() {
+    curItem.value = {};
+    confirmDialog.value = false;
+  }
+  function confirmDelete() {
+    emit('delete', curItem.id);
+    curItem.value = {};
+    confirmDialog.value = false;
+  }
+
+  onMounted(() => isLoading.value=false);
 </script>
 
 <template>
@@ -81,7 +97,7 @@
       ✅ {{ selectedRows.length }} item{{ selectedRows.length=== 1 ? '' : 's' }} selected
     </div>
     <v-data-table v-model="internalSelectedRows" :headers="computedHeaders" :items="filteredItems"
-                  item-key="id" item-value="id" show-select return-object :loading="isLoading"  >
+                  item-key="id" item-value="id" show-select return-object :loading="isLoading">
 
       <!-- Dynamic editable fields -->
       <!-- <template v-for="field in props.editableFields" #[`item.${field}`]="{ item }">
@@ -92,7 +108,8 @@
 
       <!-- Preserved custom slots -->
       <template v-if="hasStatusColumn" #item.status="{ item }">
-        <ToggleIcon v-model="item.status" :toggleable="true" @change="emitEdit(item)" />
+        <ToggleIcon v-model="item.status" :toggleable="true"
+                    @update:modelValue="$emit('update:status',item.id,item.status)" />
       </template>
 
       <template v-if="hasConnectedColumn" #item.connected="{ item }">
@@ -159,16 +176,49 @@
                       @click="$emit('edit', item)" />
             </template>
           </v-tooltip>
-
-          <v-tooltip text="Delete" location="top">
+<!--
+NOTE:: Hides icon if "can_delete" is falde adding gray/disable icon could be added instead of "nothing"
+-->        
+          <v-tooltip v-if="item.can_delete" text="Delete" location="top">
             <template v-slot:activator="{ props }">
+              <!-- <v-icon icon="mdi-delete" color="medium-emphasis" v-bind="props"
+                      @click="$emit('delete', item)"/> -->
               <v-icon icon="mdi-delete" color="medium-emphasis" v-bind="props"
-                      @click="$emit('delete', item)" />
+                      @click="enableDialog(item)"/>
             </template>
           </v-tooltip>
         </div>
       </template>
     </v-data-table>
+    <v-dialog v-model="confirmDialog" max-width="600px">
+      <v-card>
+        <v-card-title class="text-indigo-darken-2 pa-6 d-flex justify-space-between align-center">
+          <span>Confirm Delete</span>
+          <v-tooltip text="Cancel" location="bottom">
+            <template #activator="{ props }">
+              <v-btn icon variant="outlined" class="close-btn" v-bind="props" @click="cancelDialog">
+                <v-icon size="18">mdi-close</v-icon>
+              </v-btn>
+            </template>
+          </v-tooltip>
+        </v-card-title>
+        <v-card-text>
+          <p>&nbsp;</p>
+          <p>
+            <strong>You are about to delete {{ curItem.name }} from {{ props.dataset }}</strong>
+          </p>
+          <p>&nbsp;</p>
+          <h3> Are you Sure?</h3>
+          <p>&nbsp;</p>
+          <v-row>
+            <v-col cols="12" class="text-left">
+              <v-btn color="primary" @click="confirmDelete">Yes, Delete it</v-btn>
+              <v-btn variant="text" class="ml-2" @click="cancelDialog">Cancel</v-btn>
+            </v-col>
+          </v-row>
+        </v-card-text>
+      </v-card>
+    </v-dialog>
   </div>
 </template>
 <style scoped>
