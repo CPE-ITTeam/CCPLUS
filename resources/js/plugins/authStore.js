@@ -170,6 +170,24 @@ export const useAuthStore = defineStore('useAuthStore', {
                                     }
                                   });
       return response.data;
-    }
+    },
+    async ccPatch(url, content) {
+      const response = await axios({ method: 'patch', url: url, data: content,
+                                    headers: {
+                                      Authorization: 'Bearer ' + this.token,
+                                      Accept: "application/json",
+                                    }
+                                  });
+      return response.data;
+    },
+    async ccDestroy(url) {
+      const response = await axios({ method: 'delete', url: url,
+                                    headers: {
+                                      Authorization: 'Bearer ' + this.token,
+                                      Accept: "application/json",
+                                    }
+                                  });
+      return response.data;
+    },
   }
 });
