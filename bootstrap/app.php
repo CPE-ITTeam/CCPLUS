@@ -31,6 +31,7 @@ return Application::configure(basePath: dirname(__DIR__))
         ]);
 
         $middleware->prependToGroup('api', [
+            AssignConsortiumDb::class,
             StartSession::class,
         ]);
         $middleware->appendToGroup('web', [
@@ -43,6 +44,7 @@ return Application::configure(basePath: dirname(__DIR__))
 
         $middleware->alias([
             'role' => CheckRole::class,
+            'assignDb' => AssignConsortiumDb::class,
         ]);
 
         $middleware->trustProxies(
