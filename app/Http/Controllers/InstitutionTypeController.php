@@ -113,7 +113,7 @@ class InstitutionTypeController extends Controller
         $type->update([ 'name' => $request->input('name') ]);
 
         return response()->json(['result' => true, 'msg' => 'Institution type successfully updated',
-                                 'type' => $type]);
+                                 'record' => $type]);
     }
 
     /**
