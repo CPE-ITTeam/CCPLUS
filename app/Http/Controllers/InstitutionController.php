@@ -80,6 +80,7 @@ class InstitutionController extends Controller
             }
             $harvest_count = $rec->credentials->whereNotNull('last_harvest')->count();
             $inst['type'] = ($rec->institutionType) ? $rec->institutionType->name : "(Not classified)";
+            $inst['can_edit'] = $rec->canManage();
             $inst['can_delete'] = ($harvest_count > 0 || $rec->id == 1) ? false : true;
             $inst['role'] = $this->userRole($rec->id);
             $data[] = $inst;
@@ -397,10 +398,13 @@ class InstitutionController extends Controller
             }
         }
 
-       // if not admin (user is a local-admin for their institution), only update FTE and notes
-        if (!$thisUser->hasRole("Admin")) {
-            if ( isset($input['fte']) || isset($input['notes']) ) {
+       // if not consoAdmin (user is a local-admin for their institution), only update name, FTE and notes
+        if (!$thisUser->isConsoAdmin()) {
+            if ( isset($input['name']) || isset($input['fte']) || isset($input['notes']) ) {
                 $limitedFields = array();
+                if (isset($input['name'])) {
+                    $limitedFields['name'] = $input['name'];
+                }
                 if (isset($input['fte'])) {
                     $limitedFields['fte'] = $input['fte'];
                 }
