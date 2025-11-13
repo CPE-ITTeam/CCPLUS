@@ -17,9 +17,18 @@ class InstitutionTypeController extends Controller
        */
     public function index(Request $request)
     {
-        $data = InstitutionType::orderBy('name', 'ASC')->get(['id','name'])->toArray();
-        // return view('institutiontypes.index', compact('data'));
-        return response()->json(['records' => $data], 200);
+        $thisUser = auth()->user();
+        $consoAdmin = $thisUser->isConsoAdmin();
+
+        $data = InstitutionType::with(['institutions:id,name,type_id'])->orderBy('name', 'ASC')->get();
+        $types = $data->map(function ($type) use ($consoAdmin) {
+            return [
+                'id' => $type->id, 'name' => $type->name, 'can_edit' => ($type->id >1 && $consoAdmin),
+                'can_delete' => ( $type->id>1 && $consoAdmin && $type->institutions->count() == 0 ),
+                'institutions' => $type->institutions->toArray()
+            ];
+        });
+        return response()->json(['records' => $types], 200);
     }
 
       /**
@@ -40,6 +49,11 @@ class InstitutionTypeController extends Controller
        */
     public function store(Request $request)
     {
+        $thisUser = auth()->user();
+        if (!$thisUser->isConsoAdmin()) {
+            return response()->json(['result' => false, 'msg' => 'Not Authorized']);
+        }
+
         $test = InstitutionType::where('name', '=', $request->input('name'))->first();
         if ($test) {
             return response()->json(['result' => false, 'msg' => 'An existing type with that name already exists']);
@@ -78,23 +92,25 @@ class InstitutionTypeController extends Controller
      * Update the specified resource in storage.
      *
      * @param  \Illuminate\Http\Request  $request
-     * @param  int  $id
+     * @param  InstitutionType $type
      * @return \Illuminate\Http\Response
      */
-    public function update(Request $request, $id)
+    public function update(Request $request, InstitutionType $type)
     {
-        $type = InstitutionType::findOrFail($id);
+        $thisUser = auth()->user();
+        if (!$thisUser->isConsoAdmin()) {
+            return response()->json(['result' => false, 'msg' => 'Not Authorized']);
+        }
         $this->validate($request, ['name' => 'required']);
 
         // Don't save if the name already exists for another ID
-        $test = InstitutionType::where('name', '=', $request->input('name'))->first();
+        $test = InstitutionType::where('name', '=', $request->input('name'))
+                               ->where('id','<>',$type->id)->first();
         if ($test) {
-            if ($test->id != $type->id) {   // allow (re)saving a type with an unchanged name
-                return response()->json(['result' => false, 'msg' => 'Another type with that name already exists']);
-            }
+            return response()->json(['result' => false, 'msg' => 'Another type with that name already exists']);
         }
-        $type->name = $request->input('name');
-        $type->save();
+
+        $type->update([ 'name' => $request->input('name') ]);
 
         return response()->json(['result' => true, 'msg' => 'Institution type successfully updated',
                                  'type' => $type]);
@@ -103,19 +119,18 @@ class InstitutionTypeController extends Controller
     /**
      * Remove the specified resource from storage.
      *
-     * @param  int  $id
+     * @param  InstitutionType $type
      * @return \Illuminate\Http\Response
      */
-    public function destroy($id)
+    public function destroy(InstitutionType $type)
     {
-        $type = InstitutionType::findOrFail($id);
-
-        // Update all institutions that have this type before deleting it
-        $institutions = Institution::where('institutiontype_id', '=', $id);
-        foreach ($institutions as $inst) {
-            $inst->institutiontype_id = 1;  // reset type to the default (Not classified)
-            $inst->save();
+        $thisUser = auth()->user();
+        if (!$thisUser->isConsoAdmin()) {
+            return response()->json(['result' => false, 'msg' => 'Not Authorized']);
         }
+
+        // Update all institutions that have this type and then delete it
+        Institution::where('institutiontype_id', $id)->update(['type_id' => 1]);
         $type->delete();
         return response()->json(['result' => true, 'msg' => 'Institution type successfully deleted']);
     }
