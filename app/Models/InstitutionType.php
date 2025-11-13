@@ -24,4 +24,10 @@ class InstitutionType extends Model
     {
         return $this->hasMany('App\Models\Institution', 'type_id');
     }
+
+    public function groups()
+    {
+        return $this->hasMany('App\Models\InstitutionGroup', 'type_id');
+    }
+
 }
