@@ -170,14 +170,17 @@
       <!-- Actions column -->
       <template #item.actions="{ item }">
         <div class="d-flex ga-2 justify-end">
-          <v-tooltip text="Edit" location="top">
+<!--
+NOTE:: !"can_edit" hides icon; a gray/disable icon could be added instead of "nothing"
+-->        
+          <v-tooltip v-if="item.can_edit" text="Edit" location="top">
             <template v-slot:activator="{ props }">
               <v-icon icon="mdi-pencil" color="medium-emphasis" v-bind="props"
                       @click="$emit('edit', item)" />
             </template>
           </v-tooltip>
 <!--
-NOTE:: Hides icon if "can_delete" is falde adding gray/disable icon could be added instead of "nothing"
+NOTE:: !"can_delete" hides icon; a gray/disable icon could be added instead of "nothing"
 -->        
           <v-tooltip v-if="item.can_delete" text="Delete" location="top">
             <template v-slot:activator="{ props }">
