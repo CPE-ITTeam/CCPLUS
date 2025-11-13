@@ -17,11 +17,17 @@ class InstitutionGroup extends Model
    *
    * @var array
    */
-    protected $fillable = [ 'id', 'name' ];
+    protected $fillable = [ 'id', 'name', 'type_id' ];
     protected $casts =['id'=>'integer'];
 
     public function institutions()
     {
         return $this->belongsToMany('App\Models\Institution')->withTimestamps();
     }
+
+    public function typeRestriction()
+    {
+        return $this->belongsTo('App\Models\InstitutionType', 'type_id');
+    }
+
 }

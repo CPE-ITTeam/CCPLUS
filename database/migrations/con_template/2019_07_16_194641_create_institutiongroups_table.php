@@ -16,6 +16,7 @@ class CreateInstitutiongroupsTable extends Migration
         Schema::create('institutiongroups', function (Blueprint $table) {
             $table->Increments('id');
             $table->string('name');
+            $table->unsignedInteger('type_id')->nullable();
             $table->timestamps();
         });
     }
