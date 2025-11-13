@@ -13,11 +13,6 @@ use PhpOffice\PhpSpreadsheet\Writer\Xlsx;
 
 class InstitutionGroupController extends Controller
 {
-    public function __construct()
-    {
-        $this->middleware('role:Admin');
-    }
-
     /**
      * Return a JSON array of the resource.
      *
@@ -25,19 +20,28 @@ class InstitutionGroupController extends Controller
      */
     public function index(Request $request)
     {
-        $groups = InstitutionGroup::with('institutions:id,name')->orderBy('name', 'ASC')->get();
+        $thisUser = auth()->user();
+
+        $groups = InstitutionGroup::with('institutions:id,name','typeRestriction')->orderBy('name', 'ASC')->get();
+        $all_institutions = Institution::where('is_active',1)->get(['id','name','type_id']);
 
         $data = array();
         foreach ($groups as $group) {
-            $members = $group->institutions->pluck('id')->toArray();
-            $group->not_members = Institution::whereNotIn('id',$members)->get(['id','name'])->toArray();
-            $group->count = sizeof($members);
-            $data[] = $group->toArray();
+            $rec = array('id' => $group->id, 'name' => $group->name);
+            $rec['type'] = ($group->typeRestriction) ? $group->typeRestriction->name : "";
+            $rec['institutions'] = $group->institutions->toArray();
+            $memberIds = $group->institutions->pluck('id')->toArray();
+            $rec['not_members'] = $all_institutions->whereNotIn('id',$memberIds)->toArray();
+            $rec['count'] = sizeof($memberIds);
+            $rec['can_edit'] = $thisUser->isConsoAdmin();
+            $rec['can_delete'] = $thisUser->isConsoAdmin();
+            $data[] = $rec;
         }
 
         // send institution types for filter option
         $filter_options = array();
         $filter_options['type'] = InstitutionType::get(['id','name'])->toArray();
+        $filter_options['institutions'] = $all_institutions->toArray();
 
         return response()->json(['records' => $data, 'options' => $filter_options, 'result' => true], 200);
     }
@@ -60,6 +64,11 @@ class InstitutionGroupController extends Controller
      */
     public function store(Request $request)
     {
+        $thisUser = auth()->user();
+        if (!$thisUser->isConsoAdmin()) {
+            return response()->json(['result' => false, 'msg' => 'Not Authorized']);
+        }
+
         $this->validate($request, [
           'name' => 'required|unique:consodb.institutiongroups,name',
         ]);
@@ -81,8 +90,8 @@ class InstitutionGroupController extends Controller
             $group->institutions = array();
         }
 
-        // Get alll institutions' data and pull out not-members
-        $institutionData = Institution::orderBy('name', 'ASC')->get(['id','name']);
+        // Get all institutions' data and pull out not-members
+        $institutionData = Institution::orderBy('name', 'ASC')->get(['id','name','type_id']);
         $group->not_members = $institutionData->except($new_members);
         $group->count = sizeof($new_members);
 
@@ -133,19 +142,21 @@ class InstitutionGroupController extends Controller
      * Update the specified resource in storage.
      *
      * @param  \Illuminate\Http\Request  $request
-     * @param  int  $id
-     * @return \Illuminate\Http\Response
+     * @param  InstitutionGroup $group
+     * @return JSON
      */
-    public function update(Request $request, $id)
+    public function update(Request $request, InstitutionGroup $group)
     {
-        $group = InstitutionGroup::with('institutions:id,name')->findOrFail($id);
-        $this->validate($request, [
-          'name' => 'required',
-        ]);
+        $thisUser = auth()->user();
+        if (!$thisUser->isConsoAdmin()) {
+            return response()->json(['result' => false, 'msg' => 'Not Authorized']);
+        }
+        $this->validate($request, [ 'name' => 'required' ]);
+        $input = $request->all();
 
-        // Update group name
-        $group->name = $request->input('name');
-        $group->save();
+        // Update group
+        $type = (isset($input['type'])) ? $input['type'] : null;
+        $group->update([ 'name' => $input['name'], 'type_id' => $type ]);
 
         // Reset membership assignments
         if ($group->institutions()->count() > 0) {
@@ -157,16 +168,15 @@ class InstitutionGroupController extends Controller
         $member_ids = $group->institutions->pluck('id')->toArray();
 
         // Get all institutions' data and save not-members
-        $institutionData = Institution::orderBy('name', 'ASC')->get(['id','name']);
+        $institutionData = Institution::orderBy('name', 'ASC')->get(['id','name','type_id']);
         $group->not_members = $institutionData->except($member_ids);
-        $group->load('institutions:id,name');
+        $group->load('institutions:id,name','typeRestriction');
         $group->count = $group->institutions->count();
-        // Rebuild the groups-membership strings for all institutions
-        $institutionData->load('institutionGroups');
-        $belongsTo = $this->groupsByInst($institutionData);
+        $group->type = ($group->typeRestriction) ? $group->typeRestriction->name : "";
+        $group->can_edit = true;   // $thisUser->isConsoAdmin();
+        $group->can_delete = true; // $thisUser->isConsoAdmin();
 
-        return response()->json(['result' => true, 'msg' => 'Group updated successfully', 'group' => $group,
-                                 'belongsTo' => $belongsTo]);
+        return response()->json(['result' => true, 'msg' => 'Group updated successfully', 'record' => $group]);
     }
 
     /**
@@ -225,19 +235,22 @@ class InstitutionGroupController extends Controller
     /**
      * Remove the specified resource from storage.
      *
-     * @param  int  $id
-     * @return \Illuminate\Http\Response
+     * @param  InstitutionGroup $group
+     * @return JSON
      */
-    public function destroy($id)
+    public function destroy(InstitutionGroup $group)
     {
-        $group = InstitutionGroup::findOrFail($id);
+        $thisUser = auth()->user();
+        if (!$thisUser->isConsoAdmin()) {
+            return response()->json(['result' => false, 'msg' => 'Not Authorized']);
+        }
         $group->delete();
 
         // Rebuild the groups-membership strings for all institutions
         $institutions = Institution::with('institutionGroups')->orderBy('name', 'ASC')->get(['id','name']);
         $belongsTo = $this->groupsByInst($institutions);
 
-        return response()->json(['result' => true, 'msg' => 'Group successfully deleted', 'belongsTo' => $belongsTo]);
+        return response()->json(['result' => true, 'msg' => 'Group successfully deleted']);
     }
 
     /**
