@@ -1,38 +1,28 @@
 <!-- toolbar/FiltersAndActions -->
 <script setup>
-  const props = defineProps({
-    filters: { type: Object, required: true },
-  });
-  var filterModel;
-
-//ToDo:: emit/change filter action needs to pass changes to parent component
-
-  const emit = defineEmits(['customAction']);
-
-  const emitAction = (filter, payload) => {
-    emit('customAction', { filter, payload });
-  };
+  const filters = defineModel({type: Object, required: true});
+  const emit = defineEmits(['setFilter']);
 </script>
 
 <template>
-  <v-col v-for="(filter,idx) in props.filters" :key="idx" :cols="(typeof(filter.cols)=='undefined') ? 2 : filter.cols">
+  <v-col v-for="(filter,idx) in filters" :key="idx" :cols="(typeof(filter.cols)=='undefined') ? 2 : filter.cols">
 
     <!-- AutoComplete - multiple select -->
-    <v-autocomplete v-if="filter.type=='mselect'" v-model="filterModel" :label="filter.label" multiple
-        :items="filter.items" :item-title="filter.txt" :item-value="filter.val"
-        @change="emitAction('filter.label', $event)" />
+    <v-autocomplete v-if="filter.show && filter.type=='mselect'" v-model="filters[filter.name].value" :label="filter.label"
+        multiple :items="filter.items" :item-title="filter.txt" :item-value="filter.val"
+        @update:modelValue="$emit('setFilter')" />
 
     <!-- AutoComplete - single item select -->
-    <v-autocomplete v-if="filter.type=='select'" v-model="filterModel" :label="filter.label" :items="filter.items"
-        :item-title="filter.txt" :item-value="filter.val" @change="emitAction('filter.name', $event)" />
+    <v-autocomplete v-if="filter.show && filter.type=='select'" v-model="filters[filter.name].value" :label="filter.label"
+        :items="filter.items" :item-title="filter.txt" :item-value="filter.val"
+        @update:modelValue="$emit('setFilter')" />
 
     <!-- AutoComplete - return single object -- needed anywhere??
-    <v-autocomplete v-if="filter.type=='select'" v-model="filterModel" :label="filter.label" return-object
-        :items="props.options[filter.optionsKey]" :item-title="filter.txt" :item-value="filter.val"
-        @change="emitAction('filter.name', $event)" />
+    <v-autocomplete v-if="filter.type=='select'" v-model="filters[filter.name].value" :label="filter.label"
+        return-object :items="filter.items" :item-title="filter.txt" :item-value="filter.val" />
     -->
     <!-- Return a Single Scalar value -->
-    <v-select v-if="filter.type=='text'" v-model="filterModel" :label="filter.label" :items="filter.items" 
-             :item-title="filter.txt" :item-value="filter.val" @change="emitAction('filter.name', $event)" />
+    <v-select v-if="filter.show && filter.type=='text'" v-model="filters[filter.name].value" :label="filter.label"
+        :items="filter.items" :item-title="filter.txt" :item-value="filter.val" @update:modelValue="$emit('setFilter')" />
   </v-col>
 </template>
