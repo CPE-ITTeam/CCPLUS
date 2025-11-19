@@ -6,6 +6,7 @@ use DB;
 use Hash;
 use App\Models\User;
 use App\Models\Role;
+use App\Models\UserRole;
 use App\Models\Institution;
 use App\Models\InstitutionGroup;
 use App\Models\Consortium;
@@ -25,9 +26,11 @@ class UserController extends Controller
      */
     public function index(Request $request)
     {
-        // Admins see all, managers see only their inst, everyone else gets an error
+        // Conso/Server Admins see all, LocalAdmins see only their inst, everyone else gets an error
         $thisUser = auth()->user();
-        abort_unless($thisUser->hasAnyRole(['Admin']), 403);
+        if (!$thisUser->isAdmin()) {
+            return response()->json(['result' => false, 'msg' => 'Request failed (403) - Forbidden']);
+        }
 
         // Initialize some arrays/values
         $data = array();
@@ -54,14 +57,20 @@ class UserController extends Controller
 
         // Make user role names one string, role IDs into an array, and status to a string for the view
         foreach ($user_data as $rec) {
-            // exclude any users that cannot be managed by thisUser from the displayed list
-            if (!$rec->canManage()) continue;
-
             // Setup array for this user data
-            $user = $rec->toArray();
+            $user = array('id' => $rec->id, 'email' => $rec->email, 'name' => $rec->name, 'inst_id' => $rec->inst_id,
+                          'institution' => $rec->institution, 'last_login' => $rec->last_login);
             $user['status'] = ($rec->is_active) ? "Active" : "Inactive";
+            $user['user_role'] = $rec->maxRoleName();
+            if ($rec->inst_id!=1 && $user['user_role'] == 'Admin') {
+                $user['user_role'] = "Local Admin";
+            } else if ($rec->inst_id==1 && $user['user_role'] != 'ServerAdmin') {
+                $user['user_role'] = 'Consortium '.$user['user_role'];
+            }    
             $user['fiscalYr'] = ($rec->fiscalYr) ? $rec->fiscalYr : config('ccplus.fiscalYr');
-            $data[] = $user;                
+            $user['can_edit'] = $rec->canManage();
+            $user['can_delete'] = $rec->canManage();
+            $data[] = $user;
         }
 
         // Add filtering options for institutions
@@ -69,16 +78,6 @@ class UserController extends Controller
         $filter_options['institutions'] = Institution::whereIn('id',$instIds)->get(['id','name'])->toArray();
 
         return response()->json(['records' => $data, 'options' => $filter_options, 'result' => true], 200);
-    }
-
-    /**
-     * Show the form for creating a new resource.
-     *
-     * @return \Illuminate\Http\Response
-     */
-    public function create()
-    {
-        //
     }
 
     /**
@@ -90,8 +89,8 @@ class UserController extends Controller
     public function store(Request $request)
     {
         $thisUser = auth()->user();
-        if (!$thisUser->hasAnyRole(['Admin','Manager'])) {
-            return response()->json(['result' => false, 'msg' => 'Update failed (403) - Forbidden']);
+        if (!$thisUser->isAdmin()) {
+            return response()->json(['result' => false, 'msg' => 'Operation failed (403) - Forbidden']);
         }
         $this->validate($request, [
             'name' => 'required',
@@ -99,33 +98,32 @@ class UserController extends Controller
             'password' => 'required|same:confirm_pass',
             'inst_id' => 'required'
         ]);
+
+        // Put inputs into an array, check inst_id for the new user against the current user/role
         $input = $request->all();
+        if ($thisUser->inst_id != $input['inst_id'] && !$thisUser->isConsoAdmin()) {
+            return response()->json(['result' => false, 'msg' => 'Operation Forbidden (403)']);
+        }
+
         // make sure email is unique 
         $exists = User::where('email',$input['email'])->first();
         if ($exists) {
             return response()->json(['result' => false, 'msg' => 'Email address is already assigned to another user']);
         }
-        if (!$thisUser->hasRole("Admin")) {     // managers only store to their institution
-            $input['inst_id'] = $thisUser->inst_id;
-        }
         if (!isset($input['is_active'])) {
             $input['is_active'] = 0;
         }
 
-        // Make sure roles include "User"
-        $user_role_id = Role::where('name', '=', 'User')->value('id');
+        // Make sure roles include at least "Viewer"
+        $viewer_role_id = Role::where('name','Viewer')->value('id');
         $new_roles = isset($input['roles']) ? $input['roles'] : array();
-        if (!in_array($user_role_id, $new_roles)) {
-            array_unshift($new_roles, $user_role_id);
+        if (count($new_roles) == 0) {
+            array_unshift($new_roles, $view_role_id);
         }
 
-        // Create the user and attach roles (limited to current user maxRole)
-        $viewer_role_id = Role::where('name', '=', 'Viewer')->value('id');
+        // Create the user and attach roles (limited to current user's maxRole)
         $user = User::create($input);
         foreach ($new_roles as $r) {
-            if (!$thisUser->hasRole("Admin") && $r == $viewer_role_id) {
-                continue;   // only allow admin to set Viewer
-            }
             if ($thisUser->maxRole() >= $r) {
                 $user->roles()->attach($r);
             }
@@ -150,101 +148,48 @@ class UserController extends Controller
         $_roles = "";
         $new_user = $user->toArray();
         $new_user['inst_name'] = $user->institution->name;
-        foreach ($user->roles as $role) {
-            $_name = $role->name;
-            $is_admin = $user->roles->whereIn('name', ['Manager', 'Admin'])->first();
-            if ($_name =="User" && $is_admin) continue;
-            if ($_name == "Manager") $_name = "Local Admin";
-            if ($_name == 'Admin') $_name = "Consortium Admin";
-            if ($_name == 'Viewer') $_name = "Consortium Viewer";
-            $_roles .= $_name . ", ";
+        $new_user['status'] = ($user->is_active) ? "Active" : "Inactive";
+        $new_user['user_role'] = $user->maxRoleName();
+        if ($user->inst_id!=1 && $new_user['user_role'] == 'Admin') {
+            $new_user['user_role'] = "Local Admin";
+        } else if ($user->inst_id==1 && $new_user['user_role'] != 'ServerAdmin') {
+            $new_user['user_role'] = 'Consortium '.$new_user['user_role'];
         }
-        $_roles = rtrim(trim($_roles), ',');
-        $max_role = $user->maxRoleName();
-        if ($max_role == "Admin") $max_role = "Consortium Admin";
-        if ($max_role == "Manager") $max_role = "Local Admin";
-        if ($max_role == "Viewer") $max_role = "Consortium Viewer";
         $new_user['permission'] = $max_role;
-        $new_user['role_string'] = $_roles;
-        $new_user['roles'] = $new_roles;
+        $new_user['roles'] = $user->allRoles();
         $new_user['fiscalYr'] = ($user->fiscalYr) ? $user->fiscalYr : config('ccplus.fiscalYr');
+        $new_user['can_edit'] = $user->canManage();
+        $new_user['can_delete'] = $user->canManage();
 
-        return response()->json(['result' => true, 'msg' => 'User successfully created', 'user' => $new_user]);
-    }
-
-    /**
-     * Display the specified resource.
-     *
-     * @param  int  $id
-     * @return \Illuminate\Http\Response
-     */
-    public function show($id)
-    {
-        $user = User::with('roles')->findOrFail($id);
-        abort_unless($user->canManage(), 403);
-        if ($user->hasRole('ServerAdmin') && $user->email == config('ccplus.server_admin')) {
-            return response()->json(['result' => false, 'msg' => 'Show (403) - Forbidden']);
-        }
-
-        return view('users.show', compact('user'));
-    }
-
-    /**
-     * Show the form for editing the specified resource.
-     *
-     * @param  int  $id
-     * @return \Illuminate\Http\Response
-     */
-    public function edit($id)
-    {
-        $thisUser = auth()->user();
-        $user = User::findOrFail($id);
-        abort_unless($user->canManage(), 403);
-        if ($user->hasRole('ServerAdmin') && $user->email == config('ccplus.server_admin')) {
-            return response()->json(['result' => false, 'msg' => 'Edit (403) - Forbidden']);
-        }
-        $user->roles = $user->roles()->pluck('role_id')->all();
-        $user->fiscalYr = ($user->fiscalYr) ? $user->fiscalYr : config('ccplus.fiscalYr');
-
-        // Admin gets a select-box of institutions, otherwise just the users' inst
-        if ($thisUser->hasRole('Admin')) {
-            $institutions = Institution::orderBy('name', 'ASC')->get(['id','name'])->toArray();
-        } else {
-            $institutions = Institution::where('id', '=', $thisUser->inst_id)
-                                       ->get(['id','name'])->toArray();
-        }
-
-        // Set choices for roles; disallow choosing roles higher current user's max role
-        $all_roles = Role::where('id', '<=', $thisUser->maxRole())->get(['name', 'id'])->toArray();
-
-        return view('users.edit', compact('user','all_roles', 'institutions'));
+        return response()->json(['result' => true, 'msg' => 'User successfully created', 'record' => $new_user]);
     }
 
     /**
      * Update the specified resource in storage.
      *
      * @param  \Illuminate\Http\Request  $request
-     * @param  int  $id
+     * @param  User $user
      * @return \Illuminate\Http\Response
      */
-    public function update(Request $request, $id)
+    public function update(Request $request, User $user)
     {
         $thisUser = auth()->user();
-        $user = User::findOrFail($id);
+
+        // Ensure current user allowed to modify the record and is not trying to change ServerAdmin user
         if (!$user->canManage() ||
-            ($user->hasRole('ServerAdmin') && $user->email == config('ccplus.server_admin')) ) {
+            ($user->isServerAdmin() && $user->email == config('ccplus.server_admin')) ) {
             return response()->json(['result' => false, 'msg' => 'Update failed (403) - Forbidden']);
         }
 
-        // Set form fields to be validated
+        // Setup form field validation
         $fields = array();
-        //  Validate email address if it is NOT 'Administrator'(users table require unique anyway)
+        //  Validate that password changes match confirmation
         if (isset($request->password)) {
             $fields['password'] = 'same:confirm_pass';
         }
         //  Validate email address if it is NOT 'Administrator'(users table require unique anyway)
         if (isset($request->email) && $request->email != 'Administrator') {
-            $fields['email'] = 'email|unique:consodb.users,email,' . $id;
+            $fields['email'] = 'email|unique:consodb.users,email,' . $user->id;
         }
         if ( count($fields)>0 ) {
             $this->validate($request, $fields);
@@ -255,48 +200,57 @@ class UserController extends Controller
         }
         $input = array_except($input, array('confirm_pass'));
 
+        // Disallow non-ConsoAdmins from assigning/changing inst_id to/from insts they don't admin
+        if (!$thisUser->isConsoAdmin() &&
+            (!$thisUser->hasRole('Admin',$user->inst_id) || !$thisUser->hasRole('Admin',$input['inst_id']))) {
+            return response()->json(['result' => false, 'msg' => 'Update Forbidden (403)']);
+        }
+
         // check fiscalYr - save NULL if same as global setting
         if (isset($input['fiscalYr'])) {
-            $months = array('January','February','March','April','May','June','July','August','September','October','November',
-                            'December');
+            $months = array('January','February','March','April','May','June','July','August','September',
+                            'October','November','December');
             if (!in_array($input['fiscalYr'], $months) || $input['fiscalYr'] == config('ccplus.fiscalYr')) {
                 $input['fiscalYr'] = null;
             }
         }
 
-        // Only admins can change inst_id
-        if (!$thisUser->hasRole("Admin")) {
-            $input['inst_id'] = $thisUser->inst_id;
-        }
-
         // Only assess/update roles if they arrive as input
         $all_roles = Role::orderBy('id', 'ASC')->get(['name', 'id']);
-        $viewer_role_id = Role::where('name', '=', 'Viewer')->value('id');
         if (isset($input['roles'])) {
 
-            // Make sure roles include "User"
-            $user_role_id = Role::where('name', '=', 'User')->value('id');
+            // Make sure roles include at least "Viewer"
+            $viewer_role_id = $all_roles->where('name', 'Viewer')->pluck('id');
             $new_roles = $input['roles'];
-            if (!in_array($user_role_id, $new_roles)) {
-                array_unshift($new_roles, $user_role_id);
+            if (count($new_roles) == 0) {
+                array_unshift($new_roles, $view_role_id);
             }
 
-            // Update the user record
-            $input = array_except($input, array('roles'));
-            $user->update($input);
+            $current_user_roles = UserRole::where('user_id',$user->id)->get();
 
-            // Update roles (silently ignore roles if user saving their own record)
-            if (auth()->id() != $id) {
-                $user->roles()->detach();
-                foreach ($new_roles as $r) {
-                    // Current user must be an admin to set Viewer role
-                    if (!$thisUser->hasRole("Admin") && $r == $viewer_role_id) {
-                        continue;
-                    }
-                    // ignore roles higher than current user's max
-                    if ($thisUser->maxRole() >= $r) {
-                        $user->roles()->attach($r);
-                    }
+            // Add role that aren't set; track, by-inst, any that get skipped
+            $skipped_insts = array();
+            foreach ($new_roles as $r_new) {
+                // disallow adding role higher than user setting it
+                // set "input" to match what is in current_user_roles to avoid deleting them
+                if ($thisUser->maxRole($r_new['inst_id']) < $r_new['id']) {
+                    $skipped_insts[] = $r_new['inst_id'];
+                    continue;
+                }
+                if ( !$user->hasRole($r_new['name'],$r_new['inst_id']) ) {
+                    $input = array('user_id'=>$user->id, 'inst_id'=>$r_new['inst_id'], 'role_id'=>$r_new['inst_id']);
+                    $result = UserRole::create($input);
+                }
+            }
+
+            // Remove user roles that are not in the input roles
+            // If a current role is in $skipped_insts, don't delete ANY roles for that inst since the user tried
+            // to add a role above their own.. which means the previous role(s) may not be in $input['roles']
+            foreach ($current_user_roles as $role) {
+                if (!array_find($input['roles'], function ($input) use ($role) {
+                        return ($input['role_id'] == $role->id && $input['inst_id'] == $role->inst_id);
+                    }) && !in_array($role->inst_id, $skipped_insts)) {
+                    UserRole::where('id',$role->id)->delete();
                 }
             }
             $input = array_except($input, array('roles'));
@@ -308,41 +262,32 @@ class UserController extends Controller
 
         // Setup array to hold updated user record
         $updated_user = $user->toArray();
+        $updated_user['status'] = ($user->is_active) ? "Active" : "Inactive";
         $updated_user['inst_name'] = $user->institution->name;
-        $updated_user['roles'] = $user->roles()->pluck('role_id')->all();
         $updated_user['fiscalYr'] = ($user->fiscalYr) ? $user->fiscalYr : config('ccplus.fiscalYr');
-
-        // Set role_string to hold user's highest access right (other than viewer)
-        $access_role_ids = $user->roles->where('id','<>',$viewer_role_id)->pluck('id')->toArray();
-        $updated_user['role_string'] = $all_roles->where('id', max($access_role_ids))->first()->name;
-        $user_is_admin = in_array($updated_user['role_string'],["ServerAdmin", "Admin", "Manager"]);
-        if ($updated_user['role_string'] == 'Manager') $updated_user['role_string'] = "Local Admin";
-        if ($updated_user['role_string'] == 'Admin') $updated_user['role_string'] = "Consortium Admin";
-        // non-admins with Viewer get it tacked onto their role_string
-        if ( $user->roles->where('name', 'Viewer')->first() ) {
-            if (!$user->roles->whereIn('name', ['ServerAdmin','Admin'])->first() ) {
-                $updated_user['role_string'] .= ", Consortium Viewer";
-            }
-        }
-        // Set user's roles as array of IDs; exclude "User" for admins
-        $updated_user['roles'] = ($user_is_admin) ? $user->roles->where('id','>',1)->pluck('id')->toArray()
-                                                  : $user->roles->pluck('id')->toArray();
-
+        // Set user_role to hold user's highest access right
+        $updated_user['user_role'] = $user->maxRoleName();
+        if ($user->inst_id!=1 && $updated_user['user_role'] == 'Admin') {
+            $updated_user['user_role'] = "Local Admin";
+        } else if ($user->inst_id==1 && $updated_user['user_role'] != 'ServerAdmin') {
+            $updated_user['user_role'] = 'Consortium '.$updated_user['user_role'];
+        }    
+        $user['can_edit'] = $rec->canManage();
+        $user['can_delete'] = $rec->canManage();
         return response()->json(['result' => true, 'msg' => 'User settings successfully updated',
-                                 'user' => $updated_user]);
+                                 'record' => $updated_user]);
     }
 
     /**
      * Remove the specified resource from storage.
      *
-     * @param  int  $id
+     * @param  User $user
      * @return \Illuminate\Http\Response
      */
-    public function destroy($id)
+    public function destroy(User $user)
     {
-        $user = User::findOrFail($id);
         if (!$user->canManage() ||
-            ($user->hasRole('ServerAdmin') && $user->email == config('ccplus.server_admin')) ) {
+            ($user->isServerAdmin() && $user->email == config('ccplus.server_admin')) ) {
             return response()->json(['result' => false, 'msg' => 'Delete failed (403) - Forbidden']);
         }
         if (auth()->id() == $id) {
@@ -363,7 +308,7 @@ class UserController extends Controller
         $thisUser = auth()->user();
 
         // Admins access all, managers only access their inst, eveyone else gets an error
-        abort_unless($thisUser->hasAnyRole(['Admin','Manager']), 403);
+        abort_unless($thisUser->isAdmin(), 403);
 
         // Handle and validate inputs
         $filters = null;
@@ -384,7 +329,7 @@ class UserController extends Controller
         $all_insts = false;
 
         // Get User records
-        if ($thisUser->hasRole("Admin")) {
+        if ($thisUser->isConsoAdmin()) {
             $data = User::with('roles', 'institution:id,name')
                          ->when($filters['inst'], function ($qry, $filters) {
                              return $qry->whereIn('inst_id', $filters['inst']);
@@ -515,7 +460,7 @@ class UserController extends Controller
         $users_sheet->setCellValue('E1', 'Phone');
         $users_sheet->setCellValue('F1', 'Active');
         $users_sheet->setCellValue('G1', 'Role(s)');
-        if ($thisUser->hasRole('Admin')) {
+        if ($thisUser->isConsoAdmin()) {
             $users_sheet->setCellValue('H1', 'Institution ID');
             $users_sheet->setCellValue('I1', 'LEAVE BLANK');
             $users_sheet->setCellValue('J1', 'Institution');
@@ -543,7 +488,7 @@ class UserController extends Controller
             }
             $_roles = rtrim(trim($_roles), ',');
             $users_sheet->setCellValue('G' . $row, $_roles);
-            if ($thisUser->hasRole('Admin')) {
+            if ($thisUser->isConsoAdmin()) {
                 $users_sheet->setCellValue('H' . $row, $user->inst_id);
                 $_inst = ($user->inst_id == 1) ? "Staff" : $user->institution->name;
                 $users_sheet->setCellValue('J' . $row, $_inst);
@@ -569,7 +514,7 @@ class UserController extends Controller
         }
 
         // Give the file a meaningful filename
-        if ($thisUser->hasRole('Admin')) {
+        if ($thisUser->isConsoAdmin()) {
             $fileName = "CCplus_" . session('ccp_con_key', '') . "_Users.xlsx";
         } else {
             $fileName = "CCplus_" . preg_replace('/ /', '', $thisUser->institution->name) . "_Users.xlsx";
@@ -592,7 +537,7 @@ class UserController extends Controller
     public function import(Request $request)
     {
         // Only Admins can import user data
-        abort_unless(auth()->user()->hasRole(['Admin']), 403);
+        abort_unless(auth()->user()->isConsoAdmin(), 403);
 
         // Handle and validate inputs
         $this->validate($request, ['csvfile' => 'required']);
@@ -726,16 +671,16 @@ class UserController extends Controller
         $users = $user_data->map( function($user) use ($all_roles, $viewRoleId) {
             $access_role_ids = $user->roles->where('id','<>',$viewRoleId)->pluck('id')->toArray();
             $user['role_string'] = $all_roles->where('id', max($access_role_ids))->first()->name;
-            $user_is_admin = in_array($user['role_string'],["ServerAdmin", "Admin", "Manager"]);
-            if ($user['role_string'] == 'Manager') $user['role_string'] = "Local Admin";
-            if ($user['role_string'] == 'Admin') $user['role_string'] = "Consortium Admin";
-
-            // non-admins with Viewer get it tacked onto their role_string
-            if ( $user->roles->where('name', 'Viewer')->first() ) {
-                if (!$user->roles->whereIn('name', ['ServerAdmin','Admin'])->first() ) {
-                    $user['role_string'] .= ", Consortium Viewer";
-                }
+            if ($user->inst_id!=1 && $user['role_string'] == 'Admin') {
+                $user['role_string'] = "Local Admin";
+            } else if ($user->inst_id==1 && $user['role_string'] != 'ServerAdmin') {
+                $user['role_string'] = 'Consortium '.$user['role_string'];
             }
+
+//NOTE:: THiS still needs work - howTo layout in the exportsheet?
+            // Set user's roles as array of Role::Institution pairs
+            $user['roles'] = $user->allRoles();
+            
             // Set user's roles as array of IDs; exclude "User" for admins
             $user['roles'] = ($user_is_admin) ? $user->roles->where('id','>',1)->pluck('id')->toArray()
                                               : $user->roles->pluck('id')->toArray();
