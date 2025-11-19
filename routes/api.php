@@ -91,6 +91,6 @@ Route::middleware('ccplusAuth')->group( function () {
         Route::delete('/delete/{savedreport}', 'App\Http\Controllers\SavedReportController@destroy')->name('savedreports.destroy');
     });
     Route::prefix('reports')->group(function () {
-        Route::get('/options', 'App\Http\Controllers\ReportController@create')->name('reports.options');
+        Route::get('/options/{type}', 'App\Http\Controllers\ReportController@create')->name('reports.options');
     });
 });
