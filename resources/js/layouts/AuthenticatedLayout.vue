@@ -119,14 +119,14 @@
                         </v-expansion-panel-title>
                         <v-expansion-panel-text class="rounded-lg">
                           <component :is="grandchild.component" :key="grandchild.meta.key"
-                                     @update:conso="handleChangeConso(child.name)" />
+                                     @updateConso="handleChangeConso(child.name)" />
                         </v-expansion-panel-text>
                       </v-expansion-panel>
                     </v-expansion-panels>
                   </div>
                   <div v-else>
                     <component :is="child.component" :key="child.meta.key"
-                               @update:conso="handleChangeConso(child.name)"/>
+                               @updateConso="handleChangeConso(child.name)"/>
                   </div>
               </v-tabs-window-item>
               </v-tabs-window>

@@ -26,7 +26,7 @@
   // ToDo:: Catch emits from child components
 
   const emit = defineEmits([
-    'update:conso',
+    'updateConso',
     'update:search',
     'update:showSelectedOnly',
     'add',
@@ -49,7 +49,7 @@
     </FlexCol>
     <v-col v-if="is_serveradmin && consortia.length>1 && props.dataset!='jobs'" class="flex px-4" cols="3">
       <v-autocomplete v-model="consoKey" label="Consortium" :items="consortia" item-title="name"
-                      item-value="ccp_key" @update:modelValue="$emit('update:conso', $event)" />
+                      item-value="ccp_key" @update:modelValue="$emit('updateConso', $event)" />
     </v-col>
     <!-- Export, Import, & Add -->
     <ExportAndImport v-if="!consoOnly" @export="$emit('export')" @import="$emit('import')" @add="$emit('add')"/>

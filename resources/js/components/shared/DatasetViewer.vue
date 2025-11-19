@@ -110,7 +110,7 @@
     consoKey.value = value;
     setConsoKey(value);
     loadDataset(props.datasetKey);
-    emit('update:conso', value);
+    emit('updateConso', value);
     dtKey.value++;
   }
 
@@ -233,7 +233,7 @@ console.log('Filter by selectObj still needs work');
     dialogOpen.value = false;
     editingItem.value = null;
   }
-  const emit = defineEmits(['update:conso','setFilter']);
+  const emit = defineEmits(['updateConso','setFilter']);
   onBeforeMount(() => loadDataset(props.datasetKey));
   watch(() => props.datasetKey, (newKey) => loadDataset(newKey));
 </script>
@@ -243,7 +243,8 @@ console.log('Filter by selectObj still needs work');
 <template>
   <v-sheet>
     <DataToolbar v-model="filterOptions" :search="search" :showSelectedOnly="showSelectedOnly" :dataset="props.datasetKey"
-                 @update:search="search = $event" @setFilter="updateItems" @update:showSelectedOnly="handleToggle" />
+                 @update:search="search = $event" @setFilter="updateItems" @update:showSelectedOnly="handleToggle"
+                 @updateConso="handleChangeConso" />
 
     <DataTable v-if="consoKey!=''" :items="filteredItems" :search="search" :dataset="props.datasetKey" :key="dtKey"
                :showSelectedOnly="showSelectedOnly" :headers="headers" :editableFields="editableFields"
