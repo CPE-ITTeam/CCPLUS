@@ -67,7 +67,7 @@ class InstitutionController extends Controller
         foreach ($inst_data as $rec) {
             $inst = array('id' => $rec->id, 'name' => $rec->name, 'is_active' => $rec->is_active,
                           'local_id' => $rec->local_id, 'fte' => $rec->fte, 'notes' => $rec->notes,
-                          'group_string' => '');
+                          'type_id' => $rec->type_id, 'group_string' => '');
             $inst['status'] = ($rec->is_active) ? "Active" : "Inactive";
             $inst['groups'] = $rec->institutionGroups()->pluck('institution_group_id')->all();
             foreach ($rec->institutionGroups as $group) {
