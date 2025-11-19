@@ -36,7 +36,22 @@ class RoleController extends Controller
 
         // Setup filtering options for the datatable
         $filter_options = array('statuses' => array('ALL','Active','Inactive'));
-        $filter_options['roles'] = Role::where('name','<>','ServerAdmin')->get(['id','name'])->toArray();
+
+        // Role options need to be dependent on $thisUser's roles
+        // $filter_options['roles'] = Role::where('name','<>','ServerAdmin')->get(['id','name'])->toArray();
+        $all_roles = Role::where('name','<>','ServerAdmin')->get(['id','name']);
+        $filter_options['roles'] = array();
+        foreach ($all_roles as $role) {
+            if ($role->id <= $thisUser->maxRole()) {
+                $row = array('role_id' => $role->id, 'name' => $role->name, 'inst_id' => null);
+                $filter_options['roles'][] = $row;
+                if ($thisUser->isConsoAdmin()) {
+                    $row['name'] = "Consortium ".$row['name'];
+                    $row['inst_id'] = 1;
+                    $filter_options['roles'][] = $row;
+                }
+            }
+        }
 
         // Pull user records - exclude serverAdmin
         $user_data = User::with('roles','institution:id,name')
@@ -47,20 +62,17 @@ class RoleController extends Controller
                             ->orderBy('name', 'ASC')->get();
 
         // Make user role names one string, role IDs into an array, and status to a string for the view
+        $maxRole = $thisUser->maxRole();
         foreach ($user_data as $user) {
-
-            // exclude users that thisUser cannot manage
-            if (!$user->canManage()) continue;
-
+            $canManage = $user->canManage();
             foreach ($user->allRoles() as $role) {
-
                 // Setup array for this user data
-                $rec = array('id' => $user->id, 'role_id' => $role['id'], 'name' => $user->name,
-                             'email' => $user->email);
+                $rec = array('u_role_id' => $role['id'], 'role_id' => $role['role_id'], 'user_id' => $user->id,
+                             'inst_id' => $role['inst_id'], 'name' => $user->name, 'email' => $user->email);                     
                 $rec['role'] = ($role['inst_id']==1) ? 'Consortium '.$role['name'] : $role['name'];
-                $rec['status'] = ($user->is_active) ? "Active" : "Inactive";
-                $rec['inst_id'] = $role['inst_id'];
                 $rec['inst_name'] = $role['inst'];
+                $rec['can_edit'] = ($canManage && $role['id'] <= $maxRole);
+                $rec['can_delete'] = ($canManage && $role['id'] <= $maxRole);
                 $data[] = $rec;
             }
         }
@@ -73,16 +85,6 @@ class RoleController extends Controller
     }
 
     /**
-     * Show the form for creating a new resource.
-     *
-     * @return \Illuminate\Http\Response
-     */
-    public function create()
-    {
-        return view('roles.create');
-    }
-
-    /**
      * Store a newly created resource in storage.
      *
      * @param  \Illuminate\Http\Request  $request
@@ -90,39 +92,44 @@ class RoleController extends Controller
      */
     public function store(Request $request)
     {
-        $this->validate($request, [
-          'id' => 'required|unique:consodb.roles,id',
-          'name' => 'required|unique:consodb.roles,name',
-        ]);
+//NOTE:: may want to accept a GROUP id for institution
+//    :: (would slightly complicate authorization)
+        $thisUser = auth()->user();
+        if (!$thisUser->isAdmin()) {
+            return response()->json(['result' => false, 'msg' => 'Operation failed (403) - Forbidden']);
+        }
+
+        // Get and verify input fields
+        $this->validate($request, ['user_id' => 'required', 'role_id' => 'required', 'inst_id' => 'required']);
         $input = $request->all();
-        $role = Role::create($input);
+        $role = Role::where('id',$input['role_id'])->first();
+        $role_inst = Institution::where('id',$input['inst_id'])->first();
+        $user = User::where('id',$input['user_id'])->with('roles','institution:id,name')->first();
+        if (!$user || !$role || !$role_inst) {
+            return response()->json(['result' => false, 'msg' => 'Operation failed - invalid references']);
+        }
 
-        return redirect()->route('roles.index')
-                        ->with('success', 'Role created successfully');
-    }
+        // Confirm requested role
+        if ( ($thisUser->inst_id != $input['inst_id'] && !$thisUser->isConsoAdmin()) ||
+             ($thisUser->maxRole() < $input['role_id']) ) {
+            return response()->json(['result' => false, 'msg' => 'Operation failed - not authorized']);
+        }
 
-    /**
-     * Display the specified resource.
-     *
-     * @param  Role  $role
-     * @return \Illuminate\Http\Response
-     */
-    public function show($id)
-    {
-        $role = Role::findOrFail($id);
-        return view('roles.edit', compact('role'));
-    }
+        // If it's aleady set, bail
+        if ( $user->hasRole($role->name, $role_inst->id) ) {
+            return response()->json(['result' => false, 'msg' => 'Role already assigned to this user.']);
+        }
 
-    /**
-     * Show the form for editing the specified resource.
-     *
-     * @param  Role  $role
-     * @return \Illuminate\Http\Response
-     */
-    public function edit($id)
-    {
-        $role = Role::findOrFail($id);
-        return view('roles.edit', compact('role'));
+        // Add the Role record
+        try {
+            $new_role = UserRole::create($input);
+        } catch (\Exception $e) {
+            return response()->json(['result'=>false, 'msg'=>'Error saving database: '.$e->getMessage()]);
+        }
+
+        // Return it
+        $new_role->load('user','institution','role');
+        return response()->json(['result'=>true, 'msg'=>'Role successfully saved', 'record'=>$new_role]);
     }
 
     /**
