@@ -2,6 +2,7 @@
 <script setup>
   import { ref, reactive, watch, onBeforeMount, computed } from 'vue';
   import { useAuthStore } from '@/plugins/authStore.js';
+  import { fyMonths } from '@/plugins/CCPlusStore.js';
   import { tableSetup } from '@/composables/DataTableConfig.js';
   import DataToolbar from './DataToolbar.vue';
   import DataTable from './DataTable.vue';
@@ -20,7 +21,9 @@
 
   // Reactive state
   var dtKey = ref(0);
-  var items = reactive([]);
+  var allItems = reactive([]);
+  var filteredItems = reactive([]);
+  const filterOptions = reactive({});
   const headers = ref([]);
   const searchFields = ref([]);
   const search = ref('');
@@ -28,7 +31,6 @@
   const showSelectedOnly = ref(false);
   const dialogOpen = ref(false);
   const editingItem = ref(null);
-  const filterOptions = ref({});
   const editableFields = ref([]);
   const updateUrl = ref('');
   var itemOptions = {};
@@ -50,7 +52,7 @@
     return {
       fields: [...config.fields],
       requiredKeys: [...config.required],
-      options: {...filterOptions.value},
+      options: {...filterOptions},
     };
   });
 
@@ -65,7 +67,8 @@
         itemsUrl += (is_admin) ? '/admin' : '/viewer';
       }
       const { data } = await ccGet(itemsUrl);
-      items = [ ...data.records ];
+      allItems = [ ...data.records ];
+      filteredItems = [ ...data.records ];
       itemOptions = { ...data.options };
     } catch (error) {
       console.error('Error fetching records for '+datasetKey+' : ', error);
@@ -74,18 +77,21 @@
     headers.value = [{ title: "", key: "" }];
     config.fields.forEach( (fld, idx) => {
       if (fld.header) headers.value.push({title: fld.label, key: fld.name});
-      if (typeof(config.static)!='undefined') {
-        config.fields[idx].static = (config.static.indexOf(fld.name) > -1);
-      } else {
-        config.fields[idx].static = false;
-      }
-      // Set filterOptions for select, mselect and toggle
-      if ( (fld.type == 'select' || fld.type == 'mselect' || fld.type == 'toggle') &&
+      config.fields[idx].static = (typeof(config.static)!='undefined') ?
+                                    (config.static.indexOf(fld.name) > -1) : false;
+      // Set filterOptions for select(s) and toggle
+      if ( (fld.type == 'select' || fld.type == 'mselect' || fld.type == 'selectObj' || fld.type == 'toggle') &&
            !config.fields[idx].static && fld.options == 'fromURL' &&
            typeof(itemOptions[fld.name]) != 'undefined' ) {
-        filterOptions.value[fld.name] = {
-          'label': fld.name, 'type': fld.type, 'val': fld.optVal, 'txt': fld.optTxt,
-          'items': [...itemOptions[fld.name]]
+        let initVal = (fld.type == 'mselect') ? [] : null;
+        filterOptions[fld.name] = {
+          'name': fld.name, 'label': fld.label, 'type': fld.type, 'val': fld.optVal, 'txt': fld.optTxt,
+          'show': fld.isFilter, 'col': fld.filterCol, 'items': [...itemOptions[fld.name]], 'value': initVal
+        };
+      } else if ( fld.name == 'fiscalYr') {
+        filterOptions['fiscalYr'] = {
+          'name': fld.name, 'label': fld.label, 'type': fld.type, 'val': fld.optVal, 'txt': fld.optTxt,
+          'items': [...fyMonths], 'value': null
         };
       }
     });
@@ -109,8 +115,56 @@
   }
 
   function handleEdit(item) {
-    editingItem.value = item;
+    const config = datasetConfig[props.datasetKey];
+    config.fields.forEach( (fld, idx) => {
+      // Set current values for specific select/mselect fields
+      if (fld.type == 'select' || fld.type == 'mselect' || fld.type == 'selectObj') {
+        if (fld.name == 'institutions') item['institutions'] = item.inst_id;
+        if (fld.name == 'roles') item['roles'] = item.role;
+      }
+    });
+    editingItem.value = {...item};
     dialogOpen.value = true;
+  }
+
+
+//  NOTE::: Currently - changing one filter means apply all that are set to the original item-set
+//
+  function updateItems() {
+    if (allItems.length==0) return;
+    var filterResult = [...allItems];
+    for (const key of Object.keys(filterOptions)) {
+      const filter = filterOptions[key]; 
+      // If the result set is empty, just bail
+      if (filterResult.length==0) break;
+
+      // Check if filter is set
+      if ( Array.isArray(filter.value) ) {
+        if (filter.value.length == 0) continue;
+      } else if (!filter.value) {
+        continue;
+      }
+// console.log('Filtering Col = '+filter.col);
+// console.log('Filter Type = '+filter.type);
+
+      // Filter items by a single value
+      if (filter.type == 'select') {
+        filterResult = filterResult.filter( item => item[filter.col]==filter.value );
+      // Filter items with a multi-select array
+      } else if (filter.type == 'mselect') {
+        // If item column is an array (like groups, roles, etc.)
+        if ( Array.isArray(allItems[0][filter.col]) ) {
+          filterResult = filterResult.filter( item => item[filter.col].some(f => filter.value.includes(f)) );
+        // If item column is an single value
+        } else {
+          filterResult = filterResult.filter( item => filter.value.includes(item[filter.col]) );
+        }
+      } else if (filter.type == 'selectObj') {
+console.log('Filter by selectObj still needs work');
+      }
+    }
+    filteredItems = [...filterResult];
+    dtKey.value++;
   }
 
   async function handleDelete(item) {
@@ -119,7 +173,8 @@
     try {
       const response = await ccPatch(destroyUrl);
       if (response.result) {
-        items.splice(items.findIndex( ii => ii.id == editingItem.value.id),1);
+        allItems.splice(allItems.findIndex( ii => ii.id == editingItem.value.id),1);
+        filteredItems.splice(filteredItems.findIndex( ii => ii.id == editingItem.value.id),1);
         success.value = response.msg
       } else {
         failure.value = response.msg
@@ -131,16 +186,18 @@
   }
 
   async function handleStatusUpdate(id, value) {
-    const idx = items.findIndex(ii => ii.id == id);
-    if (idx >= 0) {
-      let _item = Object.assign({}, items[idx])
+    let _idx = allItems.findIndex(ii => ii.id == id);
+    if (_idx >= 0) {
+      let _item = Object.assign({}, allItems[_idx])
       _item['is_active'] = (value == 'Active') ? 1 : 0;
       try {
         let url = updateUrl.value+'/'+id;
         const response = await ccPatch(url, {'is_active': _item['is_active']});
         if (response.result) {
           _item['status'] = value;
-          items.splice(idx,1,_item);
+          allItems.splice(_idx,1,_item);
+          _idx = filteredItems.findIndex(ii => ii.id == id);
+          if (_idx >= 0) filteredItems.splice(_idx,1,_item);
           dtKey.value++;
         } else {
           failure.value = response.msg
@@ -156,8 +213,10 @@
       let url = updateUrl.value+'/'+editingItem.value.id;
       const response = await ccPatch(url, updatedValues);
       if (response.result) {
-        const idx = items.findIndex(ii => ii.id == editingItem.value.id);
-        items.splice(idx,1,response.record);
+        let _idx = allItems.findIndex(ii => ii.id == editingItem.value.id);
+        allItems.splice(_idx,1,response.record);
+        _idx = allItems.findIndex(ii => ii.id == editingItem.value.id);
+        if (_idx >= 0) filteredItems.splice(_idx,1,response.record);
         success.value = response.msg
         dtKey.value++;
       } else {
@@ -174,7 +233,7 @@
     dialogOpen.value = false;
     editingItem.value = null;
   }
-  const emit = defineEmits(['update:conso']);
+  const emit = defineEmits(['update:conso','setFilter']);
   onBeforeMount(() => loadDataset(props.datasetKey));
   watch(() => props.datasetKey, (newKey) => loadDataset(newKey));
 </script>
@@ -183,11 +242,10 @@
 -->
 <template>
   <v-sheet>
-    <DataToolbar :search="search" :showSelectedOnly="showSelectedOnly" :dataset="props.datasetKey"
-                 :filter_options="filterOptions" @update:search="search = $event"
-                 @update:showSelectedOnly="handleToggle" @update:conso="handleChangeConso" />
+    <DataToolbar v-model="filterOptions" :search="search" :showSelectedOnly="showSelectedOnly" :dataset="props.datasetKey"
+                 @update:search="search = $event" @setFilter="updateItems" @update:showSelectedOnly="handleToggle" />
 
-    <DataTable v-if="consoKey!=''" :items="items" :search="search" :dataset="props.datasetKey" :key="dtKey"
+    <DataTable v-if="consoKey!=''" :items="filteredItems" :search="search" :dataset="props.datasetKey" :key="dtKey"
                :showSelectedOnly="showSelectedOnly" :headers="headers" :editableFields="editableFields"
                :searchFields="searchFields" :selectedRows="selectedRows" @update:selectedRows="selectedRows = $event"
                @edit="handleEdit" @delete="handleDelete" @update:status="handleStatusUpdate" />
