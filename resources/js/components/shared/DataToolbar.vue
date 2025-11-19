@@ -8,11 +8,11 @@
   import SearchAndSelect from './SearchAndSelect.vue';
   import FiltersAndActions from './FiltersAndActions.vue';
   import ExportAndImport from './ExportAndImport.vue';
+  const filter_options = defineModel({type: Object, required: true});
   const props = defineProps({
     search: { type: String, required: true },
     showSelectedOnly: { type: Boolean, required: true },
     dataset: { type: String, required: true },
-    filter_options: { type: Object, required: false, default:{} }
   });
 
   const authStore = useAuthStore();
@@ -23,7 +23,7 @@
     return (consoKey.value == '' && is_serveradmin);
   });
 
-// ToDo:: Catch emits from child components
+  // ToDo:: Catch emits from child components
 
   const emit = defineEmits([
     'update:conso',
@@ -32,7 +32,7 @@
     'add',
     'export',
     'import',
-    'customAction'
+    'setFilter'
   ]);
 </script>
 
@@ -57,6 +57,6 @@
   <!-- Search + Selected Toggle -->
   <v-row v-if="!consoOnly" class="my-2">
     <FlexCol></FlexCol>
-    <FiltersAndActions :filters="filter_options" @customAction="$emit('customAction', $event)" />
+    <FiltersAndActions v-model="filter_options" @setFilter="$emit('setFilter')" />
   </v-row>
 </template>
