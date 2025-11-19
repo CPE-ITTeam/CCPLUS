@@ -49,7 +49,7 @@
 
   const initializeOptions = async (key) => {
     try {
-      const { data } = await ccGet("/api/getReportOptions/"+key);
+      const { data } = await ccGet("/api/reports/options/"+key);
       institutionItems.value = [...data.records.institutions];
       institutionTypeItems.value = [...data.records.institution_types];
       institutionGroupItems.value = [...data.records.groups];
