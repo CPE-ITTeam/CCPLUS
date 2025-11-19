@@ -128,8 +128,8 @@ class User extends Authenticatable
     {
         $roles = array();
         foreach ($this->roles as $r) {
-            array_push($roles, ['id'=>$r->id , 'name'=>$r->role->name,
-                                'inst_id'=>$r->inst_id, 'inst'=>$r->institution->name]);
+            array_push($roles, ['id'=>$r->id , 'role_id'=>$r->role_id, 'inst_id'=>$r->inst_id,
+                                'name'=>$r->role->name, 'inst'=>$r->institution->name]);
         }
         return $roles;
     }
@@ -155,9 +155,10 @@ class User extends Authenticatable
         return 0;
     }
 
-    public function maxRole()
+    public function maxRole($inst = null)
     {
-        return $this->roles->max('role_id');
+        return (is_null($inst)) ? $this->roles->max('role_id')
+                                : $this->roles->where('inst_id',$inst)->max('role_id');
     }
 
     public function maxRoleName()
