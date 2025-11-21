@@ -21,6 +21,7 @@
   var pwc_show = ref(false);
   const formValues = ref({...props.initialValues});
   const requiredRule = (v) => !!v || 'This field is required';
+  const opType = ref(props.schema.type);
 
   const fieldTypes = computed(() => {
     return props.schema.fields.filter(fld => fld.searchable).map(f => f.type);
@@ -78,9 +79,9 @@
     <v-form v-if="props.schema.fields.length" ref="formRef" @submit.prevent="submitForm">
       <v-container>
         <v-row v-for="field in props.schema.fields" :key="field.name" class="mb-3">
-          <v-col v-if="!field.static" cols="12" class="d-flex ma-0 pa-0">
+          <v-col v-if="!field.static && (opType=='Edit' || field.editable)" cols="12" class="d-flex ma-0 pa-0">
             <!-- Read-only display -->
-            <div v-if="!field.editable || field.renderAsText">
+            <div v-if="opType!='Add' && (!field.editable || field.renderAsText)">
               <strong>{{ field.label }}:</strong> &nbsp;
               <span class="text-medium-emphasis">{{ formValues[field.name] }}</span>
             </div>
