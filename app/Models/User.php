@@ -56,6 +56,17 @@ class User extends Authenticatable
         $this->attributes['password'] = bcrypt($password);
     }
 
+    public function institution()
+    {
+        return $this->belongsTo('App\Models\Institution', 'inst_id');
+    }
+
+    public function roles()
+    {
+        return $this->hasMany('App\Models\UserRole','user_id')
+                    ->with('role:id,name','institution:id,name','institutiongroup:id,name');
+    }
+
     public function canManage()
     {
         // ServerAdmin can manage any user and is only changeable by another ServerAdmin
@@ -72,17 +83,6 @@ class User extends Authenticatable
         return $this->id == auth()->id();
     }
 
-    public function institution()
-    {
-        return $this->belongsTo('App\Models\Institution', 'inst_id');
-    }
-
-    public function roles()
-    {
-        return $this->hasMany('App\Models\UserRole','user_id')
-                    ->with('role:id,name','institution:id,name');
-    }
-
     public function isServerAdmin()
     {
         return !is_null($this->roles->where("role.name", "ServerAdmin")->first());
@@ -94,42 +94,80 @@ class User extends Authenticatable
         return !is_null($this->roles->where('inst_id',1)->where('role.name','Admin')->first());
     }
 
-    public function isAdmin($inst=null)
-    {
-        if ($this->roles->where("role.name", "ServerAdmin")->first()) return true;
-        return (is_null($inst))
-            ? !is_null(($this->roles->where("role.name", "Admin")->first()))
-            : !is_null(($this->roles->where("role.name", "Admin")->where("inst_id", $inst)->first()));
-    }
-
     public function adminInsts() {
-        if ($this->roles->whereIn("role.name", ["ServerAdmin"])->first()) return [1];
+        if ($this->isConsoAdmin() || $this->roles->whereIn("role.name", ["ServerAdmin"])->first()) return [1];
         $insts = array();
         foreach ($this->roles as $uRole) {
-            if ($uRole->role->name == 'Admin') {
-                $insts[] = $uRole->inst_id;
+            if ( !is_null($uRole->inst_id) && $uRole->role->name == 'Admin' ) {
+                if (!in_array($uRole->inst_id,$insts)) {
+                    $insts[] = $uRole->inst_id;
+                }
+            } else if ( !is_null($uRole->group_id) && $uRole->role->name == 'Admin' ) {
+                $new_insts = array_diff($uRole->institutiongroup->institutions->pluck('id')->toArray(),$insts);
+                $insts = array_merge($insts, $new_insts);
             }
         }
         return $insts;
+    }
+
+    public function adminGroups() {
+        if ($this->isConsoAdmin() || $this->roles->whereIn("role.name", ["ServerAdmin"])->first()) return [1];
+        $groups = array();
+        foreach ($this->roles as $uRole) {
+            if ( !is_null($uRole->group_id) && $uRole->role->name == 'Admin' ) {
+                if (!in_array($uRole->group_id,$groups)) $groups[] = $uRole->group_id;
+            }
+        }
+        return $groups;
     }
 
     public function viewerInsts() {
-        if ($this->roles->whereIn("role.name", ["ServerAdmin","Admin"])->first()) return [1];
+        if ($this->isConsoAdmin() || $this->roles->whereIn("role.name", ["ServerAdmin"])->first()) return [1];
         $insts = array();
         foreach ($this->roles as $uRole) {
-            if ($uRole->role->name == 'Admin' || $uRole->role->name == 'Viewer') {
-                $insts[] = $uRole->inst_id;
+            if ( !is_null($uRole->inst_id) &&
+                 ($uRole->role->name == 'Admin' ||$uRole->role->name == 'Viewer') ) {
+                if (!in_array($uRole->inst_id,$insts)) {
+                    $insts[] = $uRole->inst_id;
+                }
+            } else if ( !is_null($uRole->group_id) &&
+                ($uRole->role->name == 'Admin' ||$uRole->role->name == 'Viewer') ) {
+                $new_insts = array_diff($uRole->institutiongroup->institutions->pluck('id')->toArray(),$insts);
+                $insts = array_merge($insts, $new_insts);
             }
         }
         return $insts;
+    }
+
+    public function viewerGroups() {
+        if ($this->isConsoAdmin() || $this->roles->whereIn("role.name", ["ServerAdmin"])->first()) return [1];
+        $groups = array();
+        foreach ($this->roles as $uRole) {
+            if ( !is_null($uRole->group_id) && $uRole->role->name == 'Viewer' ) {
+                if (!in_array($uRole->group_id,$groups)) $groups[] = $uRole->group_id;
+            }
+        }
+        return $groups;
+    }
+
+    public function isAdmin($inst=null)
+    {
+        if ($this->roles->where("role.name", "ServerAdmin")->first()) return true;
+        if (is_null($inst)) {
+            return (!is_null($this->roles->where("role.name", "Admin")->first()));
+        }
+        return (in_array($inst, $this->adminInsts()));
     }
 
     public function allRoles()
     {
         $roles = array();
         foreach ($this->roles as $r) {
-            array_push($roles, ['id'=>$r->id , 'role_id'=>$r->role_id, 'inst_id'=>$r->inst_id,
-                                'name'=>$r->role->name, 'inst'=>$r->institution->name]);
+            $rec = array('id'=>$r->id , 'role_id'=>$r->role_id, 'inst_id'=>$r->inst_id, 'group_id'=>$r->group_id,
+                         'name'=>$r->role->name);
+            $rec['inst'] = ($r->institution) ? $r->institution->name : "";
+            $rec['group'] = ($r->institutiongroup) ? $r->institutiongroup->name : "";
+            array_push($roles,$rec);
         }
         return $roles;
     }
@@ -168,10 +206,14 @@ class User extends Authenticatable
         return $userRole->role->name;
     }
 
-    public function hasRole($role, $inst = null)
+    public function hasRole($role, $inst = null, $group = null)
     {
         if ($this->roles->where("role.name", "ServerAdmin")->first()) return true;
-        if ($this->roles->where("role.name", $role)->where("inst_id", $inst)->first()) return true;
+        if (!is_null($inst)) {
+            if ($this->roles->where("role.name", $role)->where("inst_id", $inst)->first()) return true;
+        } else if (!is_null($group)) {
+            if ($this->roles->where("role.name", $role)->where("group_id", $group)->first()) return true;
+        }
         return 0;
     }
 
