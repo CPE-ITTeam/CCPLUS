@@ -6,6 +6,7 @@ use DB;
 use App\Models\Role;
 use App\Models\User;
 use App\Models\Institution;
+use App\Models\InstitutionGroup;
 use App\Models\Consortium;
 use Illuminate\Http\Request;
 
@@ -25,25 +26,24 @@ class RoleController extends Controller
 
         // Initialize some arrays/values
         $data = array();
-        $limit_to_insts = [];
+        $limit_insts = [];
         $server_admin = config('ccplus.server_admin');
 
         // Limit by institution based on users's role(s)
         if (!$thisUser->isServerAdmin()) {
-            $limit_to_insts = $thisUser->adminInsts();
-            if ($limit_to_insts === [1]) $limit_to_insts = [];
+            $limit_insts = $thisUser->adminInsts();
+            if ($limit_insts === [1]) $limit_insts = [];
         }
 
         // Setup filtering options for the datatable
         $filter_options = array('statuses' => array('ALL','Active','Inactive'));
 
         // Role options need to be dependent on $thisUser's roles
-        // $filter_options['roles'] = Role::where('name','<>','ServerAdmin')->get(['id','name'])->toArray();
         $all_roles = Role::where('name','<>','ServerAdmin')->get(['id','name']);
         $filter_options['roles'] = array();
         foreach ($all_roles as $role) {
             if ($role->id <= $thisUser->maxRole()) {
-                $row = array('role_id' => $role->id, 'name' => $role->name, 'inst_id' => null);
+                $row = array('name' => $role->name, 'role_id' => $role->id, 'inst_id' => null);
                 $filter_options['roles'][] = $row;
                 if ($thisUser->isConsoAdmin()) {
                     $row['name'] = "Consortium ".$row['name'];
@@ -54,12 +54,11 @@ class RoleController extends Controller
         }
 
         // Pull user records - exclude serverAdmin
-        $user_data = User::with('roles','institution:id,name')
-                            ->when(count($limit_to_insts)>0, function ($qry) use ($limit_to_insts) {
-                                return $qry->whereIn('inst_id', $limit_to_insts);
-                            })
-                            ->where('email', '<>', $server_admin)
-                            ->orderBy('name', 'ASC')->get();
+        // (Note that the 'roles' relationship returns UserRole(s), NOT Roles)
+        $user_data = User::with('roles')->where('email', '<>', $server_admin)
+                         ->when(count($limit_insts)>0, function ($qry) use ($limit_insts) {
+                             return $qry->whereIn('inst_id', $limit_insts);
+                         })->orderBy('name', 'ASC')->get();
 
         // Make user role names one string, role IDs into an array, and status to a string for the view
         $maxRole = $thisUser->maxRole();
@@ -68,18 +67,34 @@ class RoleController extends Controller
             foreach ($user->allRoles() as $role) {
                 // Setup array for this user data
                 $rec = array('u_role_id' => $role['id'], 'role_id' => $role['role_id'], 'user_id' => $user->id,
-                             'inst_id' => $role['inst_id'], 'name' => $user->name, 'email' => $user->email);                     
+                             'inst_id' => $role['inst_id'], 'group_id' => $role['group_id'], 'name' => $user->name,
+                             'email' => $user->email);                     
                 $rec['role'] = ($role['inst_id']==1) ? 'Consortium '.$role['name'] : $role['name'];
                 $rec['inst_name'] = $role['inst'];
+                $rec['group_name'] = $role['group'];
+                $rec['scope'] = (!is_null($rec['inst_id'])) ? $role['inst'] : $role['group'];
                 $rec['can_edit'] = ($canManage && $role['id'] <= $maxRole);
                 $rec['can_delete'] = ($canManage && $role['id'] <= $maxRole);
                 $data[] = $rec;
             }
         }
 
-        // Add filtering options for institutions
-        $instIds = $user_data->pluck('inst_id')->toArray();
-        $filter_options['institutions'] = Institution::whereIn('id',$instIds)->get(['id','name'])->toArray();
+        // Add filtering options for institutions, groups, and users to cover institutions and groups
+        // that the current user has admin rights for; $limit_insts already set (above)
+        $limit_groups = [];
+        if (!$thisUser->isServerAdmin()) {
+            $limit_groups = $thisUser->adminGroups();
+            if ($limit_groups === [1]) $limit_groups = [];
+        }
+        $filter_options['groups'] = InstitutionGroup::when(count($limit_groups)>0, function ($qry) use ($limit_groups) {
+                                                        return $qry->whereIn('id', $limit_groups);
+                                                    })->orderBy('name', 'ASC')->get(['id','name']);
+        $filter_options['institutions'] = Institution::when(count($limit_insts)>0, function ($qry) use ($limit_insts) {
+                                                        return $qry->whereIn('id', $limit_insts);
+                                                    })->orderBy('name', 'ASC')->get();
+        $filter_options['users'] = $user_data->map(function ($rec) {
+            return [ 'id' => $rec['id'], 'name' => $rec['name'] ];
+        })->toArray();
 
         return response()->json(['records' => $data, 'options' => $filter_options, 'result' => true], 200);
     }
