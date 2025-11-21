@@ -14,12 +14,17 @@ return new class extends Migration
         Schema::create('user_roles', function (Blueprint $table) {
             $table->increments('id');
             $table->integer('user_id')->unsigned();
-            $table->integer('inst_id')->unsigned(); // if ==1 , means consortium-wide!
             $table->integer('role_id')->unsigned();
+            /*
+             * inst_id and group_id mutually exclusive; setting one sets the other null
+             */
+            $table->integer('inst_id')->unsigned()->nullable();  // if ==1 , means consortium-wide!
+            $table->integer('group_id')->unsigned()->nullable();
             $table->timestamps();
 
             $table->foreign('user_id')->references('id')->on('users')->onDelete('cascade');
             $table->foreign('inst_id')->references('id')->on('institutions')->onDelete('cascade');
+            $table->foreign('group_id')->references('id')->on('institutiongroups')->onDelete('cascade');
         });
     }
 
