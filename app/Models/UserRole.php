@@ -17,9 +17,9 @@ class UserRole extends Model
      *
      * @var array
      */
-    protected $fillable = [ 'id', 'user_id', 'inst_id', 'role_id'];
+    protected $fillable = [ 'id', 'user_id', 'role_id', 'group_id', 'inst_id'];
     protected $casts =[
-        'id'=>'integer', 'user_id'=>'integer', 'inst_id'=>'integer', 'role_id'=>'integer'
+        'id'=>'integer', 'user_id'=>'integer', 'role_id'=>'integer', 'inst_id'=>'integer', 'group_id'=>'integer'
     ];
 
     public function user()
@@ -27,14 +27,19 @@ class UserRole extends Model
         return $this->belongsTo('App\Models\User', 'user_id');
     }
 
+    public function role()
+    {
+        return $this->belongsTo('App\Models\Role', 'role_id');
+    }
+
     public function institution()
     {
         return $this->belongsTo('App\Models\Institution', 'inst_id');
     }
 
-    public function role()
+    public function institutiongroup()
     {
-        return $this->belongsTo('App\Models\Role', 'role_id');
+        return $this->belongsTo('App\Models\InstitutionGroup', 'group_id');
     }
 
 }
