@@ -21,6 +21,8 @@
 
   // Reactive state
   var dtKey = ref(0);
+  var dialogType = ref('');
+  var dialogTitle = ref('Item');
   var allItems = reactive([]);
   var filteredItems = reactive([]);
   const filterOptions = reactive({});
@@ -37,11 +39,6 @@
   var success = ref('');
   var failure = ref('');
 
-  const dialogTitle = computed(() => {
-    const config = datasetConfig[props.datasetKey];
-    return config.dialogTitle || 'Item';
-  });
-
   const isEditable = computed(() => {
     const config = datasetConfig[props.datasetKey];
     return (editingItem.value && config && editableFields.value.length>0);
@@ -50,6 +47,7 @@
   const formSchema = computed(() => {
     const config = datasetConfig[props.datasetKey];
     return {
+      type: dialogType.value,
       fields: [...config.fields],
       requiredKeys: [...config.required],
       options: {...filterOptions},
@@ -116,6 +114,8 @@
 
   function handleEdit(item) {
     const config = datasetConfig[props.datasetKey];
+    dialogType.value = "Edit";
+    dialogTitle = "Edit "+config.dialogTitle;
     config.fields.forEach( (fld, idx) => {
       // Set current values for specific select/mselect fields
       if (fld.type == 'select' || fld.type == 'mselect' || fld.type == 'selectObj') {
@@ -127,8 +127,18 @@
     dialogOpen.value = true;
   }
 
+  function handleAddItem() {
+    const config = datasetConfig[props.datasetKey];
+    dialogType.value = "Add";
+    dialogTitle = "Add New "+config.dialogTitle;
+    editingItem.value = {};
+    config.required.forEach( key => {
+      editingItem[key] = null;
+    });
+    dialogOpen.value = true;
+  }
 
-//  NOTE::: Currently - changing one filter means apply all that are set to the original item-set
+//  NOTE::: Currently - changing one filter means (re)apply all that are set to the original item-set
 //
   function updateItems() {
     if (allItems.length==0) return;
@@ -244,7 +254,7 @@ console.log('Filter by selectObj still needs work');
   <v-sheet>
     <DataToolbar v-model="filterOptions" :search="search" :showSelectedOnly="showSelectedOnly" :dataset="props.datasetKey"
                  @update:search="search = $event" @setFilter="updateItems" @update:showSelectedOnly="handleToggle"
-                 @updateConso="handleChangeConso" />
+                 @add="handleAddItem" @updateConso="handleChangeConso" />
 
     <DataTable v-if="consoKey!=''" :items="filteredItems" :search="search" :dataset="props.datasetKey" :key="dtKey"
                :showSelectedOnly="showSelectedOnly" :headers="headers" :editableFields="editableFields"
@@ -254,7 +264,7 @@ console.log('Filter by selectObj still needs work');
     <v-dialog v-if="editingItem && isEditable" v-model="dialogOpen" max-width="600px">
       <v-card>
         <v-card-title class="text-indigo-darken-2 pa-6 d-flex justify-space-between align-center">
-          <span>Edit {{ dialogTitle }}</span>
+          <span>{{ dialogTitle }}</span>
           <v-tooltip text="Cancel" location="bottom">
             <template #activator="{ props }">
               <v-btn icon variant="outlined" class="close-btn" v-bind="props" @click="handleFormCancel">
