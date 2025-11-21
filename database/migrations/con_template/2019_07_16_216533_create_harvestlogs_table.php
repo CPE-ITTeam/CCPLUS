@@ -31,7 +31,7 @@ class CreateHarvestLogsTable extends Migration
             $table->timestamps();
 
             $table->unique(['credentials_id', 'report_id', 'yearmon']);
-            $table->foreign('credentials_id')->references('id')->on('credentials_id')->onDelete('cascade');
+            $table->foreign('credentials_id')->references('id')->on('credentials')->onDelete('cascade');
             $table->foreign('report_id')->references('id')->on($global_db . '.reports')->onDelete('cascade');
         });
     }
