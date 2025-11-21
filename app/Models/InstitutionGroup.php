@@ -25,6 +25,15 @@ class InstitutionGroup extends Model
         return $this->belongsToMany('App\Models\Institution')->withTimestamps();
     }
 
+    public function canManage()
+    {
+      // ServerAdmin can manage any group
+      if (auth()->user()->isServerAdmin()) {
+        return true;
+      }
+      return (auth()->user()->hasRole("Admin", null, $this->id));
+    }
+
     public function typeRestriction()
     {
         return $this->belongsTo('App\Models\InstitutionType', 'type_id');
