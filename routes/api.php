@@ -63,7 +63,7 @@ Route::middleware('ccplusAuth')->group( function () {
     Route::prefix('roles')->group(function () {
         Route::get('/get', 'App\Http\Controllers\RoleController@index')->name('roles.index');
         Route::post('/store', 'App\Http\Controllers\RoleController@store')->name('roles.store');
-        Route::patch('/update/{role}', 'App\Http\Controllers\RoleController@update')->name('roles.update');
+        // Route::patch('/update/{role}', 'App\Http\Controllers\RoleController@update')->name('roles.update');
         Route::delete('/delete/{role}', 'App\Http\Controllers\RoleController@destroy')->name('roles.destroy');
     });
     Route::prefix('settings')->group(function () {
