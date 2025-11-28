@@ -83,7 +83,7 @@
     confirmDialog.value = false;
   }
   function confirmDelete() {
-    emit('delete', curItem.id);
+    emit('delete', curItem.value.id);
     curItem.value = {};
     confirmDialog.value = false;
   }
