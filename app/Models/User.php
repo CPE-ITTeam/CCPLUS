@@ -150,13 +150,17 @@ class User extends Authenticatable
         return $groups;
     }
 
-    public function isAdmin($inst=null)
+//NOTE:: Need to test+confirm that this works:: i.e. chaining off to in_array of adminInsts() & adminGroups()
+    public function isAdmin($inst=null, $group=null)
     {
         if ($this->roles->where("role.name", "ServerAdmin")->first()) return true;
-        if (is_null($inst)) {
+        if (!is_null($inst)) {
+            return (in_array($inst, $this->adminInsts()));
+        } else if (!is_null($group)) {
+            return (in_array($group, $this->adminGroups()));
+        } else {
             return (!is_null($this->roles->where("role.name", "Admin")->first()));
         }
-        return (in_array($inst, $this->adminInsts()));
     }
 
     public function allRoles()
