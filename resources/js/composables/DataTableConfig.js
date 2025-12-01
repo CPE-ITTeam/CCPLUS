@@ -63,9 +63,10 @@
         { name: 'count',        type: 'text',   header: true, editable: false, searchable: true, label: 'Member Count',
           icon: '', helperText: '' },
         { name: 'type', type: 'select', header: true, editable: true, searchable: true, label: 'Institution Type Restriction',
-          options: 'fromURL', optVal: 'id', optTxt: 'name', icon: '', helperText: '', isFilter: true },
+          options: 'fromURL', optVal: 'id', optTxt: 'name', icon: '', helperText: '', isFilter: true, filterCol: 'type_id' },
       ],
       required: ['name'],
+      static: [],
       sortby: 'name',
     },
     users: {
