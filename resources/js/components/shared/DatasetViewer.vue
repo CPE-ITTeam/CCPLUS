@@ -132,11 +132,10 @@
     dialogType.value = "Edit";
     dialogTitle = "Edit "+config.dialogTitle;
     config.fields.forEach( (fld, idx) => {
-      // Set current values for specific select/mselect fields
-      if (fld.type == 'select' || fld.type == 'mselect' || fld.type == 'selectObj') {
-        if (fld.name == 'institutions') item['institutions'] = item.inst_id;
-        // if (fld.name == 'roles') item['roles'] = item.role;
-      }
+      // Set current values for specific fields
+      if (fld.type == 'select' && fld.name == 'institutions') item['institutions'] = item.inst_id;
+      // if (fld.type == 'select' || fld.type == 'mselect' || fld.type == 'selectObj') {
+      // }
       config.fields[idx]['visible'] = true;
     });
     editingItem.value = {...item};
