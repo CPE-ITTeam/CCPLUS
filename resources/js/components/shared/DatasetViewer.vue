@@ -101,10 +101,10 @@
           'name': fld.name, 'label': fld.label, 'type': fld.type, 'val': fld.optVal, 'txt': fld.optTxt,
           'show': fld.isFilter, 'col': fld.filterCol, 'items': [...fld.options], 'value': fld.options[0]
         };
-      } else if ( fld.name == 'fiscalYr') {
+      } else if (fld.name == 'fiscalYr') {
         filterOptions['fiscalYr'] = {
           'name': fld.name, 'label': fld.label, 'type': fld.type, 'val': fld.optVal, 'txt': fld.optTxt,
-          'show': true, 'items': [...fyMonths], 'value': null
+          'show': false, 'items': [...fyMonths], 'value': null
         };
       }
     });
