@@ -112,8 +112,14 @@ class InstitutionTypeController extends Controller
 
         $type->update([ 'name' => $request->input('name') ]);
 
+        // Return what index() produces
+        $type->load('institutions:id,name,type_id');
+        $rec = array('id' => $type->id, 'name' => $type->name, 'can_edit' => ($type->id>1),
+                     'can_delete' => ( $type->id>1 && $type->institutions->count() == 0 ),
+                     'institutions' => $type->institutions->toArray());
+
         return response()->json(['result' => true, 'msg' => 'Institution type successfully updated',
-                                 'record' => $type]);
+                                 'record' => $rec]);
     }
 
     /**
