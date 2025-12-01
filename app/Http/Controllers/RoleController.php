@@ -44,16 +44,24 @@ class RoleController extends Controller
         // Role options need to be dependent on $thisUser's roles
         $all_roles = Role::where('name','<>','ServerAdmin')->get(['id','name']);
         $filter_options['role'] = array();
+        $key = 1;
+        $user_roles = array();
         foreach ($all_roles as $role) {
             if ($role->id <= $thisUser->maxRole()) {
-                $row = array('name' => $role->name, 'role_id' => $role->id, 'inst_id' => null);
+                $row = array('ur_id' => $key, 'name' => $role->name, 'role_id' => $role->id, 'inst_id' => null);
                 $filter_options['role'][] = $row;
+                $user_roles[$key] = $role->name;
+                // if user is conso-admin, add extra rows for "conso"+"name"
                 if ($thisUser->isConsoAdmin()) {
+                    $key++;
+                    $row['ur_id'] = $key;
                     $row['name'] = "Consortium ".$row['name'];
                     $row['inst_id'] = 1;
                     $filter_options['role'][] = $row;
+                    $user_roles[$key] = $row['name'];
                 }
             }
+            $key++;
         }
 
         // Pull user records - exclude serverAdmin
@@ -71,8 +79,9 @@ class RoleController extends Controller
                 // Setup array for this user data
                 $rec = array('id' => $role['id'], 'role_id' => $role['role_id'], 'user_id' => $user->id,
                              'inst_id' => $role['inst_id'], 'group_id' => $role['group_id'], 'name' => $user->name,
-                             'email' => $user->email);                     
+                             'email' => $user->email);
                 $rec['role_string'] = ($role['inst_id']==1) ? 'Consortium '.$role['name'] : $role['name'];
+                $rec['ur_id'] = array_search($rec['role_string'],$user_roles);
                 $rec['inst_name'] = $role['inst'];
                 $rec['group_name'] = $role['group'];
                 $rec['scope'] = (!is_null($rec['inst_id'])) ? $role['inst'] : $role['group'];
