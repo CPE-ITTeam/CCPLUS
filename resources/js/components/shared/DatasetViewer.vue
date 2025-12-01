@@ -135,7 +135,7 @@
       // Set current values for specific select/mselect fields
       if (fld.type == 'select' || fld.type == 'mselect' || fld.type == 'selectObj') {
         if (fld.name == 'institutions') item['institutions'] = item.inst_id;
-        if (fld.name == 'roles') item['roles'] = item.role;
+        // if (fld.name == 'roles') item['roles'] = item.role;
       }
       config.fields[idx]['visible'] = true;
     });
@@ -151,7 +151,8 @@
     config.fields.forEach( (fld, idx) => {
       // Skip fields not required for Add
       if (!config.required.includes(fld.name)) return;
-      if (typeof(filterOptions[fld.name])!='undefined') {
+      // If field has options, but is only displayed in dialog, pre-set the value if it is set (e.g. conso)
+      if (typeof(filterOptions[fld.name])!='undefined' && !filterOptions[fld.name].show) {
         editingItem.value[fld.name] = (filterOptions[fld.name].value) ? filterOptions[fld.name].value : null;
       } else {
         editingItem.value[fld.name] = null;
