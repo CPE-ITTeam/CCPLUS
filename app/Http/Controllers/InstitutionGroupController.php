@@ -31,7 +31,6 @@ class InstitutionGroupController extends Controller
             $rec['type'] = ($group->typeRestriction) ? $group->typeRestriction->name : "";
             $rec['institutions'] = $group->institutions->toArray();
             $memberIds = $group->institutions->pluck('id')->toArray();
-            $rec['not_members'] = $all_institutions->whereNotIn('id',$memberIds)->toArray();
             $rec['count'] = sizeof($memberIds);
             $rec['can_edit'] = $thisUser->isConsoAdmin();
             $rec['can_delete'] = $thisUser->isConsoAdmin();
@@ -90,9 +89,8 @@ class InstitutionGroupController extends Controller
             $group->institutions = array();
         }
 
-        // Get all institutions' data and pull out not-members
+        // Get all institutions' data
         $institutionData = Institution::orderBy('name', 'ASC')->get(['id','name','type_id']);
-        $group->not_members = $institutionData->except($new_members);
         $group->count = sizeof($new_members);
 
         // Rebuild the groups-membership strings for all institutions
@@ -167,9 +165,8 @@ class InstitutionGroupController extends Controller
         }
         $member_ids = $group->institutions->pluck('id')->toArray();
 
-        // Get all institutions' data and save not-members
+        // Get all institutions' data
         $institutionData = Institution::orderBy('name', 'ASC')->get(['id','name','type_id']);
-        $group->not_members = $institutionData->except($member_ids);
         $group->load('institutions:id,name','typeRestriction');
         $group->count = $group->institutions->count();
         $group->type = ($group->typeRestriction) ? $group->typeRestriction->name : "";
@@ -206,9 +203,8 @@ class InstitutionGroupController extends Controller
         $group->count = count($member_institutions) + $count;
         $member_institutions = $group->institutions->pluck('id')->toArray();
 
-        // Get all institutions' data and pull out not-members
+        // Get all institutions' data
         $institutionData = Institution::orderBy('name', 'ASC')->get(['id','name']);
-        $group->not_members = $institutionData->whereNotIn('id',$member_institutions);
 
         // Rebuild the groups-membership strings for all institutions
         $institutionData->load('institutionGroups');
