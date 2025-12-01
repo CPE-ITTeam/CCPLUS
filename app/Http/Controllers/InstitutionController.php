@@ -49,8 +49,6 @@ class InstitutionController extends Controller
         $filter_options['type'] = InstitutionType::get(['id','name'])->toArray();
         $filter_options['groups'] = array();
 
-        $seen_group_ids = array();
-
         // Limit by institution based on users's role(s)
         if (!$thisUser->isServerAdmin()) {
             $limit_to_insts = ($type == 'admin') ? $thisUser->adminInsts() : $thisUser->viewerInsts();
@@ -64,6 +62,7 @@ class InstitutionController extends Controller
                                 })->orderBy('name', 'ASC')->get();
 
         // Add group memberships
+        $seen_group_ids = array();
         foreach ($inst_data as $rec) {
             $inst = array('id' => $rec->id, 'name' => $rec->name, 'is_active' => $rec->is_active,
                           'local_id' => $rec->local_id, 'fte' => $rec->fte, 'notes' => $rec->notes,
@@ -81,7 +80,7 @@ class InstitutionController extends Controller
             $harvest_count = $rec->credentials->whereNotNull('last_harvest')->count();
             $inst['type'] = ($rec->institutionType) ? $rec->institutionType->name : "(Not classified)";
             $inst['can_edit'] = $rec->canManage();
-            $inst['can_delete'] = ($harvest_count > 0 || $rec->id == 1) ? false : true;
+            $inst['can_delete'] = ($harvest_count > 0 || !$rec->canManage()) ? false : true;
             $inst['role'] = $this->userRole($rec->id);
             $data[] = $inst;
         }
@@ -369,7 +368,6 @@ class InstitutionController extends Controller
             return response()->json(['result' => false, 'msg' => 'Update failed (403) - Forbidden']);
         }
         $was_active = $institution->is_active;
-        $institution->load('institutionGroups','institutionType');
 
        // Validate form inputs
         $this->validate($request, ['is_active' => 'required']);
@@ -416,8 +414,11 @@ class InstitutionController extends Controller
 
        // Admins update everything from $input
         } else {
+            $input['type_id'] = $input['type'];     // DataForm passes as 'type'
             // Update the record and assign groups
             $institution->update($input);
+            $institution->load('institutionGroups');
+
             if (isset($input['groups'])) {
                 $existing_group_ids = $institution->institutionGroups->pluck('id')->toArray();
                 $input_ids = array_column($input['groups'],'id');
@@ -432,7 +433,7 @@ class InstitutionController extends Controller
                     $institution->institutionGroups()->detach($g);
                 }
             }
-            $institution->load('institutionGroups');
+            $institution->unsetRelation('institutionGroups'); // we'll add it back below
 
             // If is_active is changing, check and update related credentials
             $credentials = Credential::with('provider')->where('inst_id',$institution->id)->get();
@@ -449,29 +450,28 @@ class InstitutionController extends Controller
                     }
                 }
             }
-
-            // Return updated institution data
-            $harvest_count = $credentials->whereNotNull('last_harvest')->count();
-            $institution->can_delete = ($harvest_count > 0 || $institution->id == 1) ? false : true;
-            $institution->credentials = $credentials->toArray();
         }
 
-        // Add groups as an array and a string for group memberships
-        $groups = array();
-        $institution->group_string = "";
+        // Load related models
+        $institution->load('institutionGroups:id,name','institutionType', 'credentials');
+
+        // Build return record to match what index() passed
+        $inst = array('id' => $institution->id, 'name' => $institution->name, 'is_active' => $institution->is_active,
+                      'local_id' => $institution->local_id, 'fte' => $institution->fte, 'notes' => $institution->notes,
+                      'type_id' => $institution->type_id, 'group_string' => '');
+        $inst['status'] = ($institution->is_active) ? "Active" : "Inactive";
+        $inst['groups'] = $institution->institutionGroups()->pluck('institution_group_id')->all();
         foreach ($institution->institutionGroups as $group) {
-            $groups[] = array('id' => $group->id, 'name' => $group->name);
-            $institution->group_string .= ($institution->group_string == "") ? "" : ", ";
-            $institution->group_string .= $group->name;
+            $inst['group_string'] .= ($inst['group_string'] == "") ? "" : ", ";
+            $inst['group_string'] .= $group->name;
         }
-        $institution->groups = $groups;
+        $harvest_count = $institution->credentials->whereNotNull('last_harvest')->count();
+        $inst['type'] = ($institution->institutionType) ? $institution->institutionType->name : "(Not classified)";
+        $inst['can_edit'] = $institution->canManage();
+        $inst['can_delete'] = ($harvest_count > 0 || !$institution->canManage()) ? false : true;
+        $inst['role'] = $this->userRole($institution->id);
 
-        // Set strings for status, role, and type to match what index() sets
-        $institution->status = ($institution->is_active) ? 'Active' : 'Inactive';
-        $institution->role = $this->userRole($institution->id);
-        $institution->type = ($institution->institutionType) ? $institution->institutionType->name : "(Not classified)";
-
-        return response()->json(['result' => true, 'msg' => 'Settings successfully updated', 'record' => $institution]);
+        return response()->json(['result' => true, 'msg' => 'Settings successfully updated', 'record' => $inst]);
     }
 
     /**
