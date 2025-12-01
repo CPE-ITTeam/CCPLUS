@@ -225,7 +225,7 @@ console.log('Filter by selectObj still needs work');
       let _item = Object.assign({}, allItems[_idx])
       _item['is_active'] = (value == 'Active') ? 1 : 0;
       try {
-        let url = urlRoot.value+'update/'+id;
+        let url = urlRoot.value+'/update/'+id;
         const response = await ccPatch(url, {'is_active': _item['is_active']});
         if (response.result) {
           _item['status'] = value;
@@ -245,7 +245,7 @@ console.log('Filter by selectObj still needs work');
   async function handleFormSubmit(updatedValues) {
     if (dialogType.value=='Edit') {
       try {
-        let url = urlRoot.value+'update/'+editingItem.value.id;
+        let url = urlRoot.value+'/update/'+editingItem.value.id;
         const response = await ccPatch(url, updatedValues);
         if (response.result) {
           let _idx = allItems.findIndex(ii => ii.id == editingItem.value.id);
