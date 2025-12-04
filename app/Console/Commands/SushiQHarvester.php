@@ -303,6 +303,8 @@ class SushiQHarvester extends Command
                                                       " :: " . $e->getMessage());
                                     $job->harvest->error_id = 9100;
                                     $error = CcplusError::where('id',9100)->first();
+                                    // Toss the raw data file
+                                    try { unlink($sushi->raw_datafile); } catch (\Exception $e2) { }
                                 }
                             }
                         }
