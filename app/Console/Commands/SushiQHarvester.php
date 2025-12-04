@@ -299,7 +299,8 @@ class SushiQHarvester extends Command
                                     FailedHarvest::insert(['harvest_id' => $job->harvest->id, 'process_step' => 'COUNTER',
                                                             'error_id' => 9100, 'detail' => 'Validation error: ' . $e->getMessage(),
                                                             'help_url' => $sushi->help_url, 'created_at' => $ts]);
-                                    $this->line($ts . " QueueHarvester: Report failed COUNTER validation : " . $e->getMessage());
+                                    $this->line($ts . " QueueHarvester: Report failed COUNTER validation :: ".$job->harvest->id.
+                                                      " :: " . $e->getMessage());
                                     $job->harvest->error_id = 9100;
                                     $error = CcplusError::where('id',9100)->first();
                                 }
