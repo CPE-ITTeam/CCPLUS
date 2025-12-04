@@ -232,6 +232,8 @@ class ReportProcessor extends Command
 
             }
         }
+        // Sleep before exiting to make sure last harvest gets fully processed
+        sleep(5);
         return 1;
     }
 }
