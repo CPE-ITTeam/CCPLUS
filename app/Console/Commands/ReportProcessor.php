@@ -180,13 +180,14 @@ class ReportProcessor extends Command
                     $res = $C5processor->{$report->name}($json);
                // If processor failed, signal 9020 and delete the JSON file
                 } catch (\Exception $e) {
+                    $error9020 = CcplusError::where('id',9020)->first();
                     FailedHarvest::insert(['harvest_id' => $harvest->id, 'process_step' => 'COUNTER',
                                            'error_id' => 9020, 'detail' => 'Processing error: ' . $e->getMessage(),
                                            'help_url' => null, 'created_at' => $ts]);
-                    $this->line($ts . " " . $ident . "Error processing JSON : " . $e->getMessage());
+                    $this->line($ts . " " . $ident . ":: ".$harvest->id." :: Error processing JSON : " . $e->getMessage());
                     $harvest->error_id = 9020;
                     $harvest->attempts++;
-                    $harvest->status = 'ReQueued';
+                    $harvest->status = ($error9020) ? $error9020->new_status : 'ReQueued';
                     $harvest->save();
                     unlink($jsonFile);
                     continue;
