@@ -14,6 +14,7 @@ use App\Models\HarvestLog;
 use App\Models\GlobalProvider;
 use App\Models\ConnectionField;
 use App\Models\Consortium;
+use Illuminate\Support\Arr;
 use Illuminate\Http\Request;
 use PhpOffice\PhpSpreadsheet\Spreadsheet;
 use PhpOffice\PhpSpreadsheet\Writer\Xlsx;
@@ -105,13 +106,22 @@ class InstitutionController extends Controller
      */
     public function store(Request $request)
     {
-        if (!auth()->user()->hasRole("Admin")) {
+        global $thisUser;
+
+        $thisUser = auth()->user();
+        if (!$thisUser->isConsoAdmin()) {
             return response()->json(['result' => false, 'msg' => 'Create failed (403) - Forbidden']);
         }
-        $this->validate($request, [
-          'name' => 'required',
-        ]);
+
+        $this->validate($request, [ 'name' => 'required' ]);
         $input = $request->all();
+        $create_fields = Arr::except($input, array('status','creds','groups','type'));
+        $create_fields['type_id'] = (isset($input['type'])) ? $input['type'] : 1;
+        $create_fields['is_active'] = (isset($input['is_active'])) ? $input['is_active'] : 0;
+        if (isset($input['status'])) {
+            $create_fields['is_active'] = ($input['status'] == 'Active') ? 1 : 0;
+        }
+        
         // Make sure that local ID is unique if not set null
         $localID = (isset($input['local_id'])) ? trim($input['local_id']) : null;
         if ($localID && strlen($localID) > 0) {
@@ -120,25 +130,23 @@ class InstitutionController extends Controller
                 return response()->json(['result' => false,
                                          'msg' => 'Local ID already assigned to another institution.']);
             }
-            $input['local_id'] = $localID;
+            $create_fields['local_id'] = $localID;
         } else {
-            $input['local_id'] = null;
+            $create_fields['local_id'] = null;
         }
-        $institution = Institution::create($input);
-        $new_id = $institution->id;
+        $new_inst = Institution::create($create_fields);
+        $new_id = $new_inst->id;
 
         // Attach groups and build a string of the names
-        $_groups = "";
-        if (isset($input['institution_groups'])) {
-            foreach ($request->input('institution_groups') as $g) {
-                $institution->institutionGroups()->attach($g);
-                $group = InstitutionGroup::where('id', $g)->first();
-                $_groups .= ($group) ? $group->name . ", " : "";
+        if (isset($input['groups'])) {
+            $input_ids = array_column($input['groups'],'id');
+            foreach ($input_ids as $g) {
+                $new_inst->institutionGroups()->attach($g);
             }
         }
 
         // If requested, create a credentials to give a "starting point" for connecting it later
-        $stub = (isset($input['sushi_stub'])) ? $input['sushi_stub'] : 0;
+        $stub = (isset($input['creds'])) ? $input['creds'] : 0;
         if ($stub) {
             $providers = Provider::with('globalProv')->where('inst_id',1)->where('is_active',1)->get();
             foreach ($providers as $provider) {
@@ -156,11 +164,23 @@ class InstitutionController extends Controller
         }
 
         // Setup a return object that matches what index does (above)
-        $data = Institution::where('id', $new_id)->get(['id','name','is_active'])->first()->toArray();
-        $data['groups'] = rtrim(trim($_groups), ',');
+        $new_inst->load('institutionGroups:id,name','credentials','institutionType');
+        $data = array('id' => $new_id, 'name' => $new_inst->name, 'is_active' => $new_inst->is_active,
+                      'local_id' => $new_inst->local_id, 'fte' => $new_inst->fte, 'notes' => $new_inst->notes,
+                      'type_id' => $new_inst->type_id, 'group_string' => '');
+        $data['status'] = ($new_inst->is_active) ? "Active" : "Inactive";
+        $data['groups'] = $new_inst->institutionGroups()->pluck('institution_group_id')->all();
+        foreach ($new_inst->institutionGroups as $group) {
+            $data['group_string'] .= ($data['group_string'] == "") ? "" : ", ";
+            $data['group_string'] .= $group->name;
+        }
+        $data['type'] = ($new_inst->institutionType) ? $new_inst->institutionType->name : "(Not classified)";
+        $data['can_edit'] = true;
+        $data['can_delete'] = true;
+        $data['role'] = $this->userRole($new_inst->id);
 
         return response()->json(['result' => true, 'msg' => 'Institution successfully created',
-                                 'institution' => $data]);
+                                 'record' => $data]);
     }
 
     /**
@@ -369,9 +389,15 @@ class InstitutionController extends Controller
         }
         $was_active = $institution->is_active;
 
-       // Validate form inputs
-        $this->validate($request, ['is_active' => 'required']);
+        // Validate form inputs
         $input = $request->all();
+        // Status can be set with 'is_active' (0/1) or 'status' (string)
+        if (isset($input['status'])) {
+            $input['is_active'] = ($input['status'] == 'Active') ? 1 : 0;
+        }
+        if (!isset($input['is_active'])) {
+            return response()->json(['result' => false, 'msg' => 'Status argument is required for update']);
+        }
 
         // if only updating is_active, do it now
         if (count($input) == 1) {
