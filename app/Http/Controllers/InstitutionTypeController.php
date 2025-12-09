@@ -59,9 +59,11 @@ class InstitutionTypeController extends Controller
             return response()->json(['result' => false, 'msg' => 'An existing type with that name already exists']);
         }
         $type = InstitutionType::create(['name' => $request->input('name')]);
+        $data = array('id' => $type->id, 'name' => $type->name, 'can_edit' => true, 'can_delete' => true,
+                      'institutions' => array() );
 
         return response()->json(['result' => true, 'msg' => 'New institution type successfully created',
-                                 'type' => $type]);
+                                 'record' => $data]);
     }
 
     /**
@@ -136,7 +138,7 @@ class InstitutionTypeController extends Controller
         }
 
         // Update all institutions that have this type and then delete it
-        Institution::where('institutiontype_id', $id)->update(['type_id' => 1]);
+        Institution::where('type_id', $type->id)->update(['type_id' => 1]);
         $type->delete();
         return response()->json(['result' => true, 'msg' => 'Institution type successfully deleted']);
     }
