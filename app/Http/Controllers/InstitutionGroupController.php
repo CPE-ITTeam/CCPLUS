@@ -22,7 +22,7 @@ class InstitutionGroupController extends Controller
     {
         $thisUser = auth()->user();
 
-        $groups = InstitutionGroup::with('institutions:id,name','typeRestriction')->orderBy('name', 'ASC')->get();
+        $groups = InstitutionGroup::with('institutions:id,name,type_id','typeRestriction')->orderBy('name', 'ASC')->get();
         $all_institutions = Institution::where('is_active',1)->get(['id','name','type_id']);
 
         $data = array();
@@ -71,16 +71,27 @@ class InstitutionGroupController extends Controller
         $this->validate($request, [
           'name' => 'required|unique:consodb.institutiongroups,name',
         ]);
+        $input = $request->all();
+
+        // Set type_id of type restriction if sent
+        $type_id = (isset($input['type'])) ? $input['type'] : null;
 
         // Create the group
-        $group = InstitutionGroup::create(['name' => $request->input('name')]);
+        $group = InstitutionGroup::create(['name' => $input['name'], 'type_id' => $type_id]);
+        $group->load('typeRestriction');
+
+        // Get all institutions' id, name, and type
+        $institutionData = Institution::orderBy('name', 'ASC')->get(['id','name','type_id']);
 
         // if institutions are passed in, go ahead and attach them now
         $new_members = array();
         if (isset($request->institutions)) {
             foreach ($request->institutions as $inst) {
-                $group->institutions()->attach($inst['id']);
-                $new_members[] = $inst['id'];
+                $canAdd = $institutionData->where('id',$inst['id'])->where('type_id',$type_id)->first();
+                if ($canAdd) {
+                    $group->institutions()->attach($inst['id']);
+                    $new_members[] = $inst['id'];
+                }
             }
             $group->load('institutions');
 
@@ -88,30 +99,36 @@ class InstitutionGroupController extends Controller
         } else {
             $group->institutions = array();
         }
+        $group->count = count($new_members);
 
-        // Get all institutions' data
-        $institutionData = Institution::orderBy('name', 'ASC')->get(['id','name','type_id']);
-        $group->count = sizeof($new_members);
+        if ($group->count() > 0) {
+            // Get details for new members
+            $newMembers = $institutionData->whereIn('id',$new_members);
+            $newMembers->load('institutionGroups');
 
-        // Rebuild the groups-membership strings for all institutions
-        $institutionData->load('institutionGroups');
-        $belongsTo = $this->groupsByInst($institutionData);
-
-        // Update the group membership string for affected institutions
-        foreach ($group->institutions as $key => $inst) {
-            $instData = $institutionData->where('id',$inst->id)->first();
-            if ($instData) {
-                $_string = "";
-                foreach ($instData->institutionGroups as $grp) {
-                    $_string .= ($_string == "") ? "" : ", ";
-                    $_string .= $grp->name;
+            // Set the group_string for the institutions
+            foreach ($group->institutions as $key => $inst) {
+                $instData = $newMembers->where('id',$inst->id)->first();
+                if ($instData) {
+                    $_string = "";
+                    foreach ($instData->institutionGroups as $grp) {
+                        $_string .= ($_string == "") ? "" : ", ";
+                        $_string .= $grp->name;
+                    }
+                    $group->institutions[$key]->group_string = $_string;
                 }
-                $group->institutions[$key]->group_string = $_string;
             }
         }
 
-        return response()->json(['result' => true, 'msg' => 'Group created successfully', 'group' => $group,
-                                 'belongsTo' => $belongsTo]);
+        $data = array('id' => $group->id, 'name' => $group->name);
+        $data['type'] = ($group->typeRestriction) ? $group->typeRestriction->name : "";
+        $data['institutions'] = $group->institutions;
+        $memberIds = ($group->count > 0) ? $group->institutions->pluck('id')->toArray() : array();
+        $data['count'] = $group->count;
+        $data['can_edit'] = true;
+        $data['can_delete'] = true;
+
+        return response()->json(['result' => true, 'msg' => 'Group created successfully', 'record' => $data]);
     }
 
     /**
@@ -160,8 +177,16 @@ class InstitutionGroupController extends Controller
         if ($group->institutions()->count() > 0) {
             $group->institutions()->detach();
         }
-        foreach ($request->institutions as $inst) {
-            $group->institutions()->attach($inst['id']);
+        // Attach requested insts
+        $type_skip = 0;
+        if (count($request->institutions)>0) {
+            foreach ($request->institutions as $inst) {
+                if (!is_null($group->type_id) && $group->type_id != $inst['type_id']) {
+                    $type_skip++;
+                    continue;
+                }
+                $group->institutions()->attach($inst['id']);
+            }
         }
         $member_ids = $group->institutions->pluck('id')->toArray();
 
@@ -170,10 +195,12 @@ class InstitutionGroupController extends Controller
         $group->load('institutions:id,name','typeRestriction');
         $group->count = $group->institutions->count();
         $group->type = ($group->typeRestriction) ? $group->typeRestriction->name : "";
-        $group->can_edit = true;   // $thisUser->isConsoAdmin();
-        $group->can_delete = true; // $thisUser->isConsoAdmin();
+        $group->can_edit = true;
+        $group->can_delete = true;
 
-        return response()->json(['result' => true, 'msg' => 'Group updated successfully', 'record' => $group]);
+        $msg = ($type_skip<0) ? "Group updated, but ".$type_skip." institutions skipped or removed due to type restriction"
+                              : "Group updated successfully";
+        return response()->json(['result' => true, 'msg' => $msg, 'record' => $group]);
     }
 
     /**
