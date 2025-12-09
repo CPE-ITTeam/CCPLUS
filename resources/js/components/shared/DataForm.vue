@@ -107,7 +107,8 @@
     <v-form v-if="m_schema.fields.length" ref="formRef" @submit.prevent="submitForm">
       <v-container>
         <v-row v-for="field in m_schema.fields" :key="field.name" class="mb-3">
-          <v-col v-if="!field.static && (opType=='Edit' || field.editable)" cols="12" class="d-flex ma-0 pa-0">
+          <v-col v-if="!field.static && (opType=='Edit' || field.editable) && field.visible" cols="12"
+                 class="d-flex ma-0 pa-0">
             <!-- Read-only display -->
             <div v-if="opType!='Add' && (!field.editable || field.renderAsText)">
               <strong>{{ field.label }}:</strong> &nbsp;
@@ -132,13 +133,12 @@
                           @click:append="pwc_show=!pwc_show" :rules="field.required ? [requiredRule] : []"/>
 
             <!-- Textarea -->
-            <v-textarea v-else-if="field.type==='textarea'" v-model="formValues[field.name]" :label="field.label"
-                        :rules="field.required ? [requiredRule] : []" variant="outlined" :prepend-icon="field.icon"
-                        :hint="field.helperText" persistent-hint density="compact"/>
+            <v-textarea v-else-if="field.type==='textarea'" v-model="formValues[field.name]"
+                        :label="field.label" :rules="field.required ? [requiredRule] : []" variant="outlined"
+                        :prepend-icon="field.icon" :hint="field.helperText" persistent-hint density="compact"/>
 
             <!-- Select inputs -->
-            <v-select v-else-if="field.type==='select' && field.visible" v-model="formValues[field.name]"
-                      :label="field.label"
+            <v-select v-else-if="field.type==='select'" v-model="formValues[field.name]" :label="field.label"
                       :items="schema.options[field.name].items" :item-title="field.optTxt" :item-value="field.optVal" 
                       :prepend-icon="field.icon" :hint="field.helperText" persistent-hint variant="outlined"
                       :rules="field.required ? [requiredRule] : []" density="compact"
@@ -153,8 +153,8 @@
                       :rules="field.required ? [requiredRule] : []" density="compact"/>
 
             <!-- Fallback text input -->
-            <v-text-field v-else-if="field.type!='passconf' && field.visible" v-model="formValues[field.name]"
-                          :label="field.label" variant="outlined":prepend-icon="field.icon" :hint="field.helperText"
+            <v-text-field v-else-if="field.type!='passconf'" v-model="formValues[field.name]" :label="field.label"
+                          variant="outlined":prepend-icon="field.icon" :hint="field.helperText"
                           persistent-hint density="compact"/>
           </v-col>
         </v-row>
