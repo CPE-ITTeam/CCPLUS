@@ -132,11 +132,15 @@
     dialogType.value = "Edit";
     dialogTitle = "Edit "+config.dialogTitle;
     config.fields.forEach( (fld, idx) => {
+      if (props.datasetKey=='institutions' && fld.name=='creds') {
+        config.fields[idx]['visible'] = false;
+      } else {
+        config.fields[idx]['visible'] = true;
+      }
       // Set current values for specific fields
       if (fld.type == 'select' && fld.name == 'institutions') item['institutions'] = item.inst_id;
       // if (fld.type == 'select' || fld.type == 'mselect' || fld.type == 'selectObj') {
       // }
-      config.fields[idx]['visible'] = true;
     });
     editingItem.value = {...item};
     dialogOpen.value = true;
@@ -150,9 +154,9 @@
     config.fields.forEach( (fld, idx) => {
       // Skip fields not required for Add
       if (!config.required.includes(fld.name)) return;
-      // If field has options, but is only displayed in dialog, pre-set the value if it is set (e.g. conso)
-      if (typeof(filterOptions[fld.name])!='undefined' && !filterOptions[fld.name].show) {
-        editingItem.value[fld.name] = (filterOptions[fld.name].value) ? filterOptions[fld.name].value : null;
+      // Toggles should have addValue set in DataTableConfig
+      if (fld.type == 'toggle') {
+        editingItem.value[fld.name] = fld.addValue;
       } else {
         editingItem.value[fld.name] = null;
       }
@@ -160,6 +164,23 @@
     });
     dialogOpen.value = true;
   }
+
+  // function sortItems() {
+  //   const config = datasetConfig[props.datasetKey];
+  //   const sortCol = config.sortby;
+  //   if (typeof(allItems[sortCol])=='undefined') return;
+  //   this.allItems.sort((a,b) => {
+  //     if ( a[sortCol] < b[sortCol] ) return -1;
+  //     if ( a[sortCol] > b[sortCol] ) return 1;
+  //     return 0;
+  //   });
+  //   if (typeof(filteredItems[sortCol])=='undefined') return;
+  //   this.filteredItems.sort((a,b) => {
+  //     if ( a[sortCol] < b[sortCol] ) return -1;
+  //     if ( a[sortCol] > b[sortCol] ) return 1;
+  //     return 0;
+  //   });
+  // }
 
 //  NOTE::: Currently - changing one filter means (re)apply all that are set to the original item-set
 //
@@ -252,6 +273,7 @@ console.log('Filter by selectObj still needs work');
           _idx = allItems.findIndex(ii => ii.id == editingItem.value.id);
           if (_idx >= 0) filteredItems.splice(_idx,1,response.record);
           success.value = response.msg
+          updateItems();
           dtKey.value++;
         } else {
           failure.value = response.msg
@@ -261,11 +283,13 @@ console.log('Filter by selectObj still needs work');
       }
     } else if (dialogType.value=='Add') {
       try {
-        let url =  urlRoot.value+'/store';
+        let url = urlRoot.value+'/store';
         const response = await ccPost(url, updatedValues);
         if (response.result) {
           allItems.push(response.record);
           success.value = response.msg
+          // sortItems();
+          updateItems();
           dtKey.value++;
         } else {
           failure.value = response.msg
@@ -274,7 +298,6 @@ console.log('Filter by selectObj still needs work');
         console.error('Error adding:', error);
       }
     }
-    updateItems();
     dialogOpen.value = false;
     editingItem.value = null;
   }
