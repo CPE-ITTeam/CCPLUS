@@ -169,7 +169,7 @@
 
       <!-- Actions column -->
       <template #item.actions="{ item }">
-        <div class="d-flex ga-2 justify-end">
+        <div v-if="item.can_edit || item.can_delete" class="d-flex ga-2 justify-end">
 <!--
 NOTE:: !"can_edit" hides icon; a gray/disable icon could be added instead of "nothing"
 -->        
