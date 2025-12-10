@@ -35,7 +35,7 @@
             <a :href="error_data.help_url" target="_blank">{{ error_data.help_url }}</a>
           </v-col>
         </v-row>
-        <v-row v-if="error_data.id<8000" class="d-flex mb-1" no-gutters>
+        <v-row v-if="error_data.id<9000" class="d-flex mb-1" no-gutters>
           <v-col class="d-flex pa-0">
             <a href="#" @click="goCOUNTER(error_data.id, error_data.counter_url)">
               Open COUNTER Details <v-icon>mdi-open-in-new</v-icon>
