@@ -21,6 +21,7 @@ class CreateCCplusErrorsTable extends Migration
             $table->string('suggestion')->default('');
             // Status should be: 'Success', 'Fail', 'New', 'Queued', 'Active', 'Pending', 'Stopped', or 'ReQueued'
             $table->string('new_status',8)->default('Stopped');
+            $table->string('color',7)->default('#999999');
             $table->timestamps();
 
             $table->foreign('severity_id')->references('id')->on('severities');

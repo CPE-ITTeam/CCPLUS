@@ -19,7 +19,7 @@ class CcplusError extends Model
       *
       * @var array
       */
-    protected $fillable = [ 'id', 'message', 'severity_id', 'explanation', 'suggestion', 'new_status'];
+    protected $fillable = [ 'id', 'message', 'severity_id', 'explanation', 'suggestion', 'new_status', 'color'];
 
     public function severity()
     {
