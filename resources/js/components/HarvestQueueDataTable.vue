@@ -260,7 +260,7 @@
       <template v-slot:item.error.id="{ item }">
         <span v-if="item.error.id>0">
           {{ item.error.id }} 
-          <v-icon title="View Error Details" @click="showErrorDetails(item.error)">mdi-dots-vertical</v-icon>
+          <v-icon title="View Error Details" @click="showErrorDetails(item.error)" :color="item.error.color">mdi-dots-vertical</v-icon>
         </span>
         <span v-else >&nbsp;</span>
       </template>
