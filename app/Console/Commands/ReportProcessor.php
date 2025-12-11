@@ -3,19 +3,14 @@
 namespace App\Console\Commands;
 
 use Illuminate\Console\Command;
-use Illuminate\Support\Facades\Cache;
 use DB;
 use App\Consortium;
 use App\Report;
-use App\Sushi;
-use App\SushiSetting;
-use App\SushiQueueJob;
 use App\Counter5Processor;
 use App\FailedHarvest;
 use App\HarvestLog;
 use App\CcplusError;
 use App\Severity;
-use App\Alert;
 use App\GlobalProvider;
 use App\ConnectionField;
 use Illuminate\Support\Facades\File;
@@ -176,30 +171,26 @@ class ReportProcessor extends Command
 
                // Run the counter processor on the JSON
                 $ts = date("Y-m-d H:i:s");
+                $rawfile = $report->name . '_' . $begin . '_' . $end . ".json";
                 try {
                     $res = $C5processor->{$report->name}($json);
-               // If processor failed, signal 9020 and delete the JSON file
+                    // Successfully processed the report - clear out any existing "failed" records and update the harvest
+                    if ($res == 'Success') {
+                        $deleted = FailedHarvest::where('harvest_id', $harvest->id)->delete();
+                        $harvest->error_id = 0;
+                        $harvest->status = 'Success';
+                    }
+               // If processor failed, signal 9900
                 } catch (\Exception $e) {
-                    $error9020 = CcplusError::where('id',9020)->first();
+                    $error9900 = CcplusError::where('id',9900)->first();
                     FailedHarvest::insert(['harvest_id' => $harvest->id, 'process_step' => 'COUNTER',
-                                           'error_id' => 9020, 'detail' => 'Processing error: ' . $e->getMessage(),
+                                           'error_id' => 9900, 'detail' => 'Processing error: ' . $e->getMessage(),
                                            'help_url' => null, 'created_at' => $ts]);
                     $this->line($ts . " " . $ident . ":: ".$harvest->id." :: Error processing JSON : " . $e->getMessage());
-                    $harvest->error_id = 9020;
+                    $harvest->error_id = 9900;
                     $harvest->attempts++;
-                    $harvest->status = ($error9020) ? $error9020->new_status : 'ReQueued';
-                    $harvest->save();
-                    unlink($jsonFile);
-                    continue;
+                    $harvest->status = ($error9900) ? $error9900->new_status : 'ReQueued';
                 }
-
-               // Successfully processed the report - clear out any existing "failed" records and update the harvest
-                $deleted = FailedHarvest::where('harvest_id', $harvest->id)->delete();
-                $rawfile = $report->name . '_' . $begin . '_' . $end . ".json";
-                $harvest->error_id = 0;
-                $harvest->status = 'Success';
-                $harvest->rawfile = $rawfile;
-                $harvest->save();
 
                // Make sure the path for the output file exists
                 $path = $consortium_root . '/' . $inst_id . '/' . $prov_id;
@@ -212,23 +203,20 @@ class ReportProcessor extends Command
                 try {
                     rename($jsonFile, $newName);
                 } catch (\Exception $e) {
-                   // Rename failed and file is not in the new place, clear rawfile in the harvest record and report error
+                   // Rename failed and file is not in the new place, clear rawfile value and log error
                     if (!is_readable($newName)) {
                         $this->line ($ts  . " " . $ident . "Rename/Move operation for JSON source file failed: " . $jsonFile);
-                        $harvest->rawfile = null;
-                        $harvest->save();
+                        $rawfile = null;
+                        try { unlink($jsonFile); } catch (\Exception $e2) { }
                     }
                 }
+                $harvest->rawfile = $rawfile;
+                $harvest->save();
 
                // Print confirmation line
                 $this->line($ts . " " . $ident . $harvest->sushiSetting->provider->name . " : " . $yearmon . " : " .
                                   $report->name . " processed for " . $harvest->sushiSetting->institution->name);
                 unset($C5processor);
-
-        // // Check for a file in the priority queue
-        // foreach ($globs as $glob) {
-        //     $search_path = $report_path . "/" . $glob;
-        // }
 
             }
         }
