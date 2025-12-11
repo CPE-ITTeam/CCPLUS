@@ -39,7 +39,7 @@ class Sushi extends Model
     * Request the report
     *
     * @param string $uri
-    * @return string $status   // Success , Fail,  Queued
+    * @return string $status   // Success , Fail,  Pending
     */
     public function request($uri)
     {
@@ -64,9 +64,10 @@ class Sushi extends Model
             $result = $client->request('GET', $uri, $options);
         } catch (\Exception $e) {
             $this->step = "HTTP";
-            $this->error_code = (property_exists($e, 'Code')) ? $e->getCode() : 9010;
+            $this->error_code = (property_exists($e, 'Code')) ? $e->getCode() : 9200;
             $this->severity = (property_exists($e, 'Severity')) ? strtoupper($e->getSeverity()) : "ERROR";
             $this->message = (property_exists($e, 'Message')) ? $e->getMessage() : "COUNTER API HTTP request failed, verify URL";
+            $this->raw_datafile = "";
             return "Fail";
         }
 
@@ -82,9 +83,9 @@ class Sushi extends Model
 
        // Save raw data
         if ($this->raw_datafile != "") {
-            // file_put_contents($this->raw_datafile, $result->getBody());
             if (File::put($this->raw_datafile, Crypt::encrypt(bzcompress($result->getBody(), 9), false)) === false) {
                 echo "Failed to save raw data in: " . $this->raw_datafile;
+                $this->raw_datafile = "";
                 // ... OR ...
                 // throw new \Exception("Failed to save raw data in: ".$this->raw_datafile);
             }
@@ -95,36 +96,14 @@ class Sushi extends Model
        // Make sure $json is a proper object
         $this->json = json_decode($result->getBody());
         if (!is_object($this->json)) {
-            $this->step = "JSON";
+            $this->step = "API";
             $this->message = "Reported Dataset Formatting Invalid - JSON Expected, something else returned.";
-            $this->error_code = 9020;
-            // Check for an array of JSON objects
-            if (is_array($this->json)) {
-                $gotError = false;
-                foreach ($this->json as $err) {
-                    if (is_object($err) && !$gotError) {
-                        if ($this->jsonHasExceptions($err)) {
-                            $gotError = true;
-                        }
-                    }
-                }
-                if (!$gotError) {
-                    $this->detail = " request returned an array";
-                } 
-            } else {
-                $begin_txt = substr(trim($result->getBody()),0,80);
-                // Need a way to detect/flag whether we got HTML (usually as a string?)
-                if (substr($begin_txt,0,1) == "{") { // Badly formed JSON?
-                    $this->error_code = 9021;
-                    $this->detail = " request returned a string that looks like badly formed JSON";
-                // Got HTML?
-                } else if (stripos($begin_txt,"doctype html") || stripos($begin_txt,"<html>")) {
-                    $this->detail = " request returned HTML";
-                    $this->error_code = 9022;
-                } else {
-                    $this->detail = " request returned scalar value";
-                }
-            }
+            $this->error_code = 9300;
+            $this->detail = " returned data is not an Object that JSON can decode";
+
+            // Not valid JSON, toss the raw datafile and clear the string
+            try { unlink($this->raw_datafile); } catch (\Exception $e2) { }
+            $this->raw_datafile = "";
             return "Fail";
         }
         unset($result);
@@ -142,8 +121,8 @@ class Sushi extends Model
            // Override JSON severity with value from CC+ Error table if the code is found there.
            // If code unrecognized and severity is non-Fatal, return Success and let caller handle it.
             $known_error = CcplusError::with('severity')->where('id',$this->error_code)->first();
-            if (!$known_error) {  // force to 9000 (unknown error)
-                $known_error = CcplusError::with('severity')->where('id',9000)->first();
+            if (!$known_error) {  // force to 9400 (unknown error)
+                $known_error = CcplusError::with('severity')->where('id',9400)->first();
             }
             if ($known_error) {
                 // Set the return message and severity string based on the error table
@@ -158,9 +137,9 @@ class Sushi extends Model
         }
         if (json_last_error() !== JSON_ERROR_NONE) {
             $this->detail = json_last_error_msg();
-            $this->step = "JSON";
-            $this->error_code = 9020;
-            $this->message = "Error decoding JSON : ";
+            $this->step = "API";
+            $this->error_code = 9400;
+            $this->message = "Error decoding request response : ";
             return "Fail";
         }
         return "Success";
