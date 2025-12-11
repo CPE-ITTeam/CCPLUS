@@ -161,13 +161,13 @@ class SushiQHarvester extends Command
                     $setting = $result[0];
 
                     if ($setting->status != 'Enabled') {
-                        $error = CcplusError::where('id',9050)->first();
+                        $error = CcplusError::where('id',9100)->first();
                         if ($error) {
                             $result = DB::table($failedharvests[$cid])
-                                        ->insert(['harvest_id'=>$harvest->id, 'process_step'=>'Initiation', 'error_id'=>9050,
+                                        ->insert(['harvest_id'=>$harvest->id, 'process_step'=>'Initiation', 'error_id'=>9100,
                                                   'created_at'=>$ts, 'detail'=>$error->explanation . ', ' . $error->suggestion]);
                         }
-                        DB::table($harvests[$cid])->where('id', $harvest->id)->update(['status' => 'Fail', 'error_id' => 9050]);
+                        DB::table($harvests[$cid])->where('id', $harvest->id)->update(['status' => 'Fail', 'error_id' => 9100]);
                         $keepJob = false;
                     }
                     
@@ -208,32 +208,32 @@ class SushiQHarvester extends Command
 
             // If (global) provider or institution is inactive, toss the job and move on
             if (!$setting->prov_active) {
-                $error = CcplusError::where('id',9060)->first();
+                $error = CcplusError::where('id',9100)->first();
                 if ($error) {
                     $result = DB::table($failedharvests[$cid])
                                 ->insert(['harvest_id' => $harvest->id, 'process_step' => 'Initiation',
-                                          'error_id' => 9060, 'detail' => $error->explanation . ', ' . $error->suggestion,
+                                          'error_id' => 9100, 'detail' => $error->explanation . ', ' . $error->suggestion,
                                           'created_at' => $ts]);
                 } else {
                     $this->line($ts . " QueueHarvester: Provider: " . $setting->prov_name .
                                         " is INACTIVE , queue entry removed and harvest status set to Fail.");
                 }
-                DB::table($harvests[$cid])->where('id', $harvest->id)->update(['status' => 'Fail', 'error_id' => 9060]);
+                DB::table($harvests[$cid])->where('id', $harvest->id)->update(['status' => 'Fail', 'error_id' => 9100]);
                 $job->delete();
                 continue;
             }
             if (!$setting->inst_active) {
-                $error = CcplusError::where('id',9070)->first();
+                $error = CcplusError::where('id',9100)->first();
                 if ($error) {
                     $result = DB::table($failedharvests[$cid])
                                 ->insert(['harvest_id' => $harvest->id, 'process_step' => 'Initiation',
-                                            'error_id' => 9070, 'detail' => $error->explanation . ', ' . $error->suggestion,
+                                            'error_id' => 9100, 'detail' => $error->explanation . ', ' . $error->suggestion,
                                             'created_at' => $ts]);
                 } else {
                     $this->line($ts . " QueueHarvester: Institution: " . $setting->inst_name .
                                         " is INACTIVE , queue entry removed and harvest status set to Fail.");
                 }
-                DB::table($harvests[$cid])->where('id', $harvest->id)->update(['status' => 'Fail', 'error_id' => 9070]);
+                DB::table($harvests[$cid])->where('id', $harvest->id)->update(['status' => 'Fail', 'error_id' => 9100]);
                 $job->delete();
                 continue;
             }
@@ -272,8 +272,8 @@ class SushiQHarvester extends Command
                 $error_msg .= substr(preg_replace('/(.*)(https?:\/\/.*)$/', '$1', $sushi->message), 0, 60);
 
                 // Get/Create entry from the sushi_errors table
-                if ($sushi->error_code == 0) {  // Reserve 0 for "No Error"
-                    $sushi->error_code = 9000;
+                if ($sushi->error_code == 0) {  // 0 is reserved for "No Error", reset to "unknown" code:9400
+                    $sushi->error_code = 9400;
                 }
                 $error = CcplusError::firstOrCreate(
                         ['id' => $sushi->error_code],
@@ -282,7 +282,7 @@ class SushiQHarvester extends Command
                 $result = DB::table($failedharvests[$cid])
                             ->insert(['harvest_id' => $harvest->id, 'process_step' => $sushi->step, 'error_id' => $error->id,
                                       'detail' => $sushi->detail, 'help_url' => $sushi->help_url, 'created_at' => $ts]);
-                if ($sushi->error_code != 9010) {
+                if ($sushi->error_code != 9200) {
                     $sushi->detail .= " (URL: " . $request_uri . ")";
                 }
                 $this->line($ts . " QueueHarvester: COUNTER API Exception (" . $sushi->error_code . ") : " .
@@ -319,18 +319,16 @@ class SushiQHarvester extends Command
                                             ->insert(['harvest_id' => $harvest->id, 'process_step' => 'API',
                                                       'error_id' => $new_code, 'detail' => $sushi->message.', '.$sushi->detail,
                                                       'help_url' => $sushi->help_url, 'created_at' => $ts]);
-                            // Otherwise, signal 9100 - failed COUNTER validation
+                            // Otherwise, signal 9400) - failed COUNTER validation
                             } else {
                                 $result = DB::table($failedharvests[$cid])
                                             ->insert(['harvest_id' => $harvest->id, 'process_step' => 'COUNTER',
-                                                      'error_id' => 9100, 'detail' => 'Validation error: ' . $e->getMessage(),
+                                                      'error_id' => 9400, 'detail' => 'Validation error: ' . $e->getMessage(),
                                                       'help_url' => $sushi->help_url, 'created_at' => $ts]);
                                 $this->line($ts . " QueueHarvester: Report failed COUNTER validation :: ".$harvest->id.
                                                     " :: " . $e->getMessage());
-                                $new_code = 9100;
-                                $error = CcplusError::where('id',9100)->first();
-                                // Toss the raw data file
-                                try { unlink($sushi->raw_datafile); } catch (\Exception $e2) { }
+                                $new_code = 9400;
+                                $error = CcplusError::where('id',9400)->first();
                             }
                         }
                     }
@@ -386,7 +384,7 @@ class SushiQHarvester extends Command
                 $new_attempts++;
                 $max_retries = intval(config('ccplus.max_harvest_retries'));
 
-                // If we're out of retries, the harvest fails and we set an Alert
+                // If we're out of retries, the harvest failed already - leave code alone and set status only
                 if ($new_attempts >= $max_retries) {
                     $new_status = 'NoRetries';
                     // Alert::insert(['yearmon' => $yearmon, 'prov_id' => $setting->prov_id,
@@ -396,9 +394,9 @@ class SushiQHarvester extends Command
                 }
             }
 
-            // Try to move the JSON to the processed folder when an error is set.
+            // If there's an error code and rawfile exists, try to move JSON to the processed folder.
             // Processor script will move the valid+successful JSON data once it is parsed and stored
-            if ($new_code > 0) {
+            if ($new_code > 0 && $sushi->raw_datafile != "") {
                 $savePath = $report_path . '/' . $setting->inst_id . '/' . $setting->prov_id;
                 if ($setting->inst_id>0 && $setting->prov_id>0 && !is_dir($savePath)) {
                     mkdir($savePath, 0755, true);
@@ -426,13 +424,14 @@ class SushiQHarvester extends Command
             // Sleep 2 seconds *before* saving the harvest record (keeping it technically "Active"),
             // to avoid having the provider block too-rapid requesting.
             sleep(2);
-            unset($sushi);
 
             // Update the harvest 
             DB::table($harvests[$cid])->where('id', $harvest->id)
-              ->update(['status'=>$new_status, 'error_id'=>$new_code, 'attempts'=>$new_attempts, 'rawfile'=>null]);
+              ->update(['status' => $new_status, 'error_id' => $new_code, 'attempts' => $new_attempts,
+                        'rawfile' => $sushi->raw_datafile]);
 
             // All done, remove the job record unless the harvest is Pending
+            unset($sushi);
             if ($new_status != "Pending") {
                 $job->delete();
             }
