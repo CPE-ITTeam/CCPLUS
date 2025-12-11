@@ -759,21 +759,11 @@ class HarvestLogController extends Controller
 
        // Get and process the harvest(s)
        $changed = 0;
-       $skipped = [];
+       $skipped = [];   // For tracking harvests skipped due to release-issues
        $harvests = HarvestLog::with('sushiSetting','sushiSetting.institution','sushiSetting.provider',
                                     'sushiSetting.provider.registries')
                              ->whereIn('id',$input['ids'])->get();
        foreach ($harvests as $harvest) {
-           // keep track of original status
-           $original_status = $harvest->status;
-
-           // Disallow ReStart on any harvest where sushi settings are not Enabled, or provider or institution are
-           // are not active
-           if ( ($status_action == 'ReStart') && ($harvest->sushiSetting->status != 'Enabled' ||
-                !$harvest->sushiSetting->institution->is_active || !$harvest->sushiSetting->provider->is_active) ) {
-               $skipped[] = $harvest->id;
-               continue;
-           }
 
            // Confirm that a "forcedRelease" is available for this harvests' provider
            if (!is_null($forceRelease)) {
@@ -1019,7 +1009,7 @@ class HarvestLogController extends Controller
 
        // Get the harvests requested
        $harvest_data = HarvestLog::with('sushiSetting','report')->whereIn('id', $input['harvests'])->get();
-       $skipped = 0;
+       $skipped = 0;    // track harvests not-manageable by the current user
        $msg = "Result: ";
 
        // Build a list of IDs that current user allowed to delete
@@ -1057,7 +1047,7 @@ class HarvestLogController extends Controller
 
        // return result
        $msg .= count($deleteable_ids) . " harvests deleted";
-       $msg .= ($skipped>0) ? ", and " . $skipped . "harvests skipped." : " successfully.";
+       $msg .= ($skipped>0) ? ", and " . $skipped . "harvests skipped (not authorized.)" : " successfully.";
        return response()->json(['result' => true, 'msg' => $msg, 'removed' => $deleteable_ids]);
    }
 
@@ -1341,7 +1331,6 @@ class HarvestLogController extends Controller
            $rec['error']['help_url'] = (is_null($lastFailed->help_url)) ? '' : $lastFailed->help_url;
            $rec['error']['process_step'] = (is_null($lastFailed->process_step)) ? '' : $lastFailed->process_step;
        }
-       $rec['failed'] = [];
        $rec['error']['counter_url'] = ($harvest->release == '5.1')
            ? "https://cop5.countermetrics.org/en/5.1/appendices/d-handling-errors-and-exceptions.html"
            : "https://cop5.projectcounter.org/en/5.0.3/appendices/f-handling-errors-and-exceptions.html";
