@@ -1309,7 +1309,7 @@ class HarvestLogController extends Controller
                     'release' => $harvest->release,
                     'report_name' => $harvest->report->name,
                     'status' => $harvest->status, 'rawfile' => $harvest->rawfile,
-                    'error_id' => 0, 'error' => []
+                    'error_id' => 0, 'error' => ['id' => 0, 'message' => 'Success', 'color' => '#00DD00']
                    );
        $rec['updated'] = ($harvest->updated_at) ? date("Y-m-d H:i", strtotime($harvest->updated_at)) : " ";
        $rec['release'] = (is_null($harvest->release)) ? "" : $harvest->release;
