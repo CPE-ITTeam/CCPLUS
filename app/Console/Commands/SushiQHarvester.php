@@ -290,7 +290,6 @@ class SushiQHarvester extends Command
 
                 DB::table($harvests[$cid])->where('id', $harvest->id)->update(['status' => 'Fail', 'error_id' => $error->id]);
                 $job->delete();
-                continue;
             }
 
             // Sushi said "Success"?
