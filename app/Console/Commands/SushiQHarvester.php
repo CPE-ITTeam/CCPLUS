@@ -409,8 +409,8 @@ class SushiQHarvester extends Command
                         $oldFile = $savePath . '/' . $harvest->rawfile;
                         try {
                             unlink($oldFile);
-                            $rawfile = "";
                         } catch (\Exception $e2) { }
+                        $rawfile = null;
                     }
                     // If a rawfile exists from this attempt, try to move JSON to the processed folder.
                     if ($sushi->raw_datafile != "") {
@@ -420,8 +420,8 @@ class SushiQHarvester extends Command
                         } catch (\Exception $e) { // rename failed. Try to cleanup the unprocessed folder (silently)
                             try {
                                 unlink($sushi->raw_datafile);
-                                $rawfile = "";
                             } catch (\Exception $e2) { }
+                            $rawfile = null;
                         }
                     }
                 }
