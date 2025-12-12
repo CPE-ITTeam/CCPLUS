@@ -243,8 +243,8 @@ class SushiQHarvester extends Command
             $sushi = new Sushi($begin, $end);
 
             // Set output filename for raw data. Create the folder path, if necessary
-            $_name = $harvest->id . '_' . $report->name . '_' . $begin . '_' . $end . '.json';
-            $sushi->raw_datafile = $unprocessed_path . $_name;
+            $rawfile = $harvest->id . '_' . $report->name . '_' . $begin . '_' . $end . '.json';
+            $sushi->raw_datafile = $unprocessed_path . $rawfile;
 
             // Construct URI for the request
             $request_uri = $sushi->buildUri($setting, 'reports', $report, $harvest->release);
@@ -402,12 +402,13 @@ class SushiQHarvester extends Command
                     mkdir($savePath, 0755, true);
                 }
                 if (is_dir($savePath)) {
-                    $newName = $savePath . '/' . $_name;
+                    $newName = $savePath . '/' . $rawfile;
                     try {
                         rename($sushi->raw_datafile, $newName);
                     } catch (\Exception $e) { // rename failed. Try to cleanup the unprocessed folder (silently)
                         try {
                             unlink($sushi->raw_datafile);
+                            $rawfile = "";
                         } catch (\Exception $e2) { }
                     }
                 }
@@ -428,7 +429,7 @@ class SushiQHarvester extends Command
             // Update the harvest 
             DB::table($harvests[$cid])->where('id', $harvest->id)
               ->update(['status' => $new_status, 'error_id' => $new_code, 'attempts' => $new_attempts,
-                        'rawfile' => $sushi->raw_datafile]);
+                        'rawfile' => $rawfile]);
 
             // All done, remove the job record unless the harvest is Pending
             unset($sushi);
