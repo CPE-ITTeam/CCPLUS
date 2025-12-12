@@ -169,17 +169,17 @@ class CcplusErrorsTableSeeder extends Seeder
              ['id'=>9100, 'message' => 'COUNTER / SUSHI credentials not enabled','severity_id' => 99,
                  'explanation' => 'Connection credentials must be enabled in order to harvest. ',
                  'suggestion' => 'Verify that the credentials related to this harvest are enabled.',
-                 'new_status' => 'Fail', 'color' => '#DD0000'
+                 'new_status' => 'BadCreds', 'color' => '#FF9900'
              ],
              ['id'=>9200, 'message' => 'Unable to reach harvest endpoint','severity_id' => 99,
                  'explanation' => 'The request to the SUSHI server failed to connect.',
                  'suggestion' => 'Confirm that the URL in the platform settings is correct and retry.',
-                 'new_status' => 'Fail', 'color' => '#DD0000'
+                 'new_status' => 'Fail', 'color' => '#999999'
              ],
              ['id'=>9300, 'message' => 'Harvest endpoint did not return JSON', 'severity_id' => 99,
                  'explanation' => 'The dataset received appears to contain invalid JSON.',
                  'suggestion' => 'Contact the provider to report this issue.',
-                 'new_status' => 'Fail', 'color' => '#DD0000'
+                 'new_status' => 'Fail', 'color' => '#999999'
              ],
              ['id'=>9400, 'message' => 'Unknown decoding error in harvester', 'severity_id' => 99,
                  'explanation' => 'The downloaded dataset failed to be decoded as JSON.',
