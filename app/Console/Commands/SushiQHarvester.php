@@ -394,22 +394,35 @@ class SushiQHarvester extends Command
                 }
             }
 
-            // If there's an error code and rawfile exists, try to move JSON to the processed folder.
-            // Processor script will move the valid+successful JSON data once it is parsed and stored
-            if ($new_code > 0 && $sushi->raw_datafile != "") {
+            // If there's an error code, clean up raw data file and or database pointer to it. The
+            // processor script will move the valid+successful JSON data once it is parsed and stored
+            if ($new_code > 0) {
+                // Set target path
                 $savePath = $report_path . '/' . $setting->inst_id . '/' . $setting->prov_id;
                 if ($setting->inst_id>0 && $setting->prov_id>0 && !is_dir($savePath)) {
                     mkdir($savePath, 0755, true);
                 }
                 if (is_dir($savePath)) {
-                    $newName = $savePath . '/' . $rawfile;
-                    try {
-                        rename($sushi->raw_datafile, $newName);
-                    } catch (\Exception $e) { // rename failed. Try to cleanup the unprocessed folder (silently)
+                    // If the harvest has a rawfile value set and this attempt returned invalid/no JSON,
+                    // clear out the saved data file, if possible.
+                    if (in_array($new_code,[9100,9200,9300]) && !is_null($harvest->rawfile)) {
+                        $oldFile = $savePath . '/' . $harvest->rawfile;
                         try {
-                            unlink($sushi->raw_datafile);
+                            unlink($oldFile);
                             $rawfile = "";
                         } catch (\Exception $e2) { }
+                    }
+                    // If a rawfile exists from this attempt, try to move JSON to the processed folder.
+                    if ($sushi->raw_datafile != "") {
+                        $newName = $savePath . '/' . $rawfile;
+                        try {
+                            rename($sushi->raw_datafile, $newName);
+                        } catch (\Exception $e) { // rename failed. Try to cleanup the unprocessed folder (silently)
+                            try {
+                                unlink($sushi->raw_datafile);
+                                $rawfile = "";
+                            } catch (\Exception $e2) { }
+                        }
                     }
                 }
             }
