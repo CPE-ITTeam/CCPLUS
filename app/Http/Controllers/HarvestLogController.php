@@ -18,13 +18,13 @@ use App\SushiSetting;
 use App\SushiQueueJob;
 use App\ConnectionField;
 use App\CcplusError;
-use Storage;
 use Illuminate\Support\Facades\File;
 use Illuminate\Support\Facades\Crypt;
 
 class HarvestLogController extends Controller
 {
    private $connection_fields;
+   private $all_error_codes;
 
    public function __construct()
    {
@@ -35,6 +35,7 @@ class HarvestLogController extends Controller
        } catch (\Exception $e) {
            $this->connection_fields = collect();
        }
+       $this->all_error_codes = CcplusError::get()->pluck('id')->toArray();
    }
 
    /**
@@ -164,9 +165,7 @@ class HarvestLogController extends Controller
            $bounds = $this->harvestBounds();
 
            // get a list of error codes - for now just return the unique list of (last) error_id in all harvestlogs
-           $hCodes = HarvestLog::where('error_id','>',0)->distinct('error_id')->orderBy('error_id')->pluck('error_id')->toArray();
-           // Setup code options - limit to intersection of non-Requeued codes and what is in #hCodes
-           $codes = CcplusError::where('new_status','<>','ReQueued')->whereIn('id',$hCodes)->pluck('id')->toArray();
+           $codes = HarvestLog::where('error_id','>',0)->distinct('error_id')->orderBy('error_id')->pluck('error_id')->toArray();
            array_unshift($codes, 'No Error');
 
            // Setup the initial page view
@@ -1309,7 +1308,8 @@ class HarvestLogController extends Controller
                     'release' => $harvest->release,
                     'report_name' => $harvest->report->name,
                     'status' => $harvest->status, 'rawfile' => $harvest->rawfile,
-                    'error_id' => 0, 'error' => ['id' => 0, 'message' => 'Success', 'color' => '#00DD00']
+                    'error_id' => 0,
+                    'error' => ['id' => $harvest->error_id, 'message' => '', 'color' => '#999999']
                    );
        $rec['updated'] = ($harvest->updated_at) ? date("Y-m-d H:i", strtotime($harvest->updated_at)) : " ";
        $rec['release'] = (is_null($harvest->release)) ? "" : $harvest->release;
@@ -1326,11 +1326,14 @@ class HarvestLogController extends Controller
            $rec['error']['process_step'] = '';
        } else if ($lastFailed && $harvest->error_id > 0) {
            $rec['error_id'] = $lastFailed->error_id;
-           $rec['error'] = $lastFailed->ccplusError->toArray();
+           if ($lastFailed->ccplusError) {
+               $rec['error'] = $lastFailed->ccplusError->toArray();
+           }
            $rec['error']['detail'] = (is_null($lastFailed->detail)) ? '' : $lastFailed->detail;
            $rec['error']['help_url'] = (is_null($lastFailed->help_url)) ? '' : $lastFailed->help_url;
            $rec['error']['process_step'] = (is_null($lastFailed->process_step)) ? '' : $lastFailed->process_step;
        }
+       $rec['error']['known_error'] = in_array($rec['error_id'],$this->all_error_codes);
        $rec['error']['counter_url'] = ($harvest->release == '5.1')
            ? "https://cop5.countermetrics.org/en/5.1/appendices/d-handling-errors-and-exceptions.html"
            : "https://cop5.projectcounter.org/en/5.0.3/appendices/f-handling-errors-and-exceptions.html";
