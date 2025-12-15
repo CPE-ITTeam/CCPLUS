@@ -1308,12 +1308,14 @@ class HarvestLogController extends Controller
                     'release' => $harvest->release,
                     'report_name' => $harvest->report->name,
                     'status' => $harvest->status, 'rawfile' => $harvest->rawfile,
-                    'error_id' => 0,
-                    'error' => ['id' => $harvest->error_id, 'message' => '', 'color' => '#999999']
+                    'error_id' => 0
                    );
        $rec['updated'] = ($harvest->updated_at) ? date("Y-m-d H:i", strtotime($harvest->updated_at)) : " ";
        $rec['release'] = (is_null($harvest->release)) ? "" : $harvest->release;
 
+       // Setup error details array (starting with default values)
+       $rec['error'] = array('id' => $harvest->error_id, 'message' => '');
+       $rec['error']['color'] = ($rec['status'] == 'Success') ? '#00DD00' : '#999999';
        $lastFailed = null;
        if ($harvest->failedHarvests) {
            $lastFailed = $harvest->failedHarvests->sortByDesc('created_at')->first();
