@@ -44,6 +44,9 @@
               </a>
             </v-col>
           </v-row>
+          <v-row v-if="error_data.noretries" class="d-flex my-2" no-gutters>
+            <font color="red"><strong>This harvest has no more retries</strong></font>
+          </v-row>
         </div>
         <div v-else>
           <v-row class="d-flex mb-2" no-gutters>
