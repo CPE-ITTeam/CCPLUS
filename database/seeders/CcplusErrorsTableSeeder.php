@@ -25,27 +25,27 @@ class CcplusErrorsTableSeeder extends Seeder
             ['id'=>1000, 'message' => 'Service Not Available', 'severity_id' => 12,
                 'explanation' => 'The SUSHI service for the provider is not responding',
                 'suggestion' => 'Contact the provider to report this issue.',
-                'new_status' => 'ReQueued', 'color' => '#3686B4'
+                'new_status' => 'ReQueued', 'color' => '#39AAE0'
             ],
             ['id'=>1010, 'message' => 'Service Busy', 'severity_id' => 12,
                 'explanation' => 'The request to the SUSHI server was successful, but the service is currently busy' .
                                  ' and cannot connect.',
                 'suggestion' => 'Wait for the next retry. If this error occurs multiple times, contact the provider' .
                                 ' to report this issue.',
-                'new_status' => 'ReQueued', 'color' => '#3686B4'
+                'new_status' => 'ReQueued', 'color' => '#39AAE0'
             ],
             ['id'=>1011, 'message' => 'Report Queued for Processing', 'severity_id' => 11,
                 'explanation' => "The SUSHI service accepted the request and put it into a queue for future" .
                                  " processing at the provider's service.",
                 'suggestion' => 'Work with the CC-PLUS admin to correct this error.',
-                'new_status' => 'Pending', 'color' => '#00DD00'
+                'new_status' => 'Pending', 'color' => '#39AAE0'
             ],
-            ['id'=>1020, 'message' => 'Client has made too many requests', 'severity_id' => 12,
-                'explanation' => 'The request to the SUSHI server was successful, but the limit of requests per day' .
-                                 ' has been reached.',
-                'suggestion' => 'Wait for the next retry. If this error occurs multiple times, contact the provider' .
-                                ' to report this issue.',
-                'new_status' => 'ReQueued', 'color' => '#3686B4'
+            ['id'=>1020, 'message' => 'Client has made too many requests', 'severity_id' => 11,
+                'explanation' => 'The request to the SUSHI server was successful, but the platform is limiting the number' .
+                                 ' of requests that can be made within a given timeframe.',
+                'suggestion' => 'CC-Plus will automatically retry this harvest during the next scheduled iteration. If this' .
+                                ' error persists, contact the provider to report this issue.',
+                'new_status' => 'Pending', 'color' => '#39AAE0'
             ],
             ['id'=>1030, 'message' => 'Insufficient Information to Process Request', 'severity_id' => 12,
                 'explanation' => 'One or more credentials is missing.',
@@ -103,7 +103,7 @@ class CcplusErrorsTableSeeder extends Seeder
                 'suggestion' => 'Wait for the next retry or stop the harvest for now and restart it later. If this' .
                                 ' error persists, consider asking the CC-PLUS admin to change the date on which the' .
                                 ' monthly report is run.',
-                'new_status' => 'ReQueued', 'color' => '#3686B4'
+                'new_status' => 'ReQueued', 'color' => '#39AAE0'
             ],
             ['id'=>3032, 'message' => 'Usage No Longer Available for Requested Dates', 'severity_id'=>12,
                 'explanation' => 'Usage data for the requested month is not available.',
