@@ -205,7 +205,7 @@ class HarvestLogController extends Controller
 
            // Limit status if an empty array is passed in
            if (count($filters["harv_stat"]) == 0) {
-               $filters["harv_stat"] = array('Success','Fail','BadCreds');
+               $filters["harv_stat"] = array('Success','Fail','BadCreds','NoRetries');
            }
 
            // Setup limit_to_provs with the provID's we'll pull settings for
@@ -1316,6 +1316,10 @@ class HarvestLogController extends Controller
        // Setup error details array (starting with default values)
        $rec['error'] = array('id' => $harvest->error_id, 'message' => '');
        $rec['error']['color'] = ($rec['status'] == 'Success') ? '#00DD00' : '#999999';
+       $rec['statusAlt'] = $rec['status'];
+       if (in_array($rec['status'],array('BadCreds','NoRetries'))) {
+           $rec['statusAlt'] = ($rec['status']=='BadCreds') ? 'Bad Credentials' : 'Out of Retries';
+       }
        $lastFailed = null;
        if ($harvest->failedHarvests) {
            $lastFailed = $harvest->failedHarvests->sortByDesc('created_at')->first();
@@ -1336,6 +1340,7 @@ class HarvestLogController extends Controller
            $rec['error']['process_step'] = (is_null($lastFailed->process_step)) ? '' : $lastFailed->process_step;
        }
        $rec['error']['known_error'] = in_array($rec['error_id'],$this->all_error_codes);
+       $rec['error']['noretries'] = ($harvest->status == 'NoRetries');
        $rec['error']['counter_url'] = ($harvest->release == '5.1')
            ? "https://cop5.countermetrics.org/en/5.1/appendices/d-handling-errors-and-exceptions.html"
            : "https://cop5.projectcounter.org/en/5.0.3/appendices/f-handling-errors-and-exceptions.html";
