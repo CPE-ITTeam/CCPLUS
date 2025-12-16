@@ -253,7 +253,7 @@
       </template>
       <template v-slot:item.status="{ item }">
         <span >
-          <v-icon :title="item.status" :color="item.error.color">mdi-record</v-icon>
+          <v-icon :title="item.statusAlt" :color="item.error.color">mdi-record</v-icon>
         </span>
       </template>
       <v-alert slot="no-results" :value="true" color="error" icon="warning">
