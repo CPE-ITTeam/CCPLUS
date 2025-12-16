@@ -97,7 +97,7 @@ class Sushi extends Model
         $this->json = json_decode($result->getBody());
         if (!is_object($this->json)) {
             $this->step = "API";
-            $this->message = "Reported Dataset Formatting Invalid - JSON Expected, something else returned.";
+            $this->message = "Reported Dataset Formatting Invalid - JSON Expected, something else returned";
             $this->error_code = 9300;
             $this->detail = " returned data is not an Object that JSON can decode";
 
@@ -111,7 +111,7 @@ class Sushi extends Model
        // Check JSON for exceptions
         if ($this->jsonHasExceptions($this->json)) {
            // Check for "queued" state response
-            if ($this->error_code == 1011) {
+            if ($this->error_code == 1011 || $this->error_code == 1020) {
                 return "Pending";
             }
 
