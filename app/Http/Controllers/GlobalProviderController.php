@@ -312,7 +312,7 @@ class GlobalProviderController extends Controller
       $registry->save();
 
       // Set Provider's selected_release if the input flag is on
-      $isSelected = ($input['is_selected']) ? 1 : 0;
+      $isSelected = (isset($input['is_selected'])) ? $input['is_selected'] : 0;
       if ($isSelected) {
           $provider->selected_release = trim($registry->release);
       }
