@@ -45,7 +45,9 @@
             </v-col>
           </v-row>
           <v-row v-if="error_data.noretries" class="d-flex my-2" no-gutters>
-            <font color="red"><strong>This harvest has no more retries</strong></font>
+            <font color="red"><strong>
+              Harvest has has reached maximum retries but can be restarted using bulk actions
+            </strong></font>
           </v-row>
         </div>
         <div v-else>
