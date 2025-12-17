@@ -293,7 +293,7 @@ class GlobalProviderController extends Controller
           // Create a CounterRegistry record
           $registry = new CounterRegistry;
           $registry->global_id = $provider->id;
-          $registry->service_url = $input['service_url'];
+          $registry->service_url = (isset($input['service_url'])) ? $input['service_url'] : null;
           $registry->release = $release;
       }
       if ($registry) {
