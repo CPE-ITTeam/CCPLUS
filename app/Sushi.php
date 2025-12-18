@@ -109,23 +109,17 @@ class Sushi extends Model
         unset($result);
 
        // Check JSON for exceptions
+        $this->step = "API";
         if ($this->jsonHasExceptions($this->json)) {
            // Check for "queued" state response
             if ($this->error_code == 1011 || $this->error_code == 1020) {
                 return "Pending";
             }
 
-            // Not queued, signal error.
-            $this->step = "API";
-
-           // Override JSON severity with value from CC+ Error table if the code is found there.
-           // If code unrecognized and severity is non-Fatal, return Success and let caller handle it.
+            // Override JSON severity with value from CC+ Error table if the code is found there.
             $known_error = CcplusError::with('severity')->where('id',$this->error_code)->first();
-            if (!$known_error) {  // force to 9400 (unknown error)
-                $known_error = CcplusError::with('severity')->where('id',9400)->first();
-            }
+            // Set the return message and severity string based on the error table
             if ($known_error) {
-                // Set the return message and severity string based on the error table
                 $this->message = $known_error->message;
                 $this->severity = strtoupper($known_error->severity->name);
                 // For severity_id= (0 or 10) (INFO or DEBUG) , return CcplusError->new_status
@@ -133,11 +127,15 @@ class Sushi extends Model
                     return $known_error->new_status;
                 }
                 return "Fail";
+            // If code unrecognized, return 9400 (unknown error) and Fail.
+            } else {
+                $this->message = "Unknown exception code in response : ".$this->error_code;
+                $this->error_code = 9400;
+                return "Fail";
             }
         }
         if (json_last_error() !== JSON_ERROR_NONE) {
             $this->detail = json_last_error_msg();
-            $this->step = "API";
             $this->error_code = 9400;
             $this->message = "Error decoding request response : ";
             return "Fail";
