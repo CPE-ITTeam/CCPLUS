@@ -274,6 +274,7 @@ class SushiQHarvester extends Command
                 // Get/Create entry from the sushi_errors table
                 if ($sushi->error_code == 0) {  // 0 is reserved for "No Error", reset to "unknown" code:9400
                     $sushi->error_code = 9400;
+                    $new_code = 9400;
                 }
                 $error = CcplusError::firstOrCreate(
                         ['id' => $sushi->error_code],
