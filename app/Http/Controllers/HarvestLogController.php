@@ -1207,6 +1207,7 @@ class HarvestLogController extends Controller
               $_error['help_url'] = (is_null($lastFailed->help_url)) ? '' : $lastFailed->help_url;
               $_error['process_step'] = (is_null($lastFailed->process_step)) ? '' : $lastFailed->process_step;
           }
+          $_error['known_error'] = in_array($rec['error_id'],$this->all_error_codes);
           $_error['counter_url'] = ($rec->release == '5.1')
               ? "https://cop5.countermetrics.org/en/5.1/appendices/d-handling-errors-and-exceptions.html"
               : "https://cop5.projectcounter.org/en/5.0.3/appendices/f-handling-errors-and-exceptions.html";
