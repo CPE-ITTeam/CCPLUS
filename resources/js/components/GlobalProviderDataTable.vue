@@ -78,7 +78,7 @@
           <v-btn v-if="item.refresh_result=='orphan'" icon>
             <v-icon title="Deprecated" color="red">mdi-web-remove</v-icon>
           </v-btn>
-          <v-btn v-else="item.registry_id!=null" icon
+          <v-btn v-else-if="item.registry_id!=null" icon
                  @click="goURL('https://registry.countermetrics.org/platform/'+item.registry_id)">
             <v-icon v-if="item.refresh_result=='failed'" title="Last Update Attempt Failed" color="red">mdi-web-remove</v-icon>            
             <v-icon v-else-if="item.refresh_result=='success'" title="Open Registry Details" color="blue">mdi-web-check</v-icon>
