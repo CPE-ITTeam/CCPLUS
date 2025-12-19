@@ -397,6 +397,10 @@ class SushiQHarvester extends Command
             // If there's an error code, clean up raw data file and or database pointer to it. The
             // processor script will move the valid+successful JSON data once it is parsed and stored
             if ($new_code > 0) {
+
+                // 9100, 9200, and 9300 should all clear the rawfile field for the harvest. Nothing was saved/kept
+                if (in_array($new_code,[9100,9200,9300])) $rawfile = null;
+
                 // Set target path
                 $savePath = $report_path . '/' . $setting->inst_id . '/' . $setting->prov_id;
                 if ($setting->inst_id>0 && $setting->prov_id>0 && !is_dir($savePath)) {
@@ -410,7 +414,6 @@ class SushiQHarvester extends Command
                         try {
                             unlink($oldFile);
                         } catch (\Exception $e2) { }
-                        $rawfile = null;
                     }
                     // If a rawfile exists from this attempt, try to move JSON to the processed folder.
                     if ($sushi->raw_datafile != "") {
