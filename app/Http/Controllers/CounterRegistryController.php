@@ -49,9 +49,10 @@ class CounterRegistryController extends Controller
             if (!is_array($global_provider_ids)) {
                 return response()->json(['result' => false, 'msg' => "Refresh Request Failed - Invalid Input!"]);
             }
-            $global_providers = GlobalProvider::whereIn('id', $global_provider_ids)->get();
+            $global_providers = GlobalProvider::whereIn('id', $global_provider_ids)->whereNotNull('registry_id')->get();
         }
         $gpCount = count($global_providers);
+        $ids_to_update = $global_providers->pluck('registry_id')->toArray();
 
         // Set URL - either just one platform, or all of them
         if ($gpCount == 1) {
@@ -112,7 +113,7 @@ class CounterRegistryController extends Controller
         $no_url = array();    // track names of platforms with refresh disabled (skipped)
         $new_platforms = array(); // track names of newly created platforms for summary
         foreach ($platform_records as $platform) {
-            if (is_null($platform->id)) continue;
+            if (is_null($platform->id) || !in_array($platform->id,$ids_to_update)) continue;
             // Scan throught the sushi_services to be sure at least one has a url defined
             $hasUrl = false;
             foreach ($platform->sushi_services as $service) {
