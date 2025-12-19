@@ -153,9 +153,6 @@ class ReportProcessor extends Command
                 if (!$harvest) continue;
                 $report = $master_reports->where('name', $parts[1])->first();
                 if (!$report) continue;
-                $begin = $parts[2];
-                $end = substr($parts[3],0,10);
-                $yearmon = substr($begin,0,7);
                 $prov_id = $harvest->sushiSetting->prov_id;
                 $inst_id = $harvest->sushiSetting->inst_id;
 
@@ -167,7 +164,7 @@ class ReportProcessor extends Command
                 $json = json_decode(bzdecompress(Crypt::decrypt(File::get($jsonFile), false)));
 
                // Create a new processor object (will replace existing data)
-                $C5processor = new Counter5Processor($prov_id, $inst_id, $begin, $end, 1);
+                $C5processor = new Counter5Processor($prov_id, $inst_id, $harvest->yearmon, $harvest->yearmon, 1);
 
                // Run the counter processor on the JSON
                 $ts = date("Y-m-d H:i:s");
@@ -213,7 +210,7 @@ class ReportProcessor extends Command
                 $harvest->save();
 
                // Print confirmation line
-                $this->line($ts . " " . $ident . $harvest->sushiSetting->provider->name . " : " . $yearmon . " : " .
+                $this->line($ts . " " . $ident . $harvest->sushiSetting->provider->name . " : " . $harvest->yearmon . " : " .
                                   $report->name . " processed for " . $harvest->sushiSetting->institution->name);
                 unset($C5processor);
 
