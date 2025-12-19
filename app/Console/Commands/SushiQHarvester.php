@@ -243,7 +243,7 @@ class SushiQHarvester extends Command
             $sushi = new Sushi($begin, $end);
 
             // Set output filename for raw data. Create the folder path, if necessary
-            $rawfile = $harvest->id . '_' . $report->name . '_' . $begin . '_' . $end . '.json';
+            $rawfile = $harvest->id . '_' . $report->name . '_' . $harvest->yearmon . '.json';
             $sushi->raw_datafile = $unprocessed_path . $rawfile;
 
             // Construct URI for the request

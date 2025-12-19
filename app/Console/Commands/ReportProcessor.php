@@ -171,7 +171,7 @@ class ReportProcessor extends Command
 
                // Run the counter processor on the JSON
                 $ts = date("Y-m-d H:i:s");
-                $rawfile = $report->name . '_' . $begin . '_' . $end . ".json";
+                $rawfile = $harvest->id . '_' . $report->name . '_' . $harvest->yearmon . '.json';
                 try {
                     $res = $C5processor->{$report->name}($json);
                     // Successfully processed the report - clear out any existing "failed" records and update the harvest
@@ -206,11 +206,10 @@ class ReportProcessor extends Command
                    // Rename failed and file is not in the new place, clear rawfile value and log error
                     if (!is_readable($newName)) {
                         $this->line ($ts  . " " . $ident . "Rename/Move operation for JSON source file failed: " . $jsonFile);
-                        $rawfile = null;
+                        $harvest->rawfile = null;
                         try { unlink($jsonFile); } catch (\Exception $e2) { }
                     }
                 }
-                $harvest->rawfile = $rawfile;
                 $harvest->save();
 
                // Print confirmation line
