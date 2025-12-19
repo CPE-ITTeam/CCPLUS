@@ -92,9 +92,14 @@ class Sushi extends Model
         }
 //  This may be simpler ... IF... we outsource validation to the c5tools as (?)
 //    $this->json = jsonReportFromBuffer($result->getBody());
-       // Decode result body into $json, throw and log error if it fails
-       // Make sure $json is a proper object
-        $this->json = json_decode($result->getBody());
+        // Decode result body into $json, throw and log error if it fails
+        $body = json_decode($result->getBody());
+
+        // If result is an array, treat the first element in the array as JSON
+        // (allows for an array of JSON objects, but only handles the 1st one)
+        $this->json = (is_array($body)) ? $body[0] : $body;
+
+        // Make sure $json is a proper object
         if (!is_object($this->json)) {
             $this->step = "API";
             $this->message = "Reported Dataset Formatting Invalid - JSON Expected, something else returned";
