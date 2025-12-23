@@ -35,8 +35,11 @@
         ></v-select> &nbsp;
       </v-col>
       <v-col class="d-flex px-2 align-center" cols="2">
+        <div v-if="mutable_filters['refresh'].length > 0" class="x-box">
+          <img src="/images/red-x-16.png" width="100%" alt="clear filter" @click="clearFilter('refresh')"/>&nbsp;
+        </div>
         <v-select :items="result_options" v-model="mutable_filters['refresh']" @change="updateFilters('refresh')"
-                  label="Filter Refresh Result"
+                  label="Filter Refresh Result" multiple
         ></v-select> &nbsp;
       </v-col>
       <v-col cols="1">&nbsp;</v-col>
@@ -64,7 +67,8 @@
         <span v-if="item.refreshable==0 && item.registry_id!=null">
           <v-icon title="COUNTER API Updates Disabled">mdi-sync-off</v-icon>&nbsp;
         </span>
-        {{ item.name.substr(0,63) }}
+        <span v-if="item.refresh_result=='orphan'" class="isOrphan">{{ item.name.substr(0,63) }}</span>
+        <span v-else>{{ item.name.substr(0,63) }}</span>
         <span v-if="item.name.length>63">...</span>
       </template>
       <template v-slot:item.connection_count="{ item }">
@@ -83,6 +87,7 @@
             <v-icon v-if="item.refresh_result=='failed'" title="Last Update Attempt Failed" color="red">mdi-web-remove</v-icon>            
             <v-icon v-else-if="item.refresh_result=='success'" title="Open Registry Details" color="blue">mdi-web-check</v-icon>
             <v-icon v-else-if="item.refresh_result=='new'" title="New Platform Entry" color="green">mdi-web-plus</v-icon>
+            <v-icon v-else-if="item.refresh_result=='partial'" title="Platform Incomplete Entry" color="#ff9900">mdi-web-plus</v-icon>
             <v-icon v-else title="Registry Refresh Disabled">mdi-web-cancel</v-icon>
           </v-btn>
           <v-btn icon @click="editForm(item.id)">
@@ -325,7 +330,7 @@
         import_type: '',
         import_types: ['Add or Update', 'Full Replacement'],
         status_options: ['ALL', 'Active', 'Inactive'],
-        result_options: ['ALL', 'Success', 'Failed', 'New', 'Deprecated', 'Refresh Disabled', 'No Registry ID'],
+        result_options: ['Success', 'New', 'Deprecated', 'Incomplete', 'Refresh Disabled', 'No Registry ID'],
         bulk_actions: [ 'Enable', 'Disable', 'Refresh Registry', 'Delete' ],
         bulkAction: null,
         selectedRows: [],
@@ -717,24 +722,24 @@
                        this.loading = false;
                      } else {
                        this.success = '';
-                       this.dialog_success = '';
-                       this.dialog_error = response.data.msg;
                        if ( gpId!="ALL" && refresh_arg.length==1) {
-                           var _idx = this.mutable_providers.findIndex(ii=>ii.id == gpId);
-                           if (_idx > -1) {
-                              this.mutable_providers[_idx].refresh_result = 'failed';
-                           }
+                         this.dialog_success = '';
+                         this.dialog_error = response.data.msg;
+                         var _idx = this.mutable_providers.findIndex(ii=>ii.id == gpId);
+                         if (_idx > -1) {
+                            this.mutable_providers[_idx].refresh_result = 'failed';
+                         }
+                       } else {
+                         this.failure = response.data.msg;
                        }
+                       this.loading = false;
                     }
                     this.dtKey += 1;           // notify the datatable
            })
            .catch({});
-           // Clear/Reset filters if we just refreshed ALL
-           if (gpId=="ALL") {
-               Object.keys(this.mutable_filters).forEach( (filt) => this.mutable_filters[filt] = null);
-               this.$store.dispatch('updateAllFilters',this.mutable_filters);
-               this.selectedRows = [];
-           }
+          if (gpId=="ALL") {   // Clear all filters since we just refreshed ALL
+            this.clearFilter('ALL');
+          }
         },
         updateFilters() {
             this.$store.dispatch('updateAllFilters',this.mutable_filters);
@@ -755,6 +760,19 @@
                  })
                  .catch(err => console.log(err));
             this.loading = false;
+        },
+        // Clear/Reset one, or ALL filters
+        clearFilter(filt) {
+          if (filt=="ALL") {
+            Object.keys(this.mutable_filters).forEach( (filt) => {
+              this.mutable_filters[filt] = (filt=='refresh') ? [] : null;
+            });
+          } else {
+            this.mutable_filters[filt] = (filt=='refresh') ? [] : null;
+          }
+          this.$store.dispatch('updateAllFilters',this.mutable_filters);
+          this.updateRecords();
+          this.selectedRows = [];
         },
         showConnections(id) {
             this.cur_provider = this.mutable_providers.find(p => p.id == id);
@@ -938,5 +956,10 @@
 }
 .centered-input >>> input {
   text-align: center
+}
+.isOrphan {
+  cursor: pointer;
+  color: #999999;
+  font-style: italic;
 }
 </style>
