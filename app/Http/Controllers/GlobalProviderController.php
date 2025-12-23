@@ -39,21 +39,32 @@ class GlobalProviderController extends Controller
         $json = ($request->input('json')) ? true : false;
 
         // Assign optional inputs to $filters array
-        $filters = array('stat' => 'ALL', 'refresh' => 'ALL');
+        $filters = array('stat' => 'ALL', 'refresh' => array());
         if ($request->input('filters')) {
             $filter_data = json_decode($request->input('filters'));
             foreach ($filter_data as $key => $val) {
-                if (is_null($val) || $val == '') continue;
-                $filters[$key] = $val;
+                if (is_array($val)) {
+                    if (count($val) == 0) continue;
+                    $filters[$key] = $val;
+                } else {
+                    if (is_null($val) || $val == '') continue;
+                    $filters[$key] = $val;
+                }
             }
         } else {
             $keys = array_keys($filters);
             foreach ($keys as $key) {
                 if ($request->input($key)) {
-                    if (!is_null($request->input($key)) && $request->input($key) == '') {
-                        $filters[$key] = $request->input($key);
+                    if (is_array($filters[$key])) {
+                        if (count($request->input($key)) > 0) {
+                            $filters[$key] = $request->input($key);
+                        }
+                    } else {
+                        if (!is_null($request->input($key)) && $request->input($key) == '') {
+                            $filters[$key] = $request->input($key);
+                        }
                     }
-                }
+                } 
             }
         }
 
@@ -72,31 +83,35 @@ class GlobalProviderController extends Controller
             if ($filters['stat'] != 'ALL') {
                 $filter_stat = ($filters['stat'] == 'Active') ? 1 : 0;
             }
-            $filter_refresh = null;
             $filter_no_registryID = null;
             $filter_not_refreshable = null;
-            if ($filters['refresh'] == 'Refresh Disabled') {
+            if (in_array('Refresh Disabled',$filters['refresh'])) {
                 $filter_not_refreshable = true;
-            } else if ($filters['refresh'] == 'No Registry ID') {
-                $filter_no_registryID = true;
-            } else if ($filters['refresh'] == 'Deprecated') {
-                $filter_refresh = 'orphan';
-            } else if ($filters['refresh'] != 'ALL') {
-                $filter_refresh = strtolower($filters['refresh']);
             }
+            if (in_array('No Registry ID',$filters['refresh'])) {
+                $filter_no_registryID = true;
+            }
+            $filter_refresh = array();
+            if (in_array('New',$filters['refresh'])) $filter_refresh[] = 'New';
+            if (in_array('Success',$filters['refresh'])) $filter_refresh[] = 'Success';
+            if (in_array('Deprecated',$filters['refresh'])) $filter_refresh[] = 'orphan';
+            if (in_array('Incomplete',$filters['refresh'])) $filter_refresh[] = 'partial';
 
             // Get provider records and filter as-needed
             $gp_data = GlobalProvider::when(!is_null($filter_stat), function ($qry) use ($filter_stat) {
                                           return $qry->where('is_active', $filter_stat);
                                        })
-                                       ->when($filter_refresh, function ($qry) use ($filter_refresh) {
-                                          return $qry->where('refresh_result',$filter_refresh);
-                                       })
-                                       ->when($filter_not_refreshable, function ($qry) {
-                                          return $qry->where('refreshable',0);
-                                       })
-                                       ->when($filter_no_registryID, function ($qry) {
-                                          return $qry->whereNull('registry_id')->orWhere('registry_id',"");
+                                       ->when(count($filter_refresh)>0 || $filter_not_refreshable || $filter_no_registryID,
+                                       function ($qry) use ($filter_refresh, $filter_not_refreshable, $filter_no_registryID) {
+                                           return $qry->when(count($filter_refresh)>0, function ($qry2) use ($filter_refresh) {
+                                               return $qry2->whereIn('refresh_result',$filter_refresh);
+                                               })
+                                               ->when($filter_not_refreshable, function ($qry2) {
+                                                   return $qry2->orWhere('refreshable',0);
+                                               })
+                                               ->when($filter_no_registryID, function ($qry2) {
+                                                   return $qry2->orWhereNull('registry_id')->orWhere('registry_id',"");
+                                               });
                                        })
                                        ->orderBy('name', 'ASC')->get();
 
