@@ -11,6 +11,7 @@ use App\Models\Institution;
 use App\Models\InstitutionGroup;
 use App\Models\Consortium;
 use Illuminate\Http\Request;
+use Illuminate\Support\Arr;
 use Illuminate\Support\Facades\Mail;
 use PhpOffice\PhpSpreadsheet\Spreadsheet;
 use PhpOffice\PhpSpreadsheet\Writer\Xlsx;
@@ -71,6 +72,12 @@ class UserController extends Controller
             $user['can_edit'] = $rec->canManage();
             $user['can_delete'] = $rec->canManage();
             $data[] = $user;
+        }
+
+        // Set filter options for user roles based on what we're returning
+        $filter_options['uroles'] = array();
+        foreach (array_unique(array_column($data,'user_role')) as $key => $role_string) {
+            $filter_options['uroles'][] = array('role' => $role_string);
         }
 
         // Add filtering options for institutions
@@ -196,9 +203,9 @@ class UserController extends Controller
         }
         $input = $request->all();
         if (empty($input['password'])) {
-            $input = array_except($input, array('password'));
+            $input = Arr::except($input, array('password'));
         }
-        $input = array_except($input, array('confirm_pass'));
+        $input = Arr::except($input, array('confirm_pass'));
 
         // Disallow non-ConsoAdmins from assigning/changing inst_id to/from insts they don't admin
         if (!$thisUser->isConsoAdmin() &&
@@ -253,7 +260,7 @@ class UserController extends Controller
                     UserRole::where('id',$role->id)->delete();
                 }
             }
-            $input = array_except($input, array('roles'));
+            $input = Arr::except($input, array('roles'));
         }
 
         // Update the user record and re-load roles
@@ -272,8 +279,8 @@ class UserController extends Controller
         } else if ($user->inst_id==1 && $updated_user['user_role'] != 'ServerAdmin') {
             $updated_user['user_role'] = 'Consortium '.$updated_user['user_role'];
         }    
-        $user['can_edit'] = $rec->canManage();
-        $user['can_delete'] = $rec->canManage();
+        $updated_user['can_edit'] = $user->canManage();
+        $updated_user['can_delete'] = $user->canManage();
         return response()->json(['result' => true, 'msg' => 'User settings successfully updated',
                                  'record' => $updated_user]);
     }
