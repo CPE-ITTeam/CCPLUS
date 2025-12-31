@@ -169,9 +169,13 @@ class InstitutionGroupController extends Controller
         $this->validate($request, [ 'name' => 'required' ]);
         $input = $request->all();
 
-        // Update group
-        $type = (isset($input['type'])) ? $input['type'] : null;
-        $group->update([ 'name' => $input['name'], 'type_id' => $type ]);
+        // Update group if name or type was changed
+        $args = array();
+        if ($group->name != $input['name']) $args['name'] = $input['name']; 
+        if ($group->type_id != $input['type_id']) $args['type_id'] = $input['type_id']; 
+        if (count($args)>0) {
+            $group->update($args);
+        }
 
         // Reset membership assignments
         if ($group->institutions()->count() > 0) {
