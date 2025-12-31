@@ -23,9 +23,8 @@ class Provider extends Model
    *
    * @var array
    */
-    protected $attributes = ['name' => '', 'is_active' => 1, 'inst_id' => 1, 'global_id' => null, 'allow_inst_specific' => 0,
-                             'selected_release' => null];
-    protected $fillable = [ 'name', 'is_active', 'inst_id', 'global_id', 'allow_inst_specific', 'selected_release' ];
+    protected $attributes = ['name' => '', 'is_active' => 1, 'inst_id' => 1, 'global_id' => null, 'allow_inst_specific' => 0];
+    protected $fillable = [ 'name', 'is_active', 'inst_id', 'global_id', 'allow_inst_specific' ];
     protected $casts = ['id'=>'integer', 'is_active'=>'integer', 'inst_id'=>'integer', 'global_id' => 'integer',
                         'allow_inst_specific' => 'integer'];
 
@@ -68,8 +67,6 @@ class Provider extends Model
 
     public function default_release()
     {
-        if (!is_null($this->selected_release)) return $this->selected_release;
-
         $return_value = "";
         if (!is_null($this->global_id)) {
             $return_value = $this->globalProv->default_release();
