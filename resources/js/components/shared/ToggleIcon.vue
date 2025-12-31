@@ -1,9 +1,9 @@
 <!-- components/shared/ToggleIcon.vue -->
 <script setup>
   import { computed } from 'vue';
+  import { useAuthStore } from '@/plugins/authStore.js';
 
   const props = defineProps({
-    
     modelValue: {
       validator: (value) => { // validator allows modelValue to be string or object
         const isString = typeof value === 'string';
@@ -15,16 +15,20 @@
       }
     },
     toggleable: { type: Boolean },
-    statusMap: { type: Object },
     size: { type: Number, default: 32 }
   });
+  const authStore = useAuthStore();
+  const is_conso_admin = authStore.is_conso_admin;
   const emit = defineEmits(['update:modelValue']);
 
   const defaultMap = {
     Active:     { icon: 'mdi-toggle-switch',     color: '#00dd00' },
     Inactive:   { icon: 'mdi-toggle-switch-off', color: '#dd0000' },
     Suspended:  { icon: 'mdi-toggle-switch-off', color: '#6d6d6d' },
+    Enabled:    { icon: 'mdi-toggle-switch',     color: '#00dd00' },
+    Disabled:   { icon: 'mdi-toggle-switch-off', color: '#dd0000' },
     Incomplete: { icon: 'mdi-toggle-switch-off', color: '#ff9800' },
+    Suspended:  { icon: 'mdi-toggle-switch-off', color: '#6d6d6d' },
     true:       { icon: 'mdi-toggle-switch',     color: '#00dd00' },
     false:      { icon: 'mdi-toggle-switch-off', color: '#dd0000' },
   };
@@ -33,8 +37,7 @@
 
   const meta = computed(() => {
     if (!isObjectValue.value) {
-      const map = props.statusMap ?? defaultMap;
-      const entry = map[props.modelValue] || { icon: 'mdi-help-circle', color: '#999999' };
+      const entry = defaultMap[props.modelValue] || { icon: 'mdi-help-circle', color: '#999999' };
       return {
         ...entry,
         clickable: props.toggleable ?? false,
@@ -48,7 +51,8 @@
     }
 
     if (conso) {
-      return { icon: 'mdi-checkbox-multiple-marked', color: '#00dd00', clickable: false };
+      let ca = (is_conso_admin && typeof(props.modelValue.requested) == 'undefined')
+      return { icon: 'mdi-checkbox-multiple-marked', color: '#00dd00', clickable: ca };
     }
 
     if (!conso && !requested) {
@@ -88,9 +92,14 @@
     }
 
     const { conso, available, requested } = props.modelValue;
-    if (conso) return;
-
-    emit('update:modelValue', { conso, available, requested: !requested, });
+    // if 'requested' is in modelValue, the toggle is for a credential
+    if ( typeof(props.modelValue.requested) != 'undefined') {
+      if (conso) return;
+      emit('update:modelValue', { available, conso, requested: !requested });
+    // requested is NOT in modelValue, the toggle is for a connection
+    } else  {
+      emit('update:modelValue', { available, conso: !conso });
+    }
   }
 </script>
 
