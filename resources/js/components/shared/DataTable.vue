@@ -14,11 +14,13 @@
     editableFields: { type: Array, required: true }
   });
 
-  // Add actions column to header props
-  const computedHeaders = computed(() => [
-    ...props.headers,
-    { title: 'Actions', key: 'actions', align: 'end' },
-  ]);
+  const computedHeaders = computed(() => {
+    const hdrs = [...props.headers];
+    if (props.items.some(ii => (ii.can_edit || ii.can_delete))) {
+      hdrs.push({ title: 'Actions', key: 'actions', align: 'end' });
+    }
+    return hdrs;
+  });
 
   const internalSelectedRows = computed({
     get: () => props.selectedRows,
@@ -47,7 +49,7 @@
   var curItem = ref({});
   var isLoading = ref(true);
 
-  const emit = defineEmits(['update:selectedRows', 'update:status', 'edit', 'delete']);
+  const emit = defineEmits(['update:selectedRows', 'update:toggle', 'update:report', 'edit', 'delete']);
 
   // Emit edit event
   function emitEdit(item) {
@@ -109,35 +111,47 @@
       <!-- Preserved custom slots -->
       <template v-if="hasStatusColumn" #item.status="{ item }">
         <ToggleIcon v-model="item.status" :toggleable="true"
-                    @update:modelValue="$emit('update:status',item.id,item.status)" />
+                    @update:modelValue="$emit('update:toggle',item.id,'status',item.status)" />
       </template>
 
       <template v-if="hasConnectedColumn" #item.connected="{ item }">
-        <ToggleIcon v-model="item.connected" :toggleable="true" @change="emitEdit(item)" />
+        <!-- <ToggleIcon v-model="item.connected" :toggleable="true" @change="emitEdit(item)" /> -->
+        <ToggleIcon v-model="item.connected" :toggleable="true"
+                    @update:modelValue="$emit('update:toggle',item.id,'connected',item.status)" />
       </template>
 
       <template v-if="hasIncludeZerosColumn" #item.includeZeros="{ item }">
-        <ToggleIcon v-model="item.includeZeros" :toggleable="true" @change="emitEdit(item)" />
+        <!-- <ToggleIcon v-model="item.includeZeros" :toggleable="true" @change="emitEdit(item)" /> -->
+        <ToggleIcon v-model="item.includeZeros" :toggleable="true"
+                    @update:modelValue="$emit('update:toggle',item.id,'includeZeros',item.status)" />
       </template>
 
       <!-- PR Slot -->
       <template #item.PR="{ item }">
-        <ToggleIcon v-model="item.PR" :toggleable="true" @change="emitEdit(item)" />
+        <!-- <ToggleIcon v-model="item.PR" :toggleable="true" @change="emitEdit(item)" /> -->
+        <ToggleIcon v-model="item.PR" :toggleable="true"
+                    @update:modelValue="$emit('update:report',item.id,'PR',item.PR)" />
       </template>
 
       <!-- DR Slot -->
       <template #item.DR="{ item }">
-        <ToggleIcon v-model="item.DR" :toggleable="true" @change="emitEdit(item)" />
+        <!-- <ToggleIcon v-model="item.DR" :toggleable="true" @change="emitEdit(item)" /> -->
+        <ToggleIcon v-model="item.DR" :toggleable="true"
+                    @update:modelValue="$emit('update:report',item.id,'DR',item.DR)" />
       </template>
 
       <!-- TR Slot -->
       <template #item.TR="{ item }">
-        <ToggleIcon v-model="item.TR" :toggleable="true" @change="emitEdit(item)" />
+        <!-- <ToggleIcon v-model="item.TR" :toggleable="true" @change="emitEdit(item)" /> -->
+        <ToggleIcon v-model="item.TR" :toggleable="true"
+                    @update:modelValue="$emit('update:report',item.id,'TR',item.TR)" />
       </template>
 
       <!-- IR Slot -->
       <template #item.IR="{ item }">
-        <ToggleIcon v-model="item.IR" :toggleable="true" @change="emitEdit(item)" />
+        <!-- <ToggleIcon v-model="item.IR" :toggleable="true" @change="emitEdit(item)" /> -->
+        <ToggleIcon v-model="item.IR" :toggleable="true"
+                    @update:modelValue="$emit('update:report',item.id,'IR',item.IR)" />
       </template>
 
       <!-- Customer ID -->
