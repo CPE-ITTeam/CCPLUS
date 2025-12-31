@@ -217,8 +217,9 @@ class User extends Authenticatable
             if ($this->roles->where("role.name", $role)->where("inst_id", $inst)->first()) return true;
         } else if (!is_null($group)) {
             if ($this->roles->where("role.name", $role)->where("group_id", $group)->first()) return true;
+        } else {
+            return (!is_null($this->roles->where("role.name", "Admin")->first()));
         }
-        return 0;
     }
 
     public function getFY()
