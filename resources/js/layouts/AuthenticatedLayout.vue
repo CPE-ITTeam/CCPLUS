@@ -20,6 +20,7 @@
   const authStore = useAuthStore();
   // These are intentionally NOT reactive...
   const is_admin = authStore.is_admin;
+  const is_conso_admin = authStore.is_conso_admin;
   const is_serveradmin = authStore.is_serveradmin;
   // External links
   function userDialogDone ({ result, msg, user, new_inst }) {
@@ -64,7 +65,9 @@
           if ( (is_admin && topRoute.meta.role == "Admin") || topRoute.meta.role == "Viewer") {
             theRoute.children = [];
             topRoute.children.forEach( (childRoute) => {
-              if ( (is_admin && childRoute.meta.role == "Admin") || childRoute.meta.role == "Viewer") {
+              if ( (childRoute.meta.role == "Admin" && is_admin) ||
+                   (childRoute.meta.role == "ConsoAdmin" && is_conso_admin) ||
+                   childRoute.meta.role == "Viewer") {
                 theRoute.children.push(childRoute);
               }
             });
