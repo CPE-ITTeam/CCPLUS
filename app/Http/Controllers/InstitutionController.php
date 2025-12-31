@@ -440,7 +440,6 @@ class InstitutionController extends Controller
 
        // Admins update everything from $input
         } else {
-            $input['type_id'] = $input['type'];     // DataForm passes as 'type'
             // Update the record and assign groups
             $institution->update($input);
             $institution->load('institutionGroups');
@@ -492,6 +491,7 @@ class InstitutionController extends Controller
             $inst['group_string'] .= $group->name;
         }
         $harvest_count = $institution->credentials->whereNotNull('last_harvest')->count();
+        // $inst['type_string'] = ($institution->institutionType) ? $institution->institutionType->name : "(Not classified)";
         $inst['type'] = ($institution->institutionType) ? $institution->institutionType->name : "(Not classified)";
         $inst['can_edit'] = $institution->canManage();
         $inst['can_delete'] = ($harvest_count > 0 || !$institution->canManage()) ? false : true;
