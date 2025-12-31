@@ -23,6 +23,7 @@ import SavedReports from '@/components/tables/SavedReports.vue';
 import ManualHarvest from '@/components/panels/ManualHarvest.vue';
 import CreateReport from '@/components/panels/CreateReport.vue';
 import RolesTable from '@/components/tables/RolesTable.vue';
+import CredentialsTable from '@/components/tables/CredentialsTable.vue';
 import ConnectionsTable from '@/components/tables/ConnectionsTable.vue';
 // import CredentialsAudit from '@/components/panels/CredentialsAudit.vue';
 // import PermissionsTable from '@/components/tables/PermissionsTable.vue';
@@ -93,12 +94,16 @@ export const router = createRouter({
             },
           ]
         },
-        { path: '/admin/credentials', name: 'Credentials',
+        { path: '/admin/connections', name: 'ConnectionsTable',
+          meta: { title: 'Consortium Platforms', layout: AuthenticatedLayout, role: 'ConsoAdmin', key:0, level:2 }, 
+          component: markRaw(ConnectionsTable),
+        },
+        { path: '/admin/credentials', name: 'Harvesting Credentials',
           meta: { title: 'Credentials', layout: AuthenticatedLayout, role: 'Admin', level:2 }, 
           children: [
-            { path: '/admin/connections', name: 'ConnectionsTable',
-              meta: { title: 'Connections and Credentials', layout: AuthenticatedLayout, role: 'Admin', key:0, level:3 }, 
-              component: markRaw(ConnectionsTable),
+            { path: '/admin/connections', name: 'CredentialsTable',
+              meta: { title: 'Credentials', layout: AuthenticatedLayout, role: 'Admin', key:0, level:3 }, 
+              component: markRaw(CredentialsTable),
             },
             { path: '/admin/credentialsaudit', name: 'CredentialsAudit',
               meta: { title: 'Credentials Audit', layout: AuthenticatedLayout, role: 'Admin', key:0, level:3 }, 
