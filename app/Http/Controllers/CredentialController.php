@@ -16,13 +16,14 @@ use GuzzleHttp\Client;
 use GuzzleHttp\Exception\GuzzleException;
 use PhpOffice\PhpSpreadsheet\Spreadsheet;
 use PhpOffice\PhpSpreadsheet\Writer\Xlsx;
+use Illuminate\Support\Arr;
 use Illuminate\Support\Facades\File;
 use Illuminate\Support\Facades\Crypt;
 
 class CredentialController extends Controller
 {
     /**
-     * Display a listing of the resource.
+     * Return a listing of the resource.
      *
      * @return \Illuminate\Http\Response
      */
@@ -35,13 +36,16 @@ class CredentialController extends Controller
         $limit_to_insts = $thisUser->adminInsts();
         if ($limit_to_insts === [1]) $limit_to_insts = [];
         $providers = Provider::when(count($limit_to_insts) > 0, function ($qry) use ($limit_to_insts) {
-                                        return $qry->whereIn('inst_id',[1,$limit_to_insts]);                                                  
+                                        return $qry->whereIn('inst_id',$limit_to_insts);
                                    })
                              ->get(['id','inst_id','global_id']);
 
         // Get credentials
         $providerIds = $providers->unique('global_id')->pluck('global_id')->toArray();
         $data = Credential::with('institution:id,name,is_active','provider')
+                          ->when(count($limit_to_insts) > 0, function ($qry) use ($limit_to_insts) {
+                              return $qry->whereIn('inst_id',$limit_to_insts);
+                          })
                           ->whereIn('prov_id', $providerIds)->get();
 
         // Get and map global providers
@@ -57,12 +61,12 @@ class CredentialController extends Controller
         });
 
         // Setup filtering options for the datatable
-        $filter_options = array('statuses' => array('ALL','Active','Inactive'));
-        // $filter_options['platforms'] = $gdata->pluck('id','name')->toArray();
+        $filter_options = array();
+        $filter_options['statuses'] = $data->unique('status')->pluck('status')->toArray();
         $filter_options['platforms'] = $gdata->map(function ($plat) {
             return [ 'id' => $plat->id, 'name' => $plat->name ];
         });
-        $instIds = $providers->pluck('inst_id')->toArray();
+        $instIds = $providers->unique('inst_id')->pluck('inst_id')->toArray();
         $filter_options['institutions'] = Institution::whereIn('id',$instIds)->get(['id','name'])->toArray();
 
         // Get master report definitions
@@ -73,8 +77,10 @@ class CredentialController extends Controller
         $global_connectors = ConnectionField::get();
         foreach ($data as $cred) {
             if (!$cred->provider) continue;
-            $rec = array('value' => $cred->id, 'customerId' => $cred->customer_id,
-                         'requestorId' => $cred->requestor_id, 'apiKey' => $cred->api_key
+            $rec = array('id' => $cred->id, 'status' => $cred->status, 'inst_id' => $cred->inst_id,
+                         'prov_id' => $cred->prov_id, 'customerId' => $cred->customer_id,
+                         'requestorId' => $cred->requestor_id, 'apiKey' => $cred->api_key,
+                         'can_edit' => true, 'can_delete' => true
                         );
 // commented -for now- may need more return differently depending on edits/updates/etc,
             // $rec['platform'] = $cred->provider->toArray();
@@ -241,7 +247,7 @@ class CredentialController extends Controller
         }
 
         // Create the new credential record and relate to the GLOBAL ID (get existing if already defined)
-        $fields = array_except($input,array('report_state'));
+        $fields = Arr::except($input,array('report_state'));
         $credential = Credential::firstOrCreate($fields);
         $credential->load('institution', 'provider');
         $registry = $credential->provider->default_registry();
@@ -272,7 +278,7 @@ class CredentialController extends Controller
         $credential = Credential::with('institution','provider')->where('id',$id)->first();
 
         // If credential exists, confirm authorization for inst and provider
-        $fields = array_except($input,array('global_id','report_state'));
+        $fields = Arr::except($input,array('global_id','report_state'));
         if ($credential) {
             // Confirm global provider exists
             $provider = GlobalProvider::findOrFail($credential->prov_id);
@@ -319,6 +325,36 @@ class CredentialController extends Controller
         $credential->provider->connectors = $connectors;
 
         return response()->json(['result' => true, 'msg' => 'Credentials updated successfully', 'credential' => $credential]);
+    }
+
+    /**
+     * Set/update report access/availability
+     *
+     * @param  \Illuminate\Http\Request  $request
+     * @return \Illuminate\Http\Response
+     */
+    public function access(Request $request)
+    {
+        $thisUser = auth()->user();
+
+        $this->validate($request, ['id' => 'required', 'rept' => 'required', 'flags' => 'required']);
+        $input = $request->all();
+        $credential = Credential::with('institution','provider')->findOrFail($input['id']);
+
+        if (!$credential->institution || !$credential->provider) {
+            return response()->json(['result' => false, 'msg' => 'Credential reference error for platform or institution']);
+        }
+        if (!$credential->institution->canManage()) {
+            return response()->json(['result' => false, 'msg' => 'Not Authorized for requested institution']);
+        }
+
+        //
+        if ($input['flags']['conso']) {
+            // Do....something
+        }
+        //
+        return response()->json(['result' => true, 'msg' => 'Acess updated successfully']);
+
     }
 
     /**
