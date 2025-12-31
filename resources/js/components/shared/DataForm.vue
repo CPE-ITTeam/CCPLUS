@@ -85,15 +85,14 @@
       let _idx = m_schema.fields.findIndex(f => f.name=='institution') ;
       if (_idx >= 0) m_schema.fields[_idx]['visible'] = false;
       if (typeof(formValues['institution']) != 'undefined') formValues['institution'] = null;
+    // update any fields named fieldName+"_id" if they exist as a schema field
+    // (see: type and type_id in DataTableConfig.js for institutions and groups)
+    } else {
+      let _cf = fieldName+'_id';
+      let _ci = m_schema.fields.findIndex(f => f.name==_cf);
+      if (_ci >= 0) formValues[_cf] = formValues[fieldName];
     }
   }
-
-  const statusMap = {
-    true: { icon: 'mdi-check-circle', color: 'green' },
-    false: { icon: 'mdi-close-circle', color: 'red' },
-    Active: { icon: 'mdi-toggle-switch', color: '#00dd00' },
-    Inactive: { icon: 'mdi-toggle-switch-off', color: '#dd0000' },
-  };
 
   function submitForm() {
     if (formRef.value?.validate()) {
@@ -119,7 +118,7 @@
             <div v-else-if="isToggleField(field)">
               <strong>{{ field.label }} : </strong> &nbsp;
               <ToggleIcon v-model="formValues[field.name]" :toggleable="isToggleEditable(formValues[field.name])"
-                          :statusMap="statusMap" :size="36" @update:modelValue="toggleChanged(field.name)" />
+                          :size="36" @update:modelValue="toggleChanged(field.name)" />
             </div>
                         
             <!-- Password inputs -->
