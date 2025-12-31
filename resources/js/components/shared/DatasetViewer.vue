@@ -89,8 +89,7 @@
       config.fields[idx].static = config.static.includes(fld.name);
       // Set filterOptions for select(s) and toggle
       if ( (fld.type == 'select' || fld.type == 'mselect' || fld.type == 'selectObj' || fld.type == 'toggle') &&
-           !config.fields[idx].static && fld.options == 'fromURL' &&
-           typeof(itemOptions[fld.name]) != 'undefined' ) {
+           fld.options == 'fromURL' && typeof(itemOptions[fld.name]) != 'undefined' ) {
         let initVal = (fld.type == 'mselect') ? [] : null;
         filterOptions[fld.name] = {
           'name': fld.name, 'label': fld.label, 'type': fld.type, 'val': fld.optVal, 'txt': fld.optTxt,
@@ -239,16 +238,60 @@ console.log('Filter by selectObj still needs work');
     }
   }
 
-  async function handleStatusUpdate(id, value) {
+  async function handleToggleUpdate(id, field, value) {
     let _idx = allItems.findIndex(ii => ii.id == id);
     if (_idx >= 0) {
-      let _item = Object.assign({}, allItems[_idx])
-      _item['is_active'] = (value == 'Active') ? 1 : 0;
+      let _item = Object.assign({}, allItems[_idx]);
+      if (field == 'status') {
+        _item['is_active'] = (value == 'Active') ? 1 : 0;
+        try {
+          let url = urlRoot.value+'/update/'+id;
+          const response = await ccPatch(url, {'is_active': _item['is_active']});
+          if (response.result) {
+            _item['status'] = value;
+            allItems.splice(_idx,1,_item);
+            _idx = filteredItems.findIndex(ii => ii.id == id);
+            if (_idx >= 0) filteredItems.splice(_idx,1,_item);
+            dtKey.value++;
+          } else {
+            failure.value = response.msg
+          }
+        } catch {
+          console.error('Error updating status', error);
+        }
+      }
+      if (field == 'connected') {
+console.log('Handling for connected toggle not written yet');
+      }
+      if (field == 'includeZeros') {
+console.log('Handling for includeZeros toggle not written yet');
+      }
+    }
+  }
+
+  async function handleReportUpdate(id, rept, flags) {
+    let _idx = allItems.findIndex(ii => ii.id == id);
+    if (_idx >= 0) {
+      let _item = Object.assign({}, allItems[_idx]);
+
+      // if 'requested' is in flags, the toggle is for a credential
+      let url = "";
+      if ( typeof(flags.requested) != 'undefined') {
+        url = '/api/credentials/access';
+
+        // 'requested' NOT in flags, the toggle is for a connection
+      } else {
+        // if not conso admin, bail
+        if (!is_conso_admin) return;
+        url = '/api/connections/access';
+      }
+
+      // Update the item
       try {
-        let url = urlRoot.value+'/update/'+id;
-        const response = await ccPatch(url, {'is_active': _item['is_active']});
+        const response = await ccPost(url, {id: id, rept: rept, flags: flags});
         if (response.result) {
-          _item['status'] = value;
+          _item[rept] = flags;
+          // Update value(s) in the item
           allItems.splice(_idx,1,_item);
           _idx = filteredItems.findIndex(ii => ii.id == id);
           if (_idx >= 0) filteredItems.splice(_idx,1,_item);
@@ -257,7 +300,7 @@ console.log('Filter by selectObj still needs work');
           failure.value = response.msg
         }
       } catch {
-        console.error('Error updating status', error);
+        console.error('Error updating report toggle', error);
       }
     }
   }
@@ -322,7 +365,8 @@ console.log('Filter by selectObj still needs work');
     <DataTable v-if="consoKey!=''" :items="filteredItems" :search="search" :dataset="props.datasetKey" :key="dtKey"
                :showSelectedOnly="showSelectedOnly" :headers="headers" :editableFields="editableFields"
                :searchFields="searchFields" :selectedRows="selectedRows" @update:selectedRows="selectedRows = $event"
-               @edit="handleEdit" @delete="handleDelete" @update:status="handleStatusUpdate" />
+               @edit="handleEdit" @delete="handleDelete" @update:toggle="handleToggleUpdate"
+               @update:report="handleReportUpdate"/>
 
     <v-dialog v-if="editingItem && isEditable" v-model="dialogOpen" max-width="600px">
       <v-card>
