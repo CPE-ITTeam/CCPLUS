@@ -3,7 +3,6 @@
 namespace App\Console\Commands;
 
 use Illuminate\Console\Command;
-use Illuminate\Support\Facades\Cache;
 use DB;
 use App\Models\Consortium;
 use App\Models\Report;
@@ -36,7 +35,6 @@ class SushiQHarvester extends Command
      * @var string
      */
     protected $description = 'Process the CC-Plus Sushi Harvesting Queue';
-    private $all_consortia;
     private $global_providers;
     private $connection_fields;
 
@@ -67,7 +65,7 @@ class SushiQHarvester extends Command
      */
     public function handle()
     {
-       // Allow input consortium to be an ID or KeyPick
+        // Allow input consortium to be an ID or KeyPick
         $ts = date("Y-m-d H:i:s") . " ";
         $ten_ago = strtotime("-10 minutes");
 
@@ -77,328 +75,386 @@ class SushiQHarvester extends Command
             return 0;
         }
 
-       // Set error-severity so we only have to query for it once
+        // Set error-severity so we only have to query for it once
         $all_severities = Severity::get();
 
-//
-// If we want to revisit using priority in the Job queue, this is how it USED to work :
-//    ->orderBy('priority', 'DESC')->get();
+        // Get jobs for this consortium (FIFO)
+        $jobs = SushiQueueJob::with('consortium')->orderBy('id', 'ASC')->get();
 
-       // Get all the ACTIVE consortia
-        $consortia = Consortium::where('is_active',1)->get();
-        foreach ($consortia as $con) {
+        // Pull all the global providers so we have them inside the jobs loop
+        $all_providers = GlobalProvider::with('registries')->where('is_active',1)->get();
 
-            // Get jobs for this consortium
-            $jobs = SushiQueueJob::where('consortium_id',$con->id)->orderBy('jobs.id', 'ASC')
-                                 ->get(['jobs.id as id','consortium_id','harvest_id']);
+        // Setup conso-specific tables for joining later
+        $creds = array();
+        $insts = array();
+        $harvests = array();
+        $failedharvests = array();
+        $job_consos = $jobs->pluck(['consortium'])->unique()->all();
+        foreach ($job_consos as $con) {
+            $creds[$con->id] = 'ccplus_'.$con->ccp_key.'.sushisettings';
+            $insts[$con->id] = 'ccplus_'.$con->ccp_key.'.institutions';
+            $harvests[$con->id] = 'ccplus_'.$con->ccp_key.'.harvestlogs';
+            $failedharvests[$con->id] = 'ccplus_'.$con->ccp_key.'.failedharvests';
+        }
 
-            // Point the consodb connection at consortium's database
-            config(['database.connections.consodb.database' => 'ccplus_' . $con->ccp_key]);
-            DB::reconnect();
+        // Loop through all jobs
+        foreach ($jobs as $job) {
+
+            // Get the harvest and join the details (using query builder to hit tables explictly)
+            $cid = $job->consortium_id;
+            $result = DB::table($harvests[$cid])->where('id',$job->harvest_id)->get();
+
+            // No such harvest? delete the job and move on
+            if ( count($result) == 0 ) {
+                $this->line($ts . " QueueHarvester: Unknown Harvest ID: " . $job->harvest_id . " for ConsoID: " . $cid .
+                                    ", job queue entry removed.");
+                $job->delete();
+                continue;
+            }
+            $harvest = $result[0];
+            $keepJob = true;
+
+            // If the harvest has a wrong status (could have changed since creation) we'll skip it
+            if (!in_array($harvest->status, array("New", "Queued", "ReQueued", "Pending"))) {
+                $keepJob = false;
+            // Skip any "ReQueued" harvest that's already been updated today, loader will add it next go-round
+            } else if ($harvest->status=='ReQueued' && (substr($harvest->updated_at, 0, 10)==date("Y-m-d"))) {
+                $keepJob = false;
+            }
+
+            // Skip "Paused" and any "Pending" harvest updated within the last 10 minutes
+            if ($keepJob) {
+                if ($harvest->status == 'Paused' ||
+                    ($harvest->status == 'Pending' && strtotime($harvest->updated_at) > $ten_ago) ) {
+                continue;
+                }
+            }
+
+            // Get report
+            if ($keepJob) {
+                $report = Report::find($harvest->report_id);
+                if (is_null($report)) {     // report gone? toss entry
+                    $this->line($ts . " QueueHarvester: Unknown Report ID: " . $harvest->report_id .
+                                ' , queue entry removed and harvest status set to Fail.');
+                    DB::table($harvests[$cid])->where('id', $harvest->id)->update(['status' => 'Fail']);
+                    $keepJob = false;
+                }
+            }
+
+            // Skip any harvest(s) when credentials are not (or no longer) Active (the settings may have been changed
+            // since the harvest was defined). If found, set harvest status to Fail.
+            $setting = null;
+            if ($keepJob) {
+
+                // Get credentials and join institution data
+                $result = DB::table($creds[$cid].' as CR')->where('CR.id',$harvest->sushisettings_id)
+                            ->join($insts[$cid].' as II','II.id','=','CR.inst_id')
+                            ->select('CR.*','II.name as inst_name','II.is_active as inst_active')
+                            ->get();
+
+                // No such credentials? delete the job and move on
+                if ( count($result) == 0 ) {
+                    $this->line($ts . " QueueHarvester: Unknown Credentials ID: " . $harvest->sushisettings_id .
+                                        " , queue entry removed and harvest deleted.");
+                    $harvest->delete();
+                    $keepJob = false;
+                } else {
+                    $setting = $result[0];
+
+                    if ($setting->status != 'Enabled') {
+                        $error = CcplusError::where('id',9100)->first();
+                        if ($error) {
+                            $result = DB::table($failedharvests[$cid])
+                                        ->insert(['harvest_id'=>$harvest->id, 'process_step'=>'Initiation', 'error_id'=>9100,
+                                                  'created_at'=>$ts, 'detail'=>$error->explanation . ', ' . $error->suggestion]);
+                        }
+                        DB::table($harvests[$cid])->where('id', $harvest->id)->update(['status' => 'Fail', 'error_id' => 9100]);
+                        $keepJob = false;
+                    }
+                    
+                    // Attach global provider to the setting for use in the Sushi class (buildUri)
+                    $setting->provider = $all_providers->where('id',$setting->prov_id)->first();
+                    if (!$setting->provider) {
+                        $this->line($ts . " QueueHarvester: Global Provider ID in credentials: " . $setting->prov_id .
+                                        " , queue entry removed.");
+                        $keepJob = false;
+                    } else {
+                        $setting->prov_name = $setting->provider->name;
+                        $setting->prov_active = $setting->provider->is_active;
+                    }
+                }
+            }
+
+            // If something above set keepJob false, remove job and get next one
+            if (!$keepJob || !$setting) {
+                $job->delete();
+                continue;
+            }
 
             // Set the output paths and create the folder if it isn't there
-            $report_path = config('ccplus.reports_path') . $con->id;
+            $report_path = config('ccplus.reports_path') . $cid;
             $unprocessed_path = $report_path . '/0_unprocessed/';
             if (!is_dir($unprocessed_path)) {
                 mkdir($unprocessed_path, 0755, true);
             }
 
-            // Add harvest and sushiSetting relations to the jobs collection
-            $jobs->load('harvest','harvest.sushiSetting','harvest.sushiSetting.provider',
-                        'harvest.sushiSetting.provider.registries');
-            foreach ($jobs as $job) {
-                // If the job points to a job with a wrong status (could have changed since creation), or the
-                // the harvest record is AWOL, skip and delete the job record
-                $keepJob = true;
-                if (!$job->harvest) {
-                    $keepJob = false;
-                } else if (!in_array($job->harvest->status, array("New", "Queued", "ReQueued", "Pending"))) {
-                    $keepJob = false;
-                // Skip any "ReQueued" harvest that's already been updated today, loader will add it next go-round
-                } else if ($job->harvest->status=='ReQueued' && (substr($job->harvest->updated_at, 0, 10)==date("Y-m-d"))) {
-                    $keepJob = false;
+            // Mark the harvest status as Active while we run the request
+            DB::table($harvests[$cid])->where('id', $harvest->id)->update(['status' => 'Harvesting']);
+
+            // Setup begin and end dates for sushi request
+            $yearmon = $harvest->yearmon;
+            $ts = date("Y-m-d H:i:s");
+            $begin = $yearmon . '-01';
+            $end = $yearmon . '-' . date('t', strtotime($begin));
+
+            // If (global) provider or institution is inactive, toss the job and move on
+            if (!$setting->prov_active) {
+                $error = CcplusError::where('id',9100)->first();
+                if ($error) {
+                    $result = DB::table($failedharvests[$cid])
+                                ->insert(['harvest_id' => $harvest->id, 'process_step' => 'Initiation',
+                                          'error_id' => 9100, 'detail' => $error->explanation . ', ' . $error->suggestion,
+                                          'created_at' => $ts]);
+                } else {
+                    $this->line($ts . " QueueHarvester: Provider: " . $setting->prov_name .
+                                        " is INACTIVE , queue entry removed and harvest status set to Fail.");
+                }
+                DB::table($harvests[$cid])->where('id', $harvest->id)->update(['status' => 'Fail', 'error_id' => 9100]);
+                $job->delete();
+                continue;
+            }
+            if (!$setting->inst_active) {
+                $error = CcplusError::where('id',9100)->first();
+                if ($error) {
+                    $result = DB::table($failedharvests[$cid])
+                                ->insert(['harvest_id' => $harvest->id, 'process_step' => 'Initiation',
+                                            'error_id' => 9100, 'detail' => $error->explanation . ', ' . $error->suggestion,
+                                            'created_at' => $ts]);
+                } else {
+                    $this->line($ts . " QueueHarvester: Institution: " . $setting->inst_name .
+                                        " is INACTIVE , queue entry removed and harvest status set to Fail.");
+                }
+                DB::table($harvests[$cid])->where('id', $harvest->id)->update(['status' => 'Fail', 'error_id' => 9100]);
+                $job->delete();
+                continue;
+            }
+
+
+            // Create a new Sushi object
+            $sushi = new Sushi($begin, $end);
+
+            // Set output filename for raw data. Create the folder path, if necessary
+            $rawfile = $harvest->id . '_' . $report->name . '_' . $harvest->yearmon . '.json';
+            $sushi->raw_datafile = $unprocessed_path . $rawfile;
+
+            // Construct URI for the request
+            $request_uri = $sushi->buildUri($setting, 'reports', $report, $harvest->release);
+
+            // Make the request
+            $request_status = $sushi->request($request_uri);
+
+            // Examine the response
+            $error = null;
+            $valid_report = false;
+            $new_code = $sushi->error_code;
+            $new_attempts = $harvest->attempts;
+
+            // If request failed, set a FailedHarvest record and update the harvest record
+            if ($request_status == "Fail") {
+                $error_msg = '';
+                // Turn severity string into an ID
+                $severity_id = $all_severities->where('name', 'LIKE', $sushi->severity . '%')->pluck('id');
+                if ($severity_id === null) {  // if not found, set to 'Error' and prepend it to the message
+                    $severity_id = $all_severities->where('name', 'Error')->pluck('id');
+                    $error_msg .= $sushi->severity . " : ";
                 }
 
-                // Skip "Paused" and any "Pending" harvest updated within the last 10 minutes
-                    if ($keepJob) {
-                        if ($job->harvest->status == 'Paused' ||
-                            ($job->harvest->status == 'Pending' && strtotime($job->harvest->updated_at) > $ten_ago) ) {
-                        continue;
-                        }
+                // Clean up the message in case this is a new code for the errors table
+                $error_msg .= substr(preg_replace('/(.*)(https?:\/\/.*)$/', '$1', $sushi->message), 0, 60);
+
+                // Get/Create entry from the sushi_errors table
+                if ($sushi->error_code == 0) {  // 0 is reserved for "No Error", reset to "unknown" code:9400
+                    $sushi->error_code = 9400;
+                    $new_code = 9400;
+                }
+                $error = CcplusError::firstOrCreate(
+                        ['id' => $sushi->error_code],
+                        ['id' => $sushi->error_code, 'message' => $error_msg, 'severity' => $severity_id]
+                );
+                $result = DB::table($failedharvests[$cid])
+                            ->insert(['harvest_id' => $harvest->id, 'process_step' => $sushi->step, 'error_id' => $error->id,
+                                      'detail' => $sushi->detail, 'help_url' => $sushi->help_url, 'created_at' => $ts]);
+                if ($sushi->error_code != 9200) {
+                    $sushi->detail .= " (URL: " . $request_uri . ")";
+                }
+                $this->line($ts . " QueueHarvester: COUNTER API Exception (" . $sushi->error_code . ") : " .
+                                    " (Harvest: " . $harvest->id . ") " . $sushi->message . ", " . $sushi->detail);
+
+                DB::table($harvests[$cid])->where('id', $harvest->id)->update(['status' => 'Fail', 'error_id' => $error->id]);
+                $job->delete();
+            }
+
+            // Sushi said "Success"?
+            if ($request_status == "Success") {
+                $new_status = 'Success';
+                // Skip validation for 3030 (no data)
+                if ($new_code != 3030) {
+                    // Print out any non-fatal message from sushi request
+                    if ($sushi->message != "") {
+                        $this->line($ts . " QueueHarvester: Non-Fatal COUNTER API Exception (" . $harvest->id . "): (" .
+                                            $new_code . ") : " . $sushi->message . ', ' . $sushi->detail);
+                        $error = CcplusError::where('id',$new_code)->first();
                     }
-
-                // Check sushi settings
-                if ($keepJob && is_null($job->harvest->sushiSetting)) {     // settings gone? toss the job
-                    $this->line($ts . " QueueHarvester: Unknown Sushi Credentials ID: " . $job->harvest->sushisettings_id .
-                                        " , queue entry removed and harvest deleted.");
-                    $job->harvest->delete();
-                    $keepJob = false;
-                }
-
-                // Skip any harvest(s) related to a sushisetting that is not (or no longer) Active (the settings
-                // may have been changed since the harvest was defined) - if found, set harvest status to Fail.
-                if ($keepJob) {
-                    if ($job->harvest->sushiSetting->status != 'Enabled') {
-                        $error = CcplusError::where('id',9050)->first();
-                        if ($error) {
-                            FailedHarvest::insert(['harvest_id' => $job->harvest->id, 'process_step' => 'Initiation',
-                                                    'error_id' => 9050, 'created_at' => $ts,
-                                                    'detail' => $error->explanation . ', ' . $error->suggestion]);
-                        }
-                        $job->harvest->error_id = 9050;
-                        $job->harvest->status = 'Fail';
-                        $keepJob = false;
-                    }
-                }
-
-                // Get report
-                if ($keepJob) {
-                    $report = Report::find($job->harvest->report_id);
-                    if (is_null($report)) {     // report gone? toss entry
-                        $this->line($ts . " QueueHarvester: Unknown Report ID: " . $job->harvest->report_id .
-                                    ' , queue entry removed and harvest status set to Fail.');
-                        $job->harvest->status = 'Fail';
-                        $job->harvest->save();
-                        $keepJob = false;
-                    }
-                }
-
-                // If something above set keepJob false, remove job and get next one
-                if (!$keepJob) {
-                    $job->delete();
-                    continue;
-                }
-
-                // Mark the harvest status as Active while we run the request
-                $job->harvest->status = 'Harvesting';
-                $job->harvest->save();
-
-                // Setup begin and end dates for sushi request
-                $yearmon = $job->harvest->yearmon;
-                $ts = date("Y-m-d H:i:s");
-                $begin = $yearmon . '-01';
-                $end = $yearmon . '-' . date('t', strtotime($begin));
-                $setting = $job->harvest->sushiSetting;
-
-                // If (global) provider or institution is inactive, toss the job and move on
-                if (!$setting->provider->is_active) {
-                    $error = CcplusError::where('id',9060)->first();
-                    if ($error) {
-                        FailedHarvest::insert(['harvest_id' => $job->harvest->id, 'process_step' => 'Initiation',
-                                                'error_id' => 9060, 'detail' => $error->explanation . ', ' . $error->suggestion,
-                                                'created_at' => $ts]);
-                    } else {
-                        $this->line($ts . " QueueHarvester: Provider: " . $setting->provider->name .
-                                            " is INACTIVE , queue entry removed and harvest status set to Fail.");
-                    }
-                    $job->delete();
-                    $job->harvest->error_id = 9060;
-                    $job->harvest->status = 'Fail';
-                    $job->harvest->save();
-                    continue;
-                }
-                if (!$setting->institution->is_active) {
-                    $error = CcplusError::where('id',9070)->first();
-                    if ($error) {
-                        FailedHarvest::insert(['harvest_id' => $job->harvest->id, 'process_step' => 'Initiation',
-                                                'error_id' => 9070, 'detail' => $error->explanation . ', ' . $error->suggestion,
-                                                'created_at' => $ts]);
-                    } else {
-                        $this->line($ts . " QueueHarvester: Institution: " . $setting->institution->name .
-                                            " is INACTIVE , queue entry removed and harvest status set to Fail.");
-                    }
-                    $job->delete();
-                    $job->harvest->error_id = 9070;
-                    $job->harvest->status = 'Fail';
-                    $job->harvest->save();
-                    continue;
-                }
-
-                // Create a new Sushi object
-                $sushi = new Sushi($begin, $end);
-
-                // Set output filename for raw data. Create the folder path, if necessary
-                $_name = $job->harvest_id . '_' . $report->name . '_' . $begin . '_' . $end . '.json';
-                $sushi->raw_datafile = $unprocessed_path . $_name;
-
-                // Construct URI for the request
-                $request_uri = $sushi->buildUri($setting, 'reports', $report, $job->harvest->release);
-
-                // Make the request
-                $request_status = $sushi->request($request_uri);
-
-                // Examine the response
-                $error = null;
-                $valid_report = false;
-                if ($request_status == "Success") {
-                    // Skip validation for 3030 (no data)
-                    if ($sushi->error_code != 3030) {
-                        // Print out any non-fatal message from sushi request
-                        if ($sushi->message != "") {
-                            $this->line($ts . " QueueHarvester: Non-Fatal COUNTER API Exception (" . $job->harvest->id . "): (" .
-                                                $sushi->error_code . ") : " . $sushi->message . ', ' . $sushi->detail);
-                            $error = CcplusError::where('id',$sushi->error_code)->first();
-                        }
-                        // Validate the report
-                        try {
-                            $valid_report = $sushi->validateJson();
-                        } catch (\Exception $e) {
-                            // if no Report Items, set $sushi with 9030
-                            if ($e->getCode() == 9030) {
-                                $sushi->error_code = 9030;
-                                $sushi->message = "No Data For Reported for Requested Dates";
-                            // Any other error, set and record it
+                    // Validate the report
+                    try {
+                        $valid_report = $sushi->validateJson();
+                    } catch (\Exception $e) {
+                        // if no Report Items, set $sushi with 9030
+                        if ($e->getCode() == 9030) {
+                            $new_code = 9030;
+                            $sushi->message = "No Data For Reported for Requested Dates";
+                        // Any other error, set and record it
+                        } else {
+                            if ($error) {
+                                $result = DB::table($failedharvests[$cid])
+                                            ->insert(['harvest_id' => $harvest->id, 'process_step' => 'API',
+                                                      'error_id' => $new_code, 'detail' => $sushi->message.', '.$sushi->detail,
+                                                      'help_url' => $sushi->help_url, 'created_at' => $ts]);
+                            // Otherwise, signal 9400) - failed COUNTER validation
                             } else {
-                                if ($error) {
-                                    FailedHarvest::insert(['harvest_id' => $job->harvest->id, 'process_step' => 'API',
-                                                            'error_id' => $sushi->error_code,
-                                                            'detail' => $sushi->message . ', ' . $sushi->detail,
-                                                            'help_url' => $sushi->help_url, 'created_at' => $ts]);
-                                    $job->harvest->error_id = $sushi->error_code;
-                                // Otherwise, signal 9100 - failed COUNTER validation
-                                } else {
-                                    FailedHarvest::insert(['harvest_id' => $job->harvest->id, 'process_step' => 'COUNTER',
-                                                            'error_id' => 9100, 'detail' => 'Validation error: ' . $e->getMessage(),
-                                                            'help_url' => $sushi->help_url, 'created_at' => $ts]);
-                                    $this->line($ts . " QueueHarvester: Report failed COUNTER validation : " . $e->getMessage());
-                                    $job->harvest->error_id = 9100;
-                                    $error = CcplusError::where('id',9100)->first();
-                                }
+                                $result = DB::table($failedharvests[$cid])
+                                            ->insert(['harvest_id' => $harvest->id, 'process_step' => 'COUNTER',
+                                                      'error_id' => 9400, 'detail' => 'Validation error: ' . $e->getMessage(),
+                                                      'help_url' => $sushi->help_url, 'created_at' => $ts]);
+                                $this->line($ts . " QueueHarvester: Report failed COUNTER validation :: ".$harvest->id.
+                                                    " :: " . $e->getMessage());
+                                $new_code = 9400;
+                                $error = CcplusError::where('id',9400)->first();
                             }
                         }
                     }
-
-                    // If no data (3030) record a single failedHarvest record, and continue
-                    if ($sushi->error_code == 3030 || $sushi->error_code == 9030) {
-                        // Get error data from sushi_errors table
-                        $this->line($ts . " QueueHarvester: No data in Report Items for harvest ID: " . $job->harvest->id);
-                        $error = CcplusError::where('id',$sushi->error_code)->first();
-
-                        // Clear all existing failed records
-                        $deleted = FailedHarvest::where('harvest_id', $job->harvest->id)->delete();
-                        // Add a single failed record to record the "no records received" exception
-                        FailedHarvest::insert(['harvest_id' => $job->harvest->id, 'process_step' => 'API',
-                                                'error_id' => $sushi->error_code ,
-                                                'detail' => $sushi->message . ', ' . $sushi->detail,
-                                                'help_url' => $sushi->help_url, 'created_at' => $ts]);
-
-                        // Update attempts, record error_id and set Success
-                        $job->harvest->attempts++;
-                        $job->harvest->error_id = $sushi->error_code;
-                    }
-                    // Track last successful (last_harvest_id) and most-current harvest (last_harvest) for this sushisetting
-                    $setting->last_harvest_id = $job->harvest->id;
-                    if ($yearmon > $setting->last_harvest) {
-                        $setting->last_harvest = $yearmon;
-                    }
-                    $setting->save();
-
-                // If request is pending (in a provider queue, not a CC+ queue), just set harvest status
-                // the record updates when we fall out of the remaining if-else blocks
-                } else if ($request_status == "Pending") {
-                    $job->harvest->status = "Pending";
-
-                // If request failed, update the Logs
-                } else {    // Fail
-                    $error_msg = '';
-                    // Turn severity string into an ID
-                    $severity_id = $all_severities->where('name', 'LIKE', $sushi->severity . '%')->pluck('id');
-                    if ($severity_id === null) {  // if not found, set to 'Error' and prepend it to the message
-                        $severity_id = $all_severities->where('name', 'Error')->pluck('id');
-                        $error_msg .= $sushi->severity . " : ";
-                    }
-
-                    // Clean up the message in case this is a new code for the errors table
-                    $error_msg .= substr(preg_replace('/(.*)(https?:\/\/.*)$/', '$1', $sushi->message), 0, 60);
-
-                    // Get/Create entry from the sushi_errors table
-                    if ($sushi->error_code == 0) {  // Reserve 0 for "No Error"
-                        $sushi->error_code = 9000;
-                    }
-                    $error = CcplusError::firstOrCreate(
-                            ['id' => $sushi->error_code],
-                            ['id' => $sushi->error_code, 'message' => $error_msg, 'severity' => $severity_id]
-                    );
-                    FailedHarvest::insert(['harvest_id' => $job->harvest->id, 'process_step' => $sushi->step,
-                                            'error_id' => $error->id, 'detail' => $sushi->detail,
-                                            'help_url' => $sushi->help_url, 'created_at' => $ts]);
-                    if ($sushi->error_code != 9010) {
-                        $sushi->detail .= " (URL: " . $request_uri . ")";
-                    }
-                    $this->line($ts . " QueueHarvester: COUNTER API Exception (" . $sushi->error_code . ") : " .
-                                        " (Harvest: " . $job->harvest->id . ") " . $sushi->message . ", " . $sushi->detail);
-                    $job->harvest->error_id = $error->id;
                 }
 
-                // If we have a validated report, mark the harvestlog
-                if ($valid_report) {
-                    $this->line($ts . " QueueHarvester: " . $setting->provider->name . " : " . $yearmon . " : " .
-                                        $report->name . " saved for " . $setting->institution->name);
-                    $job->harvest->error_id = 0;
-                    $job->harvest->attempts++;
-                    $job->harvest->status = "Waiting";
+                // If no data (3030) record a single failedHarvest record, and continue
+                if ($new_code == 3030 || $new_code == 9030) {
+                    // Get error data from sushi_errors table
+                    $this->line($ts . " QueueHarvester: No data in Report Items for harvest ID: " . $harvest->id);
+                    $error = CcplusError::where('id',$new_code)->first();
 
-                    // Successfully processed the report - clear out any existing "failed" records
-                    $deleted = FailedHarvest::where('harvest_id', $job->harvest->id)->delete();
+                    // Clear all existing failed records
+                    $deleted = DB::table($failedharvests[$cid])->where('harvest_id', $harvest->id)->delete();
 
-                // No valid report data saved. If we failed, update harvest record
-                // (ignore Pending, 3030, and 9030)
-                } else if ($request_status != "Pending" &&
-                            $sushi->error_code != 3030 && $sushi->error_code != 9030) {
-                    // Increment harvest attempts
-                    $job->harvest->attempts++;
-                    $max_retries = intval(config('ccplus.max_harvest_retries'));
+                    // Add a single failed record to record the "no records received" exception
+                    $result = DB::table($failedharvests[$cid])
+                                ->insert(['harvest_id' => $harvest->id, 'process_step' => 'API',
+                                          'error_id' => $new_code, 'detail' => $sushi->message . ', ' . $sushi->detail,
+                                          'help_url' => $sushi->help_url, 'created_at' => $ts]);
 
-                    // If we're out of retries, the harvest fails and we set an Alert
-                    if ($job->harvest->attempts >= $max_retries) {
-                        $job->harvest->status = 'NoRetries';
-                        // Alert::insert(['yearmon' => $yearmon, 'prov_id' => $setting->prov_id,
-                        //                'harvest_id' => $job->harvest->id, 'status' => 'Active', 'created_at' => $ts]);
-                    } else {
-                        $job->harvest->status = 'ReQueued'; // ReQueue by default
-                    }
+                    // Update attempts, record error_id and set Success
+                    $new_attempts++;
                 }
+                // Track last successful (last_harvest_id) and most-current harvest (last_harvest) for this sushisetting
+                $c_args = array('last_harvest_id' => $harvest->id);
+                if ($yearmon > $setting->last_harvest) {
+                    $c_args['last_harvest'] = $yearmon;
+                }
+                DB::table($creds[$cid])->where('id', $harvest->sushisettings_id)->update($c_args);
 
-                // Try to move the JSON to the processed folder when an error is set
-                if ($sushi->error_code > 0) {
-                    $savePath = $report_path . '/' . $setting->inst_id . '/' . $setting->prov_id;
-                    if ($setting->inst_id>0 && $setting->prov_id>0 && !is_dir($savePath)) {
-                        mkdir($savePath, 0755, true);
+            // If request is pending (in a provider queue, not a CC+ queue), just set harvest status
+            // the record updates when we fall out of the remaining if-else blocks
+            } else if ($request_status == "Pending") {
+                // $valid_report remains false....
+                $new_status = "Pending";
+            }
+
+            // If we have a validated report, mark the harvestlog
+            if ($valid_report) {
+                $this->line($ts . " QueueHarvester: " . $setting->prov_name . " : " . $yearmon . " : " .
+                                    $report->name . " saved for " . $setting->inst_name);
+                $new_code = 0;
+                $new_attempts++;
+                $new_status = "Waiting";
+
+                // Successfully processed the report - clear out any existing "failed" records
+                $deleted = DB::table($failedharvests[$cid])->where('harvest_id', $harvest->id)->delete();
+
+            // No valid report data saved. If we failed, update harvest record
+            // (ignore Pending, 3030, and 9030)
+            } else if ($request_status != "Pending" && $new_code != 3030 && $new_code != 9030) {
+                // Increment harvest attempts
+                $new_attempts++;
+                $max_retries = intval(config('ccplus.max_harvest_retries'));
+
+                // If we're out of retries, the harvest failed already - leave code alone and set status only
+                if ($new_attempts >= $max_retries) {
+                    $new_status = 'NoRetries';
+                    // Alert::insert(['yearmon' => $yearmon, 'prov_id' => $setting->prov_id,
+                    //                'harvest_id' => $job->harvest->id, 'status' => 'Active', 'created_at' => $ts]);
+                } else {
+                    $new_status = 'ReQueued'; // ReQueue by default
+                }
+            }
+
+            // If there's an error code, clean up raw data file and or database pointer to it. The
+            // processor script will move the valid+successful JSON data once it is parsed and stored
+            if ($new_code > 0) {
+
+                // 9100, 9200, and 9300 should all clear the rawfile field for the harvest. Nothing was saved/kept
+                if (in_array($new_code,[9100,9200,9300])) $rawfile = null;
+
+                // Set target path
+                $savePath = $report_path . '/' . $setting->inst_id . '/' . $setting->prov_id;
+                if ($setting->inst_id>0 && $setting->prov_id>0 && !is_dir($savePath)) {
+                    mkdir($savePath, 0755, true);
+                }
+                if (is_dir($savePath)) {
+                    // If the harvest has a rawfile value set and this attempt returned invalid/no JSON,
+                    // clear out the saved data file, if possible.
+                    if (in_array($new_code,[9100,9200,9300]) && !is_null($harvest->rawfile)) {
+                        $oldFile = $savePath . '/' . $harvest->rawfile;
+                        try {
+                            unlink($oldFile);
+                        } catch (\Exception $e2) { }
                     }
-                    $job->harvest->rawfile = null;  // default to no file saved
-                    if (is_dir($savePath)) {
-                        $newName = $savePath . '/' . $_name;
+                    // If a rawfile exists from this attempt, try to move JSON to the processed folder.
+                    if ($sushi->raw_datafile != "") {
+                        $newName = $savePath . '/' . $rawfile;
                         try {
                             rename($sushi->raw_datafile, $newName);
-                            $job->harvest->rawfile = $_name;
-                        } catch (\Exception $e) { // rename failed. Try to cleanup the unprocessed folder
+                        } catch (\Exception $e) { // rename failed. Try to cleanup the unprocessed folder (silently)
                             try {
                                 unlink($sushi->raw_datafile);
                             } catch (\Exception $e2) { }
+                            $rawfile = null;
                         }
                     }
                 }
+            }
 
-                // Force harvest status to the value from any Error, but leave some as-is (set above already)
+            // Force harvest status to the value from any Error, but leave some as-is (set above already)
+            if ($error) {
                 $keep_statuses = array('NoRetries','Waiting','ReQueued','Pending');
-                if ($error && !in_array($job->harvest->status, $keep_statuses)) {
-                    $job->harvest->status = $error->new_status;
+                if (!in_array($error->new_status, $keep_statuses)) {
+                    $new_status = $error->new_status;
                 }
+            }
 
-                // Sleep 2 seconds *before* saving the harvest record (keeping it technically "Active"),
-                // to avoid having the provider block too-rapid requesting.
-                sleep(2);
+            // Sleep 2 seconds *before* saving the harvest record (keeping it technically "Active"),
+            // to avoid having the provider block too-rapid requesting.
+            sleep(2);
 
-                // Clean up and update the database;
-                // unless the request is "Pending", remove the job from the queue.
-                unset($sushi);
-                $job->harvest->save();
-                if ($request_status != "Pending") {
-                    $job->delete();
-                }
+            // Update the harvest 
+            DB::table($harvests[$cid])->where('id', $harvest->id)
+              ->update(['status' => $new_status, 'error_id' => $new_code, 'attempts' => $new_attempts,
+                        'rawfile' => $rawfile]);
 
-            }   // foreach job for the current consortium
-        }      // foreach active consortium
+            // All done, remove the job record unless the harvest is Pending
+            unset($sushi);
+            if ($new_status != "Pending") {
+                $job->delete();
+            }
+
+        }   // foreach job
         return 1;
     }
 }

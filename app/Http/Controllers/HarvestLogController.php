@@ -856,7 +856,7 @@ class HarvestLogController extends Controller
 
        // return result
        $msg .= count($deleteable_ids) . " harvests deleted";
-       $msg .= ($skipped>0) ? ", and " . $skipped . "harvests skipped." : " successfully.";
+       $msg .= ($skipped>0) ? ", and " . $skipped . "harvests skipped (not authorized.)" : " successfully.";
        return response()->json(['result' => true, 'msg' => $msg, 'removed' => $deleteable_ids]);
    }
 
@@ -953,6 +953,7 @@ class HarvestLogController extends Controller
               $_error['help_url'] = (is_null($lastFailed->help_url)) ? '' : $lastFailed->help_url;
               $_error['process_step'] = (is_null($lastFailed->process_step)) ? '' : $lastFailed->process_step;
           }
+          $_error['known_error'] = in_array($rec['error_id'],$this->all_error_codes);
           $_error['counter_url'] = ($rec->release == '5.1')
               ? "https://cop5.countermetrics.org/en/5.1/appendices/d-handling-errors-and-exceptions.html"
               : "https://cop5.projectcounter.org/en/5.0.3/appendices/f-handling-errors-and-exceptions.html";
@@ -1030,11 +1031,18 @@ class HarvestLogController extends Controller
                     'release' => $harvest->release,
                     'report_name' => $harvest->report->name,
                     'status' => $harvest->status, 'rawfile' => $harvest->rawfile,
-                    'error_id' => 0, 'error' => []
+                    'error_id' => 0
                    );
        $rec['updated'] = ($harvest->updated_at) ? date("Y-m-d H:i", strtotime($harvest->updated_at)) : " ";
        $rec['release'] = (is_null($harvest->release)) ? "" : $harvest->release;
 
+       // Setup error details array (starting with default values)
+       $rec['error'] = array('id' => $harvest->error_id, 'message' => '');
+       $rec['error']['color'] = ($rec['status'] == 'Success') ? '#00DD00' : '#999999';
+       $rec['statusAlt'] = $rec['status'];
+       if (in_array($rec['status'],array('BadCreds','NoRetries'))) {
+           $rec['statusAlt'] = ($rec['status']=='BadCreds') ? 'Bad Credentials' : 'Out of Retries';
+       }
        $lastFailed = null;
        if ($harvest->failedHarvests) {
            $lastFailed = $harvest->failedHarvests->sortByDesc('created_at')->first();
@@ -1047,12 +1055,15 @@ class HarvestLogController extends Controller
            $rec['error']['process_step'] = '';
        } else if ($lastFailed && $harvest->error_id > 0) {
            $rec['error_id'] = $lastFailed->error_id;
-           $rec['error'] = $lastFailed->ccplusError->toArray();
+           if ($lastFailed->ccplusError) {
+               $rec['error'] = $lastFailed->ccplusError->toArray();
+           }
            $rec['error']['detail'] = (is_null($lastFailed->detail)) ? '' : $lastFailed->detail;
            $rec['error']['help_url'] = (is_null($lastFailed->help_url)) ? '' : $lastFailed->help_url;
            $rec['error']['process_step'] = (is_null($lastFailed->process_step)) ? '' : $lastFailed->process_step;
        }
-       $rec['failed'] = [];
+       $rec['error']['known_error'] = in_array($rec['error_id'],$this->all_error_codes);
+       $rec['error']['noretries'] = ($harvest->status == 'NoRetries');
        $rec['error']['counter_url'] = ($harvest->release == '5.1')
            ? "https://cop5.countermetrics.org/en/5.1/appendices/d-handling-errors-and-exceptions.html"
            : "https://cop5.projectcounter.org/en/5.0.3/appendices/f-handling-errors-and-exceptions.html";

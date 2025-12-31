@@ -11,7 +11,6 @@ use App\Models\Report;
 use App\Models\Credential;
 use Illuminate\Http\Request;
 use GuzzleHttp\Client;
-use DB;
 
 class CounterRegistryController extends Controller
 {
@@ -40,18 +39,21 @@ class CounterRegistryController extends Controller
         $this->validate($request, [ 'id' => 'required' ]);
         $input = $request->all();
 
+        $full_refresh = false;
         if ($input['id'] == "ALL") {
             $global_providers = GlobalProvider::whereNotNull('registry_id')->get();
             $is_dialog = 0;
+            $full_refresh = true;
         } else {
             $is_dialog = json_decode($request->input('dialog'));
             $global_provider_ids = json_decode($request->input('id'));
             if (!is_array($global_provider_ids)) {
                 return response()->json(['result' => false, 'msg' => "Refresh Request Failed - Invalid Input!"]);
             }
-            $global_providers = GlobalProvider::whereIn('id', $global_provider_ids)->get();
+            $global_providers = GlobalProvider::whereIn('id', $global_provider_ids)->whereNotNull('registry_id')->get();
         }
         $gpCount = count($global_providers);
+        $ids_to_update = $global_providers->pluck('registry_id')->toArray();
 
         // Set URL - either just one platform, or all of them
         if ($gpCount == 1) {
@@ -112,7 +114,15 @@ class CounterRegistryController extends Controller
         $no_url = array();    // track names of platforms with refresh disabled (skipped)
         $new_platforms = array(); // track names of newly created platforms for summary
         foreach ($platform_records as $platform) {
-            if (is_null($platform->id)) continue;
+            // Full refresh needs to include NEW platforms. Bulk/single refresh should skip them
+            if (is_null($platform->id) || (!$full_refresh && !in_array($platform->id,$ids_to_update))) continue;
+
+            // Look for a matching provider
+            $newProvider = false;
+            $global_provider = $global_providers->where('registry_id',$platform->id)->first();
+            $orig_name = ($global_provider) ? $global_provider->name : "";
+            $orig_isActive = ($global_provider) ? $global_provider->is_active : 0;
+
             // Scan throught the sushi_services to be sure at least one has a url defined
             $hasUrl = false;
             foreach ($platform->sushi_services as $service) {
@@ -122,121 +132,128 @@ class CounterRegistryController extends Controller
                     break;
                 }
             }
+
             // if no URL defined, don't create a GlobalProvider, just flag it
             if (!$hasUrl) {
-                if ($gpCount == 1) {
-                    return response()->json(['result' => false, 'msg' => $errorData[1]['msg']]);
+                if ($global_provider) { // clear service_url(s) for existing provider if sushi_services or url missing
+                    CounterRegistry::where('global_id',$global_provider->id)->update(['service_url' => null]);
                 } else {
-                    $return_data[] = array('error'=>1, 'id' => null, 'name' => $platform->name);
-                }
-                continue;
-            }
-            // Look for a matching provider
-            $newProvider = false;
-            $global_provider = $global_providers->where('registry_id',$platform->id)->first();
-            if (!$global_provider) {
-                // See if the name matches before trying to create new entry
-                $global_provider = $global_providers->where('name',$platform->name)->first();
-                if (!$global_provider) {
-                    // If doing ALL, add a new GlobalProvider
-                    if ($input['id'] == "ALL") {
-                        $global_provider = new GlobalProvider;
-                        $global_provider->refresh_result = 'new';
-                        $new_platforms[] = $platform->name;
-                        $newProvider = true;
-                    // If not found, and we're doing more than one, skip this entry and continue
-                    // (this is not an error - we pulled everything when count>1)
-                    } else if ($gpCount>1) {
-                        continue;
-                    // this should not happen since the JSON was requested using the global_provider registryID value
+                    if ($gpCount == 1) {
+                        return response()->json(['result' => false, 'msg' => $errorData[1]['msg']]);
                     } else {
-                        return response()->json(['result'=>false, 'msg'=>"Error matching platform to registry!"]);
+                        $return_data[] = array('error'=>1, 'id' => null, 'name' => $platform->name);
+                    }
+                    continue;
+                }
+
+            // Platform entry has a URL defined..
+            } else {
+                // If global provider w/ matching ID not found, look for a match on name, and
+                // if none matches, create new entry
+                if (!$global_provider) {
+                    $global_provider = $global_providers->where('name',$platform->name)->first();
+                    if (!$global_provider) {
+                        // If doing ALL, add a new GlobalProvider
+                        if ($full_refresh) {
+                            $global_provider = new GlobalProvider;
+                            $global_provider->refresh_result = 'new';
+                            $new_platforms[] = $platform->name;
+                            $newProvider = true;
+                        // If not found, and we're doing more than one, skip this entry and continue
+                        // (this is not an error - we pulled everything when count>1)
+                        } else if ($gpCount>1) {
+                            continue;
+                        // this should not happen since the JSON was requested using the global_provider registryID value
+                        } else {
+                            return response()->json(['result'=>false, 'msg'=>"Error matching platform to registry!"]);
+                        }
                     }
                 }
-            }
-            $orig_name = $global_provider->name;
-            $orig_isActive = $global_provider->is_active;
 
-            // Setup a basic return rec for this provider and do initial error checks
-            $return_rec = array('error'=>0, 'id' => $global_provider->id, 'name' => $platform->name);
+                // Setup a basic return rec for this provider and do initial error checks
+                $return_rec = array('error'=>0, 'id' => $global_provider->id, 'name' => $platform->name);
 
-            // Pull the Services for the platform from the API
-            $urlMissing = true;
-            $releases = array();
-            $service_details = array();
-            foreach ($platform->sushi_services as $service) {
-                $svc = ($is_dialog) ? $service : self::requestURI($service->url);
-                $cr = $svc->counter_release;
-                $releases[] = $cr;
-                if (is_object($svc)) {
-                    $service_details[$cr] = $svc;
-                    if (strlen(trim($svc->url)) > 0) {
-                        $urlMissing = false;
+                // Pull the Services for the platform from the API
+                $releases = array();
+                $service_details = array();
+                foreach ($platform->sushi_services as $service) {
+                    $svc = ($is_dialog) ? $service : self::requestURI($service->url);
+                    $cr = $svc->counter_release;
+                    $releases[] = $cr;
+                    if (is_object($svc)) {
+                        $service_details[$cr] = $svc;
+                    } else if (!$is_dialog) {
+                        // Don't save a new provider that has bad data...
+                        if ($global_provider->refresh_result != "new") {
+                            $global_provider->refresh_result = "failed";
+                            $global_provider->updated_at = now();
+                            $global_provider->save();
+                        }
+                        if ($gpCount == 1) {
+                            return response()->json(['result' => false, 'msg' => $errorData[2]['msg']]);
+                        } else {
+                            $return_rec['error'] = 2;
+                            $return_data[] = $return_rec;
+                            continue;
+                        }
                     }
-                } else if (!$is_dialog) {
+                }
+                if (!$is_dialog && count($service_details) == 0) {
                     // Don't save a new provider that has bad data...
                     if ($global_provider->refresh_result != "new") {
                         $global_provider->refresh_result = "failed";
+                        $global_provider->is_active = 0;
                         $global_provider->updated_at = now();
                         $global_provider->save();
+                        if ($orig_isActive) {
+                            $global_provider->appyToInstances();
+                        }
                     }
                     if ($gpCount == 1) {
-                        return response()->json(['result' => false, 'msg' => $errorData[2]['msg']]);
+                        return response()->json(['result' => false, 'msg' => $errorData[1]['msg']]);
                     } else {
-                        $return_rec['error'] = 2;
+                        $return_rec['error'] = 1;
                         $return_data[] = $return_rec;
                         continue;
                     }
                 }
-            }
-            if (!$is_dialog && count($service_details) == 0) {
-                // Don't save a new provider that has bad data...
-                if ($global_provider->refresh_result != "new") {
-                    $global_provider->refresh_result = "failed";
-                    $global_provider->is_active = 0;
-                    $global_provider->updated_at = now();
-                    $global_provider->save();
-                }
-                if ($gpCount == 1) {
-                    return response()->json(['result' => false, 'msg' => $errorData[1]['msg']]);
-                } else {
-                    $return_rec['error'] = 1;
-                    $return_data[] = $return_rec;
+                
+                // if global_provider is not refreshable, skip it
+                if (!$global_provider->refreshable && !$is_dialog) {
+                    if ($gpCount == 1) {
+                        return response()->json(['result'=>false, 'msg'=>"Platform not refreshable or is not active"]);
+                    }
+                    $no_refresh[] = $global_provider->name;
                     continue;
                 }
-            }
-            
-            // if global_provider is not refreshable, skip it
-            if (!$global_provider->refreshable && !$is_dialog) {
-                if ($gpCount == 1) {
-                    return response()->json(['result'=>false, 'msg'=>"Platform not refreshable or is not active"]);
-                }
-                $no_refresh[] = $global_provider->name;
-                continue;
-            }
 
-            // Clean up (CC+) registry records
-            $global_provider->load('registries');
-            foreach ($global_provider->registries as $reg) {
-                $len = (isset($reg->service_url)) ? strlen(trim($reg->service_url)) : 0;
-                // delete (CC+) registries for releases no longer in the (COUNTER) registry
-                // or that have an empty/missing (skip if there is only one)
-                if ($global_provider->registries->count() > 1 && (!in_array($reg->release,$releases) || $len == 0)) {
-                    $reg->delete();
+                // Clean up (CC+) registry records
+                $global_provider->load('registries');
+                foreach ($global_provider->registries as $reg) {
+                    $len = (isset($reg->service_url)) ? strlen(trim($reg->service_url)) : 0;
+                    // delete (CC+) registries for releases no longer in the (COUNTER) registry
+                    // or that have an empty/missing (skip if there is only one)
+                    if ($global_provider->registries->count() > 1 && (!in_array($reg->release,$releases) || $len == 0)) {
+                        $reg->delete();
+                    }
                 }
-            }
-            $default_url = $global_provider->service_url();
-            if (strlen($default_url) > 0) {
-                $urlMissing = false;
+                $default_url = $global_provider->service_url();
+                if (strlen($default_url) > 0) {
+                    $hasUrl = true;
+                }
             }
 
             // Update or create CC+ counter_registries records for each release defined in service details
             $connectors_changed = false;
             $reportIds = array();
-            if ($urlMissing) {
+            if (!$hasUrl) {
                 $no_url[] = $global_provider->name;
                 $global_provider->is_active = 0;
-                $global_provider->refresh_result = "noUrl";
+                $global_provider->refresh_result = 'partial';   // Incomplete
+                $global_provider->updated_at = now();
+                if (!$is_dialog) {
+                    $global_provider->save();   
+                }
             } else {
                 // Get available platform reports
                 $reportIds = $masterReports->whereIn('name',array_column($platform->reports,'report_id'))
@@ -298,16 +315,15 @@ class CounterRegistryController extends Controller
                 $connectors_changed = ($cur_connectors != $old_connectors);
             }
 
-            // If running from dialog, user decides whether to save and/or apply to instances
+            // Check/set dialog-specific default release
             if (!$is_dialog) {
-
                 $_release = $global_provider->default_release();
                 $global_provider->update(['selected_release' => $_release]);
+            }
 
-                // If changes implicate consortia-provider settings, Loop through all consortia instances
-                if ($global_provider->name != $orig_name || $global_provider->is_active!=$orig_isActive || $connectors_changed) {
-                    $global_provider->appyToInstances();
-                }
+            // If changes implicate consortia-provider settings, apply to all instances
+            if ($global_provider->name != $orig_name || $global_provider->is_active!=$orig_isActive || $connectors_changed) {
+                $global_provider->appyToInstances();
             }
 
             // Setup return data
@@ -340,6 +356,7 @@ class CounterRegistryController extends Controller
             $orphans = $global_providers->where('is_active',1)->where('refreshable',1)->whereNotIn('id',$updated_ids)->all();
             foreach ($orphans as $gp) {
                 $gp->refresh_result = 'orphan';
+                $gp->is_active = 0;
                 if (is_null($gp->registry_id) || $gp->registry_id == '') {
                     $no_registryID[] = $gp->name;
                 } else {

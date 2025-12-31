@@ -92,7 +92,7 @@ class GlobalAdminController extends Controller
             $providers[] = $provider;
         }
 
-        $filters = array('stat' => '', 'refresh' => '');
+        $filters = array('stat' => '', 'refresh' => array());
         return view('globaladmin.home', compact('consortia','settings','providers','filters','masterReports','all_connectors'));
     }
 

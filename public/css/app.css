@@ -10475,3 +10475,15 @@ button.v-expansion-panel-header:not(.v-expansion-panel-header--active) {
 .v-data-table > .v-data-table__wrapper > table > tfoot > tr > th {
   padding: 0 8px !important;
 }
+
+[id^=list-item] {
+  min-height: 30px;
+}
+
+.v-list-item__content {
+  padding: 0;
+}
+
+.v-list-item__action {
+  margin: 0;
+}

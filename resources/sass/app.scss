@@ -539,3 +539,12 @@ i.size-16 {
     background-color: #fff;
     border-radius: 5px;
 }
+[id^="list-item"] {
+    min-height:  30px;
+}
+.v-list-item__content {
+    padding:  0;
+}
+.v-list-item__action {
+    margin: 0;
+}

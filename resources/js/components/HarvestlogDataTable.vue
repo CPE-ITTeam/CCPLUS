@@ -247,13 +247,13 @@
       <template v-slot:item.error.id="{ item }">
         <span v-if="item.error.id>0">
           {{ item.error.id }} 
-          <v-icon title="View Error Details" @click="showErrorDetails(item.error)" :class="item.status">mdi-dots-vertical</v-icon>
+          <v-icon title="View Error Details" @click="showErrorDetails(item.error)" :color="item.error.color">mdi-dots-vertical</v-icon>
         </span>
         <span v-else >Success</span>
       </template>
       <template v-slot:item.status="{ item }">
         <span >
-          <v-icon :title="item.status" :class="item.status">mdi-record</v-icon>
+          <v-icon :title="item.statusAlt" :color="item.error.color">mdi-record</v-icon>
         </span>
       </template>
       <v-alert slot="no-results" :value="true" color="error" icon="warning">
@@ -666,9 +666,11 @@
       this.$store.subscribe((mutation, state) => { localStorage.setItem('store', JSON.stringify(state)); });
 
       // If inbound filters given (as a PROP) , get the initial records
-      if (this.filters.institutions.length > 0 || this.filters.providers.length > 0) {
-          this.updateLogRecords();
-      }
+      this.filters['updated'] = 'Last 24 hours';
+      this.updateLogRecords();
+      // if (this.filters.institutions.length > 0 || this.filters.providers.length > 0) {
+      //     this.updateLogRecords();
+      // }
 
       console.log('HarvestLogData Component mounted.');
     }
@@ -676,9 +678,4 @@
 </script>
 <style scoped>
 .x-box { width: 16px;  height: 16px; flex-shrink: 0; }
-.Success { color: #00dd00; }
-.Fail { color: #dd0000; }
-.NoRetries { color: #999999; }
-.BadCreds { color: #ff9900; }
-.Other { color: #990099 }
 </style>

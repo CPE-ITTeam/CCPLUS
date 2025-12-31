@@ -3,7 +3,6 @@
 namespace App\Console\Commands;
 
 use Illuminate\Console\Command;
-use Illuminate\Support\Facades\Cache;
 use DB;
 use App\Models\Consortium;
 use App\Models\Report;
@@ -18,6 +17,7 @@ use App\Models\Severity;
 use App\Models\Alert;
 use App\Models\GlobalProvider;
 use App\Models\ConnectionField;
+
 use Illuminate\Support\Facades\File;
 use Illuminate\Support\Facades\Crypt;
 
@@ -158,9 +158,6 @@ class ReportProcessor extends Command
                 if (!$harvest) continue;
                 $report = $master_reports->where('name', $parts[1])->first();
                 if (!$report) continue;
-                $begin = $parts[2];
-                $end = substr($parts[3],0,10);
-                $yearmon = substr($begin,0,7);
                 $prov_id = $harvest->sushiSetting->prov_id;
                 $inst_id = $harvest->sushiSetting->inst_id;
 
@@ -172,33 +169,30 @@ class ReportProcessor extends Command
                 $json = json_decode(bzdecompress(Crypt::decrypt(File::get($jsonFile), false)));
 
                // Create a new processor object (will replace existing data)
-                $C5processor = new Counter5Processor($prov_id, $inst_id, $begin, $end, 1);
+                $C5processor = new Counter5Processor($prov_id, $inst_id, $harvest->yearmon, $harvest->yearmon, 1);
 
                // Run the counter processor on the JSON
                 $ts = date("Y-m-d H:i:s");
+                $rawfile = $harvest->id . '_' . $report->name . '_' . $harvest->yearmon . '.json';
                 try {
                     $res = $C5processor->{$report->name}($json);
-               // If processor failed, signal 9020 and delete the JSON file
+                    // Successfully processed the report - clear out any existing "failed" records and update the harvest
+                    if ($res == 'Success') {
+                        $deleted = FailedHarvest::where('harvest_id', $harvest->id)->delete();
+                        $harvest->error_id = 0;
+                        $harvest->status = 'Success';
+                    }
+               // If processor failed, signal 9900
                 } catch (\Exception $e) {
+                    $error9900 = CcplusError::where('id',9900)->first();
                     FailedHarvest::insert(['harvest_id' => $harvest->id, 'process_step' => 'COUNTER',
-                                           'error_id' => 9020, 'detail' => 'Processing error: ' . $e->getMessage(),
+                                           'error_id' => 9900, 'detail' => 'Processing error: ' . $e->getMessage(),
                                            'help_url' => null, 'created_at' => $ts]);
-                    $this->line($ts . " " . $ident . "Error processing JSON : " . $e->getMessage());
-                    $harvest->error_id = 9020;
+                    $this->line($ts . " " . $ident . ":: ".$harvest->id." :: Error processing JSON : " . $e->getMessage());
+                    $harvest->error_id = 9900;
                     $harvest->attempts++;
-                    $harvest->status = 'ReQueued';
-                    $harvest->save();
-                    unlink($jsonFile);
-                    continue;
+                    $harvest->status = ($error9900) ? $error9900->new_status : 'ReQueued';
                 }
-
-               // Successfully processed the report - clear out any existing "failed" records and update the harvest
-                $deleted = FailedHarvest::where('harvest_id', $harvest->id)->delete();
-                $rawfile = $report->name . '_' . $begin . '_' . $end . ".json";
-                $harvest->error_id = 0;
-                $harvest->status = 'Success';
-                $harvest->rawfile = $rawfile;
-                $harvest->save();
 
                // Make sure the path for the output file exists
                 $path = $consortium_root . '/' . $inst_id . '/' . $prov_id;
@@ -211,26 +205,24 @@ class ReportProcessor extends Command
                 try {
                     rename($jsonFile, $newName);
                 } catch (\Exception $e) {
-                   // Rename failed and file is not in the new place, clear rawfile in the harvest record and report error
+                   // Rename failed and file is not in the new place, clear rawfile value and log error
                     if (!is_readable($newName)) {
                         $this->line ($ts  . " " . $ident . "Rename/Move operation for JSON source file failed: " . $jsonFile);
                         $harvest->rawfile = null;
-                        $harvest->save();
+                        try { unlink($jsonFile); } catch (\Exception $e2) { }
                     }
                 }
+                $harvest->save();
 
                // Print confirmation line
-                $this->line($ts . " " . $ident . $harvest->sushiSetting->provider->name . " : " . $yearmon . " : " .
+                $this->line($ts . " " . $ident . $harvest->sushiSetting->provider->name . " : " . $harvest->yearmon . " : " .
                                   $report->name . " processed for " . $harvest->sushiSetting->institution->name);
                 unset($C5processor);
 
-        // // Check for a file in the priority queue
-        // foreach ($globs as $glob) {
-        //     $search_path = $report_path . "/" . $glob;
-        // }
-
             }
         }
+        // Sleep before exiting to make sure last harvest gets fully processed
+        sleep(5);
         return 1;
     }
 }

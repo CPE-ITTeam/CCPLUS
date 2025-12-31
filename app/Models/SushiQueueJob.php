@@ -23,7 +23,7 @@ class SushiQueueJob extends Model
 
     public function consortium()
     {
-        return $this->belongsTo('App\Models\Consortia', 'consortium_id');
+        return $this->belongsTo('App\Models\Consortium', 'consortium_id');
     }
 
     public function harvest()
