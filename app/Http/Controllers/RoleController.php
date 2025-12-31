@@ -36,9 +36,7 @@ class RoleController extends Controller
             if ($limit_insts === [1]) $limit_insts = [];
         }
 
-        // Setup filtering options for the datatable; note that filter options
-        // for the roles dataset are single-select (not mselect), so the array
-        // keys are singular (role, user, group, etc.)
+        // Setup filtering options for the datatable
         $filter_options = array();
 
         // Role options need to be dependent on $thisUser's roles
@@ -101,9 +99,9 @@ class RoleController extends Controller
         $filter_options['group'] = InstitutionGroup::when(count($limit_groups)>0, function ($qry) use ($limit_groups) {
                                                         return $qry->whereIn('id', $limit_groups);
                                                     })->orderBy('name', 'ASC')->get(['id','name']);
-        $filter_options['institution'] = Institution::when(count($limit_insts)>0, function ($qry) use ($limit_insts) {
-                                                        return $qry->whereIn('id', $limit_insts);
-                                                    })->orderBy('name', 'ASC')->get();
+        // Limit institution filter to those with existing user-role records
+        $insts_with_roles = $user_data->unique('inst_id')->pluck('inst_id')->toArray();
+        $filter_options['institution'] = Institution::whereIn('id', $insts_with_roles)->orderBy('name', 'ASC')->get();
         $filter_options['user'] = $user_data->map(function ($rec) {
             return [ 'id' => $rec['id'], 'name' => $rec['name'] ];
         })->toArray();
