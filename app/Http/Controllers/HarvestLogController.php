@@ -112,11 +112,10 @@ class HarvestLogController extends Controller
         // Pull globalProvider IDs based on the consortium providers defined for institutions
         // in $limit_by_inst ; everyone gets consortium-wide providers (where inst_id=1)
         $global_ids = Provider::when(count($limit_by_inst) > 0, function ($qry) use ($limit_by_inst) {
-                                return $qry->where('inst_id',1)->orWhereIn('inst_id',$limit_by_inst);
-                             })
-                             ->select('global_id')->distinct()->pluck('global_id')->toArray();
+                                  return $qry->where('inst_id',1)->orWhereIn('inst_id',$limit_by_inst);
+                              })->select('global_id')->distinct()->pluck('global_id')->toArray();
 
-        // Setup option arrays for the report creator
+        // Get allowed/visible institutions
         $institutions = Institution::when(count($limit_by_inst)>0, function ($qry) use ($limit_by_inst) {
                                        return $qry->whereIn('id', $limit_by_inst);
                                    })->get(['id','name'])->toArray();
@@ -132,7 +131,7 @@ class HarvestLogController extends Controller
             }
         }
 
-        // Build platforms from globals connected to insts in limit_by_inst and add report assignments
+        // Build platform list of globals connected to insts in limit_by_inst 
         $globals = GlobalProvider::with('consoProviders','consoProviders.reports')->whereIn('id',$global_ids)
                                  ->orderBy('name','ASC')->get(['id','name']);
         $platforms = array();
@@ -856,7 +855,7 @@ class HarvestLogController extends Controller
 
        // return result
        $msg .= count($deleteable_ids) . " harvests deleted";
-       $msg .= ($skipped>0) ? ", and " . $skipped . "harvests skipped (not authorized.)" : " successfully.";
+       $msg .= ($skipped>0) ? ", and " . $skipped . "harvests skipped." : " successfully.";
        return response()->json(['result' => true, 'msg' => $msg, 'removed' => $deleteable_ids]);
    }
 
@@ -928,6 +927,7 @@ class HarvestLogController extends Controller
        $truncated = false;
        $harvests = array();
        foreach ($data as $rec) {
+          if (!$rec->credential || !$rec->report) continue;
           $rec->prov_id = $rec->credential->prov_id;
           $rec->inst_id = $rec->credential->inst_id;
           $rec->prov_name = $rec->credential->provider->name;
@@ -1031,7 +1031,7 @@ class HarvestLogController extends Controller
                     'release' => $harvest->release,
                     'report_name' => $harvest->report->name,
                     'status' => $harvest->status, 'rawfile' => $harvest->rawfile,
-                    'error_id' => 0
+                    'error_id' => 0, 'error' => []
                    );
        $rec['updated'] = ($harvest->updated_at) ? date("Y-m-d H:i", strtotime($harvest->updated_at)) : " ";
        $rec['release'] = (is_null($harvest->release)) ? "" : $harvest->release;
@@ -1064,6 +1064,7 @@ class HarvestLogController extends Controller
        }
        $rec['error']['known_error'] = in_array($rec['error_id'],$this->all_error_codes);
        $rec['error']['noretries'] = ($harvest->status == 'NoRetries');
+       $rec['failed'] = [];
        $rec['error']['counter_url'] = ($harvest->release == '5.1')
            ? "https://cop5.countermetrics.org/en/5.1/appendices/d-handling-errors-and-exceptions.html"
            : "https://cop5.projectcounter.org/en/5.0.3/appendices/f-handling-errors-and-exceptions.html";
@@ -1120,7 +1121,7 @@ class HarvestLogController extends Controller
    {
        // Update affected credentials
 
-       $credentials = Credemtial::with('harvestLogs')->whereIn('id',$cred_ids)->get();
+       $credentials = Credential::with('harvestLogs')->whereIn('id',$cred_ids)->get();
        foreach ($credentials as $cred) {
            $cred->last_harvest = $cred->harvestLogs->where('status','Success')->max('yearmon');
            $cred->save();

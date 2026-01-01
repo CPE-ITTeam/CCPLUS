@@ -3,11 +3,12 @@
 namespace App\Http\Controllers;
 
 use Illuminate\Http\Request;
-use App\Consortium;
-use App\Report;
-use App\GlobalSetting;
-use App\GlobalProvider;
-use App\ConnectionField;
+use App\Models\Consortium;
+use App\Models\Report;
+use App\Models\Credential;
+use App\Models\GlobalSetting;
+use App\Models\GlobalProvider;
+use App\Models\ConnectionField;
 use DB;
 use GuzzleHttp\Client;
 
@@ -92,8 +93,8 @@ class GlobalAdminController extends Controller
             $providers[] = $provider;
         }
 
-        $filters = array('stat' => '', 'refresh' => array());
-        return view('globaladmin.home', compact('consortia','settings','providers','filters','masterReports','all_connectors'));
+        $filters = array('stat' => '', 'refresh' => '');
+        // return Inertia::render('AdminHome', compact('consortia','settings','providers','filters','masterReports','all_connectors'));
     }
 
     /**
@@ -185,7 +186,7 @@ class GlobalAdminController extends Controller
     private function instanceDetails($instanceKey, $gp) {
 
         // Query the tables directly for what we're after, starting with connection count
-        $qry  = "Select count(*) as num, max(last_harvest) as last from ccplus_" . $instanceKey . ".sushisettings ";
+        $qry  = "Select count(*) as num, max(last_harvest) as last from ccplus_" . $instanceKey . ".credentials ";
         $qry .= "where prov_id = " . $gp->id;
 
         $result = DB::select($qry);
