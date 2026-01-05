@@ -38,8 +38,14 @@ class CounterRegistryController extends Controller
         $input = $request->all();
 
         $full_refresh = false;
+        $no_refresh = array();    // track names of platforms with refresh disabled (skipped)
+
+        // Get all current platforms with a registry_id value
+        $all_globals = GlobalProvider::whereNotNull('registry_id')->get();
+
         if ($input['id'] == "ALL") {
-            $global_providers = GlobalProvider::whereNotNull('registry_id')->get();
+            $global_providers = $all_globals->where('refreshable',1);
+            $no_refresh = $all_globals->where('refreshable',0)->pluck('name')->toArray();
             $is_dialog = 0;
             $full_refresh = true;
         } else {
@@ -48,14 +54,21 @@ class CounterRegistryController extends Controller
             if (!is_array($global_provider_ids)) {
                 return response()->json(['result' => false, 'msg' => "Refresh Request Failed - Invalid Input!"]);
             }
-            $global_providers = GlobalProvider::whereIn('id', $global_provider_ids)->whereNotNull('registry_id')->get();
+            $global_providers = $all_globals->where('refreshable',1)->whereIn('id', $global_provider_ids);
+
+            // If nothing requested is refreshable, report the error and exit
+            if ($global_providers->count() == 0) {
+                return response()->json(['result'=>false, 'msg'=>"The requested platform(s) are marked not refreshable"]);
+            }
+            $no_refresh = $all_globals->where('refreshable',0)->whereIn('id', $global_provider_ids)->pluck('name')->toArray();
         }
         $gpCount = count($global_providers);
         $ids_to_update = $global_providers->pluck('registry_id')->toArray();
 
         // Set URL - either just one platform, or all of them
         if ($gpCount == 1) {
-            $_url = "https://registry.countermetrics.org/api/v1/platform/" . $global_providers[0]->registry_id . "/?format=json";
+            $_gp = $global_providers->first();
+            $_url = "https://registry.countermetrics.org/api/v1/platform/" . $_gp->registry_id . "/?format=json";
         } else {
             $_url = "https://registry.countermetrics.org/api/v1/platform/?format=json";
         }
@@ -107,7 +120,6 @@ class CounterRegistryController extends Controller
         $success_count = 0;
         $return_data = array();
         $updated_ids = array();   // track global_providers actually updated
-        $no_refresh = array();    // track names of platforms with refresh disabled (skipped)
         $no_registryID = array(); // track names of platforms with no registry_id (skipped)
         $no_url = array();    // track names of platforms with refresh disabled (skipped)
         $new_platforms = array(); // track names of newly created platforms for summary
@@ -118,10 +130,14 @@ class CounterRegistryController extends Controller
             // Look for a matching provider
             $newProvider = false;
             $global_provider = $global_providers->where('registry_id',$platform->id)->first();
+
+            // If NOT a full refresh and there's no matching global, skip it
+            // (the global is probably set to no-refresh)
+            if (!$full_refresh && !$global_provider) continue;
             $orig_name = ($global_provider) ? $global_provider->name : "";
             $orig_isActive = ($global_provider) ? $global_provider->is_active : 0;
 
-            // Scan throught the sushi_services to be sure at least one has a url defined
+            // Scan through the sushi_services to be sure at least one has a url defined
             $hasUrl = false;
             foreach ($platform->sushi_services as $service) {
                 $svc = ($is_dialog) ? $service : self::requestURI($service->url);
@@ -149,7 +165,7 @@ class CounterRegistryController extends Controller
                 // If global provider w/ matching ID not found, look for a match on name, and
                 // if none matches, create new entry
                 if (!$global_provider) {
-                    $global_provider = $global_providers->where('name',$platform->name)->first();
+                    $global_provider = $all_globals->where('name',$platform->name)->first();
                     if (!$global_provider) {
                         // If doing ALL, add a new GlobalProvider
                         if ($full_refresh) {
@@ -216,15 +232,6 @@ class CounterRegistryController extends Controller
                     }
                 }
                 
-                // if global_provider is not refreshable, skip it
-                if (!$global_provider->refreshable && !$is_dialog) {
-                    if ($gpCount == 1) {
-                        return response()->json(['result'=>false, 'msg'=>"Platform not refreshable or is not active"]);
-                    }
-                    $no_refresh[] = $global_provider->name;
-                    continue;
-                }
-
                 // Clean up (CC+) registry records
                 $global_provider->load('registries');
                 foreach ($global_provider->registries as $reg) {
@@ -311,6 +318,7 @@ class CounterRegistryController extends Controller
                 // to update SushiSettings.
                 $cur_connectors = $global_provider->connectors();
                 $connectors_changed = ($cur_connectors != $old_connectors);
+                $success_count++;
             }
 
             // Check/set dialog-specific default release
@@ -338,7 +346,6 @@ class CounterRegistryController extends Controller
             $return_rec['report_state'] = $this->reportState($reportIds);
             $return_rec['updated'] = date("Y-m-d H:i", strtotime($global_provider->updated_at));
             $updated_ids[] = $global_provider->id;
-            $success_count++;
             $return_rec['error'] = 0;
             $return_data[] = $return_rec;
         }
@@ -351,7 +358,7 @@ class CounterRegistryController extends Controller
         // Providers that are in CC+ as a GlobalProvider, but missing from updated_ids have been orphaned by COUNTER.
         // Mark these providers' refresh_result as "orphan" (the U/I will label as Deprecated)
         if (!$is_dialog && count($updated_ids) > 0) {
-            $orphans = $global_providers->where('is_active',1)->where('refreshable',1)->whereNotIn('id',$updated_ids)->all();
+            $orphans = $global_providers->where('is_active',1)->whereNotIn('id',$updated_ids)->all();
             foreach ($orphans as $gp) {
                 $gp->refresh_result = 'orphan';
                 $gp->is_active = 0;
