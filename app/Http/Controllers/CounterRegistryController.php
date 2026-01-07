@@ -388,11 +388,8 @@ class CounterRegistryController extends Controller
                 }
             }
             if (count($no_refresh) > 0) {
-              $summary_html .= ($summary_html == "") ? "" : "<br /><hr>";
-              $summary_html .= "<center><strong><u>Platforms Skipped (Refresh Disabled) :</u></strong></center><br />";
-              foreach ($no_refresh as $name) {
-                  $summary_html .= $name . "<br />";
-              }
+              $summary_html .= ($summary_html == "") ? "" : "<br /><hr><center>";
+              $summary_html .= count($no_refresh) . " Platforms Skipped (Refresh Disabled)</center><br />";
             }
             if (count($no_registryID) > 0) {
               $summary_html .= ($summary_html == "") ? "" : "<br /><hr>";
