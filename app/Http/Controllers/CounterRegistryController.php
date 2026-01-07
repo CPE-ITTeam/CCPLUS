@@ -380,16 +380,16 @@ class CounterRegistryController extends Controller
         $summary_html = "";
         if ($gpCount > 1) {
             $summary_html = ($success_count>0) ? $success_count . " Platforms successfully refreshed" : "";
+            if (count($no_refresh) > 0) {
+              $summary_html .= ($summary_html == "") ? "" : "<br /><hr>";
+              $summary_html .= "<center>" . count($no_refresh) . " Platforms Skipped (Refresh Disabled)</center><br />";
+            }
             if (count($new_platforms) > 0) {
                 $summary_html .= ($summary_html == "") ? "" : "<br /><hr>";
                 $summary_html .= "<center><strong><u>New Platforms Added:</u></strong></center><br />";
                 foreach ($new_platforms as $name) {
                     $summary_html .= $name . "<br />";
                 }
-            }
-            if (count($no_refresh) > 0) {
-              $summary_html .= ($summary_html == "") ? "" : "<br /><hr><center>";
-              $summary_html .= count($no_refresh) . " Platforms Skipped (Refresh Disabled)</center><br />";
             }
             if (count($no_registryID) > 0) {
               $summary_html .= ($summary_html == "") ? "" : "<br /><hr>";
