@@ -261,7 +261,7 @@ class GlobalProviderController extends Controller
 
       $provider = GlobalProvider::with('registries')->findOrFail($id);
       $orig_name = $provider->name;
-      $orig_isActive = $provider->is_active;
+      $orig_refreshable = $provider->refreshable;
 
       // Validate form inputs
       $this->validate($request, [ 'is_active' => 'required' ]);
@@ -278,8 +278,11 @@ class GlobalProviderController extends Controller
       } else {
           $provider->refreshable = 0;
       }
-      if ($provider->refreshable == 0) {
-          $provider->refresh_result = null;
+
+      // If refreshable toggle changed, update refresh_result (mark refreshable=1 as success
+      // to get the correct Counter api link in the U/I.)
+      if ($provider->refreshable != $orig_refreshable) {
+          $provider->refresh_result = ($provider->refreshable == 1) ? "success" : null;
       }
 
       // Pull all connection fields and master reports
