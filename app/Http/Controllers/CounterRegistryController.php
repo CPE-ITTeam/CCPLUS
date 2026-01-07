@@ -382,7 +382,7 @@ class CounterRegistryController extends Controller
             $summary_html = ($success_count>0) ? $success_count . " Platforms successfully refreshed" : "";
             if (count($no_refresh) > 0) {
               $summary_html .= ($summary_html == "") ? "" : "<br /><hr>";
-              $summary_html .= "<center>" . count($no_refresh) . " Platforms Skipped (Refresh Disabled)</center><br />";
+              $summary_html .= "<center>" . count($no_refresh) . " Platforms Skipped (Refresh Disabled)</center>";
             }
             if (count($new_platforms) > 0) {
                 $summary_html .= ($summary_html == "") ? "" : "<br /><hr>";
