@@ -657,7 +657,7 @@
           })
           .catch({});
         },
-        registryRefresh(gpId) {
+        async registryRefresh(gpId) {
             // default refresh_arg to input. If it's ALL , or an array of ints, no changes needed
             let refresh_arg = gpId;
             let is_dialog = 0;      // refresh from dialog does not SAVE, just returns registry fields
@@ -672,71 +672,72 @@
                 this.loading = true;
             }
             this.success = "";
-            axios.post('/global/providers/registry-refresh', {id: _providers, dialog: is_dialog })
-                 .then( (response) => {
-                     if (response.data.result) {
-                       if ( gpId!="ALL" && refresh_arg.length==1) {
-                           let prov = {...response.data.providers[0]};
-                           this.form.name = prov.name;
-                           this.form.abbrev = prov.abbrev;
-                           let registry = prov.registries.find(r => r.release == prov.release);
-                           this.form.service_url = (typeof(registry) != 'undefined') ? registry.service_url : "";
-                           this.form.notifications_url = (typeof(registry) != 'undefined') ? registry.notifications_url : "";
-                           this.form.connector_state = (typeof(registry) != 'undefined') ? Object.assign({},registry.connector_state) : {};
-                           this.form.day_of_month = prov.day_of_month;
-                           this.form.report_state = prov.report_state;
-                           this.form.content_provider = prov.content_provider;
-                           if (is_dialog) {
-                             this.cur_provider.releases = prov.registries.map(r => r.release);
-                             this.dialog_success = "Selected platform successfully retrieved.";
-                           } else {
-                             this.success = "Selected platform successfully updated.";
-                           }
-                           this.$emit('change-prov', prov.id);
-                       } else {
-                           let newly_added = false;
-                           response.data.providers.forEach( prov => {
-                               let _idx = this.mutable_providers.findIndex(p => p.id == prov.id);
-                               if ( _idx < 0) {  // did the refresh send back something new?
-                                   this.mutable_providers.push(prov);
-                                   newly_added = true;
-                               } else {
-                                   Object.keys(prov).forEach( (key) =>  { this.mutable_providers[_idx][key] = prov[key]; });
-                                   this.$emit('change-prov', prov.id);
-                               }
-                           });
-                           if (response.data.summary != "") {
-                               Swal.fire({
-                                 title: 'Refresh Results', html: response.data.summary, icon: 'info', showCancelButton: false,
-                                 confirmButtonColor: '#3085d6', confirmButtonText: 'Close'
-                               });
-                           }
-                           // Resort mutable_providers if we just added to them
-                           if (newly_added) {
-                             this.mutable_providers.sort( (a,b) => {
-                                 return a.name.toLowerCase().localeCompare(b.name.toLowerCase());
-                             });
-                           }
-                           this.success = "Platform Refresh completed successfully";
-                       }
-                       this.loading = false;
-                     } else {
-                       this.success = '';
-                       if ( gpId!="ALL" && refresh_arg.length==1) {
-                         this.dialog_success = '';
-                         this.dialog_error = response.data.msg;
-                         var _idx = this.mutable_providers.findIndex(ii=>ii.id == gpId);
-                         if (_idx > -1) {
-                            this.mutable_providers[_idx].refresh_result = 'failed';
-                         }
-                       } else {
-                         this.failure = response.data.msg;
-                       }
-                       this.loading = false;
-                    }
-                    this.dtKey += 1;           // notify the datatable
-           })
-           .catch({});
+            // use synchronous post (await) so that it finishes before any change-prov emit(s)
+            const response = await axios.post('/global/providers/registry-refresh', {id: _providers, dialog: is_dialog });
+            if (response.data.result) {
+              if ( gpId!="ALL" && refresh_arg.length==1) {
+                  let prov = {...response.data.providers[0]};
+                  this.form.name = prov.name;
+                  this.form.abbrev = prov.abbrev;
+                  let registry = prov.registries.find(r => r.release == prov.release);
+                  this.form.service_url = (typeof(registry) != 'undefined') ? registry.service_url : "";
+                  this.form.notifications_url = (typeof(registry) != 'undefined') ? registry.notifications_url : "";
+                  this.form.connector_state = (typeof(registry) != 'undefined') ? Object.assign({},registry.connector_state) : {};
+                  this.form.day_of_month = prov.day_of_month;
+                  this.form.report_state = prov.report_state;
+                  this.form.content_provider = prov.content_provider;
+                  if (is_dialog) {
+                    this.cur_provider.releases = prov.registries.map(r => r.release);
+                    this.dialog_success = "Selected platform successfully retrieved.";
+                  } else {
+                    this.success = "Selected platform successfully updated.";
+                  }
+                  this.$emit('change-prov', prov.id);
+              } else {
+                  let newly_added = false;
+                  response.data.providers.forEach( prov => {
+                      let _idx = this.mutable_providers.findIndex(p => p.id == prov.id);
+                      if ( _idx < 0) {  // did the refresh send back something new?
+                          this.mutable_providers.push(prov);
+                          newly_added = true;
+                      } else {
+                          Object.keys(prov).forEach( (key) =>  { this.mutable_providers[_idx][key] = prov[key]; });
+                          this.$emit('change-prov', prov.id);
+                      }
+                  });
+                  if (response.data.summary != "") {
+                      Swal.fire({
+                        title: 'Refresh Results', html: response.data.summary, icon: 'info', showCancelButton: false,
+                        confirmButtonColor: '#3085d6', confirmButtonText: 'Close'
+                      });
+                  }
+                  // Resort mutable_providers if we just added to them
+                  if (newly_added) {
+                    this.mutable_providers.sort( (a,b) => {
+                        return a.name.toLowerCase().localeCompare(b.name.toLowerCase());
+                    });
+                  }
+                  this.success = "Platform Refresh completed successfully";
+              }
+              this.loading = false;
+              this.dtKey += 1;           // notify the datatable
+            } else {
+              this.success = '';
+              if (this.provDialog) {
+                this.dialog_success = '';
+                this.dialog_error = response.data.msg;
+              } else {
+                this.failure = response.data.msg;
+              }
+              if ( gpId!="ALL" && refresh_arg.length==1) {
+                var _idx = this.mutable_providers.findIndex(ii=>ii.id == gpId);
+                if (_idx > -1) {
+                  this.mutable_providers[_idx].refresh_result = 'failed';
+                  this.dtKey += 1;
+                }
+              }
+              this.loading = false;
+          }
           if (gpId=="ALL") {   // Clear all filters since we just refreshed ALL
             this.clearFilter('ALL');
           }

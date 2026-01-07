@@ -131,11 +131,14 @@ class CounterRegistryController extends Controller
 
             // Look for a matching provider
             $newProvider = false;
-            $global_provider = $global_providers->where('registry_id',$platform->id)->first();
+            $global_provider = $all_globals->where('registry_id',$platform->id)->first();
 
-            // If NOT a full refresh and there's no matching global, skip it
-            // (the global is probably set to no-refresh)
-            if (!$full_refresh && !$global_provider) continue;
+            // Skip if platform not matched (and not full refresh) or if it is set not-refreshable
+            if ($global_provider && $full_refresh) {
+                if ($global_provider->refreshable == 0) continue;
+            } else if (!$global_provider && !$full_refresh) {
+                continue;
+            }
             $orig_name = ($global_provider) ? $global_provider->name : "";
             $orig_isActive = ($global_provider) ? $global_provider->is_active : 0;
 
@@ -168,7 +171,9 @@ class CounterRegistryController extends Controller
                 // if none matches, create new entry
                 if (!$global_provider) {
                     $global_provider = $all_globals->where('name',$platform->name)->first();
-                    if (!$global_provider) {
+                    if ($global_provider) {
+                        if ( $global_provider->refreshable == 0 ) continue;
+                    } else {
                         // If doing ALL, add a new GlobalProvider
                         if ($full_refresh) {
                             $global_provider = new GlobalProvider;
@@ -377,19 +382,16 @@ class CounterRegistryController extends Controller
         $summary_html = "";
         if ($gpCount > 1) {
             $summary_html = ($success_count>0) ? $success_count . " Platforms successfully refreshed" : "";
+            if (count($no_refresh) > 0) {
+              $summary_html .= ($summary_html == "") ? "" : "<br /><hr>";
+              $summary_html .= "<center>" . count($no_refresh) . " Platforms Skipped (Refresh Disabled)</center>";
+            }
             if (count($new_platforms) > 0) {
                 $summary_html .= ($summary_html == "") ? "" : "<br /><hr>";
                 $summary_html .= "<center><strong><u>New Platforms Added:</u></strong></center><br />";
                 foreach ($new_platforms as $name) {
                     $summary_html .= $name . "<br />";
                 }
-            }
-            if (count($no_refresh) > 0) {
-              $summary_html .= ($summary_html == "") ? "" : "<br /><hr>";
-              $summary_html .= "<center><strong><u>Platforms Skipped (Refresh Disabled) :</u></strong></center><br />";
-              foreach ($no_refresh as $name) {
-                  $summary_html .= $name . "<br />";
-              }
             }
             if (count($no_registryID) > 0) {
               $summary_html .= ($summary_html == "") ? "" : "<br /><hr>";
