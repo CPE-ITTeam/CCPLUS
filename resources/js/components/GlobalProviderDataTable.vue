@@ -39,8 +39,22 @@
           <img src="/images/red-x-16.png" width="100%" alt="clear filter" @click="clearFilter('refresh')"/>&nbsp;
         </div>
         <v-select :items="result_options" v-model="mutable_filters['refresh']" @change="updateFilters('refresh')"
-                  label="Filter Refresh Result" multiple
-        ></v-select> &nbsp;
+                  label="Filter Refresh Result" multiple>
+          <template v-slot:prepend-item>
+            <v-list-item @click="changeAllRefresh">
+               <span v-if="allRefresh">Clear Selections</span>
+               <span v-else>Select All</span>
+            </v-list-item>
+            <v-divider class="mt-1"></v-divider>
+          </template>
+          <template v-slot:selection="{ item, index }">
+            <span v-if="index==0 && allRefresh">All Results</span>
+            <span v-else-if="index==0 && !allRefresh">{{ item }}</span>
+            <span v-else-if="index===1 && !allRefresh" class="text-grey text-caption align-self-center">
+              &nbsp; +{{ mutable_filters['refresh'].length-1 }} more
+            </span>
+          </template>
+        </v-select> &nbsp;
       </v-col>
       <v-col cols="1">&nbsp;</v-col>
       <v-col class="d-flex px-2" cols="3">
@@ -334,6 +348,7 @@
         bulk_actions: [ 'Enable', 'Disable', 'Refresh Registry', 'Delete' ],
         bulkAction: null,
         selectedRows: [],
+        allRefresh: false,
         loading: false,
         search: '',
         showTest: false,
@@ -742,11 +757,17 @@
             this.clearFilter('ALL');
           }
         },
-        updateFilters() {
+        updateFilters(filt) {
             this.$store.dispatch('updateAllFilters',this.mutable_filters);
             this.updateRecords();
             // clear these since selections may persist and otherwise be invisible
             this.selectedRows = [];
+            // update allRefresh if necessary
+            if (filt == 'refresh') {
+                this.allRefresh = (this.mutable_filters['refresh'].length > 0 &&
+                      this.mutable_filters['refresh'].length == this.result_options.length);
+            }
+
         },
         updateRecords() {
             this.success = "";
@@ -774,6 +795,17 @@
           this.$store.dispatch('updateAllFilters',this.mutable_filters);
           this.updateRecords();
           this.selectedRows = [];
+        },
+        changeAllRefresh() {
+          // Turned refresh OFF?
+          if (this.allRefresh) {
+            this.mutable_filters['refresh'] = [];
+            this.allRefresh = false;
+          // Turned refresh ON?
+          } else {
+            this.mutable_filters['refresh'] = [...this.result_options];
+            this.allRefresh = true;
+          }
         },
         showConnections(id) {
             this.cur_provider = this.mutable_providers.find(p => p.id == id);
