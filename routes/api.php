@@ -14,7 +14,7 @@ Route::post('resetPass/','App\Http\Controllers\Auth\ForgotPasswordController@sub
 
 // Routes requiring authentication
 Route::middleware('ccplusAuth')->group( function () {
-    Route::post('/updateSessionKey','App\Http\Controllers\SessionController@updateKey')->name('updateKey');
+    Route::post('/updateSession','App\Http\Controllers\SessionController@update')->name('updateSession');
     Route::get('/user', function (Request $request) {
        return $request->user();
     });
