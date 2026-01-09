@@ -22,6 +22,8 @@ use Illuminate\Support\Facades\Crypt;
 
 class CredentialController extends Controller
 {
+    private $masterReports;
+
     /**
      * Return a listing of the resource.
      *
@@ -29,6 +31,8 @@ class CredentialController extends Controller
      */
     public function index(Request $request)
     {
+        global $masterReports;
+
         $thisUser = auth()->user();
         abort_unless($thisUser->hasRole('Admin'), 403);
 
@@ -42,7 +46,7 @@ class CredentialController extends Controller
 
         // Get credentials
         $providerIds = $providers->unique('global_id')->pluck('global_id')->toArray();
-        $data = Credential::with('institution:id,name,is_active','provider')
+        $data = Credential::with('institution:id,name,is_active','provider','lastHarvest')
                           ->when(count($limit_to_insts) > 0, function ($qry) use ($limit_to_insts) {
                               return $qry->whereIn('inst_id',$limit_to_insts);
                           })
@@ -62,30 +66,31 @@ class CredentialController extends Controller
 
         // Setup filtering options for the datatable
         $filter_options = array();
+        $filter_options['results'] = array();
         $filter_options['statuses'] = $data->unique('status')->pluck('status')->toArray();
         $filter_options['platforms'] = $gdata->map(function ($plat) {
             return [ 'id' => $plat->id, 'name' => $plat->name ];
         });
         $instIds = $providers->unique('inst_id')->pluck('inst_id')->toArray();
         $filter_options['institutions'] = Institution::whereIn('id',$instIds)->get(['id','name'])->toArray();
+        // Keep track of the last error values for the filter options
+        $nh_count = 0;
+        $seen_codes = array(0); // preset success code
 
         // Get master report definitions
-        $master_reports = Report::where('parent_id',0)->orderBy('dorder','ASC')->get(['id','name']);
+        $this->getMasterReports();
 
         // Add provider global connectors and can_edit flag to the credentials
         $credentials = array();
         $global_connectors = ConnectionField::get();
         foreach ($data as $cred) {
             if (!$cred->provider) continue;
+            // can_edit and can_delete true b/c $data limited above by adminInsts()
             $rec = array('id' => $cred->id, 'status' => $cred->status, 'inst_id' => $cred->inst_id,
-                         'prov_id' => $cred->prov_id, 'customerId' => $cred->customer_id,
-                         'requestorId' => $cred->requestor_id, 'apiKey' => $cred->api_key,
+                         'prov_id' => $cred->prov_id, 'customer_id' => $cred->customer_id,
+                         'requestor_id' => $cred->requestor_id, 'api_key' => $cred->api_key,
                          'can_edit' => true, 'can_delete' => true
                         );
-// commented -for now- may need more return differently depending on edits/updates/etc,
-            // $rec['platform'] = $cred->provider->toArray();
-            // $rec['platform']['service_url'] = $cred->provider->service_url();
-            // $rec['platform']['connectors'] = array();
             $rec['platform'] = $cred->provider->name;
             $rec['service_url'] = $cred->provider->service_url();
             $rec['connectors'] = array();
@@ -94,11 +99,20 @@ class CredentialController extends Controller
             foreach ($global_connectors as $gc) {
                 $cnx = $gc->toArray();
                 $cnx['required'] = in_array($gc->id, $required);
-// commented -for now- may need more return differently depending on edits/updates/etc,
-                // $rec['platform']['connectors'][] = $cnx;
                 $rec['connectors'][] = $cnx;
             }
             $rec['connected'] = ($cred->status == 'Enabled') ? true : false;
+            $lastHarvest = $cred->lastHarvest;
+            if ($lastHarvest) {
+                if ($lastHarvest->error_id>0 && !in_array($lastHarvest->error_id,$seen_codes)) {
+                    $seen_codes[] = $lastHarvest->error_id;
+                }
+                $rec['result'] = ($lastHarvest->status == 'Success' || $lastHarvest->error_id==0)
+                                 ? 'Success' : $lastHarvest->error_id;
+            } else {
+                $nh_count++;
+                $rec['result'] = 'No Harvests';
+           }
 
             $combined_ids = array();
             $global = $globals->where('id',$cred->prov_id)->first();
@@ -112,14 +126,24 @@ class CredentialController extends Controller
                 }
                 $combined_ids = array_unique(array_merge($global->conso_reports, $inst_reports));
                 $master_ids = $global->master_reports;
-                $reports = $this->reportFlags($master_reports, $master_ids, $global->conso_reports, $combined_ids);
+                $reports = $this->reportFlags($master_ids, $global->conso_reports, $combined_ids);
             } else {
-                $reports = $this->reportFlags($master_reports,[],[],[]);
+                $reports = $this->reportFlags([],[],[]);
             }
             foreach ($reports as $key => $value) {
                 $rec[$key] = $value;
             }
             $credentials[] = $rec;
+        }
+
+        // Setup results filter options based on what is in records
+        sort($seen_codes);
+        foreach ($seen_codes as $code) {
+            $_val = ($code>0) ? $code : 'Success';
+            $filter_options['results'][] = array('result' => $_val);
+        }
+        if ($nh_count > 0) {
+            $filter_options['results'][] = array('result' => 'No Harvests');
         }
 
         // Return the data array
@@ -204,6 +228,8 @@ class CredentialController extends Controller
      */
     public function store(Request $request)
     {
+        global $masterReports;
+
         abort_unless(auth()->user()->hasAnyRole(['Admin','Manager']), 403);
         $input = $request->all();
 
@@ -237,9 +263,9 @@ class CredentialController extends Controller
 
             // Attach report definitions to new provider
             $global_report_ids = $gp->master_reports;
-            $master_reports = Report::where('revision',5)->where('parent_id',0)->whereIn('id',$global_report_ids)
-                                    ->orderBy('dorder','ASC')->get(['id','name']);
-            foreach ($master_reports as $rpt) {
+            $this->getMasterReports();
+            $masters = $masterReports->whereIn('id',$global_report_ids);
+            foreach ($masters as $rpt) {
                 if ($input['report_state'][$rpt->name]['prov_enabled']) {
                     $new_provider->reports()->attach($rpt->id);
                 }
@@ -270,65 +296,120 @@ class CredentialController extends Controller
      */
     public function update(Request $request, $id)
     {
+        global $masterReports;
+
         // Validate form inputs
         $thisUser = auth()->user();
         $input = $request->all();
+        $input_inst = (isset($input['inst_id'])) ? $input['inst_id'] : null;
+        $input_prov = (isset($input['prov_id'])) ? $input['prov_id'] : null;
 
         // Get the credentials record
-        $credential = Credential::with('institution','provider')->where('id',$id)->first();
+        $cred = Credential::where('id',$id)->first();
 
-        // If credential exists, confirm authorization for inst and provider
-        $fields = Arr::except($input,array('global_id','report_state'));
-        if ($credential) {
-            // Confirm global provider exists
-            $provider = GlobalProvider::findOrFail($credential->prov_id);
-            // Ensure user is allowed to change the credentials
-            $institution = Institution::findOrFail($credential->inst_id);
-            if (!$institution->canManage()) {
-                return response()->json(['result' => false, 'msg' => 'Not Authorized to update credential']);
-            }
+        // Ensure user is allowed to change/create the credential and institution exists
+        $instId = ($cred) ? $cred->inst_id : $input_inst;
+        $institution = (!is_null($instId)) ? Institution::where('id',$instId)->first() : null;
+        if (!$institution) {
+            return response()->json(['result' => false, 'msg' => 'Failure loading referenced institution']);
+        }
+        if (!$institution->canManage()) {
+            return response()->json(['result' => false, 'msg' => 'Not Authorized to update credential']);
+        }
 
-            // Update $credential with user inputs
-            foreach ($fields as $fld => $val) {
-                $credential->$fld = $val;
-            }
+        // Confirm global provider exists
+        $globalId = ($cred) ? $cred->prov_id : $input_prov;
+        $global = (!is_null($globalId)) ? GlobalProvider::where('id',$globalId)->first() : null;
+        if (!$global) {
+            return response()->json(['result' => false, 'msg' => 'Failure loading referenced platform']);
+        }
 
-        // if not found, try to create one
-        } else {
+        // If credential does not exist
+        if (!$cred) {
             if (!isset($input["inst_id"]) || !isset($input["prov_id"])) {
                 return response()->json(['result' => false, 'msg' => 'Missing arguments for update credentials request']);
             }
-            $credential = Credential::create($fields);
-            $credential->load('institution','provider');
+            $cred = new Credential();
         }
 
-        // Get required connectors
-        $registry = $credential->provider->default_registry();
-        $connectors = ConnectionField::whereIn('id',$registry->connectors)->get();
+        // Update $credential with user inputs
+        $fields = $cred->getFillable();
+        foreach ($fields as $fld) {
+            if (array_key_exists($fld,$input)) {
+                $cred->$fld = $input[$fld];
+            }
+        }
 
-        // Check/update connection fields; any null/blank required connectors get updated
-        foreach ($connectors as $cnx) {
-            if (is_null($credential->{$cnx->name}) || $credential->{$cnx->name} == '') {
-                $credential->{$cnx->name} = '-required-';
+        // Update any required connectors with null/empty values
+        $required = $global->connectors();
+        foreach ($required as $cnx) {
+            if (is_null($cred->{$cnx->name}) || $cred->{$cnx->name} == '') {
+                $cred->{$cnx->name} = '-required-';
             }
         }
 
         // If user requested Disabled status, save as-is
         if ($input['status'] == 'Disabled') {
-            $credential->save();
-        // Otherwise, update status (based on connectors and prov/inst is_active)( and save)
+            $cred->save();
+        // Otherwise, update status (based on connectors and prov/inst is_active) and save
         } else {
-            $credential->resetStatus(true);  // tell resetStatus to allow changes to disabled credentials
+            $cred->resetStatus(true);  // tell resetStatus to allow changes to disabled credentials (and save $cred!)
         }
 
-        // Finish setting up the return object
-        $credential->provider->connectors = $connectors;
+        // Update any report-settings that have changed (only tests for 'requested' values, NOT conso)
+        // (skip making changes to reports to inst_id==1; is handled by ConnectionController::access)
+        $this->getMasterReports();
+        if ($cred->inst_id > 1) {
+            $flags = array('conso' => null, 'available' => null);
+            foreach ($masterReports as $mr) {
+                if (!array_key_exists($mr->name,$input)) continue;
+                if (!isset($input[$mr->name]['requested'])) continue;
+                $flags['requested'] = $input[$mr->name]['requested'];                
+                // Update the report setting
+                $result = $this->updateInstReport($instId, $globalId, $mr->id, $flags);
+                if (!$result['success']) {
+                    return response()->json(['result' => false, 'msg' => $result['msg']]);
+                }
+            }
+        }
 
-        return response()->json(['result' => true, 'msg' => 'Credentials updated successfully', 'credential' => $credential]);
+        // Set up the return object to match what index() creates
+        $global_connectors = ConnectionField::get();
+        $returnData = array('id' => $cred->id, 'status' => $cred->status, 'inst_id' => $cred->inst_id,
+                        'institution' => $institution->name, 'platform' => $global->name,
+                         'prov_id' => $cred->prov_id, 'customer_id' => $cred->customer_id,
+                         'requestor_id' => $cred->requestor_id, 'api_key' => $cred->api_key,
+                         'can_edit' => true, 'can_delete' => true
+                      );
+        $returnData['service_url'] = $global->service_url();
+        $returnData['connectors'] = array();
+        foreach ($global_connectors as $gc) {
+            $cnx = $gc->toArray();
+            $cnx['required'] = in_array($gc->id, $required);
+            $rec['connectors'][] = $cnx;
+        }
+        $returnData['connected'] = ($cred->status == 'Enabled') ? true : false;
+
+        // Re-generate the report flags for the U/I
+        $combined_ids = array();
+        $reports = array();
+        $master_ids = $global->master_reports;
+        $consoCnx = Provider::where('global_id',$globalId)->where('inst_id',1)->first();
+        $conso_rpt_ids = ($consoCnx) ? $consoCnx->reports->pluck('id')->toArray() : array();
+        $instCnx = Provider::where('global_id',$global->id)->where('inst_id',$instId)->first();
+        $inst_rpt_ids = ($instCnx) ? $instCnx->reports->pluck('id')->toArray() : array();
+        $combined_ids = array_unique(array_merge($conso_rpt_ids, $inst_rpt_ids));
+        $reports = $this->reportFlags($master_ids, $conso_rpt_ids, $combined_ids);
+        foreach ($reports as $key => $value) {
+            $returnData[$key] = $value;
+        }
+
+        return response()->json(['result' => true, 'msg' => 'Credentials updated successfully', 'record' => $returnData]);
     }
 
     /**
      * Set/update report access/availability
+     * (called to update inst-specific report toggles)
      *
      * @param  \Illuminate\Http\Request  $request
      * @return \Illuminate\Http\Response
@@ -339,22 +420,83 @@ class CredentialController extends Controller
 
         $this->validate($request, ['id' => 'required', 'rept' => 'required', 'flags' => 'required']);
         $input = $request->all();
-        $credential = Credential::with('institution','provider')->findOrFail($input['id']);
+        $cred = Credential::with('institution','provider')->findOrFail($input['id']);
+        $flags = $input['flags'];
 
-        if (!$credential->institution || !$credential->provider) {
+        // Exit if the report is already enabled conso-wide
+        if ($flags['conso']) {
+            return response()->json(['result' => false, 'msg' => 'This platform is already set to consortium-wide']);
+        }
+        // Get requested report; bail if not found
+        $report = Report::where('name',$input['rept'])->first(['id','name']);
+        if (!$report) {
+            return response()->json(['result' => false, 'msg' => 'Unknown report requested']);
+        }
+        // If inst/prov not found, user not authorized, or report not available, bail
+        if (!$cred->institution || !$cred->provider) {
             return response()->json(['result' => false, 'msg' => 'Credential reference error for platform or institution']);
         }
-        if (!$credential->institution->canManage()) {
-            return response()->json(['result' => false, 'msg' => 'Not Authorized for requested institution']);
+        if (!$cred->institution->canManage()) {
+            return response()->json(['result' => false, 'msg' => 'Not authorized for requested institution']);
         }
 
-        //
-        if ($input['flags']['conso']) {
-            // Do....something
+        // Update the report setting
+        $result = $this->updateInstReport($cred->inst_id, $cred->prov_id, $report->id, $flags);
+        if (!$result['success']) {
+            return response()->json(['result' => false, 'msg' => $result['msg']]);
         }
-        //
-        return response()->json(['result' => true, 'msg' => 'Acess updated successfully']);
 
+        return response()->json(['result' => true, 'msg' => 'Access updated successfully']);
+    }
+
+    /**
+     * Update report definition for an institution-specific provider
+     * @param  Integer  $inst_id
+     * @param  Integer  $global_id
+     * @param  Integer  $report_id
+     * @param  Array    $flags
+     * @return Array    $result
+     */
+    private function updateInstReport($inst_id, $global_id, $report_id, $flags)
+    {
+        $result = array('success' => true, 'msg' => '');
+
+        // Get institution-specific (conso) provider record; will be created if it doesn't exist
+        $provider = Provider::where('inst_id',$inst_id)->where('global_id',$global_id)->with('reports')->first();
+        if (!$provider) {
+            // Get global provider; bail if not found
+            $global = GlobalProvider::where('id',$global_id)->first();
+            if (!$global) {
+                return array('success' => false, 'msg' => 'Global platform not found or report unavailable');
+            }
+            // Enabling a report for a platform not-yet defined?
+            if ($flags['requested']) {
+                $_data = array('name' => $global->name, 'global_id' => $global->id, 'is_active' => $global->is_active,
+                               'inst_id' => $inst_id);
+                $provider = Provider::create($_data);
+            // Trying to turn off something that cannot be found...?
+            } else {
+                return array('success' => false, 'msg' => 'Consortium Platform reference error');
+            }
+        }
+
+        // Update report
+        try {
+            // Attach/add
+            if ($flags['requested']) {
+                $provider->reports()->attach($report_id);
+            // Detach/remove
+            } else {
+                $provider->reports()->detach($report_id);
+                // If the provider has no remaining reports attached, delete it
+                if ($provider->reports()->count() == 0) {
+                    $provider->delete();
+                }
+            }
+        } catch (\Exception $e) {
+            return array('success' => false, 'msg' => $e->getMessage());
+        }
+        return $result;
     }
 
     /**
@@ -1099,17 +1241,27 @@ class CredentialController extends Controller
     }
 
     /**
+     * Pull and re-order master reports and store in private global
+     */
+    private function getMasterReports() {
+        global $masterReports;
+        $masterReports = Report::where('parent_id',0)->orderBy('dorder','ASC')->get(['id','name']);
+    }
+
+    /**
      * Return an array of boolean flags from provider reports columns
      *
-     * @param  Collection master_reports
      * @param  Array  $global_reports  (ID's)
      * @param  Array  $conso_enabled  (ID's)
      * @param  Array  $requested (ID's)
      * @return Array  $flags
      */
-     private function reportFlags($master_reports, $global_reports, $conso_enabled, $requested) {
+     private function reportFlags($global_reports, $conso_enabled, $requested) {
+
+        global $masterReports;
+
         $flags = array();
-        foreach ($master_reports as $rpt) {
+        foreach ($masterReports as $rpt) {
             $flags[$rpt->name] = array();
             $flags[$rpt->name]['available'] = (in_array($rpt->id, $global_reports)) ? true : false;
             $flags[$rpt->name]['conso'] = (in_array($rpt->id, $conso_enabled)) ? true : false;
