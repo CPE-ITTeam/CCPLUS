@@ -8,7 +8,6 @@ import LoginLayout from '@/layouts/LoginLayout.vue';
 import Login from '@/pages/Login.vue';
 import ForgotPassword from '@/pages/ForgotPassword.vue'
 import ResetPassword from '@/pages/ResetPassword.vue'
-import PlaceHolder from '@/pages/PlaceHolder.vue';
 import InstitutionsTable from '@/components/tables/InstitutionsTable.vue';
 import InstitutionTypesTable from '@/components/tables/InstitutionTypesTable.vue';
 import InstitutionGroupsTable from '@/components/tables/InstitutionGroupsTable.vue';
@@ -25,8 +24,8 @@ import CreateReport from '@/components/panels/CreateReport.vue';
 import RolesTable from '@/components/tables/RolesTable.vue';
 import CredentialsTable from '@/components/tables/CredentialsTable.vue';
 import ConnectionsTable from '@/components/tables/ConnectionsTable.vue';
-// import CredentialsAudit from '@/components/panels/CredentialsAudit.vue';
-// import PermissionsTable from '@/components/tables/PermissionsTable.vue';
+import PlaceHolder from '@/pages/PlaceHolder.vue';
+// import CredentialsAudit from '@/components/tables/CredentialsAudit.vue';
 // import ReportPreview from '@/components/panels/ReportPreview.vue';
 // Pinia datastore
 import { createPinia } from 'pinia';
@@ -85,12 +84,8 @@ export const router = createRouter({
               component: markRaw(UsersTable),
             },
             { path: '/admin/roles', name: 'RolesTable',
-              meta: { title: 'Roles', layout: AuthenticatedLayout, role: 'Admin', key:0, level:3 }, 
-              component: markRaw(RolesTable),
-            },
-            { path: '/admin/roles', name: 'PermissionsTable',
               meta: { title: 'Permissions', layout: AuthenticatedLayout, role: 'Admin', key:0, level:3 }, 
-              component: markRaw(PlaceHolder),
+              component: markRaw(RolesTable),
             },
           ]
         },
