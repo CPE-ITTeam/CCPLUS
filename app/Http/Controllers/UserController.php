@@ -141,7 +141,7 @@ class UserController extends Controller
         $consortia = \App\Consortium::where('is_active',1)->get();
         $con_name = "";
         if ($consortia->count() > 1) {
-            $current = $consortia->where('ccp_key',session('con_key'))->first();
+            $current = $consortia->where('ccp_key',session('ccp_key'))->first();
             $con_name = ($current) ? $current->name : "";
         }
 
@@ -522,7 +522,7 @@ class UserController extends Controller
 
         // Give the file a meaningful filename
         if ($thisUser->isConsoAdmin()) {
-            $fileName = "CCplus_" . session('ccp_con_key', '') . "_Users.xlsx";
+            $fileName = "CCplus_" . session('con_key', '') . "_Users.xlsx";
         } else {
             $fileName = "CCplus_" . preg_replace('/ /', '', $thisUser->institution->name) . "_Users.xlsx";
         }
