@@ -86,7 +86,7 @@ class ConsortiumController extends BaseController
 
         // Set configuration to use the new database as consodb
         config(['database.connections.consodb.database' => $conso_db]);
-        session(['ccp_con_key' => $input['ccp_key']]);
+        session(['ccp_key' => $input['ccp_key']]);
         DB::reconnect('consodb');
 
         // Create tables in the new database based on the template database

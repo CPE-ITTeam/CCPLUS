@@ -141,7 +141,7 @@ class UserController extends Controller
         $consortia = \App\Consortium::where('is_active',1)->get();
         $con_name = "";
         if ($consortia->count() > 1) {
-            $current = $consortia->where('ccp_key',session('ccp_con_key'))->first();
+            $current = $consortia->where('ccp_key',session('con_key'))->first();
             $con_name = ($current) ? $current->name : "";
         }
 

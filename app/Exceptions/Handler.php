@@ -59,7 +59,7 @@ class Handler extends ExceptionHandler
             return new JsonResponse([
                 'result' => false,
                 'msg' => $msg,
-                'ccp_key' => session('ccp_con_key'),
+                'ccp_key' => session('ccp_key'),
             ]);
         }
         return parent::render($request, $e);

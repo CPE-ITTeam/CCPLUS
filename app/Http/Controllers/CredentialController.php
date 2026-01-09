@@ -741,7 +741,7 @@ class CredentialController extends Controller
         // Give the file a meaningful filename
         $fileName = "CCplus";
         if (!$inst_filters && !$prov_filters && count($status_filters)==0 && is_null($group)) {
-            $fileName .= "_" . session('ccp_con_key', '') . "_All";
+            $fileName .= "_" . session('ccp_key', '') . "_All";
         } else {
             if (!$inst_filters) {
                 $fileName .= "_AllInstitutions";
@@ -927,7 +927,7 @@ class CredentialController extends Controller
 
         // Set JSON report data file path
         $report_path = null;
-        $conso = Consortium::where('ccp_key',session('ccp_con_key'))->first();
+        $conso = Consortium::where('ccp_key',session('ccp_key'))->first();
         if (!$conso) {
             return response()->json(['result'=>false, 'msg'=>'Error getting current instance data']);
         }
@@ -1067,7 +1067,7 @@ class CredentialController extends Controller
          // Give the file a meaningful filename
          $fileName = "CCplus";
          if (!$inst_filters && !$prov_filters && count($status_filters)==0 && is_null($group)) {
-             $fileName .= "_" . session('ccp_con_key', '') . "_All";
+             $fileName .= "_" . session('ccp_key', '') . "_All";
          } else {
              if (!$inst_filters) {
                  $fileName .= "_AllInstitutions";

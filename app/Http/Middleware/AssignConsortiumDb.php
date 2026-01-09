@@ -17,7 +17,7 @@ class AssignConsortiumDb
      */
     public function handle(Request $request, Closure $next): Response
     {
-        $session_key = $request->session()->get('ccp_con_key');
+        $session_key = $request->session()->get('ccp_key');
         $key = ($session_key=='') ? "con_template" : $session_key;
         config(['database.connections.consodb.database' => 'ccplus_' . $key]);
         return $next($request);
