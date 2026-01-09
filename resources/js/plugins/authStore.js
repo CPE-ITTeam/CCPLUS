@@ -44,13 +44,6 @@ export const useAuthStore = defineStore('useAuthStore', {
     isLoggedIn: (state) => state.isAuthenticated,
   },
   actions: {
-    // Possible action to check if token exists on startup
-    // initAuth() {
-    //   const storedToken = localStorage.getItem('user-token');
-    //   if (storedToken) {
-    //     this.setToken(storedToken);
-    //   }
-    // }
     async login(credentials) {
       try {
         const response = await axios.post('/api/login', {
@@ -132,13 +125,13 @@ export const useAuthStore = defineStore('useAuthStore', {
         console.error('Logout attempt failed:', error);
       }
     },
-    // Set key in datastore and update session key
-    async setConsoKey(key) {
+    // Set conso key in datastore and update session values
+    async setConso(id, ccp_key) {
       if (!this.is_serveradmin) return false;
-      this.ccp_key = key;
+      this.ccp_key = ccp_key;
       try {
-        const response = await axios.post('/api/updateSessionKey', {
-          key: 'ccp_con_key', value: key,
+        const response = await axios.post('/api/updateSession', {
+          data: { conso_id: id , ccp_key: ccp_key }
         });
       } catch (error) {}
     },
