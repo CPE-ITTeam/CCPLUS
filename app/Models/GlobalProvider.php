@@ -7,6 +7,7 @@ use App\Models\ConnectionField;
 use App\Models\Consortium;
 use App\Models\Provider;
 use App\Models\Credential;
+use App\Models\HarvestLog;
 use Illuminate\Database\Eloquent\Model;
 
 class GlobalProvider extends Model
@@ -157,6 +158,17 @@ class GlobalProvider extends Model
         return true;
     }
 
+   /**
+    * Return most recent harvest information (for the current instance)
+    * @return HarvestLog
+    */
+    public function lastHarvest()
+    {
+        return HarvestLog::join('credentials', 'harvestlogs.credentials_id', '=', 'credentials.id')
+                         ->where('credentials.prov_id', $this->id)
+                         ->orderBy('harvestlogs.created_at', 'DESC')->limit(1)->first();
+    }
+
     // Return an array of connected institution IDs
     // NOTE: caller should include with("consoProviders") before using this on a collection
     public function connectedInstitutions()
@@ -193,6 +205,40 @@ class GlobalProvider extends Model
             }
         }
         return $reports;
+    }
+
+    /* Update (conso-level Provider) report assignments 
+     *  @param  Array   conso_ids  (consortium report ID's to match on)
+     *  @param  String  type : operation to perform
+     *  @return Integer deleted : count of providers deleted
+     */
+    public function updateReports($conso_ids, $type) {
+        $deleted = 0;
+
+        // Loop through all (non-consortium) providers connected to the global
+        $inst_provs = $this->consoProviders()->with('reports')->where('inst_id','<>',1)->get();
+        foreach ($inst_provs as $prov) {
+
+            // Get IDs to add/remove
+            $current_ids = $prov->reports->pluck('id')->toArray();
+            $changed_ids = ($type=="attach") ? array_diff($conso_ids, $current_ids)
+                                             : array_intersect($current_ids, $conso_ids);
+
+            // Add/Remove the report connection(s)
+            foreach ($changed_ids as $r) {
+                if ($type == "attach") {
+                    $prov->reports()->attach($r);
+                } else {
+                    $prov->reports()->detach($r);
+                }
+            }
+            // If there are no remaining reports attached for this provider, delete it
+            if ($type == "detach" && $prov->reports()->count() == 0) {
+                $prov->delete();
+                $deleted++;
+            }
+        }
+        return $deleted;
     }
 
    /**
