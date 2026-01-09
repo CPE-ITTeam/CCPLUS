@@ -94,7 +94,6 @@
     const { conso, available, requested } = props.modelValue;
     // if 'requested' is in modelValue, the toggle is for a credential
     if ( typeof(props.modelValue.requested) != 'undefined') {
-      if (conso) return;
       emit('update:modelValue', { available, conso, requested: !requested });
     // requested is NOT in modelValue, the toggle is for a connection
     } else  {
