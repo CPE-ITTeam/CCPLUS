@@ -16,8 +16,10 @@
 
   const computedHeaders = computed(() => {
     const hdrs = [...props.headers];
-    if (props.items.some(ii => (ii.can_edit || ii.can_delete))) {
-      hdrs.push({ title: 'Actions', key: 'actions', align: 'end' });
+    if (props.items.length > 0) {
+      if (props.items.some( (itm) => (itm.can_edit || itm.can_delete))) {
+        hdrs.push({ title: 'Actions', key: 'actions', align: 'end' });
+      }
     }
     return hdrs;
   });
@@ -155,23 +157,23 @@
       </template>
 
       <!-- Customer ID -->
-      <template #item.customerId="{ item }">
-        <span :class="{ 'required-field': item.customerId === 'required' }">
-          {{ item.customerId }}
+      <template #item.customer_id="{ item }">
+        <span :class="{ 'required-field': item.customer_id === 'required' }">
+          {{ item.customer_id }}
         </span>
       </template>
 
       <!-- Requestor ID -->
-      <template #item.requestorId="{ item }">
-        <span :class="{ 'required-field': item.requestorId === 'required' }">
-          {{ item.requestorId }}
+      <template #item.requestor_id="{ item }">
+        <span :class="{ 'required-field': item.requestor_id === 'required' }">
+          {{ item.requestor_id }}
         </span>
       </template>
 
       <!-- API Key -->
-      <template #item.apiKey="{ item }">
-        <span :class="{ 'required-field': item.apiKey === 'required' }">
-          {{ item.apiKey }}
+      <template #item.api_key="{ item }">
+        <span :class="{ 'required-field': item.api_key === 'required' }">
+          {{ item.api_key }}
         </span>
       </template>
 
