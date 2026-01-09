@@ -11,7 +11,7 @@
   const authStore = useAuthStore();
   const is_admin = authStore.is_admin;
   const is_conso_admin = authStore.is_conso_admin;
-  const { ccGet, ccPost, ccPatch, ccDestroy, setConsoKey } = useAuthStore();
+  const { ccGet, ccPost, ccPatch, ccDestroy, setConso } = useAuthStore();
   var consoKey = ref(authStore.ccp_key);  
   const props = defineProps({
     datasetKey: { type: String, required: true }
@@ -118,11 +118,11 @@
     if (value) search.value = '';
   }
 
-  function handleChangeConso(value) {
-    consoKey.value = value;
-    setConsoKey(value);
+  function handleChangeConso(conso) {
+    consoKey.value = conso.ccp_key;
+    setConso(conso.id,conso.ccp_key);
     loadDataset(props.datasetKey);
-    emit('updateConso', value);
+    emit('updateConso', conso);
     dtKey.value++;
   }
 
@@ -270,9 +270,9 @@ console.log('Handling for includeZeros toggle not written yet');
   }
 
   async function handleReportUpdate(id, rept, flags) {
-    let _idx = allItems.findIndex(ii => ii.id == id);
-    if (_idx >= 0) {
-      let _item = Object.assign({}, allItems[_idx]);
+    let a_idx = allItems.findIndex(ai => ai.id == id);
+    if (a_idx >= 0) {
+      let _item = Object.assign({}, allItems[a_idx]);
 
       // if 'requested' is in flags, the toggle is for a credential
       let url = "";
@@ -292,9 +292,9 @@ console.log('Handling for includeZeros toggle not written yet');
         if (response.result) {
           _item[rept] = flags;
           // Update value(s) in the item
-          allItems.splice(_idx,1,_item);
-          _idx = filteredItems.findIndex(ii => ii.id == id);
-          if (_idx >= 0) filteredItems.splice(_idx,1,_item);
+          allItems.splice(a_idx,1,_item);
+          let f_idx = filteredItems.findIndex(fi => fi.id == id);
+          if (f_idx >= 0) filteredItems.splice(f_idx,1,_item);
           dtKey.value++;
         } else {
           failure.value = response.msg
@@ -311,10 +311,10 @@ console.log('Handling for includeZeros toggle not written yet');
         let url = urlRoot.value+'/update/'+editingItem.value.id;
         const response = await ccPatch(url, updatedValues);
         if (response.result) {
-          let _idx = allItems.findIndex(ii => ii.id == editingItem.value.id);
-          allItems.splice(_idx,1,response.record);
-          _idx = allItems.findIndex(ii => ii.id == editingItem.value.id);
-          if (_idx >= 0) filteredItems.splice(_idx,1,response.record);
+          let a_idx = allItems.findIndex(ai => ai.id == editingItem.value.id);
+          allItems.splice(a_idx,1,response.record);
+          let f_idx = filteredItems.findIndex(fi => fi.id == editingItem.value.id);
+          if (f_idx >= 0) filteredItems.splice(f_idx,1,response.record);
           success.value = response.msg
           updateItems();
           dtKey.value++;
