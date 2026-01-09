@@ -29,10 +29,28 @@ class ConnectionController extends Controller
         // Get master report definitions
         $master_reports = Report::where('parent_id',0)->orderBy('dorder','ASC')->get(['id','name']);
 
+        // Keep track of the last error values for the filter options
+        $nh_count = 0;
+        $seen_codes = array(0); // pretend we've seen success
+
         // Map in report connections
         $connections = array();
         foreach ($globals as $global) {
-            $rec = array('id' => $global->id, 'platform' => $global->name, 'can_edit' => false, 'can_delete' => false);
+            $rec = array('id' => $global->id, 'platform' => $global->name, 'can_edit' => false, 'can_delete' => false,
+                         'result' => null);
+
+            // Get last_harvest data if one exists
+            $lastHarvest = $global->lastHarvest();
+            if ($lastHarvest) {
+                $rec['result'] = ($lastHarvest->status == 'Success' || $lastHarvest->error_id==0)
+                                 ? 'Success' : $lastHarvest->error_id;
+                if ($lastHarvest->error_id>0 && !in_array($lastHarvest->error_id,$seen_codes)) {
+                    $seen_codes[] = $lastHarvest->error_id;
+                }
+            } else {
+                $nh_count++;
+                $rec['result'] = 'No Harvests';
+            }
 
             // Determine if this is a consortium-provider and what, if any, reports are enabled
             $conso_prov = $consos->where('global_id',$global->id)->first();
@@ -47,8 +65,19 @@ class ConnectionController extends Controller
             $connections[] = $rec;
         }
 
+        // Setup results for filter options
+        $options = array('results' => array());
+        sort($seen_codes);
+        foreach ($seen_codes as $code) {
+            $_val = ($code>0) ? $code : 'Success';
+            $options['results'][] = array('result' => $_val);
+        }
+        if ($nh_count > 0) {
+            $options['results'][] = array('result' => 'No Harvests');
+        }
+
         // Return the data array
-        return response()->json(['records' => $connections, 'options' => array(), 'result' => true], 200);
+        return response()->json(['records' => $connections, 'options' => $options, 'result' => true], 200);
     }
 
     /**
@@ -101,7 +130,7 @@ class ConnectionController extends Controller
 
             // Detach any matching institution-specific reports definitions
             $conso_ids = $provider->reports->pluck('id')->toArray();
-            $res = $this->updateReports($gp->id, $conso_ids, "detach");
+            $res = $gp->updateReports($conso_ids, "detach");
 
         // Detach/remove report for the (conso) provider
         // Retain the pre-removal report IDs re-attach the report to any existing
@@ -109,7 +138,7 @@ class ConnectionController extends Controller
         } else {
             $conso_ids = $provider->reports->pluck('id')->toArray();
             $provider->reports()->detach($report->id);
-            $res = $this->updateReports($gp->id, $conso_ids, "attach");
+            $res = $gp->updateReports($conso_ids, "attach");
 
             // If the (conso) provider has no remaining reports attached, delete it
             if ($provider->reports()->count() == 0) {
@@ -117,42 +146,6 @@ class ConnectionController extends Controller
             }
         }
         return response()->json(['result' => true, 'msg' => 'Acess updated successfully']);
-    }
-
-    /**
-     * Updates report-assignments
-     *
-     * @param  Integer global_id
-     * @param  Array   conso_ids  (consortium report ID's to match on)
-     * @param  String  type : operation to perform
-     * @return Integer deleted : count of providers deleted
-     */
-    private function updateReports($global_id, $conso_ids, $type) {
-        $deleted = 0;
-        // Loop through all (non-consortium) providers connected to the global
-        $inst_provs = Provider::with('reports')->where('global_id',$global_id)->where('inst_id','<>',1)->get();
-        foreach ($inst_provs as $prov) {
-
-            // Get IDs to add/remove
-            $current_ids = $prov->reports->pluck('id')->toArray();
-            $changed_ids = ($type=="attach") ? array_diff($conso_ids, $current_ids)
-                                             : array_intersect($current_ids, $conso_ids);
-
-            // Add/Remove the report connection(s)
-            foreach ($changed_ids as $r) {
-                if ($type == "attach") {
-                    $prov->reports()->attach($r);
-                } else {
-                    $prov->reports()->detach($r);
-                }
-            }
-            // If there are no remaining reports attached for this provider, delete it
-            if ($type == "detach" && $prov->reports()->count() == 0) {
-                $prov->delete();
-                $deleted++;
-            }
-        }
-        return $deleted;
     }
 
 }
