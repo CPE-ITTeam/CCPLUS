@@ -118,9 +118,9 @@
     if (value) search.value = '';
   }
 
-  function handleChangeConso(conso) {
+  async function handleChangeConso(conso) {
     consoKey.value = conso.ccp_key;
-    setConso(conso.id,conso.ccp_key);
+    const response = await setConso(conso.id,conso.ccp_key);
     loadDataset(props.datasetKey);
     emit('updateConso', conso);
     dtKey.value++;
