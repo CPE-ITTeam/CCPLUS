@@ -15,6 +15,7 @@ return new class extends Migration
             $table->string('id')->primary();
             $table->foreignId('user_id')->nullable()->index();
             $table->foreignId('conso_id')->nullable()->index();
+            $table->string('ccp_key',13)->nullable();
             $table->string('ip_address', 45)->nullable();
             $table->text('user_agent')->nullable();
             $table->longText('payload');
