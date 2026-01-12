@@ -13,7 +13,6 @@ class SessionController extends Controller
     {
         $input = $request->input('data');
         session($input);
-        session()->save();
         return response()->json(['result' => true]);
     }
 }
