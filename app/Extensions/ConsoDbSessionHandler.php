@@ -31,6 +31,7 @@ class ConsoDbSessionHandler extends DatabaseSessionHandler
             $session = $this->request->session();
             $payload['user_id'] = $this->request->session()->get('user_id');
             $payload['conso_id'] = $this->request->session()->get('conso_id');
+            $payload['ccp_key'] = $this->request->session()->get('ccp_key');
             if ($this->exists) {
                 $this->getQuery()->where('id', $sessionId)->update($payload);
             } else {
