@@ -612,6 +612,12 @@ class CredentialController extends Controller
         if (!$credential->institution->canManage()) {
             return response()->json(['result' => false, 'msg' => 'Update failed (403) - Forbidden']);
         }
+
+        $result = $this->updateInstReport($credential->inst_id, $credential->prov_id, $mr->id, $flags);
+        if (!$result['success']) {
+            return response()->json(['result' => false, 'msg' => $result['msg']]);
+        }
+
         $credential->delete();
         return response()->json(['result' => true, 'msg' => 'Credentials successfully deleted']);
     }
@@ -1266,6 +1272,15 @@ class CredentialController extends Controller
             $flags[$rpt->name]['available'] = (in_array($rpt->id, $global_reports)) ? true : false;
             $flags[$rpt->name]['conso'] = (in_array($rpt->id, $conso_enabled)) ? true : false;
             $flags[$rpt->name]['requested'] = (in_array($rpt->id, $requested)) ? true : false;
+            // Set sortval
+            // 1=conso, 2=requested, 3=available, 4=not-available
+            if (!$flags[$rpt->name]['available']) {
+                $flags[$rpt->name]['sortval'] = 4;
+            } else if ($flags[$rpt->name]['conso']) {
+                $flags[$rpt->name]['sortval'] = 1;
+            } else {
+                $flags[$rpt->name]['sortval'] = ($flags[$rpt->name]['requested']) ? 2 : 3;
+            } 
         }
         return $flags;
     }
