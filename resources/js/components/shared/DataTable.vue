@@ -58,6 +58,20 @@
     emit('edit', item);
   }
 
+  // reportSort compares 'sortval' values in items
+  const reportSort = (a, b) => {
+    return a.sortval - b.sortval;
+  };
+
+  // Define custom sort functions for specific keys
+  // (columns not included here sort as-usual)
+  const customKeySort = {
+    DR: (a, b) => reportSort(a, b),
+    PR: (a, b) => reportSort(a, b),
+    TR: (a, b) => reportSort(a, b),
+    IR: (a, b) => reportSort(a, b),
+  };
+
   // Choose component type based on field
   function getFieldComponent(field) {
     if (field === 'status') return ToggleIcon;
@@ -101,7 +115,8 @@
       ✅ {{ selectedRows.length }} item{{ selectedRows.length=== 1 ? '' : 's' }} selected
     </div>
     <v-data-table v-model="internalSelectedRows" :headers="computedHeaders" :items="filteredItems"
-                  item-key="id" item-value="id" show-select return-object :loading="isLoading">
+                  item-key="id" item-value="id" show-select return-object :loading="isLoading"
+                  :custom-key-sort="customKeySort">
 
       <!-- Dynamic editable fields -->
       <!-- <template v-for="field in props.editableFields" #[`item.${field}`]="{ item }">
