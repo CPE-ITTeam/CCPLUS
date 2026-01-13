@@ -60,8 +60,9 @@ class ConnectionController extends Controller
             foreach ($master_reports as $mr) { 
                 $available = (in_array($mr->id, $global->master_reports));
                 $conso = (in_array($mr->id, $conso_ids));
-                $sortval = ($available) ? 2 : 3;
-                if ($conso) $sortval = 1; 
+                // Set sortval ( 1=conso, 2=available, 3=not-available )
+                $sortval = ($conso) ? 1 : 2;
+                if (!$available) $sortval = 3;
                 $rec[$mr->name] = array( 'available' => $available, 'conso' => $conso, 'sortval' => $sortval);
             }
             $connections[] = $rec;
