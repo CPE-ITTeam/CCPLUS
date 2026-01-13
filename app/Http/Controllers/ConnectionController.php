@@ -56,11 +56,13 @@ class ConnectionController extends Controller
             $conso_prov = $consos->where('global_id',$global->id)->first();
             $conso_ids = ($conso_prov) ? $conso_prov->reports->pluck('id')->toArray() : array();
 
-            // Set boolean flags for available and conso
+            // Set boolean flags for available and conso and add sortval
             foreach ($master_reports as $mr) { 
                 $available = (in_array($mr->id, $global->master_reports));
                 $conso = (in_array($mr->id, $conso_ids));
-                $rec[$mr->name] = array( 'available' => $available, 'conso' => $conso);
+                $sortval = ($available) ? 2 : 3;
+                if ($conso) $sortval = 1; 
+                $rec[$mr->name] = array( 'available' => $available, 'conso' => $conso, 'sortval' => $sortval);
             }
             $connections[] = $rec;
         }
