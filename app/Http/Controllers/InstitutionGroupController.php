@@ -27,7 +27,7 @@ class InstitutionGroupController extends Controller
 
         $data = array();
         foreach ($groups as $group) {
-            $rec = array('id' => $group->id, 'name' => $group->name);
+            $rec = array('id' => $group->id, 'name' => $group->name, 'type_id' => $group->type_id);
             $rec['type'] = ($group->typeRestriction) ? $group->typeRestriction->name : "";
             $rec['institutions'] = $group->institutions->toArray();
             $memberIds = $group->institutions->pluck('id')->toArray();
@@ -196,7 +196,7 @@ class InstitutionGroupController extends Controller
 
         // Get all institutions' data
         $institutionData = Institution::orderBy('name', 'ASC')->get(['id','name','type_id']);
-        $group->load('institutions:id,name','typeRestriction');
+        $group->load('institutions:id,name,type_id','typeRestriction');
         $group->count = $group->institutions->count();
         $group->type = ($group->typeRestriction) ? $group->typeRestriction->name : "";
         $group->can_edit = true;
@@ -356,7 +356,7 @@ class InstitutionGroupController extends Controller
         $group_sheet->getColumnDimension('B')->setAutoSize(true);
 
         // Give the file a meaningful filename
-        $fileName = "CCplus_" . session('ccp_con_key', '') . "_InstitutionGroups." . $type;
+        $fileName = "CCplus_" . session('con_key', '') . "_InstitutionGroups." . $type;
 
         // redirect output to client browser
         if ($type == 'xlsx') {
