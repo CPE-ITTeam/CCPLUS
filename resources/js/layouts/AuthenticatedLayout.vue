@@ -16,6 +16,7 @@
   const this_route = useRoute();
   const router = useRouter();
   const all_routes = [ ...router.options.routes ];
+  const profileRoute = {...router.options.profileRoute };
   // Pinia DataStore
   const authStore = useAuthStore();
   // These are intentionally NOT reactive...
@@ -93,11 +94,24 @@
     <v-card rounded="lg" class="my-3 mx-10 d-flex flex-column">
       <AppHeader />
       <v-tabs v-model="activePage" color="#0066A1" bg-color="blue-grey-lighten-5" align-tabs="center">
+        <v-spacer></v-spacer> 
         <v-tab v-for="(page, index) in pages" :key="index" :value="index">
           {{ page.meta.title }}
         </v-tab>
+        <!-- Add user profile icon as a right-aligned tab using spacer -->
+        <v-spacer></v-spacer> 
+        <v-tab key="999" value="999">
+          <v-icon :title="profileRoute.meta.title">mdi-account</v-icon>
+        </v-tab>
       </v-tabs>
-      <v-main>
+      <v-main v-if="activePage==999">
+        <v-tabs-window v-model="activePage">
+          <v-tabs-window-item key=999 value=999 transition="false" reverse-transition="false">
+              <component :is="profileRoute.component" :key="profileRoute.meta.key"/>
+          </v-tabs-window-item>
+        </v-tabs-window>
+      </v-main>
+      <v-main v-else>
         <v-card-title class="page-title">
           {{ pages[activePage].meta.title }} — {{pages[activePage].children[activeTab].meta.title }}
         </v-card-title>
