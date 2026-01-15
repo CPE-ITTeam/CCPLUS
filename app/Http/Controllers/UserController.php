@@ -102,15 +102,7 @@ class UserController extends Controller
         $data = $user->toArray();
         $data['inst_name'] = $user->institution->name;
         $data['fiscalYr'] = ($user->fiscalYr) ? $user->fiscalYr : config('ccplus.fiscalYr');
-        // Set institutions allowed for updating ( up to $thisUser )
-        $options['institutions'] = array();
-        $limit_to_insts = $thisUser->adminInsts();
-        if ( $thisUser->isConsoAdmin() ) {
-            $options['institutions'] = Institution::where('is_active',1)->get(['id','name']);
-        } else if (count($limit_to_insts) > 1) {
-            $options['institutions'] = Institution::where('is_active',1)->whereIn('id',$limit_to_insts)
-                                                  ->get(['id','name']);
-        }
+
         return response()->json(['records' => $data, 'options' => [], 'result' => true], 200);
     }
 
