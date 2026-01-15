@@ -25,6 +25,11 @@ export const useAuthStore = defineStore('useAuthStore', {
       return (state.isAuthenticated &&
               state.roles.some( r => (r.name == 'ServerAdmin' || (r.name=='Admin' && r.inst_id==1)) ));
     },
+    is_group_admin: (state) => {
+      return (state.isAuthenticated &&
+              state.roles.some( r => (r.name == 'ServerAdmin' ||
+                                     (r.name=='Admin' && (r.inst_id==1 || r.group_id>0))) ));
+    },
     is_admin: (state) => {
         return (state.isAuthenticated &&
                 state.roles.some( r => (r.name == 'Admin' || r.name == 'ServerAdmin') ));
