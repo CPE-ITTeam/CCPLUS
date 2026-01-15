@@ -21,7 +21,7 @@ use Session;
 class UserController extends Controller
 {
     /**
-     * Display a listing of the resource.
+     * Return listing of the resource.
      *
      * @return JSON
      */
@@ -85,6 +85,33 @@ class UserController extends Controller
         $filter_options['institutions'] = Institution::whereIn('id',$instIds)->get(['id','name'])->toArray();
 
         return response()->json(['records' => $data, 'options' => $filter_options, 'result' => true], 200);
+    }
+
+    /**
+     * Settings method to return user settings for profile page
+     * @param  User $user
+     * @return JSON
+     */
+    public function settings(User $user)
+    {
+        $thisUser = auth()->user();
+        if ($thisUser->id != $user->id && !$user->canManage()) {
+            return response()->json(['result' => false, 'msg' => 'Request failed (403) - Forbidden']);
+        }
+        $user->load('roles', 'institution:id,name');
+        $data = $user->toArray();
+        $data['inst_name'] = $user->institution->name;
+        $data['fiscalYr'] = ($user->fiscalYr) ? $user->fiscalYr : config('ccplus.fiscalYr');
+        // Set institutions allowed for updating ( up to $thisUser )
+        $options['institutions'] = array();
+        $limit_to_insts = $thisUser->adminInsts();
+        if ( $thisUser->isConsoAdmin() ) {
+            $options['institutions'] = Institution::where('is_active',1)->get(['id','name']);
+        } else if (count($limit_to_insts) > 1) {
+            $options['institutions'] = Institution::where('is_active',1)->whereIn('id',$limit_to_insts)
+                                                  ->get(['id','name']);
+        }
+        return response()->json(['records' => $data, 'options' => [], 'result' => true], 200);
     }
 
     /**
