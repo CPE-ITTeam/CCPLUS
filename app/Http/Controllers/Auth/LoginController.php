@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Auth;
 
+use DB;
 use App\Http\Controllers\BaseController;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -27,9 +28,11 @@ class LoginController extends BaseController
     */
     public function login(Request $request)
     {
-        // Set the consortium handle before attempting to authenticate
+        // Set the consortium handle and set databae connection before attempting to authenticate
         $key = ($request->consortium == '') ? "con_template" : $request->consortium;
-        config(['database.connections.consodb.database' => 'ccplus_' . $key]);    
+        config(['database.connections.consodb.database' => 'ccplus_' . $key]);
+        DB::purge('consodb');
+        DB::reconnect('consodb');
 
         // Check credentials
         if(Auth::attempt(['email' => $request->email, 'password' => $request->password])) { 
@@ -42,9 +45,7 @@ class LoginController extends BaseController
             $success['roles'] = $user->allRoles();
             $success['consoKey'] = ($key == "con_template") ? "" : $key;
             return $this->sendResponse($success, 'User successfully authenticated.');
-        } else{ 
-            // return $this->sendError('Unauthorised.', ['error'=>'Unauthorised']);
-            // return response()->json(['data' => ['success' => false, 'message' => 'Unauthorised']], 200);
+        } else{
             return response()->json(['success' => false, 'message' => 'Login attempt failed!'], 200);
         }
     }
