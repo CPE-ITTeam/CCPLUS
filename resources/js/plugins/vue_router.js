@@ -25,6 +25,7 @@ import RolesTable from '@/components/tables/RolesTable.vue';
 import CredentialsTable from '@/components/tables/CredentialsTable.vue';
 import ConnectionsTable from '@/components/tables/ConnectionsTable.vue';
 import PlaceHolder from '@/pages/PlaceHolder.vue';
+import AccountSettings from '@/components/panels/AccountSettings.vue';
 // import CredentialsAudit from '@/components/tables/CredentialsAudit.vue';
 // import ReportPreview from '@/components/panels/ReportPreview.vue';
 // Pinia datastore
@@ -90,7 +91,7 @@ export const router = createRouter({
           ]
         },
         { path: '/admin/connections', name: 'ConnectionsTable',
-          meta: { title: 'Consortium Platforms', layout: AuthenticatedLayout, role: 'ConsoAdmin', key:0, level:2 }, 
+          meta: { title: 'Platform Connections', layout: AuthenticatedLayout, role: 'ConsoAdmin', key:0, level:2 }, 
           component: markRaw(ConnectionsTable),
         },
         { path: '/admin/credentials', name: 'Harvesting Credentials',
@@ -171,6 +172,13 @@ export const router = createRouter({
       ]
     },
   ],
+  // This is separate so that layout won't treat like other (app) top-level tabs
+  profileRoute:
+  {
+      path: '/profile', name: 'Profile',
+      meta: { title: 'Account Settings', layout: AuthenticatedLayout, role: 'Viewer', key:0, level:1 }, 
+      component: markRaw(AccountSettings),
+  },
 });
 
 // Add router to pinia stores
