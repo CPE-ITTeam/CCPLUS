@@ -15,13 +15,9 @@ function apiLogout() { authStore.logout({}); };
 <template>
   <v-toolbar color="#0066A1">
     <template v-slot:prepend>
-      <v-app-bar-nav-icon id="home" icon="mdi-home" :href="homeUrl"></v-app-bar-nav-icon>
-      <v-tooltip activator="#home" location="top"> Home </v-tooltip>
-      <span class="me-10 poppins-light">CC&#8209;PLUS</span>
+      &nbsp; &nbsp; <span class="me-10 poppins-light">CC&#8209;PLUS</span>
     </template>
     <template v-slot:append>
-      <v-btn id="myAccount" icon="mdi-account"></v-btn>
-      <v-tooltip activator="#myAccount" location="top">Account settings</v-tooltip>
       <v-toolbar-title>
         <v-btn id="logout" icon="mdi-logout" @click="apiLogout"></v-btn>
         <v-tooltip activator="#logout" location="top" >Log out</v-tooltip>
