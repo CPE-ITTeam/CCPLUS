@@ -64,6 +64,7 @@ Route::middleware('ccplusAuth')->group( function () {
     });
     Route::prefix('users')->group(function () {
         Route::get('/get', 'App\Http\Controllers\UserController@index')->name('users.index');
+        Route::get('/settings/{user}', 'App\Http\Controllers\UserController@settings')->name('users.settings');
         Route::post('/store', 'App\Http\Controllers\UserController@store')->name('users.store');
         Route::patch('/update/{user}', 'App\Http\Controllers\UserController@update')->name('users.update');
         Route::delete('/delete/{user}', 'App\Http\Controllers\UserController@destroy')->name('users.destroy');
