@@ -143,7 +143,7 @@ class User extends Authenticatable
         if ($this->isConsoAdmin() || $this->roles->whereIn("role.name", ["ServerAdmin"])->first()) return [1];
         $groups = array();
         foreach ($this->roles as $uRole) {
-            if ( !is_null($uRole->group_id) && $uRole->role->name == 'Viewer' ) {
+            if ( !is_null($uRole->group_id) && ($uRole->role->name == 'Viewer' || $uRole->role->name == 'Admin') ) {
                 if (!in_array($uRole->group_id,$groups)) $groups[] = $uRole->group_id;
             }
         }
