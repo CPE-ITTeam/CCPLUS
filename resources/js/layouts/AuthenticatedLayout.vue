@@ -10,7 +10,6 @@
   const activeTab = ref(0);
   const panel = ref([0, 1]);
   var homeUrl = ref("/");
-  var userDialog = ref(false);
   var pages = ref([]);
   // Get vue router configuration
   const this_route = useRoute();
@@ -24,10 +23,6 @@
   const is_conso_admin = authStore.is_conso_admin;
   const is_group_admin = authStore.is_group_admin;
   const is_serveradmin = authStore.is_serveradmin;
-  // External links
-  function userDialogDone ({ result, msg, user, new_inst }) {
-    userDialog.value = false;
-  }
 
   // Increment component key(s) for all components EXCEPT the one
   // responsible for changing the consoKey (it's already updated)
@@ -58,33 +53,29 @@
     // Restrict routes by role
     // **Expects** : Level-1 routes may have mixed roles for their (level-2) child routes.
     //             : Level-2 routes will NOT have mixed roles for their (level-3) child routes
-    if ( is_serveradmin ) {
-      pages.value = all_routes.filter( r => r.meta.level==1 );
-    } else {
-      all_routes.forEach( (topRoute) => {
-        if (topRoute.meta.level == 1) {
-          var theRoute = {...topRoute};
-          if ( (is_admin && topRoute.meta.role == "Admin") || topRoute.meta.role == "Viewer") {
-            theRoute.children = [];
-            topRoute.children.forEach( (childRoute) => {
-              if ( (childRoute.meta.role == "Admin" && is_admin) ||
-                   (childRoute.meta.role == "ConsoAdmin" && is_conso_admin) ||
-                   childRoute.meta.role == "Viewer") {
-                // Hide/update specific grandchild route(s)
-                if (childRoute.name === 'Institutions' && !is_group_admin) {
-                  const _gcx = childRoute.children.findIndex(gc => gc.name === 'InstitutionGroupsTable');
-                  childRoute.children.splice(_gcx,1);
-                }
-                theRoute.children.push(childRoute);
+    all_routes.forEach( (topRoute) => {
+      if (topRoute.meta.level == 1) { // level-1 routes have no "show" property, restrict by-role
+        var theRoute = {...topRoute};
+        if ( (is_admin && topRoute.meta.role == "Admin") || topRoute.meta.role == "Viewer") {
+          theRoute.children = [];
+          topRoute.children.forEach( (childRoute) => {
+            if ( (childRoute.meta.role == "Admin" && is_admin) ||
+                  (childRoute.meta.role == "ConsoAdmin" && is_conso_admin) ||
+                  childRoute.meta.role == "Viewer") {
+              // Hide specific grandchild route(s)
+              if (childRoute.name === 'Institutions') { // Hide groups if not "Admin" for at least one group
+                const _gcx = childRoute.children.findIndex(gc => gc.name === 'InstitutionGroupsTable');
+                childRoute.children[_gcx].show = is_group_admin;
               }
-            });
-            if (topRoute.children.length==0 || theRoute.children.length>0) {
-              pages.value.push({...theRoute});
+              theRoute.children.push(childRoute);
             }
+          });
+          if (topRoute.children.length==0 || theRoute.children.length>0) {
+            pages.value.push({...theRoute});
           }
         }
-      });
-    }
+      }
+    });
   });
 
   // On Mount
@@ -124,34 +115,38 @@
         <v-card-text class="justify-center px-4">
           <v-tabs-window v-model="activePage">
             <v-tabs-window-item v-for="(page, pageIndex) in pages" :key="pageIndex" :value="pageIndex"
-                                transition="false" reverse-transition="false">
+                              transition="false" reverse-transition="false">
               <v-tabs v-model="activeTab" bg-color="white" density="compact">
-                <v-tab v-for="(child, cidx) in page.children" :key="cidx" :value="cidx" color="green">
-                  {{ child.meta.title }}
-                </v-tab>
+                <template v-for="(child, cidx) in page.children" :key="cidx">
+                  <v-tab v-if="child.show" :value="cidx" color="green">
+                    {{ child.meta.title }}
+                  </v-tab>
+                </template>
               </v-tabs>
               <v-tabs-window v-model="activeTab">
-                <v-tabs-window-item v-for="(child, tabIndex) in page.children" :key="tabIndex"
-                                    :value="tabIndex" transition="false" reverse-transition="false">
-                  <div v-if="child.children">
-                    <v-expansion-panels multiple class="mt-6 rounded-lg" v-model="panel">
-                      <v-expansion-panel v-for="(grandchild, gcidx) in child.children"
-                                        :key="gcidx" class="rounded-lg border">
-                        <v-expansion-panel-title>
-                          {{ grandchild.meta.title }}
-                        </v-expansion-panel-title>
-                        <v-expansion-panel-text class="rounded-lg">
-                          <component :is="grandchild.component" :key="grandchild.meta.key"
-                                     @updateConso="handleChangeConso(child.name)" />
-                        </v-expansion-panel-text>
-                      </v-expansion-panel>
-                    </v-expansion-panels>
-                  </div>
-                  <div v-else>
-                    <component :is="child.component" :key="child.meta.key"
-                               @updateConso="handleChangeConso(child.name)"/>
-                  </div>
-              </v-tabs-window-item>
+                <template v-for="(child, tabIndex) in page.children" :key="tabIndex">
+                  <v-tabs-window-item v-if="child.show" :value="tabIndex" transition="false" reverse-transition="false">
+                    <div v-if="child.children">
+                      <v-expansion-panels multiple class="mt-6 rounded-lg" v-model="panel">
+                        <template v-for="(grandchild, gcidx) in child.children" :key="gcidx">
+                          <v-expansion-panel v-if="grandchild.show" class="rounded-lg border">
+                            <v-expansion-panel-title>
+                              {{ grandchild.meta.title }}
+                            </v-expansion-panel-title>
+                            <v-expansion-panel-text class="rounded-lg">
+                              <component :is="grandchild.component" :key="grandchild.meta.key"
+                                        @updateConso="handleChangeConso(child.name)" />
+                            </v-expansion-panel-text>
+                          </v-expansion-panel>
+                          </template>
+                      </v-expansion-panels>
+                    </div>
+                    <div v-else>
+                      <component :is="child.component" :key="child.meta.key"
+                                @updateConso="handleChangeConso(child.name)"/>
+                    </div>
+                  </v-tabs-window-item>
+                </template>
               </v-tabs-window>
             </v-tabs-window-item>
           </v-tabs-window>
@@ -160,9 +155,6 @@
 
       <v-spacer></v-spacer>
 
-      <v-dialog v-model="userDialog" content-class="ccplus-dialog">
-        <user-dialog dtype="profile" :user="Props.auth.user" @user-complete="userDialogDone"></user-dialog>
-      </v-dialog>
     </v-card>
   </v-app>
 </template>
