@@ -17,8 +17,8 @@ class InstitutionGroup extends Model
    *
    * @var array
    */
-    protected $fillable = [ 'id', 'name', 'type_id' ];
-    protected $casts =['id'=>'integer'];
+    protected $fillable = [ 'id', 'name', 'type_id', 'user_id' ];
+    protected $casts =['id'=>'integer', 'type_id'=>'integer', 'user_id'=>'integer'];
 
     public function institutions()
     {
@@ -27,11 +27,11 @@ class InstitutionGroup extends Model
 
     public function canManage()
     {
-      // ServerAdmin can manage any group
-      if (auth()->user()->isServerAdmin()) {
+      // Admin can manage the group
+      if (auth()->user()->isConsoAdmin()) {
         return true;
       }
-      return (auth()->user()->hasRole("Admin", null, $this->id));
+      return (auth()->user()->hasRole("Admin", null, $this->id) || $this->user_id == auth()->id());
     }
 
     public function typeRestriction()
