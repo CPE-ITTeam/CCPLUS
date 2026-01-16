@@ -100,7 +100,8 @@ class InstitutionGroupController extends Controller
         $type_id = (isset($input['type'])) ? $input['type'] : null;
 
         // Create the group
-        $group = InstitutionGroup::create(['name' => $input['name'], 'type_id' => $type_id, 'user_id' => $thisUser->id]);
+        $user_id = ($thisUser->isConsoAdmin) ? null : $thisUser->id;
+        $group = InstitutionGroup::create(['name' => $input['name'], 'type_id' => $type_id, 'user_id' => $user_id]);
         $group->load('typeRestriction');
 
         // Get all institutions' id, name, and type
