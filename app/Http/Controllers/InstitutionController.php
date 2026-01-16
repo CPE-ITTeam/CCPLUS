@@ -51,7 +51,7 @@ class InstitutionController extends Controller
         $filter_options['groups'] = array();
 
         // Limit by institution based on users's role(s)
-        if (!$thisUser->isServerAdmin()) {
+        if (!$thisUser->isConsoAdmin()) {
             $limit_to_insts = ($type == 'admin') ? $thisUser->adminInsts() : $thisUser->viewerInsts();
             if ($limit_to_insts === [1]) $limit_to_insts = [];
         }
@@ -705,7 +705,7 @@ class InstitutionController extends Controller
         }
 
         // Give the file a meaningful filename
-        $fileName = "CCplus_" . session('ccp_con_key', '') . "_Institutions.xlsx";
+        $fileName = "CCplus_" . session('con_key', '') . "_Institutions.xlsx";
 
         // redirect output to client browser
         $writer = new \PhpOffice\PhpSpreadsheet\Writer\Xlsx($spreadsheet);
