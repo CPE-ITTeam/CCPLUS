@@ -56,7 +56,9 @@
     all_routes.forEach( (topRoute) => {
       if (topRoute.meta.level == 1) { // level-1 routes have no "show" property, restrict by-role
         var theRoute = {...topRoute};
-        if ( (is_admin && topRoute.meta.role == "Admin") || topRoute.meta.role == "Viewer") {
+        if ( is_serveradmin ) {
+          pages.value.push({...theRoute});
+        } else if ( is_serveradmin || (is_admin && topRoute.meta.role == "Admin") || topRoute.meta.role == "Viewer") {
           theRoute.children = [];
           topRoute.children.forEach( (childRoute) => {
             if ( (childRoute.meta.role == "Admin" && is_admin) ||
