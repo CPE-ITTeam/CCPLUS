@@ -22,6 +22,7 @@
   // These are intentionally NOT reactive...
   const is_admin = authStore.is_admin;
   const is_conso_admin = authStore.is_conso_admin;
+  const is_group_admin = authStore.is_group_admin;
   const is_serveradmin = authStore.is_serveradmin;
   // External links
   function userDialogDone ({ result, msg, user, new_inst }) {
@@ -69,6 +70,11 @@
               if ( (childRoute.meta.role == "Admin" && is_admin) ||
                    (childRoute.meta.role == "ConsoAdmin" && is_conso_admin) ||
                    childRoute.meta.role == "Viewer") {
+                // Hide/update specific grandchild route(s)
+                if (childRoute.name === 'Institutions' && !is_group_admin) {
+                  const _gcx = childRoute.children.findIndex(gc => gc.name === 'InstitutionGroupsTable');
+                  childRoute.children.splice(_gcx,1);
+                }
                 theRoute.children.push(childRoute);
               }
             });
