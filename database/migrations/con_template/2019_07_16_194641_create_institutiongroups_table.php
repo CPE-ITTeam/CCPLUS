@@ -17,6 +17,7 @@ class CreateInstitutiongroupsTable extends Migration
             $table->Increments('id');
             $table->string('name');
             $table->unsignedInteger('type_id')->nullable();
+            $table->integer('user_id')->nullable();
             $table->timestamps();
         });
     }
