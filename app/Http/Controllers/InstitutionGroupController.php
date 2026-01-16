@@ -9,7 +9,6 @@ use App\Models\InstitutionType;
 use Illuminate\Http\Request;
 use PhpOffice\PhpSpreadsheet\Spreadsheet;
 use PhpOffice\PhpSpreadsheet\Writer\Xlsx;
-// use PhpOffice\PhpSpreadsheet\Writer\Xls;
 
 class InstitutionGroupController extends Controller
 {
@@ -21,9 +20,39 @@ class InstitutionGroupController extends Controller
     public function index(Request $request)
     {
         $thisUser = auth()->user();
+        $filter_options = array('type' => array(), 'institutions' => array());
 
-        $groups = InstitutionGroup::with('institutions:id,name,type_id','typeRestriction')->orderBy('name', 'ASC')->get();
-        $all_institutions = Institution::where('is_active',1)->get(['id','name','type_id']);
+        // Server/Conso Admins get conso-groups
+        if ($thisUser->isConsoAdmin()) {
+            $groups = InstitutionGroup::with('institutions:id,name,type_id','typeRestriction')
+                                      ->whereNull('user_id')->orderBy('name', 'ASC')->get();
+        } else {
+            $groupIds = $thisUser->adminGroups();
+            // Group Admins get the groups they create plus the ones they can admin
+            if (count($groupIds) > 0) {
+                $groups = InstitutionGroup::with('institutions:id,name,type_id','typeRestriction')
+                                          ->where('user_id',$thisUser->id)->orWhereIn('id',$groupIds)
+                                          ->orderBy('name', 'ASC')->get();
+            // Return nothing
+            } else {
+                return response()->json(['records' => [], 'options' => $filter_options, 'result' => true], 200);
+            }
+        }
+        // $all_institutions = Institution::where('is_active',1)->get(['id','name','type_id']);
+
+        // Limit by institutions array based on thisUsers' ability to Admin them
+        // (array is used for add operation)
+        $limit_insts = array();
+        if (!$thisUser->isConsoAdmin()) {
+            $limit_insts = $thisUser->adminInsts();
+            if ($limit_insts === [1]) $limit_insts = [];
+        }
+
+        // Get institution records
+        $all_institutions = Institution::where('is_active',1)
+                                ->when(count($limit_insts) > 0 , function ($qry) use ($limit_insts) {
+                                    return $qry->whereIn('id', $limit_insts);
+                                })->orderBy('name', 'ASC')->get(['id','name','type_id']);
 
         $data = array();
         foreach ($groups as $group) {
@@ -32,27 +61,16 @@ class InstitutionGroupController extends Controller
             $rec['institutions'] = $group->institutions->toArray();
             $memberIds = $group->institutions->pluck('id')->toArray();
             $rec['count'] = sizeof($memberIds);
-            $rec['can_edit'] = $thisUser->isConsoAdmin();
-            $rec['can_delete'] = $thisUser->isConsoAdmin();
+            $rec['can_edit'] = true;
+            $rec['can_delete'] = true;
             $data[] = $rec;
         }
 
         // send institution types for filter option
-        $filter_options = array();
         $filter_options['type'] = InstitutionType::get(['id','name'])->toArray();
         $filter_options['institutions'] = $all_institutions->toArray();
 
         return response()->json(['records' => $data, 'options' => $filter_options, 'result' => true], 200);
-    }
-
-    /**
-     * Show the form for creating a new resource.
-     *
-     * @return \Illuminate\Http\Response
-     */
-    public function create()
-    {
-        // Built-in to index Vue component
     }
 
     /**
@@ -64,8 +82,13 @@ class InstitutionGroupController extends Controller
     public function store(Request $request)
     {
         $thisUser = auth()->user();
+
+        // Only consoAdmin and users who Admin a group can create a new group
         if (!$thisUser->isConsoAdmin()) {
-            return response()->json(['result' => false, 'msg' => 'Not Authorized']);
+            $groupIds = $thisUser->adminGroups();
+            if (count($groupIds) == 0) {
+                return response()->json(['result' => false, 'msg' => 'Not Authorized']);
+            }
         }
 
         $this->validate($request, [
@@ -77,20 +100,23 @@ class InstitutionGroupController extends Controller
         $type_id = (isset($input['type'])) ? $input['type'] : null;
 
         // Create the group
-        $group = InstitutionGroup::create(['name' => $input['name'], 'type_id' => $type_id]);
+        $group = InstitutionGroup::create(['name' => $input['name'], 'type_id' => $type_id, 'user_id' => $thisUser->id]);
         $group->load('typeRestriction');
 
         // Get all institutions' id, name, and type
-        $institutionData = Institution::orderBy('name', 'ASC')->get(['id','name','type_id']);
+        $all_insts = Institution::orderBy('name', 'ASC')->get(['id','name','type_id']);
 
         // if institutions are passed in, go ahead and attach them now
         $new_members = array();
         if (isset($request->institutions)) {
             foreach ($request->institutions as $inst) {
-                $canAdd = $institutionData->where('id',$inst['id'])->where('type_id',$type_id)->first();
-                if ($canAdd) {
-                    $group->institutions()->attach($inst['id']);
-                    $new_members[] = $inst['id'];
+                // Confirm institution exists and check authorization
+                $institution = $all_insts->where('id',$inst['id'])->where('type_id',$type_id)->first();
+                if ($institution) {
+                    if ($institution->canManage()) {
+                        $group->institutions()->attach($inst['id']);
+                        $new_members[] = $inst['id'];
+                    }
                 }
             }
             $group->load('institutions');
@@ -103,7 +129,7 @@ class InstitutionGroupController extends Controller
 
         if ($group->count() > 0) {
             // Get details for new members
-            $newMembers = $institutionData->whereIn('id',$new_members);
+            $newMembers = $all_insts->whereIn('id',$new_members);
             $newMembers->load('institutionGroups');
 
             // Set the group_string for the institutions
@@ -132,28 +158,6 @@ class InstitutionGroupController extends Controller
     }
 
     /**
-     * Display the specified resource.
-     *
-     * @param  int  $id
-     * @return \Illuminate\Http\Response
-     */
-    public function show($id)
-    {
-      //
-    }
-
-    /**
-     * Show the form for editing the specified resource.
-     *
-     * @param  int  $id
-     * @return \Illuminate\Http\Response
-     */
-    public function edit($id)
-    {
-      //
-    }
-
-    /**
      * Update the specified resource in storage.
      *
      * @param  \Illuminate\Http\Request  $request
@@ -163,7 +167,9 @@ class InstitutionGroupController extends Controller
     public function update(Request $request, InstitutionGroup $group)
     {
         $thisUser = auth()->user();
-        if (!$thisUser->isConsoAdmin()) {
+
+        // Check Authorization
+        if (!$thisUser->isConsoAdmin() && !$group->canManage()) {
             return response()->json(['result' => false, 'msg' => 'Not Authorized']);
         }
         $this->validate($request, [ 'name' => 'required' ]);
@@ -174,7 +180,11 @@ class InstitutionGroupController extends Controller
         if ($group->name != $input['name']) $args['name'] = $input['name']; 
         if ($group->type_id != $input['type_id']) $args['type_id'] = $input['type_id']; 
         if (count($args)>0) {
-            $group->update($args);
+            try {
+                $group->update($args);
+            } catch (\Exception $ex) {
+                return response()->json(['result' => false, 'msg' => $ex->getMessage()]);
+            }
         }
 
         // Reset membership assignments
@@ -208,58 +218,6 @@ class InstitutionGroupController extends Controller
     }
 
     /**
-     * Add institutiomns to an existing group
-     *
-     * @param  \Illuminate\Http\Request  $request
-     * @return \Illuminate\Http\Response
-     */
-    public function extend(Request $request)
-    {
-        $this->validate($request, [
-          'id' => 'required', 'institutions' => 'required'
-        ]);
-
-        // Build returned group data the way index() does
-        $group = InstitutionGroup::with('institutions:id,name')->findOrFail($request->input('id'));
-        $member_institutions = $group->institutions->pluck('id')->toArray();
-
-        // Add membership assignments
-        $count = 0;
-        foreach ($request->institutions as $inst) {
-            if (in_array($inst['id'], $member_institutions)) continue;
-            $group->institutions()->attach($inst['id']);
-            $count++;
-        }
-        $group->load('institutions:id,name');
-        $group->count = count($member_institutions) + $count;
-        $member_institutions = $group->institutions->pluck('id')->toArray();
-
-        // Get all institutions' data
-        $institutionData = Institution::orderBy('name', 'ASC')->get(['id','name']);
-
-        // Rebuild the groups-membership strings for all institutions
-        $institutionData->load('institutionGroups');
-        $belongsTo = $this->groupsByInst($institutionData);
-
-        // Update the group membership string for affected institutions
-        foreach ($group->institutions as $key => $inst) {
-            $instData = $institutionData->where('id',$inst->id)->first();
-            if ($instData) {
-                $_string = "";
-                foreach ($instData->institutionGroups as $grp) {
-                    $_string .= ($_string == "") ? "" : ", ";
-                    $_string .= $grp->name;
-                }
-                $group->institutions[$key]->group_string = $_string;
-            }
-        }
-
-        // Build returned group data the way index() does
-        return response()->json(['result' => true, 'msg' => 'Group updated successfully', 'count' => $count, 'group' => $group,
-                                 'belongsTo' => $belongsTo]);
-    }
-
-    /**
      * Remove the specified resource from storage.
      *
      * @param  InstitutionGroup $group
@@ -268,24 +226,25 @@ class InstitutionGroupController extends Controller
     public function destroy(InstitutionGroup $group)
     {
         $thisUser = auth()->user();
-        if (!$thisUser->isConsoAdmin()) {
+
+        // Check Authorization
+        if (!$thisUser->isConsoAdmin() && !$group->canManage()) {
             return response()->json(['result' => false, 'msg' => 'Not Authorized']);
         }
-        $group->delete();
 
-        // Rebuild the groups-membership strings for all institutions
-        $institutions = Institution::with('institutionGroups')->orderBy('name', 'ASC')->get(['id','name']);
-        $belongsTo = $this->groupsByInst($institutions);
-
+        // Delete the group
+        try {
+            $group->delete();
+        } catch (\Exception $ex) {
+            return response()->json(['result' => false, 'msg' => $ex->getMessage()]);
+        }
         return response()->json(['result' => true, 'msg' => 'Group successfully deleted']);
     }
 
     /**
      * Export institution groups from the database.
-     *
-     * @param  string  $type    // 'xls' or 'xlsx'
      */
-    public function export($type)
+    public function export()
     {
         // Get all types
         $groups = InstitutionGroup::with('institutions:id,name')->orderBy('name', 'ASC')->get();
@@ -356,17 +315,11 @@ class InstitutionGroupController extends Controller
         $group_sheet->getColumnDimension('B')->setAutoSize(true);
 
         // Give the file a meaningful filename
-        $fileName = "CCplus_" . session('con_key', '') . "_InstitutionGroups." . $type;
+        $fileName = "CCplus_" . session('con_key', '') . "_InstitutionGroups.xlsx";
 
         // redirect output to client browser
-        if ($type == 'xlsx') {
-            $writer = new \PhpOffice\PhpSpreadsheet\Writer\Xlsx($spreadsheet);
-            header('Content-Type: application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
-        // } elseif ($type == 'xls') {
-        //     $writer = new \PhpOffice\PhpSpreadsheet\Writer\Xls($spreadsheet);
-        //     header('Content-Type: application/vnd.ms-excel');
-        }
-        header('Content-Disposition: attachment;filename=' . $fileName);
+        $writer = new \PhpOffice\PhpSpreadsheet\Writer\Xlsx($spreadsheet);
+        header('Content-Type: application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
         header('Cache-Control: max-age=0');
         $writer->save('php://output');
     }
