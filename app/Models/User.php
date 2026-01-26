@@ -94,6 +94,13 @@ class User extends Authenticatable
         return !is_null($this->roles->where('inst_id',1)->where('role.name','Admin')->first());
     }
 
+    // public function isGroupAdmin()
+    // {
+    //     if ($this->roles->where("role.name", "ServerAdmin")->first() ||
+    //         $this->roles->where('inst_id',1)->where('role.name','Admin')->first()) return true;
+    //     return (!is_null($this->roles->where('group_id',1)->where('role.name','Admin')->first()));
+    // }
+
     public function adminInsts() {
         if ($this->isConsoAdmin() || $this->roles->whereIn("role.name", ["ServerAdmin"])->first()) return [1];
         $insts = array();
@@ -208,6 +215,15 @@ class User extends Authenticatable
         $_id = $this->roles->max('role_id');
         $userRole = $this->roles->where('role_id', $_id)->first();
         return $userRole->role->name;
+    }
+
+    public function fullRoleName() {
+        if ($this->isServerAdmin()) return "ServerAdmin";
+        if ($this->isConsoAdmin()) return "Consortium Admin";
+        if (!is_null($this->roles->where('role.name','Admin')->first())) return "Admin";
+        if (!is_null($this->roles->where('role.name','Viewer')->where('inst_id',1)->first())) return "Consortium Viewer";
+        if (!is_null($this->roles->where('role.name','Viewer')->first())) return "Viewer";
+        return "None";
     }
 
     public function hasRole($role, $inst = null, $group = null)
