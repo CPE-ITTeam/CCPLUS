@@ -27,17 +27,12 @@ class Institution extends Model
     public function canManage()
     {
         // Admins can manage the institution
-        if (auth()->user()->isConsoAdmin() || auth()->user()->hasRole("Admin", $this->id)) {
-            return true;
+        if (auth()->user()->isConsoAdmin()) return true;
 
-        // Check to see if user has groupAdmin for a group the inst is a member of
-        } else {
-            $groupIds = auth()->user()->adminGroups();
-            if (count($groupIds)>0) {
-                return (!is_null($this->institutionGroups->whereIn('id',$groupIds)->first()));
-            }
-        }
-        return false;
+        // Check institutions this user can admin (includes insts in groups)
+        $instIds = auth()->user()->adminInsts();
+        return (in_array($this->id,$instIds));
+
     }
 
     public function institutionType()
