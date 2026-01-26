@@ -37,8 +37,12 @@
     return m_schema.fields.map(f => f.label);
   });
   const showConfirm = computed(() => {
-    return (Object.keys(formValues).includes('password'))
-           ? (formValues['password'].length > 0) : false;
+    if ( Object.keys(formValues).includes('password')) {
+      if (formValues['password']!==null) {
+        return (formValues['password'].length > 0);
+      }
+    }
+    return false;
   });
 
   // defineEmits(['submit', 'cancel']);
@@ -78,11 +82,14 @@
   // select-specific changes
   function selectChanged(fieldName) {
     if (fieldName=='institution') {
-      let _idx = m_schema.fields.findIndex(f => f.name=='group') ;
+      let _idx = m_schema.fields.findIndex(f => f.name=='group');
       if (_idx >= 0) m_schema.fields[_idx]['visible'] = false;
       if (typeof(formValues['group']) != 'undefined') formValues['group'] = null;
+    } else if (fieldName=='institutions') {
+      let _idx = m_schema.fields.findIndex(f => f.name=='inst_id');
+      if (_idx >= 0) formValues['inst_id'] = formValues['institutions'];
     } else if (fieldName=='group') {
-      let _idx = m_schema.fields.findIndex(f => f.name=='institution') ;
+      let _idx = m_schema.fields.findIndex(f => f.name=='institution');
       if (_idx >= 0) m_schema.fields[_idx]['visible'] = false;
       if (typeof(formValues['institution']) != 'undefined') formValues['institution'] = null;
     // update any fields named fieldName+"_id" if they exist as a schema field
