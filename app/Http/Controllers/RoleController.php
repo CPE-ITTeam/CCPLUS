@@ -31,7 +31,7 @@ class RoleController extends Controller
         $server_admin = config('ccplus.server_admin');
 
         // Limit by institution based on users's role(s)
-        if (!$thisUser->isServerAdmin()) {
+        if (!$thisUser->isConsoAdmin()) {
             $limit_insts = $thisUser->adminInsts();
             if ($limit_insts === [1]) $limit_insts = [];
         }
@@ -92,7 +92,7 @@ class RoleController extends Controller
         // Add filtering options for institutions, groups, and users to cover institutions and groups
         // that the current user has admin rights for; $limit_insts already set (above)
         $limit_groups = [];
-        if (!$thisUser->isServerAdmin()) {
+        if (!$thisUser->isConsoAdmin()) {
             $limit_groups = $thisUser->adminGroups();
             if ($limit_groups === [1]) $limit_groups = [];
         }
