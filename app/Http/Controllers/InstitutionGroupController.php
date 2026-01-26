@@ -100,24 +100,28 @@ class InstitutionGroupController extends Controller
         $type_id = (isset($input['type'])) ? $input['type'] : null;
 
         // Create the group
-        $user_id = ($thisUser->isConsoAdmin) ? null : $thisUser->id;
+        $user_id = ($thisUser->isConsoAdmin()) ? null : $thisUser->id;
         $group = InstitutionGroup::create(['name' => $input['name'], 'type_id' => $type_id, 'user_id' => $user_id]);
         $group->load('typeRestriction');
 
-        // Get all institutions' id, name, and type
-        $all_insts = Institution::orderBy('name', 'ASC')->get(['id','name','type_id']);
+        // Get all institutions' id and name; limit by input type if not-null
+        $all_insts = Institution::orderBy('name', 'ASC')
+                                ->when(!is_null($type_id), function ($q) use ($type_id) {
+                                    return $q->where('type_id', $type_id);
+                                })->get(['id','name','type_id']);
 
         // if institutions are passed in, go ahead and attach them now
         $new_members = array();
-        if (isset($request->institutions)) {
-            foreach ($request->institutions as $inst) {
+        if (isset($input['institutions'])) {
+            foreach ($input['institutions'] as $inst) {
                 // Confirm institution exists and check authorization
-                $institution = $all_insts->where('id',$inst['id'])->where('type_id',$type_id)->first();
+                $institution = $all_insts->where('id',$inst['id'])->first();
                 if ($institution) {
                     if ($institution->canManage()) {
                         $group->institutions()->attach($inst['id']);
                         $new_members[] = $inst['id'];
                     }
+
                 }
             }
             $group->load('institutions');
