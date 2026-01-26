@@ -62,27 +62,28 @@ class UserController extends Controller
             $user = array('id' => $rec->id, 'email' => $rec->email, 'name' => $rec->name, 'inst_id' => $rec->inst_id,
                           'institution' => $rec->institution, 'last_login' => $rec->last_login);
             $user['status'] = ($rec->is_active) ? "Active" : "Inactive";
-            $user['user_role'] = $rec->maxRoleName();
-            if ($rec->inst_id!=1 && $user['user_role'] == 'Admin') {
-                $user['user_role'] = "Local Admin";
-            } else if ($rec->inst_id==1 && $user['user_role'] != 'ServerAdmin') {
-                $user['user_role'] = 'Consortium '.$user['user_role'];
-            }    
+            $user['user_role'] = $rec->fullRoleName();
             $user['fiscalYr'] = ($rec->fiscalYr) ? $rec->fiscalYr : config('ccplus.fiscalYr');
             $user['can_edit'] = $rec->canManage();
             $user['can_delete'] = $rec->canManage();
             $data[] = $user;
         }
 
-        // Set filter options for user roles based on what we're returning
+        // Limit roles in UI to current user's max role
         $filter_options['uroles'] = array();
-        foreach (array_unique(array_column($data,'user_role')) as $key => $role_string) {
-            $filter_options['uroles'][] = array('role' => $role_string);
+        $all_roles = Role::where('id', '<=', $thisUser->maxRole())->orderBy('id', 'DESC')
+                         ->where('name','<>','ServerAdmin')->get(['name', 'id'])->toArray();
+        foreach ($all_roles as $idx => $r) {
+            if ($r['name'] == 'Admin')  $filter_options['uroles'][] = "Consortium Admin";
+            if ($r['name'] == 'Viewer') $filter_options['uroles'][] = "Consortium Viewer";
+            $filter_options['uroles'][] = $r['name'];
         }
 
         // Add filtering options for institutions
         $instIds = $user_data->pluck('inst_id')->toArray();
-        $filter_options['institutions'] = Institution::whereIn('id',$instIds)->get(['id','name'])->toArray();
+        $filter_options['institutions'] = ($thisUser->isConsoAdmin())
+                                          ? Institution::get(['id','name'])->toArray()
+                                          : Institution::whereIn('id',$instIds)->get(['id','name'])->toArray();
 
         return response()->json(['records' => $data, 'options' => $filter_options, 'result' => true], 200);
     }
@@ -136,28 +137,27 @@ class UserController extends Controller
         if ($exists) {
             return response()->json(['result' => false, 'msg' => 'Email address is already assigned to another user']);
         }
-        if (!isset($input['is_active'])) {
+        if (isset($input['status'])) {
+            $input['is_active'] = ($input['status'] == 'Active') ? 1 : 0;
+        } else {
             $input['is_active'] = 0;
         }
 
-        // Make sure roles include at least "Viewer"
-        $viewer_role_id = Role::where('name','Viewer')->value('id');
-        $new_roles = isset($input['roles']) ? $input['roles'] : array();
-        if (count($new_roles) == 0) {
-            array_unshift($new_roles, $view_role_id);
-        }
-
-        // Create the user and attach roles (limited to current user's maxRole)
+        // Create the user
         $user = User::create($input);
-        foreach ($new_roles as $r) {
-            if ($thisUser->maxRole() >= $r) {
-                $user->roles()->attach($r);
-            }
+
+        // Add Role record for Viewer
+        $viewer_role_id = Role::where('name','Viewer')->value('id');
+        try {
+            $new_role = UserRole::create(['user_id'=>$user->id, 'role_id'=>$viewer_role_id,
+                                            'inst_id'=>$user->inst_id, 'group_id'=>null]);
+        } catch (\Exception $e) {
+            return response()->json(['result'=>false, 'msg'=>'Error adding role to database: '.$e->getMessage()]);
         }
         $user->load(['institution:id,name']);
 
         // Set current consortium name if there are more than 1 active in this system
-        $consortia = \App\Consortium::where('is_active',1)->get();
+        $consortia = Consortium::where('is_active',1)->get();
         $con_name = "";
         if ($consortia->count() > 1) {
             $current = $consortia->where('ccp_key',session('ccp_key'))->first();
@@ -171,21 +171,14 @@ class UserController extends Controller
         } catch (\Exception $e) { }
 
         // Setup array to hold new user to match index fields
-        $_roles = "";
-        $new_user = $user->toArray();
-        $new_user['inst_name'] = $user->institution->name;
+        $new_user = array('id' => $user->id, 'email' => $user->email, 'name' => $user->name,
+                          'inst_id' => $user->inst_id, 'institution' => $user->institution,
+                          'last_login' => null);
         $new_user['status'] = ($user->is_active) ? "Active" : "Inactive";
-        $new_user['user_role'] = $user->maxRoleName();
-        if ($user->inst_id!=1 && $new_user['user_role'] == 'Admin') {
-            $new_user['user_role'] = "Local Admin";
-        } else if ($user->inst_id==1 && $new_user['user_role'] != 'ServerAdmin') {
-            $new_user['user_role'] = 'Consortium '.$new_user['user_role'];
-        }
-        $new_user['permission'] = $max_role;
-        $new_user['roles'] = $user->allRoles();
+        $new_user['user_role'] = $user->fullRoleName();
         $new_user['fiscalYr'] = ($user->fiscalYr) ? $user->fiscalYr : config('ccplus.fiscalYr');
-        $new_user['can_edit'] = $user->canManage();
-        $new_user['can_delete'] = $user->canManage();
+        $new_user['can_edit'] = true;
+        $new_user['can_delete'] = true;
 
         return response()->json(['result' => true, 'msg' => 'User successfully created', 'record' => $new_user]);
     }
