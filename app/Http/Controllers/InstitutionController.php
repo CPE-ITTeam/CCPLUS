@@ -6,7 +6,7 @@ use DB;
 use App\Models\Institution;
 use App\Models\InstitutionType;
 use App\Models\InstitutionGroup;
-use App\Models\Provider;
+use App\Models\Connection;
 use App\Models\Role;
 use App\Models\Report;
 use App\Models\Credential;
@@ -89,16 +89,6 @@ class InstitutionController extends Controller
     }
 
     /**
-     * Show the form for creating a new resource.
-     *
-     * @return \Illuminate\Http\Response
-     */
-    public function create()
-    {
-        return redirect()->route('institutions.index');
-    }
-
-    /**
      * Store a newly created resource in storage.
      *
      * @param  \Illuminate\Http\Request  $request
@@ -148,15 +138,15 @@ class InstitutionController extends Controller
         // If requested, create a credentials to give a "starting point" for connecting it later
         $stub = (isset($input['creds'])) ? $input['creds'] : 0;
         if ($stub) {
-            $providers = Provider::with('globalProv')->where('inst_id',1)->where('is_active',1)->get();
-            foreach ($providers as $provider) {
-                if ($provider->globalProv->is_active == 0) continue;
+            $connections = Connection::with('globalProv')->where('inst_id',1)->where('is_active',1)->get();
+            foreach ($connections as $cnx) {
+                if ($cnx->globalProv->is_active == 0) continue;
                 $credential = new Credential;
                 $credential->inst_id = $new_id;
                 $credential->prov_id = $provider->global_id;
                 // Mark required conenction fields
-                foreach ($provider->globalProv->connectionFields() as $cnx) {
-                    $credential->{$cnx['name']} = ($cnx['required']) ? "-required-" : null;
+                foreach ($cnx->globalProv->connectionFields() as $fld) {
+                    $credential->{$fld['name']} = ($fld['required']) ? "-required-" : null;
                 }
                 $credential->status = "Incomplete";
                 $credential->save();
@@ -181,195 +171,6 @@ class InstitutionController extends Controller
 
         return response()->json(['result' => true, 'msg' => 'Institution successfully created',
                                  'record' => $data]);
-    }
-
-    /**
-     * Display the specified resource.
-     *
-     * @param  \App\Models\Institution  $institution
-     * @return \Illuminate\Http\Response
-     */
-    public function show($id)
-    {
-        $thisUser = auth()->user();
-        if (!$thisUser->hasRole("Admin")) {
-            abort_unless($thisUser->inst_id == $id, 403);
-        }
-        $isAdmin = ($thisUser->hasRole('Admin'));
-        $localAdmin = (!$thisUser->hasRole('Admin'));
-
-        // Get the institution and credentials
-        $institution = Institution::with('users', 'users.roles','institutionGroups','institutionGroups.institutions:id,name')
-                                  ->findOrFail($id);
-        $credentials = Credential::with('provider','lastHarvest')->where('inst_id',$institution->id)->get();
-
-        // Get most recent harvest and set can_delete flag
-        $last_harvest = $credentials->max('last_harvest');
-        $institution['can_delete'] = ($id > 1 && is_null($last_harvest)) ? true : false;
-        $institution['default_fiscalYr'] = config('ccplus.fiscalYr');
-
-        // Related models we'll be passing
-        $all_groups = InstitutionGroup::with('institutions:id,name')->orderBy('name', 'ASC')->get();
-        $groupIds = $institution->institutionGroups()->pluck('institutiongroups.id')->toArray();
-        $institution['groups'] = $all_groups->whereIn('id',$groupIds)->values()->toArray();
-        $all_groups = $all_groups->toArray();
-
-        // Add on credentials
-        $institution['credentials'] = $credentials;
-
-        // Limit roles in UI to current user's max role
-        $all_roles = Role::where('id', '<=', $thisUser->maxRole())->orderBy('id', 'DESC')
-                         ->get(['name', 'id'])->toArray();
-        foreach ($all_roles as $idx => $r) {
-            if ($r['name'] == 'Manager') $all_roles[$idx]['name'] = "Local Admin";
-            if ($r['name'] == 'Admin') $all_roles[$idx]['name'] = "Consortium Admin";
-            if ($r['name'] == 'Viewer') $all_roles[$idx]['name'] = "Viewer";
-        }
-
-        // Get consortium-providers providers; limit to conso+inst_specific if not Admin
-        $limit_insts = ($isAdmin) ? [] : [1,$id];
-        $inst_providers = Provider::with('institution:id,name,is_active', 'reports:id,name')
-                                  ->when(!$isAdmin, function ($query) use ($limit_insts) {
-                                      return $query->whereIn('inst_id',$limit_insts);
-                                  })
-                                  ->orderBy('name', 'ASC')->get();
-
-        // Get master report definitions
-        $master_reports = Report::where('revision',5)->where('parent_id',0)->orderBy('dorder','ASC')->get(['id','name']);
-
-        // Build list of providers, based on globals, that includes extra mapped in consorium-specific data
-        $global_providers = GlobalProvider::orderBy('name', 'ASC')->get();
-
-        $output_providers = [];
-        foreach ($global_providers as $rec) {
-            $rec->global_prov = $rec->toArray();
-            $rec->connectors = $rec->connectionFields();
-            $rec->service_url = $rec->service_url(); 
-
-            // Setup connected institution data
-            $connected_providers = $inst_providers->where('global_id',$rec->id);
-            $inst_connection = $connected_providers->where('global_id',$rec->id)->where('inst_id',$id)->first();
-            $inst_reports = ($inst_connection) ? $inst_connection->reports->pluck('id')->toArray() : [];
-            $rec->inst_id = ($inst_connection) ? $id : null;
-            $conso_connection = $connected_providers->where('inst_id',1)->first();
-            $conso_reports = ($conso_connection) ? $conso_connection->reports->pluck('id')->toArray() : [];
-            $rec->conso_id = ($conso_connection) ? $conso_connection->id : null;
-
-            // $rec->master_reports holds what the master has available
-            $master_ids = $rec->master_reports;
-            $rec->master_reports = $master_reports->whereIn('id', $master_ids)->values()->toArray();
-            $rec->is_conso = ($conso_connection) ? true : false;
-            $rec->allow_inst_specific = ($conso_connection) ? $conso_connection->allow_inst_specific : 0;
-            if ($conso_connection) {
-                $rec->inst_id = ($inst_connection) ? $id : 1;
-                $rec->can_connect = ($conso_connection->allow_inst_specific && !$inst_connection &&
-                                     count($master_ids) > $conso_connection->reports->count()) ? true : false;
-            } else {
-                $rec->can_connect = (!$inst_connection) ? true : false;
-            }
-            // active defaults to global value, and is overriden by inst-specific value, if set.
-            // Local admin can set inactive, but this only affects the inst-specific reports, not the conso-defined ones
-            $rec->is_active = ($inst_connection) ? $inst_connection->is_active : $rec->is_active;
-            $rec->active = ($rec->is_active) ? 'Active' : 'Inactive';
-            $rec->last_harvest = null;
-            $parsedUrl = parse_url($rec->service_url());
-            $rec->host_domain = (isset($parsedUrl['host'])) ? $parsedUrl['host'] : "-missing-";          
-
-            // Setup flags to control per-report icons in the U/I
-            $report_flags = $this->setReportFlags($master_reports, $master_ids, $conso_reports, $inst_reports);
-            foreach ($report_flags as $rpt) {
-                $rec->{$rpt['name'] . "_status"} = $rpt['status'];
-            }
-
-            // Global is Not connected
-            if (count($connected_providers) == 0) {
-                $rec->can_edit = false;
-                $rec->can_delete = false; // unconnected globals only deletable by serverAdmin
-                $rec->connected = [];
-                $rec->connection_count = 0;
-                $rec->report_state = $this->reportState($master_reports, $conso_reports, []);
-                $output_providers[] = $rec->toArray();
-                continue;
-            }
-
-            // Global is connected, build the array of connected institutions
-            $all_inactive = true;
-            $is_editable = false;
-            $is_deleteable = false;
-            $connected_data = array();
-            foreach ($connected_providers as $prov_data) {
-                $_rec = $prov_data->toArray();
-                $_rec['inst_name'] = ($prov_data->inst_id == 1) ? 'Consortium' : $prov_data->institution->name;
-                $_rec['inst_stat'] = ($prov_data->institution->is_active) ? "isActive" : "isInactive";
-                $_inst_reports = $prov_data->reports->pluck('id')->toArray();
-                $combined_ids = array_unique(array_merge($conso_reports, $_inst_reports));
-                $_rec['master_reports'] = $rec->master_reports;
-                $_rec['report_state'] = $this->reportState($master_reports, $conso_reports, $combined_ids);
-                $_rec['day_of_month'] = $rec->day_of_month;
-                $_rec['host_domain'] = $rec->host_domain;          
-                $_rec['allow_inst_specific'] = ($prov_data->inst_id == 1) ? $prov_data->allow_inst_specific : 0;
-                // last harvest is based on THIS INST ($id) credential for the provider-global
-                $_cred = $credentials->where('prov_id',$prov_data->global_id)->first();
-                if ($_cred) {
-                    $_rec['last_harvest_id']  = $_cred->last_harvest_id;
-                    if ($_cred->lastHarvest) {
-                        $_rec['last_harvest']  = $_cred->lastHarvest->yearmon . " (run ";
-                        $_rec['last_harvest'] .= substr($_cred->lastHarvest->updated_at,0,10) . ")";
-                    } else {
-                        $_rec['last_harvest'] = null;
-                    }
-                } else {
-                    $_rec['last_harvest'] = null;
-                    $_rec['last_harvest_id'] = 0;
-                }
-                // The connected prov is editable if it is conso or specific to this inst
-                // If it is an inst-specific connection for a different inst, mark not editable
-                // (do this so that the INST-SHOW U/I view of providers makes sense)
-                if ($prov_data->canManage() && (in_array($prov_data->inst_id, [1,$id]))) {
-                    $_rec['can_edit'] = true;
-                    $is_editable = true;
-                    $_rec['can_delete'] = (is_null($_rec['last_harvest'])) ? true : false;
-                    if ($_rec['can_delete']) $is_deleteable = true;
-                } else {
-                    $_rec['can_edit'] = false;
-                    $_rec['can_delete'] = false;
-                }
-                $connected_data[] = $_rec;
-            }
-            $rec->connected = $connected_data;
-            $rec->connection_count = count($connected_data);
-            $rec->can_delete = ($is_deleteable) ? true : false;
-            $rec->can_edit = ($is_editable || ($localAdmin && $rec->allow_inst_specifc) ) ? true : false;
-            $output_providers[] = $rec->toArray();
-        }
-        $all_providers = array_values($output_providers);
-
-        // Pull an array for unset global providers
-        $existingIds = $inst_providers->pluck('global_id')->toArray();
-        $unset_global = GlobalProvider::where('is_active', true)->whereNotIn('id',$existingIds)->orderBy('name', 'ASC')->get();
-
-        // Get 10 most recent harvests
-        $harvests = HarvestLog::with('report:id,name', 'credential', 'credential.institution:id,name',
-                                     'credential.provider:id,name')
-                              ->join('credentials', 'harvestlogs.credentials_id', '=', 'credentials.id')
-                              ->where('credentials.inst_id', $id)
-                              ->orderBy('harvestlogs.updated_at', 'DESC')->limit(10)
-                              ->get('harvestlogs.*')
-                              ->toArray();
-        return view('institutions.show',
-                    compact('institution','all_providers','all_groups','all_roles','harvests','unset_global','master_reports')
-                   );
-    }
-
-    /**
-     * Show the form for editing the specified resource.
-     *
-     * @param  \App\Models\Institution  $institution
-     * @return \Illuminate\Http\Response
-     */
-    public function edit($id)
-    {
-        return redirect()->route('institutions.show', [$id]);
     }
 
     /**
@@ -400,7 +201,7 @@ class InstitutionController extends Controller
         }
 
         // if only updating is_active, do it now
-        if (count($input) == 1) {
+        if (count($input) == 2 && isset($input['is_active'])) {
             $institution->update([ 'is_active' => $input['is_active'] ]);
             return response()->json(['result' => true]);
         }
