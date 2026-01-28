@@ -4,7 +4,7 @@ use Illuminate\Support\Facades\Schema;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Database\Migrations\Migration;
 
-class CreateProvidersTable extends Migration
+class CreateConnectionsTable extends Migration
 {
     /**
      * Run the migrations.
@@ -13,16 +13,15 @@ class CreateProvidersTable extends Migration
      */
     public function up()
     {
-        Schema::create('providers', function (Blueprint $table) {
+        Schema::create('connections', function (Blueprint $table) {
 
             $global_db = DB::connection('globaldb')->getDatabaseName();
 
             $table->Increments('id');
-            $table->string('name');
             $table->boolean('is_active')->default(1);
-            $table->boolean('allow_inst_specific')->default(0);
             $table->unsignedInteger('global_id')->nullable();
             $table->unsignedInteger('inst_id')->default(1); // inst_id=1 is consorta-wide
+            $table->unsignedInteger('group_id')->nullable();
             $table->string('selected_release',6)->nullable();
             $table->timestamps();
 
@@ -38,6 +37,6 @@ class CreateProvidersTable extends Migration
      */
     public function down()
     {
-        Schema::dropIfExists('providers');
+        Schema::dropIfExists('connections');
     }
 }
