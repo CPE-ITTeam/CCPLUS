@@ -5,9 +5,10 @@ use DB;
 use App\Models\Report;
 use App\Models\ConnectionField;
 use App\Models\Consortium;
-use App\Models\Provider;
+use App\Models\Connection;
 use App\Models\Credential;
 use App\Models\HarvestLog;
+use App\Models\InstitutionGroup;
 use Illuminate\Database\Eloquent\Model;
 
 class GlobalProvider extends Model
@@ -84,9 +85,9 @@ class GlobalProvider extends Model
         return $this->hasMany('App\Models\ItemReport');
     }
 
-    public function consoProviders()
+    public function connections()
     {
-        return $this->hasMany('App\Models\Provider', 'global_id');
+        return $this->hasMany('App\Models\Connection', 'global_id');
     }
 
     public function registries()
@@ -170,71 +171,109 @@ class GlobalProvider extends Model
     }
 
     // Return an array of connected institution IDs
-    // NOTE: caller should include with("consoProviders") before using this on a collection
     public function connectedInstitutions()
     {
-        if ($this->consoProviders->count() == 0) return [];
-        return $this->consoProviders->pluck('inst_id')->toArray();
+        $all_ids = array();
+        foreach ($this->connections as $cnx) {
+            $cnx_inst_ids = $cnx->institutionIds();
+            $all_ids = array_unique(array_merge($all_ids, $cnx_inst_ids));
+        }
+        return $all_ids;
+    }
+
+    // Return an array of connected group IDs
+    public function connectedGroups()
+    {
+        return $this->connections->whereNotNull('group_id')->pluck('group_id')->toArray();
     }
 
     // Build and return an array of by-report assignments
-    // NOTE: caller should include with("consoProviders","consoProviders.reports") before using this on a collection
-    public function enabledReports()
+    //   $reports[
+    //            'PR' = ['available' => T/F, 'conso' => T/F,
+    //                    'insts' => [id,id,id,id...] || 'insts' = 'ALL' ,
+    //                    'groups' => [id,id,id,id,...] || 'groups' = 'ALL' ] ,
+    //            ... for 'DR','TR','IR'
+    //           ]
+    public function enabledReports($inst = null)
     {
+        $consoAdmin = auth()->user()->isConsoAdmin();
+
         // Setup array for each master report
         $reports = array();
+        $available = $this->master_reports;
+        if (is_null($available)) $available = [];
+
+        $limitInsts  = ($consoAdmin) ? [] : auth()->user()->adminInsts();
+        $limitGroups = ($consoAdmin) ? [] : auth()->user()->adminGroups();
         foreach ($this->global_masters as $mr) {
-            $reports[$mr->name] = array();
-        }
-        if ($this->consoProviders->count() == 0) return $reports;
-
-        // get consortium-wide settings
-        $consoWide = $this->consoProviders->where('inst_id',1)->first();
-        if ($consoWide) {
-            foreach ($consoWide->reports as $rpt) {
-                $reports[$rpt->name] = "ALL";
+            $rec = array('conso' => false, 'insts' => [], 'groups' => [], 'requested' => false);
+            $rec['available'] = in_array($mr->id,$available);
+            // If report not available or not connected, update $reports and get next report type
+            if ( !$rec['available'] || $this->connections->count() == 0) {
+                $reports[$mr->name] = $rec;
+                continue;
             }
-        }
-
-        // Get/build inst-specific assignments
-        $instSpecific = $this->consoProviders->where('inst_id','<>',1);
-        foreach ($instSpecific as $instProv) {
-            foreach ($instProv->reports as $rpt) {
-                if ($reports[$rpt->name] == "ALL") continue;
-                $reports[$rpt->name][] = $instProv->inst_id;
+            // Set conso flag if the report is enabled conso-wide
+            $consoWide = $this->connections->where('inst_id',1)->first();
+            if ($consoWide) {
+                foreach ($consoWide->reports as $rpt) {
+                    $rec['conso'] = true;
+                }
             }
+            // Build role-sensitive, scoped report assignments from all connection that are either
+            // not conso-wide or for a specific $inst (used for credentials)
+            $connections = (is_null($inst)) ? $this->connections->where('inst_id','<>',1)
+                                            : $this->connections->where('inst_id',$inst);
+            foreach ($connections as $cnx) {
+                $rpt = $cnx->reports->where('id',$mr->id)->first();
+                if ($rpt && !$rec['conso']) {
+                    if (!is_null($cnx->inst_id) && ($consoAdmin || in_array($cnx->inst_id,$limitInsts))) {
+                        if ( !in_array($cnx->inst_id,$rec['insts']) ) {
+                            $rec['insts'][] = $cnx->inst_id;
+                        }
+                    } else if (!is_null($cnx->group_id) && ($consoAdmin || in_array($cnx->group_id,$limitGroups))) {
+                        if ( !in_array($cnx->group_id,$rec['groups']) ) {
+                            $rec['groups'][] = $cnx->group_id;
+                        }
+                    }
+                }
+            }
+            $rec['requested'] = (count($rec['insts'])>0);   // set it, was initialized false
+            $reports[$mr->name] = $rec;
         }
         return $reports;
     }
 
-    /* Update (conso-level Provider) report assignments 
-     *  @param  Array   conso_ids  (consortium report ID's to match on)
+    /* Update connection report assignments 
+     *  @param  Array   conso_ids : report ID's
      *  @param  String  type : operation to perform
-     *  @return Integer deleted : count of providers deleted
+     *                   'detach' : IDs in $conso_ids currently attached to any non-conso connection(s) are detached
+     *                   'attach' : IDs in $conso_ids are attached to all non-conso connections
+     *  @return Integer deleted : count of connections deleted
      */
     public function updateReports($conso_ids, $type) {
         $deleted = 0;
 
-        // Loop through all (non-consortium) providers connected to the global
-        $inst_provs = $this->consoProviders()->with('reports')->where('inst_id','<>',1)->get();
-        foreach ($inst_provs as $prov) {
+        // Loop through all (non-consortium) connections connected to the global
+        // (will include group-connections since their inst_id should be null)
+        $connections = $this->connections()->with('reports')->where('inst_id','<>',1)->get();
+        foreach ($connections as $cnx) {
 
             // Get IDs to add/remove
-            $current_ids = $prov->reports->pluck('id')->toArray();
-            $changed_ids = ($type=="attach") ? array_diff($conso_ids, $current_ids)
-                                             : array_intersect($current_ids, $conso_ids);
+            $current_ids = $cnx->reports->pluck('id')->toArray();
+            $changed_ids = ($type=="attach") ? $conso_ids : array_intersect($current_ids, $conso_ids);
 
             // Add/Remove the report connection(s)
             foreach ($changed_ids as $r) {
                 if ($type == "attach") {
-                    $prov->reports()->attach($r);
+                    $cnx->reports()->attach($r);
                 } else {
-                    $prov->reports()->detach($r);
+                    $cnx->reports()->detach($r);
                 }
             }
-            // If there are no remaining reports attached for this provider, delete it
-            if ($type == "detach" && $prov->reports()->count() == 0) {
-                $prov->delete();
+            // If there are no remaining reports attached for this connection, delete it
+            if ($type == "detach" && $cnx->reports()->count() == 0) {
+                $cnx->delete();
                 $deleted++;
             }
         }
@@ -256,30 +295,31 @@ class GlobalProvider extends Model
         $unused_fields = ($registry) ? $this->all_connectors->whereNotIn('id',$registry->connectors)->pluck('name')->toArray()
                                      : array();
 
-        // Get active consortia
+        // Get active consortium instances and loop on them
         $instances = Consortium::where('is_active',1)->get();
         $keepDB  = config('database.connections.consodb.database');
-
-        // Setup updates array for all related consortial providers
-        $prov_updates = array('name' => $this->name, 'is_active' => $this->is_active);
         foreach ($instances as $instance) {
-            // switch the database connection
+            // set the database connection
             config(['database.connections.consodb.database' => "ccplus_" . $instance->ccp_key]);
             try {
                 DB::reconnect('consodb');
             } catch (\Exception $e) {
                 continue;
             }
-            // Update the providers table (name and/or is_active)
-            $con_prov = Provider::where('global_id',$this->id)->first();
-            if (!$con_prov) continue;
-            $was_active = $con_prov->is_active;
-            $con_prov->update($prov_updates);
+
+            // Assign current global is_active value to all connections (keep prior value for late)
+            $conns = Connection::where('global_id',$this->id)->get(['id','is_active']);
+            $_cnx = $conns->first();
+            if (!$_cnx) continue;
+            $was_active = $_cnx->is_active;
+            $conns->update(['is_active' => $this->is_active]);
 
             // Detach any reports that are no longer available
-            foreach ($con_prov->reports as $rpt) {
-                if (!in_array($rpt->id,$global_reports)) {
-                    $con_prov->reports()->detach($rpt->id);
+            foreach ($conns as $cnx) {
+                foreach ($cnx->reports as $rpt) {
+                    if (!in_array($rpt->id,$global_reports)) {
+                        $cnx->reports()->detach($rpt->id);
+                    }
                 }
             }
 
@@ -298,19 +338,19 @@ class GlobalProvider extends Model
                     }
                 }
                 if ($cred->isComplete()) {
-                    // cred is marked Enabled, but provider just went inactive, suspend it
-                    if ($cred->status == 'Enabled' && $was_active && !$con_prov->is_active ) {
+                    // cred is marked Enabled, but global just went inactive, suspend it
+                    if ($cred->status == 'Enabled' && $was_active && !$this->is_active ) {
                         $cred_updates['status'] = 'Suspended';
                     }
-                    // cred is marked Suspended, but provider is now active with active institution, enable it
-                    if ($cred->status == 'Suspended' && !$was_active && $con_prov->is_active &&
+                    // cred is marked Suspended, but global is now active with active institution, enable it
+                    if ($cred->status == 'Suspended' && !$was_active && $this->is_active &&
                         $cred->institution->is_active) {
                         $cred_updates['status'] = 'Enabled';
                     }
                     // cred status is marked Incomplete
                     if ($cred->status == 'Incomplete') {
-                        // if provider and institution are active, enable it, otherwise mark suspended
-                        $cred_updates['status'] = ($con_prov->is_active && $cred->institution->is_active) ?
+                        // if global and institution are active, enable it, otherwise mark suspended
+                        $cred_updates['status'] = ($this->is_active && $cred->institution->is_active) ?
                                                         'Enabled' : 'Suspended';
                     }
                 // If required connectors are missing value(s), mark them and update cred status to Incomplete
