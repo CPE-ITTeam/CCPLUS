@@ -19,6 +19,8 @@
   });
   const authStore = useAuthStore();
   const is_conso_admin = authStore.is_conso_admin;
+  const admin_insts = authStore.admin_insts;
+  const admin_groups = authStore.admin_groups;
   const emit = defineEmits(['update:modelValue']);
 
   const defaultMap = {
@@ -34,6 +36,10 @@
   };
 
   const isObjectValue = computed(() => typeof props.modelValue === 'object' && props.modelValue !== null);
+  const can_admin = computed(() => 
+    (is_conso_admin || (admin_insts.filter(ii => props.modelValue.insts.includes(ii)).length>0)
+                    || (admin_groups.filter(gg => props.modelValue.groups.includes(gg)).length>0))           
+  );
 
   const meta = computed(() => {
     if (!isObjectValue.value) {
@@ -44,23 +50,28 @@
       };
     }
 
-    const { conso, available, requested } = props.modelValue;
+    const { conso, available, requested, insts, groups } = props.modelValue;
 
     if (!available) {
       return { icon: 'mdi-minus-box-outline', color: '#cccccc', clickable: false };
     }
 
     if (conso) {
-      let ca = (is_conso_admin && typeof(props.modelValue.requested) == 'undefined')
-      return { icon: 'mdi-checkbox-multiple-marked', color: '#00dd00', clickable: ca };
+      return (is_conso_admin)
+             ? { icon: 'mdi-checkbox-multiple-marked', color: '#00dd00', clickable: true }
+             : { icon: 'mdi-checkbox-multiple-marked', color: '#555555', clickable: false };
+    }
+
+    if (requested) {
+      return ( can_admin.value )
+             ? { icon: 'mdi-checkbox-marked-outline', color: '#00dd00', clickable: true }
+             : { icon: 'mdi-checkbox-marked-outline', color: '#555555', clickable: false };
+// IF we decide to set different icons for group-enabled toggles, this might be handy...
+//   return { icon: 'mdi-checkbox-multiple-marked-outline', color: '#00dd00', clickable: true };
     }
 
     if (!conso && !requested) {
       return { icon: 'mdi-plus-box-outline', color: '#555555', clickable: true };
-    }
-
-    if (!conso && requested) {
-      return { icon: 'mdi-checkbox-marked-outline', color: '#00dd00', clickable: true };
     }
 
     return { icon: 'mdi-help-circle', color: '#999999', clickable: false };
@@ -72,6 +83,7 @@
     const { conso, available, requested } = props.modelValue;
     if (!available) return 'Unavailable';
     if (conso) return 'Connected for Consortium';
+    if (requested) return 'Connected for 1+ institutions';
     if (!conso && !requested) return 'Click to Request';
     if (!conso && requested) return 'Click to Cancel Request';
     return 'Unknown State';
@@ -87,18 +99,14 @@
         'true': false, 'false': true,
       };
       const next = toggles[props.modelValue];
+      if (typeof(next)=='undefined') return;
       if (next) emit('update:modelValue', next);
       return;
     }
 
-    const { conso, available, requested } = props.modelValue;
-    // if 'requested' is in modelValue, the toggle is for a credential
-    if ( typeof(props.modelValue.requested) != 'undefined') {
-      emit('update:modelValue', { available, conso, requested: !requested });
-    // requested is NOT in modelValue, the toggle is for a connection
-    } else  {
-      emit('update:modelValue', { available, conso: !conso });
-    }
+    // when isObjectValue = true means its a report-toggle, emit it upstairs
+    const { conso, available, requested, insts, groups } = props.modelValue;
+    emit('update:modelValue', { available, conso, requested, insts, groups });
   }
 </script>
 
