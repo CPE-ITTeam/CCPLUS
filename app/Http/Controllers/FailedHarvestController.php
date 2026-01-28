@@ -4,7 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\FailedHarvest;
 use App\Models\Institution;
-use App\Models\Provider;
+use App\Models\GlobalProvider;
 use App\Models\Report;
 use App\Models\Credential;
 use App\Models\HarvestLog;
@@ -19,7 +19,7 @@ class FailedHarvestController extends Controller
      */
     public function index(Request $request)
     {
-        abort_unless(auth()->user()->hasAnyRole(['Admin','Manager']), 403);
+        abort_unless(auth()->user()->hasRole('Admin'), 403);
 
         // Handle some optional inputs
         $inst = ($request->input('inst')) ? $request->input('inst') : null;
@@ -46,12 +46,12 @@ class FailedHarvestController extends Controller
                 array_unshift($institutions, ['id' => 0, 'name' => 'All Institutions']);
             }
             if (!is_null($prov)) {
-                $prov_name = Provider::where('id', '=', $prov)->value('name');
+                $prov_name = GlobalProvider::where('id', $prov)->value('name');
                 if ($prov_name != "") {
                     $details .= ($details == "") ? $prov_name : ", " . $prov_name;
                 }
             }
-            $providers = Provider::get(['id', 'name'])->toArray();
+            $providers = GlobalProvider::get(['id', 'name'])->toArray();
             array_unshift($providers, ['id' => 0, 'name' => 'All Providers']);
 
             if (!is_null($rept)) {
