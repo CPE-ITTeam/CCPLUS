@@ -16,7 +16,7 @@ const {
   authErrorMessage: errorMessage,
   authSuccessMessage: successMessage,
 } = storeToRefs(useAuthStore());
-const { login, clearLoginError, setConsoKey } = useAuthStore();
+const { login, clearLoginError, setConso } = useAuthStore();
 const { consortia } = storeToRefs(useCCPlusStore());
 const { getConsortia } = useCCPlusStore();
 // Functions
@@ -26,7 +26,7 @@ const fetchConsortia = async () => {
     if (consortia.value.length == 1) {
       preset_conso.value = consortia.value[0].name;
       consortium.value = consortia.value[0];
-      setConsoKey(consortium.value['ccp_key']);
+      setConso(consortium.value['id'],consortium.value['ccp_key']);
     }
   } catch {}
 }
