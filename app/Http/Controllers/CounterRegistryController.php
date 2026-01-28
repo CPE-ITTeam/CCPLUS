@@ -6,7 +6,6 @@ use App\Models\GlobalProvider;
 use App\Models\ConnectionField;
 use App\Models\Consortium;
 use App\Models\CounterRegistry;
-use App\Models\Provider;
 use App\Models\Report;
 use App\Models\Credential;
 use Illuminate\Http\Request;
@@ -334,7 +333,7 @@ class CounterRegistryController extends Controller
                 $global_provider->update(['selected_release' => $_release]);
             }
 
-            // If changes implicate consortia-provider settings, apply to all instances
+            // If changes implicate connection settings, apply to all instances
             if ($global_provider->name != $orig_name || $global_provider->is_active!=$orig_isActive || $connectors_changed) {
                 $global_provider->appyToInstances();
             }
