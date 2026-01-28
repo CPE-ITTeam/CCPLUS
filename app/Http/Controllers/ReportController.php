@@ -15,7 +15,7 @@ use App\Models\Institution;
 use App\Models\InstitutionType;
 use App\Models\InstitutionGroup;
 use App\Models\GlobalProvider;
-use App\Models\Provider;
+use App\Models\Connection;
 use App\Models\Platform;
 use App\Models\Publisher;
 use App\Models\DataType;
@@ -23,6 +23,7 @@ use App\Models\SectionType;
 use App\Models\AccessType;
 use App\Models\AccessMethod;
 use App\Models\HarvestLog;
+use App\Models\Credential;
 use App\Services\HarvestService;
 use League\Csv\Writer;
 use SplTempFileObject;
@@ -89,7 +90,7 @@ class ReportController extends Controller
         $counter_reports[] = $intro;
 
         // Get the current consortium
-        $con = Consortium::where("ccp_key", session("ccp_con_key"))->first();
+        $con = Consortium::where("ccp_key", session("con_key"))->first();
         // Only display consortium name for admins
         $conso = ($con && $thisUser->hasRole('Admin')) ? $con->name : "";
 
@@ -187,11 +188,11 @@ class ReportController extends Controller
         $_insts = $thisUser->viewerInsts(); // returns [1] for conso or serverAdmin
         $limit_by_inst = ($_insts === [1]) ? array() : $_insts;
 
-        // Pull globalProvider IDs based on the consortium providers defined for institutions
+        // Pull globalProvider IDs based on the consortium connections defined for institutions
         // in $limit_by_inst ; everyone gets consortium-wide providers (where inst_id=1)
-        $global_ids = Provider::when(count($limit_by_inst) > 0, function ($qry) use ($limit_by_inst) {
-                                return $qry->where('inst_id',1)->orWhereIn('inst_id',$limit_by_inst);
-                            })->select('global_id')->distinct()->pluck('global_id')->toArray();
+        $global_ids = Connection::when(count($limit_by_inst) > 0, function ($qry) use ($limit_by_inst) {
+                                    return $qry->where('inst_id',1)->orWhereIn('inst_id',$limit_by_inst);
+                                })->select('global_id')->distinct()->pluck('global_id')->toArray();
 
         // Get allowed/visible institutions
         $return_data['institutions'] =
@@ -214,10 +215,10 @@ class ReportController extends Controller
 
         // Pull global platforms that have data
         $limit_by_prov = array_intersect($global_ids, $provs_with_data);
-        $globals = GlobalProvider::with('consoProviders','consoProviders.reports')->whereIn('id',$limit_by_prov)
+        $globals = GlobalProvider::with('connections','connections.reports')->whereIn('id',$limit_by_prov)
                                 ->orderBy('name','ASC')->get(['id','name']);
 
-        $globals = GlobalProvider::with('consoProviders','consoProviders.reports')->whereIn('id',$global_ids)
+        $globals = GlobalProvider::with('connections','connections.reports')->whereIn('id',$global_ids)
                                 ->orderBy('name','ASC')->get(['id','name']);
 
         // Build platforms from globals connected to insts in limit_by_inst and add report assignments
@@ -369,7 +370,7 @@ class ReportController extends Controller
         }
 
         // Setup providers filter options
-        $globals = GlobalProvider::with('consoProviders','consoProviders.reports')->whereIn('id',$provs_with_data)
+        $globals = GlobalProvider::with('connections','connections.reports')->whereIn('id',$provs_with_data)
                                  ->orderBy('name','ASC')->get(['id','name']);
 
         // Filter out limited providers and add report assignments and institution
@@ -486,7 +487,7 @@ class ReportController extends Controller
             }
         }
 
-        $con = Consortium::where("ccp_key", session("ccp_con_key"))->first();
+        $con = Consortium::where("ccp_key", session("con_key"))->first();
         $conso = ($con) ? $con->name : '';
 
         // Get list of saved reports for this user
@@ -510,7 +511,7 @@ class ReportController extends Controller
 
         // Get/set global things
         $filters = self::$input_filters;
-        $con_key = Session::get('ccp_con_key');
+        $con_key = Session::get('con_key');
         $con_name = Consortium::where('ccp_key', '=', $con_key)->value('name');
         $all_filters = ReportFilter::all();
 
@@ -1120,7 +1121,7 @@ class ReportController extends Controller
         }
         $writer->output($csv_file);
         if ($thisUser->email == 'Administrator') {
-            $_user =  session('ccp_con_key', '') . "_" . "Administrator";
+            $_user =  session('con_key', '') . "_" . "Administrator";
         } else {
             $_user = $thisUser->email;
         }
