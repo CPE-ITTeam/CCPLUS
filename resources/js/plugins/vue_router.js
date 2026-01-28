@@ -91,13 +91,13 @@ export const router = createRouter({
           ]
         },
         { path: '/admin/connections', name: 'ConnectionsTable', show:1,
-          meta: { title: 'Platform Connections', layout: AuthenticatedLayout, role: 'ConsoAdmin', key:0, level:2 }, 
+          meta: { title: 'Platform Connections', layout: AuthenticatedLayout, role: 'GroupAdmin', key:0, level:2 }, 
           component: markRaw(ConnectionsTable),
         },
-        { path: '/admin/credentials', name: 'Harvesting Credentials', show:1,
+        { path: '/credentials', name: 'Credentials', show:1,
           meta: { title: 'Credentials', layout: AuthenticatedLayout, role: 'Admin', level:2 }, 
           children: [
-            { path: '/admin/connections', name: 'CredentialsTable', show:1,
+            { path: '/admin/credentials', name: 'CredentialsTable', show:1,
               meta: { title: 'Credentials', layout: AuthenticatedLayout, role: 'Admin', key:0, level:3 }, 
               component: markRaw(CredentialsTable),
             },
