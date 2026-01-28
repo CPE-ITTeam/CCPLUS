@@ -115,7 +115,7 @@ class GlobalAdminController extends Controller
         // Update the active configuration and the session to use the new key
         $conso_db = "ccplus_" . $key;
         config(['database.connections.consodb.database' => $conso_db]);
-        session(['ccp_con_key' => $key]);
+        session(['ccp_key' => $key]);
         try {
             DB::reconnect('consodb');
         } catch (\Exception $e) {
