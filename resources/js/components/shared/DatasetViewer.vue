@@ -1,4 +1,4 @@
-<!-- components/DatasetViewer.vue -->
+<!-- components/shared/DatasetViewer.vue -->
 <script setup>
   import { ref, reactive, watch, onBeforeMount, computed } from 'vue';
   import { useAuthStore } from '@/plugins/authStore.js';
@@ -7,6 +7,7 @@
   import DataToolbar from './DataToolbar.vue';
   import DataTable from './DataTable.vue';
   import DataForm from './DataForm.vue';
+  import ReportToggle from '../dialogs/ReportToggle.vue';
 
   const authStore = useAuthStore();
   const is_admin = authStore.is_admin;
@@ -22,18 +23,21 @@
 
   // Reactive state
   var dtKey = ref(0);
-  var dialogType = ref('');
-  var dialogTitle = ref('Item');
+  var formDialogType = ref('');
+  var formDialogTitle = ref('Item');
+  var reptDialogSubtitle = ref('Item');
   var allItems = reactive([]);
   var filteredItems = reactive([]);
+  var reptItem = reactive({});
   const filterOptions = reactive({});
   const headers = ref([]);
   const searchFields = ref([]);
   const search = ref('');
   const selectedRows = ref([]);
   const showSelectedOnly = ref(false);
-  const dialogOpen = ref(false);
+  const formDialogOpen = ref(false);
   const editingItem = ref(null);
+  const reptDialog = ref(false);
   const editableFields = ref([]);
   const urlRoot = ref('');
   var itemOptions = {};
@@ -57,7 +61,7 @@
       filterOptions.role.items = filterOptions.role.items.filter(r => !r.name.includes('Consortium'))
     }
     return {
-      type: dialogType.value,
+      type: formDialogType.value,
       fields: [...config.fields],
       requiredKeys: [...config.required],
       options: {...filterOptions},
@@ -69,7 +73,6 @@
     const config = datasetConfig[datasetKey];
     try {
       if (consoKey.value=='') return;
-//NOTE:: config.urls should also provide filter options (named by config.name)
       let itemsUrl = config.urlRoot+'/get';
       if (datasetKey == 'institutions' || datasetKey== 'platforms') {
         itemsUrl += (is_admin) ? '/admin' : '/viewer';
@@ -79,7 +82,7 @@
       filteredItems = [ ...data.records ];
       itemOptions = { ...data.options };
     } catch (error) {
-      console.error('Error fetching records for '+datasetKey+' : ', error);
+      console.log('Error fetching records for '+datasetKey+' : ', error);
     }
     // set datatable header, display, and editor options
     headers.value = [{ title: "", key: "" }];
@@ -128,8 +131,8 @@
 
   function handleEdit(item) {
     const config = datasetConfig[props.datasetKey];
-    dialogType.value = "Edit";
-    dialogTitle = "Edit "+config.dialogTitle;
+    formDialogType.value = "Edit";
+    formDialogTitle = "Edit "+config.dialogTitle;
     config.fields.forEach( (fld, idx) => {
       if (props.datasetKey=='institutions' && fld.name=='creds') {
         config.fields[idx]['visible'] = false;
@@ -138,17 +141,15 @@
       }
       // Set current values for specific fields
       if (fld.type == 'select' && fld.name == 'institutions') item['institutions'] = item.inst_id;
-      // if (fld.type == 'select' || fld.type == 'mselect' || fld.type == 'selectObj') {
-      // }
     });
     editingItem.value = {...item};
-    dialogOpen.value = true;
+    formDialogOpen.value = true;
   }
 
   function handleAddItem() {
     const config = datasetConfig[props.datasetKey];
-    dialogType.value = "Add";
-    dialogTitle = "Add New "+config.dialogTitle;
+    formDialogType.value = "Add";
+    formDialogTitle = "Add New "+config.dialogTitle;
     editingItem.value = {};
     config.fields.forEach( (fld, idx) => {
       // Skip fields not required for Add
@@ -161,7 +162,7 @@
       }
       config.fields[idx]['visible'] = true;
     });
-    dialogOpen.value = true;
+    formDialogOpen.value = true;
   }
 
   // function sortItems() {
@@ -198,8 +199,6 @@
       } else if (!filter.value) {
         continue;
       }
-// console.log('Filtering Col = '+filter.col);
-// console.log('Filter Type = '+filter.type);
 
       // Filter items by a single value
       if (filter.type == 'select') {
@@ -234,7 +233,7 @@ console.log('Filter by selectObj still needs work');
         failure.value = response.msg
       }
     } catch (error) {
-      console.error('Error deleting:', error);
+      console.log('Error deleting:', error);
     }
   }
 
@@ -256,12 +255,9 @@ console.log('Filter by selectObj still needs work');
           } else {
             failure.value = response.msg
           }
-        } catch {
-          console.error('Error updating status', error);
+        } catch (error) {
+          console.log('Error updating status', error);
         }
-      }
-      if (field == 'connected') {
-console.log('Handling for connected toggle not written yet');
       }
       if (field == 'includeZeros') {
 console.log('Handling for includeZeros toggle not written yet');
@@ -269,50 +265,65 @@ console.log('Handling for includeZeros toggle not written yet');
     }
   }
 
-  async function handleReportUpdate(id, rept, flags) {
-    let a_idx = allItems.findIndex(ai => ai.id == id);
+  async function reportToggleSubmit(data) {
+    let a_idx = allItems.findIndex(ii => ii.id == data.id);
     if (a_idx >= 0) {
       let _item = Object.assign({}, allItems[a_idx]);
-
-      // if 'requested' is in flags, the toggle is for a credential
-      let url = "";
-      if ( typeof(flags.requested) != 'undefined') {
-        url = '/api/credentials/access';
-
-        // 'requested' NOT in flags, the toggle is for a connection
-      } else {
-        // if not conso admin, bail
-        if (!is_conso_admin) return;
-        url = '/api/connections/access';
-      }
-
       // Update the item
       try {
-        const response = await ccPost(url, {id: id, rept: rept, flags: flags});
+        const response = await ccPost("/api/connections/access",
+                                      {id: data.id, rept: data.rept, flags: data.flags});
         if (response.result) {
-          _item[rept] = flags;
+          _item[data.rept] = {...response.record};
+          reptItem.flags = {...data.flags};
           // Update value(s) in the item
           allItems.splice(a_idx,1,_item);
-          let f_idx = filteredItems.findIndex(fi => fi.id == id);
+          let f_idx = filteredItems.findIndex(fi => fi.id == data.id);
           if (f_idx >= 0) filteredItems.splice(f_idx,1,_item);
           dtKey.value++;
         } else {
           failure.value = response.msg
         }
-      } catch {
-        console.error('Error updating report toggle', error);
+      } catch (error) {
+        console.log('Error updating report toggle', error);
+      }
+    }
+    reptDialog.value = false;
+  }
+
+  // Report toggles work differently for connections and credentials
+  // Icons are grayed out if user roles don't allow them to be changed
+  // Role-testing boils down to admin rights (either conso-wide, inst-specific,
+  // or group-control over the group's member institutions)
+  // connections:
+  //    * Icon(s) launch the ReportToggle dialog to handle setting/updating
+  // credentials:
+  //    * Icon(s) launch DataForm component (same as the pencil icon) 
+  async function handleReportToggle(id, rept) {
+    let _idx = allItems.findIndex(ii => ii.id == id);
+    if (_idx >= 0) {
+      var theItem = Object.assign({}, allItems[_idx]);
+      // Connections emits launch the ReportToggle dialog
+      if (props.datasetKey == 'connections') {
+        reptItem = { 'id': id, 'rept': rept, 'flags': {...theItem[rept]} };
+        // Enable dialog
+        reptDialogSubtitle.value = (typeof(theItem.platform) != 'undefined') ? theItem.platform : "";
+        reptDialog.value = true;
+      // Clicking the report-toggles on the credentials dataset launches the edit() form
+      } else if (props.datasetKey == 'credentials') {
+        handleEdit(theItem);
       }
     }
   }
 
   async function handleFormSubmit(updatedValues) {
-    if (dialogType.value=='Edit') {
+    if (formDialogType.value=='Edit') {
       try {
         let url = urlRoot.value+'/update/'+editingItem.value.id;
         const response = await ccPatch(url, updatedValues);
         if (response.result) {
           let a_idx = allItems.findIndex(ai => ai.id == editingItem.value.id);
-          allItems.splice(a_idx,1,response.record);
+          if (a_idx >= 0) allItems.splice(a_idx,1,response.record);
           let f_idx = filteredItems.findIndex(fi => fi.id == editingItem.value.id);
           if (f_idx >= 0) filteredItems.splice(f_idx,1,response.record);
           success.value = response.msg
@@ -322,9 +333,9 @@ console.log('Handling for includeZeros toggle not written yet');
           failure.value = response.msg
         }
       } catch (error) {
-        console.error('Error updating:', error);
+        console.log('Error updating:', error);
       }
-    } else if (dialogType.value=='Add') {
+    } else if (formDialogType.value=='Add') {
       try {
         let url = urlRoot.value+'/store';
         const response = await ccPost(url, updatedValues);
@@ -338,16 +349,17 @@ console.log('Handling for includeZeros toggle not written yet');
           failure.value = response.msg
         }
       } catch (error) {
-        console.error('Error adding:', error);
+        console.log('Error adding:', error);
       }
     }
-    dialogOpen.value = false;
+    formDialogOpen.value = false;
     editingItem.value = null;
   }
 
   function handleFormCancel() {
-    dialogOpen.value = false;
+    formDialogOpen.value = false;
     editingItem.value = null;
+    reptDialog.value = false;
   }
   const emit = defineEmits(['updateConso','setFilter']);
   onBeforeMount(() => loadDataset(props.datasetKey));
@@ -366,12 +378,12 @@ console.log('Handling for includeZeros toggle not written yet');
                :showSelectedOnly="showSelectedOnly" :headers="headers" :editableFields="editableFields"
                :searchFields="searchFields" :selectedRows="selectedRows" @update:selectedRows="selectedRows = $event"
                @edit="handleEdit" @delete="handleDelete" @update:toggle="handleToggleUpdate"
-               @update:report="handleReportUpdate"/>
+               @update:report="handleReportToggle"/>
 
-    <v-dialog v-if="editingItem && isEditable" v-model="dialogOpen" max-width="600px">
+    <v-dialog v-if="editingItem && isEditable" v-model="formDialogOpen" max-width="600px">
       <v-card>
         <v-card-title class="text-indigo-darken-2 pa-6 d-flex justify-space-between align-center">
-          <span>{{ dialogTitle }}</span>
+          <span>{{ formDialogTitle }}</span>
           <v-tooltip text="Cancel" location="bottom">
             <template #activator="{ props }">
               <v-btn icon variant="outlined" class="close-btn" v-bind="props" @click="handleFormCancel">
@@ -383,6 +395,31 @@ console.log('Handling for includeZeros toggle not written yet');
         <v-card-text>
           <DataForm :schema="formSchema" :initialValues="editingItem"
                     @submit="handleFormSubmit" @cancel="handleFormCancel" />
+        </v-card-text>
+      </v-card>
+    </v-dialog>
+
+    <v-dialog v-model="reptDialog" max-width="600px">
+      <v-card>
+        <v-card-title class="text-indigo-darken-2 d-flex justify-space-between align-center">
+          <span>{{ reptItem.rept }} Report Connection(s)</span>
+          <v-tooltip text="Cancel" location="bottom">
+            <template #activator="{ props }">
+              <v-btn icon variant="outlined" class="close-btn" v-bind="props" @click="handleFormCancel">
+                <v-icon size="18">mdi-close</v-icon>
+              </v-btn>
+            </template>
+          </v-tooltip>
+        </v-card-title>
+        <v-card-subtitle v-if="reptDialogSubtitle.length>0" class="d-flex align-center">
+          <v-col class="d-flex pa-0 ma-0" cols="10"><strong>{{ reptDialogSubtitle }}</strong></v-col>
+          <v-col class="d-flex ma-0 justify-end" cols="2">
+            <v-icon title="Platform ID">mdi-crosshairs-gps</v-icon>&nbsp; {{ reptItem.id }}
+          </v-col>
+        </v-card-subtitle>
+        <v-card-text>
+          <ReportToggle :item=reptItem :options="filterOptions"
+                        @submit="reportToggleSubmit" @cancel="handleFormCancel" />
         </v-card-text>
       </v-card>
     </v-dialog>
