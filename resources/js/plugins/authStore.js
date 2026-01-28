@@ -9,6 +9,8 @@ export const useAuthStore = defineStore('useAuthStore', {
     ccp_key: '',
     user: {'id': null, 'name': '', 'inst_id': null},
     roles: [],
+    adminInsts: [],
+    adminGroups: [],
     token: useLocalStorage('user-token', null),
     authErrorMessage: null,
     authSuccessMessage: null,
@@ -27,8 +29,11 @@ export const useAuthStore = defineStore('useAuthStore', {
     },
     is_group_admin: (state) => {
       return (state.isAuthenticated &&
-              state.roles.some( r => (r.name == 'ServerAdmin' ||
-                                     (r.name=='Admin' && (r.inst_id==1 || r.group_id>0))) ));
+               (state.roles.some( r => (r.name == 'ServerAdmin' ||
+                                       (r.name=='Admin' && (r.inst_id==1 || r.group_id>0)))
+                                ) ||
+                state.roles.filter( r => r.name == 'Admin' ).length > 1)
+             );
     },
     is_admin: (state) => {
         return (state.isAuthenticated &&
@@ -44,6 +49,8 @@ export const useAuthStore = defineStore('useAuthStore', {
       return (state.isAuthenticated) ?
           new Date(Date.parse(state.user.fiscalYr +" 1, 2019")).getMonth()+1 : '';
     },
+    admin_insts: (state) => state.adminInsts,
+    admin_groups: (state) => state.adminGroups,
     getToken: (state) => state.token,
     getToken: (state) => state.token,
     isLoggedIn: (state) => state.isAuthenticated,
@@ -61,6 +68,8 @@ export const useAuthStore = defineStore('useAuthStore', {
           this.token = response.data.data.token;
           this.user = { ...response.data.data.user };
           this.roles = [ ...response.data.data.roles ];
+          this.adminInsts = [ ...response.data.data.adminInsts ];
+          this.adminGroups = [ ...response.data.data.adminGroups ];
           this.ccp_key = response.data.data.consoKey;
           this.isAuthenticated = true;
           if ( this.is_admin ) {
