@@ -8,7 +8,7 @@ use App\Models\SavedReport;
 use App\Models\Report;
 use App\Models\ReportField;
 use App\Models\ReportFilter;
-use App\Models\Provider;
+use App\Models\Connection;
 use App\Models\Platform;
 use App\Models\Institution;
 use App\Models\InstitutionGroup;
@@ -43,7 +43,7 @@ class SavedReportController extends Controller
         $counter_reports[] = $intro;
 
         // Get the current consortium
-        $con = Consortium::where("ccp_key", session("ccp_con_key"))->first();
+        $con = Consortium::where("ccp_key", session("con_key"))->first();
         // Only display consortium name for admins
         $conso = ($con && $thisUser->hasRole('Admin')) ? $con->name : "";
 
@@ -132,14 +132,14 @@ class SavedReportController extends Controller
         $total_insts = Institution::where('is_active', true)->count() - 1;   // inst_id=1 doesn't count...
         $inst_count = ($user_is_admin || $user_is_viewer) ? $total_insts : 1;
         if ($user_is_admin) {
-            $prov_count = Provider::where('is_active', true)->count();
+            $cnx_count = Connection::where('is_active', true)->count();
         } else {
-            $prov_count = Provider::where('is_active', true)
-                                  ->where(function ($q) use ($user_inst) {
-                                      return $q->where('inst_id', 1)
+            $cnx_count = Connection::where('is_active', true)
+                                   ->where(function ($q) use ($user_inst) {
+                                       return $q->where('inst_id', 1)
                                                ->orWhere('inst_id', $user_inst);
-                                  })
-                                  ->count();
+                                   })
+                                   ->count();
         }
 
         // Get 10 most recent harvests
@@ -202,7 +202,7 @@ class SavedReportController extends Controller
 
         return view('savedreports.home', compact(
             'inst_count',
-            'prov_count',
+            'cnx_count',
             'harvests',
             'total_insts',
             'system_alerts',
