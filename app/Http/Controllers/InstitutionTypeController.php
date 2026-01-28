@@ -216,7 +216,7 @@ class InstitutionTypeController extends Controller
         $type_sheet->getColumnDimension('B')->setAutoSize(true);
 
         // Give the file a meaningful filename
-        $fileName = "CCplus_" . session('ccp_con_key', '') . "_InstitutionTypes." . $output_type;
+        $fileName = "CCplus_" . session('con_key', '') . "_InstitutionTypes." . $output_type;
 
         // redirect output to client browser
         if ($output_type == 'xlsx') {
