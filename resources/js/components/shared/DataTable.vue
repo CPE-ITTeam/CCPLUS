@@ -132,43 +132,37 @@
       </template>
 
       <template v-if="hasConnectedColumn" #item.connected="{ item }">
-        <!-- <ToggleIcon v-model="item.connected" :toggleable="true" @change="emitEdit(item)" /> -->
         <ToggleIcon v-model="item.connected" :toggleable="true"
                     @update:modelValue="$emit('update:toggle',item.id,'connected',item.status)" />
       </template>
 
       <template v-if="hasIncludeZerosColumn" #item.includeZeros="{ item }">
-        <!-- <ToggleIcon v-model="item.includeZeros" :toggleable="true" @change="emitEdit(item)" /> -->
         <ToggleIcon v-model="item.includeZeros" :toggleable="true"
                     @update:modelValue="$emit('update:toggle',item.id,'includeZeros',item.status)" />
       </template>
 
       <!-- PR Slot -->
       <template #item.PR="{ item }">
-        <!-- <ToggleIcon v-model="item.PR" :toggleable="true" @change="emitEdit(item)" /> -->
         <ToggleIcon v-model="item.PR" :toggleable="true"
-                    @update:modelValue="$emit('update:report',item.id,'PR',item.PR)" />
+                    @update:modelValue="$emit('update:report',item.id,'PR')" />
       </template>
 
       <!-- DR Slot -->
       <template #item.DR="{ item }">
-        <!-- <ToggleIcon v-model="item.DR" :toggleable="true" @change="emitEdit(item)" /> -->
         <ToggleIcon v-model="item.DR" :toggleable="true"
-                    @update:modelValue="$emit('update:report',item.id,'DR',item.DR)" />
+                    @update:modelValue="$emit('update:report',item.id,'DR')" />
       </template>
 
       <!-- TR Slot -->
       <template #item.TR="{ item }">
-        <!-- <ToggleIcon v-model="item.TR" :toggleable="true" @change="emitEdit(item)" /> -->
         <ToggleIcon v-model="item.TR" :toggleable="true"
-                    @update:modelValue="$emit('update:report',item.id,'TR',item.TR)" />
+                    @update:modelValue="$emit('update:report',item.id,'TR')" />
       </template>
 
       <!-- IR Slot -->
       <template #item.IR="{ item }">
-        <!-- <ToggleIcon v-model="item.IR" :toggleable="true" @change="emitEdit(item)" /> -->
         <ToggleIcon v-model="item.IR" :toggleable="true"
-                    @update:modelValue="$emit('update:report',item.id,'IR',item.IR)" />
+                    @update:modelValue="$emit('update:report',item.id,'IR')" />
       </template>
 
       <!-- Customer ID -->
@@ -201,22 +195,14 @@
       <!-- Actions column -->
       <template #item.actions="{ item }">
         <div v-if="item.can_edit || item.can_delete" class="d-flex ga-2 justify-end">
-<!--
-NOTE:: !"can_edit" hides icon; a gray/disable icon could be added instead of "nothing"
--->        
           <v-tooltip v-if="item.can_edit" text="Edit" location="top">
             <template v-slot:activator="{ props }">
               <v-icon icon="mdi-pencil" color="medium-emphasis" v-bind="props"
                       @click="$emit('edit', item)" />
             </template>
           </v-tooltip>
-<!--
-NOTE:: !"can_delete" hides icon; a gray/disable icon could be added instead of "nothing"
--->        
           <v-tooltip v-if="item.can_delete" text="Delete" location="top">
             <template v-slot:activator="{ props }">
-              <!-- <v-icon icon="mdi-delete" color="medium-emphasis" v-bind="props"
-                      @click="$emit('delete', item)"/> -->
               <v-icon icon="mdi-delete" color="medium-emphasis" v-bind="props"
                       @click="enableDialog(item)"/>
             </template>
