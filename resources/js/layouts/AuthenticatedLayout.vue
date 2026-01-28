@@ -63,6 +63,7 @@
           topRoute.children.forEach( (childRoute) => {
             if ( (childRoute.meta.role == "Admin" && is_admin) ||
                   (childRoute.meta.role == "ConsoAdmin" && is_conso_admin) ||
+                  (childRoute.meta.role == "GroupAdmin" && is_group_admin) ||
                   childRoute.meta.role == "Viewer") {
               // Hide specific grandchild route(s)
               if (childRoute.name === 'Institutions') { // Hide groups if not "Admin" for at least one group
@@ -84,7 +85,6 @@
   onMounted(() => {
     // Set homeUrl based on role
     homeUrl.value = (is_serveradmin || is_admin) ? "/admin" : "/reports";
-    console.log('Authenticated Layout Mounted');
   });
 </script>
 
