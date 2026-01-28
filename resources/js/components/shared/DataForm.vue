@@ -45,7 +45,6 @@
     return false;
   });
 
-  // defineEmits(['submit', 'cancel']);
   const emit = defineEmits(['submit', 'cancel']);
 
   function isToggleField(field) {
@@ -68,6 +67,7 @@
 
   // toggle-specific changes
   function toggleChanged(fieldName) {
+    // Show/hide institution/group fields when conso toggle changes
     if (fieldName=='conso') {
       consoFlag.value = !consoFlag.value;
       let _idx = m_schema.fields.findIndex(f => f.name=='institution') ;
@@ -76,6 +76,26 @@
       _idx = m_schema.fields.findIndex(f => f.name=='group') ;
       if (_idx >= 0) m_schema.fields[_idx]['visible'] = !consoFlag.value;
       if (typeof(formValues['group']) != 'undefined') formValues['group'] = null;
+    // update CREDENTIAL report field value (CONNECTIONS not handled here... they update via ReportToggle)
+    } else if (fieldName=='PR' || fieldName=='DR' || fieldName=='TR' || fieldName=='IR') {
+      // Ignore clicks on conso-icons ... conso is updated in connections
+      if (typeof(formValues[fieldName]) == 'undefined') return;
+      if (formValues[fieldName]['conso']) return;
+      // Update insts array for the report
+      if (typeof(formValues['inst_id']) != 'undefined') {
+        if (typeof(formValues[fieldName]['insts']) != 'undefined' &&
+            typeof(formValues[fieldName]['requested']) != 'undefined') {
+          var ridx = formValues[fieldName]['insts'].findIndex(ii => ii.id==formValues['inst_id']);
+          // Disable inst for the report
+          if (ridx >= 0) {
+            formValues[fieldName]['insts'].splice(ridx,1);
+          // Enable inst disabled report
+          } else {
+            formValues[fieldName]['insts'].push(formValues['inst_id']);
+          }
+          formValues[fieldName]['requested'] = !formValues[fieldName]['requested'];
+        }
+      }
     }
   }
 
