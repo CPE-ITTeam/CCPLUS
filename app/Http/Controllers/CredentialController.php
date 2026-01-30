@@ -36,21 +36,31 @@ class CredentialController extends Controller
         $thisUser = auth()->user();
         abort_unless($thisUser->hasRole('Admin'), 403);
 
-        // Get insitutions for this user's role(s)
+        // Get insitution and group limits for this user's role(s)
         $limit_to_insts = $thisUser->adminInsts();
         if ($limit_to_insts === [1]) $limit_to_insts = [];
+        $limit_to_groups = $thisUser->adminGroups();
+        if ($limit_to_groups === [1]) $limit_to_groups = [];
 
         // Get credentials
         $data = Credential::with('institution:id,name,is_active','provider','lastHarvest')
                           ->when(count($limit_to_insts) > 0, function ($qry) use ($limit_to_insts) {
                               return $qry->whereIn('inst_id',$limit_to_insts);
                           })->get();
-                        //   ->whereIn('prov_id', $providerIds)->get();
 
-        // Get global providers for the credentials
-        $providerIds = $data->unique('prov_id')->pluck('prov_id')->toArray();
+        // Pull all connections $thisUser can admin to get a set of GlobalProvider ids
+        $connections = Connection::where('inst_id',1)
+                                 ->when(count($limit_to_insts) > 0, function ($qry) use ($limit_to_insts) {
+                                         return $qry->orwhereIn('inst_id',$limit_to_insts);
+                                 })
+                                 ->when(count($limit_to_groups) > 0, function ($qry) use ($limit_to_groups) {
+                                         return $qry->orWhereIn('group_id',$limit_to_groups);
+                                 })->get();
+        $globalIds = $connections->unique('global_id')->pluck('global_id')->toArray();
+
+        // Get global providers $thisUser can admin credentials for
         $globals = GlobalProvider::with('registries','connections','connections.reports')
-                                 ->whereIn('id',$providerIds)->get();
+                                 ->whereIn('id',$globalIds)->get();
 
         // Setup filtering options for the datatable
         $filter_options = array();
@@ -70,6 +80,20 @@ class CredentialController extends Controller
             $filter_options['groups'] = array();
             $filter_options['institutions'] = Institution::where('is_active',1)->whereIn('id',$inst_ids)
                                                          ->get(['id','name']);
+        }
+
+        // Set an array of Inst->Prov pairs that don't have a credential set yet
+        $existing_pairs = $data->map(function ($cred) {
+            return [ 'plat_id' => $cred->prov_id, 'inst_id' => $cred->inst_id ];
+        })->toArray();
+        $filter_options['unset'] = array();
+        foreach ($filter_options['platforms'] as $plat) {
+            foreach ($filter_options['institutions'] as $inst) {
+                $pair = array('plat_id' => $plat['id'], 'inst_id' => $inst['id']);
+                if (!in_array($pair,$existing_pairs)) {
+                    $filter_options['unset'][] = $pair;
+                }
+            }
         }
 
         // Keep track of the last error values for the filter options
@@ -159,11 +183,11 @@ class CredentialController extends Controller
     {
         global $masterReports;
 
-        abort_unless(auth()->user()->hasAnyRole(['Admin','Manager']), 403);
+        $thisUser = auth()->user();
         $input = $request->all();
 
-        // Manager can only create credentials for their own institution
-        if (!auth()->user()->hasAnyRole(['Admin']) && $input['inst_id'] != auth()->user()->inst_id) {
+        // Check role against requested institution
+        if (!$thisUser->canManage($input['inst_id'])) {
             return response()->json(['result' => false, 'msg' => 'You can only assign credentials for your institution']);
         }
 
@@ -184,37 +208,57 @@ class CredentialController extends Controller
         }
 
         // If there is no existing connection defined for the global provider, create it now
-        $connection = Connection::where('global_id',$gp->id)->whereIn('inst_id', [1,$input['inst_id']])->first();
-        if (!$connection && isset($input['report_state'])) {
+        $connected_inst_ids = $gp->connectedInstitutions();
+        if (!in_array(1,$connected_inst_ids) && !in_array($input['inst_id'],$connected_inst_ids)) {
             $conn_data = array('global_id' => $gp->id, 'is_active' => $gp->is_active, 'inst_id' => $input['inst_id']);
-            $new_conn = Connection::create($provider_data);
+            $new_conn = Connection::create($conn_data);
 
             // Attach report definitions to new provider
             $global_report_ids = $gp->master_reports;
             $this->getMasterReports();
             $masters = $masterReports->whereIn('id',$global_report_ids);
             foreach ($masters as $rpt) {
-                if ($input['report_state'][$rpt->name]['prov_enabled']) {
-                    $new_conn->reports()->attach($rpt->id);
-                }
+                $new_conn->reports()->attach($rpt->id);
             }
         }
 
-        // Create the new credential record and relate to the GLOBAL ID (get existing if already defined)
-        $fields = Arr::except($input,array('report_state'));
-        $credential = Credential::firstOrCreate($fields);
-        $credential->load('institution', 'provider');
-        $registry = $credential->provider->default_registry();
-        $credential->provider->connectors = ConnectionField::whereIn('id',$registry->connectors)->get();
-        // Set string for next_harvest
-        if (!$credential->provider->is_active || !$credential->institution->is_active || $credential->status != 'Enabled') {
-            $credential['next_harvest'] = null;
-        } else {
-            $mon = (date("j") < $credential->provider->day_of_month) ? date("n") : date("n")+1;
-            $credential['next_harvest'] = date("d-M-Y", mktime(0,0,0,$mon,$credential->provider->day_of_month,date("Y")));
+        // Create the new credential record and load institution and provider relationships
+        $fields = Arr::except($input,array('institutions','platforms'));
+        $cred = Credential::firstOrCreate($fields);
+        $cred->load('institution', 'provider');
+
+        // Setup return data record to conform to index() records/keys
+        // (migration sets status='Enabled' by default, $thisUser created it, they can edit/delete)
+        $global_connectors = ConnectionField::get();
+        $rec = array('id' => $cred->id, 'status' => 'Enabled', 'connected' => true,  'result' => 'No Harvests',
+                     'inst_id' => $cred->inst_id, 'prov_id' => $cred->prov_id, 'customer_id' => $cred->customer_id,
+                     'requestor_id' => $cred->requestor_id, 'api_key' => $cred->api_key,
+                     'platform' => $cred->provider->name, 'can_edit' => true, 'can_delete' => true
+                    );
+        $rec['service_url'] = $cred->provider->service_url();
+        $rec['connectors'] = array();
+        $rec['institution'] = ($cred->institution) ? $cred->institution->name : '';
+        $required = $cred->provider->connectors();
+        foreach ($global_connectors as $gc) {
+            $cnx = $gc->toArray();
+            $cnx['required'] = in_array($gc->id, $required);
+            $rec['connectors'][] = $cnx;
         }
-        $credential['can_edit'] = true;
-        return response()->json(['result' => true, 'msg' => 'Credentials successfully created', 'credential' => $credential]);
+
+        // Set report flags for the related global
+        $enabledReports = $gp->enabledReports($cred->inst_id);
+        foreach ($enabledReports as $name => $rpt) {
+            $rec[$name] = $rpt;
+            if (!$rec[$name]['available']) {
+                $rec[$name]['sortval'] = 4;
+            } else if ($rec[$name]['conso']) {
+                $rec[$name]['sortval'] = 1;
+            } else {
+                $rec[$name]['sortval'] = ($rpt['requested']) ? 3 : 2;
+            }
+        }
+
+        return response()->json(['result' => true, 'msg' => 'Credentials successfully created', 'record' => $rec]);
     }
 
     /**
