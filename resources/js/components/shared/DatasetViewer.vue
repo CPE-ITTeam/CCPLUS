@@ -29,6 +29,7 @@
   var allItems = reactive([]);
   var filteredItems = reactive([]);
   var reptItem = reactive({});
+  var unsetPairs = reactive([]);
   const filterOptions = reactive({});
   const headers = ref([]);
   const searchFields = ref([]);
@@ -65,6 +66,7 @@
       fields: [...config.fields],
       requiredKeys: [...config.required],
       options: {...filterOptions},
+      unset: [...unsetPairs],
     };
   });
 
@@ -81,6 +83,9 @@
       allItems = [ ...data.records ];
       filteredItems = [ ...data.records ];
       itemOptions = { ...data.options };
+      if (typeof(itemOptions['unset']) != 'undefined') {
+        unsetPairs = [...itemOptions['unset']];
+      }
     } catch (error) {
       console.log('Error fetching records for '+datasetKey+' : ', error);
     }
@@ -371,8 +376,8 @@ console.log('Handling for includeZeros toggle not written yet');
 <template>
   <v-sheet>
     <DataToolbar v-model="toolbarFilters" :search="search" :showSelectedOnly="showSelectedOnly" :dataset="props.datasetKey"
-                 @update:search="search = $event" @setFilter="updateItems" @update:showSelectedOnly="handleToggle"
-                 @add="handleAddItem" @updateConso="handleChangeConso" />
+                 :showAdd="unsetPairs.length>0 || props.datasetKey!='credentials'" @add="handleAddItem" @setFilter="updateItems"
+                  @update:search="search=$event" @update:showSelectedOnly="handleToggle" @updateConso="handleChangeConso" />
 
     <DataTable v-if="consoKey!=''" :items="filteredItems" :search="search" :dataset="props.datasetKey" :key="dtKey"
                :showSelectedOnly="showSelectedOnly" :headers="headers" :editableFields="editableFields"
