@@ -58,9 +58,6 @@
 
   const formSchema = computed(() => {
     const config = datasetConfig[props.datasetKey];
-    if (props.datasetKey=='roles') {
-      filterOptions.role.items = filterOptions.role.items.filter(r => !r.name.includes('Consortium'))
-    }
     return {
       type: formDialogType.value,
       fields: [...config.fields],
@@ -99,17 +96,24 @@
       if ( (fld.type == 'select' || fld.type == 'mselect' || fld.type == 'selectObj' || fld.type == 'toggle') &&
            fld.options == 'fromURL' && typeof(allOptions[fld.name]) != 'undefined' ) {
         var f_options = [];
-        if ( typeof(fld.optTxt) == 'undefined' || typeof(fld.optVal) == 'undefined') {
+        if ( typeof(fld.optTxt) == 'undefined' || typeof(fld.optVal) == 'undefined' ||
+            (props.datasetKey=='roles' && fld.name=='role')) {
           filterOptions[fld.name] = {
             'name': fld.name, 'label': fld.label, 'type': 'text', 'show': fld.isFilter, 'col': fld.filterCol,
             'items': [...allOptions[fld.name]], 'value': null
           };
         // limit filter options based on allItems
         } else {
-        let initVal = (fld.type == 'mselect') ? [] : null;
-          f_options  = allOptions[fld.name].filter(
-            opt => allItems.map( itm => itm[fld.filterCol]).includes(opt[fld.optVal])
-          );
+          let initVal = (fld.type == 'mselect') ? [] : null;
+          if (Array.isArray(fld.filterCol)) { // filter is targeting an array values?
+            f_options  = allOptions[fld.name].filter(
+              opt => allItems.flatMap( itm => itm[fld.filterCol]) .includes(opt[fld.optVal])
+            );
+          } else {
+            f_options  = allOptions[fld.name].filter(
+              opt => allItems.map( itm => itm[fld.filterCol]).includes(opt[fld.optVal])
+            );
+          }
           filterOptions[fld.name] = {
             'name': fld.name, 'label': fld.label, 'type': fld.type, 'val': fld.optVal, 'txt': fld.optTxt,
             'show': fld.isFilter, 'col': fld.filterCol, 'items': [...f_options], 'value': initVal
@@ -121,10 +125,7 @@
           'show': fld.isFilter, 'col': fld.filterCol, 'items': [...fld.options], 'value': fld.options[0]
         };
       } else if (fld.name == 'fiscalYr') {
-        filterOptions['fiscalYr'] = {
-          'name': fld.name, 'label': fld.label, 'type': fld.type, 'val': fld.optVal, 'txt': fld.optTxt,
-          'show': false, 'items': [...fyMonths], 'value': null
-        };
+        allOptions['fiscalYr'] = [...fyMonths];
       }
     });
     // Set arrays for searchable and editable fields
