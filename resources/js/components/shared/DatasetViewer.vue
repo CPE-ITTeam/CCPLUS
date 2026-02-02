@@ -30,6 +30,7 @@
   var filteredItems = reactive([]);
   var reptItem = reactive({});
   var unsetPairs = reactive([]);
+  var allOptions = {};
   const filterOptions = reactive({});
   const headers = ref([]);
   const searchFields = ref([]);
@@ -41,7 +42,6 @@
   const reptDialog = ref(false);
   const editableFields = ref([]);
   const urlRoot = ref('');
-  var itemOptions = {};
   var success = ref('');
   var failure = ref('');
 
@@ -65,7 +65,7 @@
       type: formDialogType.value,
       fields: [...config.fields],
       requiredKeys: [...config.required],
-      options: {...filterOptions},
+      options: {...allOptions},
       unset: [...unsetPairs],
     };
   });
@@ -82,9 +82,9 @@
       const { data } = await ccGet(itemsUrl);
       allItems = [ ...data.records ];
       filteredItems = [ ...data.records ];
-      itemOptions = { ...data.options };
-      if (typeof(itemOptions['unset']) != 'undefined') {
-        unsetPairs = [...itemOptions['unset']];
+      allOptions = { ...data.options };
+      if (typeof(allOptions['unset']) != 'undefined') {
+        unsetPairs = [...allOptions['unset']];
       }
     } catch (error) {
       console.log('Error fetching records for '+datasetKey+' : ', error);
@@ -97,12 +97,24 @@
       config.fields[idx].static = config.static.includes(fld.name);
       // Set filterOptions for select(s) and toggle
       if ( (fld.type == 'select' || fld.type == 'mselect' || fld.type == 'selectObj' || fld.type == 'toggle') &&
-           fld.options == 'fromURL' && typeof(itemOptions[fld.name]) != 'undefined' ) {
+           fld.options == 'fromURL' && typeof(allOptions[fld.name]) != 'undefined' ) {
+        var f_options = [];
+        if ( typeof(fld.optTxt) == 'undefined' || typeof(fld.optVal) == 'undefined') {
+          filterOptions[fld.name] = {
+            'name': fld.name, 'label': fld.label, 'type': 'text', 'show': fld.isFilter, 'col': fld.filterCol,
+            'items': [...allOptions[fld.name]], 'value': null
+          };
+        // limit filter options based on allItems
+        } else {
         let initVal = (fld.type == 'mselect') ? [] : null;
-        filterOptions[fld.name] = {
-          'name': fld.name, 'label': fld.label, 'type': fld.type, 'val': fld.optVal, 'txt': fld.optTxt,
-          'show': fld.isFilter, 'col': fld.filterCol, 'items': [...itemOptions[fld.name]], 'value': initVal
-        };
+          f_options  = allOptions[fld.name].filter(
+            opt => allItems.map( itm => itm[fld.filterCol]).includes(opt[fld.optVal])
+          );
+          filterOptions[fld.name] = {
+            'name': fld.name, 'label': fld.label, 'type': fld.type, 'val': fld.optVal, 'txt': fld.optTxt,
+            'show': fld.isFilter, 'col': fld.filterCol, 'items': [...f_options], 'value': initVal
+          };
+        }
       } else if (Array.isArray(fld.options)) {
         filterOptions[fld.name] = {
           'name': fld.name, 'label': fld.label, 'type': fld.type, 'val': fld.optVal, 'txt': fld.optTxt,
@@ -195,7 +207,7 @@
     for (const key of Object.keys(filterOptions)) {
       const filter = filterOptions[key]; 
       if (!filter.show) continue;
-      // If the result set is empty, just bail
+      // If the result set is already empty, just bail
       if (filterResult.length==0) break;
 
       // Check if filter is set
@@ -206,7 +218,7 @@
       }
 
       // Filter items by a single value
-      if (filter.type == 'select') {
+      if (filter.type == 'select' || filter.type == 'text') {
         filterResult = filterResult.filter( item => item[filter.col]==filter.value );
       // Filter items with a multi-select array
       } else if (filter.type == 'mselect') {
@@ -217,8 +229,8 @@
         } else {
           filterResult = filterResult.filter( item => filter.value.includes(item[filter.col]) );
         }
-      } else if (filter.type == 'selectObj') {
-console.log('Filter by selectObj still needs work');
+//       } else if (filter.type == 'selectObj') {
+// console.log('Filter by selectObj still needs work');
       }
     }
     filteredItems = [...filterResult];
@@ -370,15 +382,16 @@ console.log('Handling for includeZeros toggle not written yet');
   onBeforeMount(() => loadDataset(props.datasetKey));
   watch(() => props.datasetKey, (newKey) => loadDataset(newKey));
 </script>
-<!--
-  TODO:: Need to add a div/row for success/failure strings
--->
+
 <template>
   <v-sheet>
     <DataToolbar v-model="toolbarFilters" :search="search" :showSelectedOnly="showSelectedOnly" :dataset="props.datasetKey"
                  :showAdd="unsetPairs.length>0 || props.datasetKey!='credentials'" @add="handleAddItem" @setFilter="updateItems"
                   @update:search="search=$event" @update:showSelectedOnly="handleToggle" @updateConso="handleChangeConso" />
-
+    <div v-if="success || failure" class="status-message">
+      <span v-if="success"      class="good" v-text="success"></span>
+      <span v-else-if="failure" class="fail" v-text="failure"></span>
+    </div>
     <DataTable v-if="consoKey!=''" :items="filteredItems" :search="search" :dataset="props.datasetKey" :key="dtKey"
                :showSelectedOnly="showSelectedOnly" :headers="headers" :editableFields="editableFields"
                :searchFields="searchFields" :selectedRows="selectedRows" @update:selectedRows="selectedRows = $event"
