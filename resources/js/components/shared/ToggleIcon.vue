@@ -18,6 +18,7 @@
     size: { type: Number, default: 32 }
   });
   const authStore = useAuthStore();
+  const is_admin = authStore.is_admin;
   const is_conso_admin = authStore.is_conso_admin;
   const admin_insts = authStore.admin_insts;
   const admin_groups = authStore.admin_groups;
@@ -71,7 +72,9 @@
     }
 
     if (!conso && !requested) {
-      return { icon: 'mdi-plus-box-outline', color: '#555555', clickable: true };
+      return ( is_admin)
+             ?  { icon: 'mdi-plus-box-outline', color: '#00dd00', clickable: true }
+             :  { icon: 'mdi-plus-box-outline', color: '#555555', clickable: false };
     }
 
     return { icon: 'mdi-help-circle', color: '#999999', clickable: false };
