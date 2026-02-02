@@ -19,8 +19,8 @@
   var selectedGroups = ref([]);
   // Keep all institutions in options - EXCEPT inst_id=1
   // (removed to avoid collision w/ conso toggle switch)
-  const insts = props.options.institutions.items.filter(ii => ii.id > 1);
-  const groups = [...props.options.groups.items];
+  const insts = props.options.institutions.filter(ii => ii.id > 1);
+  const groups = [...props.options.groups];
 
   // @change for institutions select
   function changeInsts() {
@@ -65,8 +65,6 @@
   }
   const emit = defineEmits(['submit','cancel']);
   onMounted(() => {
-console.log('Report toggle for item:');
-console.log(props.item);
     resetForm();
   });
 </script>
