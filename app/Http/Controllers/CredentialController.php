@@ -58,9 +58,9 @@ class CredentialController extends Controller
                                  })->get();
         $globalIds = $connections->unique('global_id')->pluck('global_id')->toArray();
 
-        // Get global providers $thisUser can admin credentials for
+        // Get all global providers
         $globals = GlobalProvider::with('registries','connections','connections.reports')
-                                 ->whereIn('id',$globalIds)->get();
+                                 ->orderBy('name','ASC')->get();
 
         // Setup filtering options for the datatable
         $filter_options = array();
@@ -351,6 +351,7 @@ class CredentialController extends Controller
 
             // Update the report setting
             $flags = (isset($input[$rpt->name])) ? $input[$rpt->name] : array();
+
             $result = $this->updateInstReport($cred->inst_id, $cred->provider, $rpt->id, $flags);
             if (!$result['success']) {
                 return response()->json(['result' => false, 'msg' => $result['msg']]);
@@ -403,28 +404,27 @@ class CredentialController extends Controller
             return array('success' => false, 'msg' => 'Global platform not found or report unavailable');
         }
         $requested = (isset($flags['requested'])) ? $flags['requested'] : false;
+        $attached = false;
 
-        // Get connection record; will be created if it doesn't exist
+        // Get connection record
         $cnx = Connection::where('inst_id',$inst_id)->where('global_id',$global->id)->with('reports')->first();
-        if (!$cnx) {
+        if ($cnx) {
+            $attached = (!is_null($cnx->reports()->where('id',$report_id)->first()));
+        } else if ($requested) {
             // Enabling a report for a platform not-yet connected?
-            if ($requested) {
-                $_data = array('name' => $global->name, 'global_id' => $global->id, 'is_active' => $global->is_active,
-                               'inst_id' => $inst_id);
-                $cnx = Connection::create($_data);
-            // Trying to turn off something that cannot be found...?
-            } else {
-                return array('success' => false, 'msg' => 'Consortium Platform reference error');
-            }
+            $_data = array('name' => $global->name, 'global_id' => $global->id, 'is_active' => $global->is_active,
+                            'inst_id' => $inst_id);
+            $cnx = Connection::create($_data);
         }
 
         // Update report
         try {
             // Attach/add
-            if ($requested) {
+            if ($requested && !$attached) {
                 $cnx->reports()->attach($report_id);
+            }
             // Detach/remove
-            } else {
+            if ($attached && !$requested) {
                 $cnx->reports()->detach($report_id);
                 // If the provider has no remaining reports attached, delete it
                 if ($cnx->reports()->count() == 0) {
