@@ -110,7 +110,7 @@
       // If UNSET exists in options, limit platforms based on chosen inst
       if (m_schema.unset.length>0) {
         // get all UNSET platforms for the selected inst
-        m_schema.options.platforms = m_schema.options.platforms.items.filter( plat =>
+        m_schema.options.platforms = m_schema.options.platforms.filter( plat =>
           m_schema.unset.filter( opt => opt.inst_id == formValues['institutions'])
                         .map( p => p.plat_id).includes(plat.id)
         );
@@ -120,7 +120,7 @@
     } else if (fieldName=='platforms') {
       // If UNSET exists in options, limit institutions based on chosen platform
       if (m_schema.unset.length>0) {
-        m_schema.options.institutions = m_schema.options.institutions.items.filter( inst =>
+        m_schema.options.institutions = m_schema.options.institutions.filter( inst =>
           m_schema.unset.filter( opt => opt.plat_id == formValues['platforms'])
                         .map( p => p.inst_id).includes(inst.id)
         );
@@ -159,19 +159,19 @@ onMounted(() => {
   m_schema.fields.forEach( (fld) => {
     if (fld.type == 'select' && typeof(m_schema.options[fld.name])!='undefined' &&
         typeof(formValues[fld.name])!='undefined') {
-      if (Array.isArray(m_schema.options[fld.name].items) && m_schema.unset.length>0) {
+      if (Array.isArray(m_schema.options[fld.name]) && m_schema.unset.length>0) {
         // Limit options for insitutions and platforms using unset pairs
         if (fld.name == 'institutions') {
-          m_schema.options[fld.name].items = props.schema.options[fld.name].items.filter(
+          m_schema.options[fld.name] = props.schema.options[fld.name].filter(
             inst => m_schema.unset.map( p => p.inst_id).includes(inst.id));
         }
         if (fld.name == 'platforms') {
-          m_schema.options[fld.name].items = props.schema.options[fld.name].items.filter(
+          m_schema.options[fld.name] = props.schema.options[fld.name].filter(
             plat => m_schema.unset.map( p => p.plat_id).includes(plat.id));
         }
         // Preset values if there's only one item in options
-        if (m_schema.options[fld.name].items.length == 1) {
-          formValues[fld.name] = m_schema.options[fld.name].items[0][fld.optVal];
+        if (m_schema.options[fld.name].length == 1) {
+          formValues[fld.name] = m_schema.options[fld.name][0][fld.optVal];
           // Set inst_id and prov_id explictly for institutions and platforms
           if (fld.name == 'institutions' && typeof(formValues['inst_id'])!='undefined') {
             formValues['inst_id'] = formValues['institutions'];
@@ -224,16 +224,16 @@ onMounted(() => {
 
             <!-- Select inputs -->
             <v-select v-else-if="field.type==='select'" v-model="formValues[field.name]" :label="field.label"
-                      :items="m_schema.options[field.name].items" :item-title="field.optTxt" :item-value="field.optVal" 
+                      :items="m_schema.options[field.name]" :item-title="field.optTxt" :item-value="field.optVal" 
                       :prepend-icon="field.icon" :hint="field.helperText" persistent-hint variant="outlined"
                       :rules="field.required ? [requiredRule] : []" density="compact"
                       @update:modelValue="selectChanged(field.name)" />
             <v-select v-else-if="field.type==='selectObj'" v-model="formValues[field.name]" :label="field.label"
-                      :items="m_schema.options[field.name].items" :item-title="field.optTxt" :item-value="field.optVal" 
+                      :items="m_schema.options[field.name]" :item-title="field.optTxt" :item-value="field.optVal" 
                       :prepend-icon="field.icon" :hint="field.helperText" persistent-hint variant="outlined"
                       return-object :rules="field.required ? [requiredRule] : []" density="compact"/>
             <v-combobox v-else-if="field.type==='mselect'" v-model="formValues[field.name]" :label="field.label"
-                      :items="m_schema.options[field.name].items" :item-title="field.optTxt" :item-value="field.optVal"
+                      :items="m_schema.options[field.name]" :item-title="field.optTxt" :item-value="field.optVal"
                       :prepend-icon="field.icon" :hint="field.helperText" persistent-hint variant="outlined" multiple
                       :rules="field.required ? [requiredRule] : []" density="compact"/>
 
