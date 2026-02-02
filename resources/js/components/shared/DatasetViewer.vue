@@ -437,7 +437,7 @@ console.log('Handling for includeZeros toggle not written yet');
           </v-col>
         </v-card-subtitle>
         <v-card-text>
-          <ReportToggle :item=reptItem :options="filterOptions"
+          <ReportToggle :item=reptItem :options="allOptions"
                         @submit="reportToggleSubmit" @cancel="handleFormCancel" />
         </v-card-text>
       </v-card>
