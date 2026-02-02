@@ -47,7 +47,7 @@ class InstitutionController extends Controller
         $filter_options = array('statuses' => array('ALL','Active','Inactive'));
 
         // Include institution types
-        $filter_options['type'] = InstitutionType::get(['id','name'])->toArray();
+        $filter_options['type'] = InstitutionType::orderBy('name', 'ASC')->get(['id','name'])->toArray();
         $filter_options['groups'] = array();
 
         // Limit by institution based on users's role(s)
@@ -69,7 +69,10 @@ class InstitutionController extends Controller
                           'local_id' => $rec->local_id, 'fte' => $rec->fte, 'notes' => $rec->notes,
                           'type_id' => $rec->type_id, 'group_string' => '');
             $inst['status'] = ($rec->is_active) ? "Active" : "Inactive";
-            $inst['groups'] = $rec->institutionGroups()->pluck('institution_group_id')->all();
+            $inst['group_ids'] = $rec->institutionGroups()->pluck('institution_group_id')->all();
+            $inst['groups'] = $rec->institutionGroups->map(function ($group) {
+                return [ 'id' => $group->id, 'name' => $group->name ];
+            });
             foreach ($rec->institutionGroups as $group) {
                 $inst['group_string'] .= ($inst['group_string'] == "") ? "" : ", ";
                 $inst['group_string'] .= $group->name;
@@ -85,6 +88,9 @@ class InstitutionController extends Controller
             $inst['role'] = $this->userRole($rec->id);
             $data[] = $inst;
         }
+        // sort group options by name
+        array_multisort(array_column($filter_options['groups'], 'name'), SORT_ASC, $filter_options['groups']);
+
         return response()->json(['records' => $data, 'options' => $filter_options], 200);
     }
 
