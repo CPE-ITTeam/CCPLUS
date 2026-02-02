@@ -23,6 +23,6 @@
     -->
     <!-- Return a Single Scalar value -->
     <v-select v-if="filter.show && filter.type=='text'" v-model="filters[filter.name].value" :label="filter.label"
-        :items="filter.items" :item-title="filter.txt" :item-value="filter.val" @update:modelValue="$emit('setFilter')" />
+        :items="filter.items" @update:modelValue="$emit('setFilter')" />
   </v-col>
 </template>
