@@ -209,7 +209,7 @@
       // Report columns are type=select to offer options based on user's role
       fields: [
         { name: 'status',       type: 'toggle',   header: true,  editable: true,  searchable: false, label: 'Status',
-          options: 'fromURL', icon: '', helperText: '', addValue: 'Enabled' },
+          options: '', icon: '', helperText: '', addValue: 'Enabled' },
         { name: 'institutions',     type: 'select', header: false, editable: false, searchable: false, label: 'Institution',
           options: 'fromURL', optVal: 'id', optTxt: 'name', icon: '', helperText: '', isFilter: true, filterCol: 'inst_id' },
         { name: 'institution',      type: 'text',   header: true,  editable: false, searchable: true,  label: 'Institution',
@@ -239,7 +239,7 @@
         { name: 'IR',               type: 'toggle', header: true,  editable: true,  searchable: false, label: 'IR Report',
           icon: '', helperText: '' },
         { name: 'statuses',         type: 'select', header: false, editable: false, searchable: false, label: 'Status',
-          options: 'fromURL', optVal: 'id', optTxt: 'name', icon: '', helperText: '', isFilter: true, filterCol: 'status' },
+          options: 'fromURL', icon: '', helperText: '', isFilter: true, filterCol: 'status' },
         { name: 'result',   type: 'text',    header: true,  editable: false, searchable: true,  label: 'Last Harvest',
           icon: '', helperText: '' },
         { name: 'results',  type: 'mselect', header: false, editable: true,  searchable: false, label: 'Last Harvest',
