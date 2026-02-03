@@ -105,15 +105,10 @@
         // limit filter options based on allItems
         } else {
           let initVal = (fld.type == 'mselect') ? [] : null;
-          if (Array.isArray(fld.filterCol)) { // filter is targeting an array values?
-            f_options  = allOptions[fld.name].filter(
-              opt => allItems.flatMap( itm => itm[fld.filterCol]) .includes(opt[fld.optVal])
-            );
-          } else {
-            f_options  = allOptions[fld.name].filter(
-              opt => allItems.map( itm => itm[fld.filterCol]).includes(opt[fld.optVal])
-            );
-          }
+          // use flatMap since item[fld.filterCol] may hold an array of values...
+          f_options = allOptions[fld.name].filter(
+            opt => allItems.flatMap( itm => itm[fld.filterCol] ).includes(opt[fld.optVal])
+          );
           filterOptions[fld.name] = {
             'name': fld.name, 'label': fld.label, 'type': fld.type, 'val': fld.optVal, 'txt': fld.optTxt,
             'show': fld.isFilter, 'col': fld.filterCol, 'items': [...f_options], 'value': initVal
