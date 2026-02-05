@@ -318,6 +318,53 @@ class UserController extends Controller
     }
 
     /**
+     * Bulk operations from the U/I.
+     *
+     * @param  \Illuminate\Http\Request  $request
+     * @return JSON
+     */
+    public function bulk(Request $request)
+    {
+        global $thisUser;
+        $thisUser = auth()->user();
+        if (!$thisUser->isAdmin()) {
+            return response()->json(['result' => false, 'msg' => 'Request failed (403) - Forbidden']);
+        }
+        $consoAdmin = $thisUser->isConsoAdmin();
+
+        // Validate form inputs
+        $this->validate($request, ['ids' => 'required', 'action' => 'required']);
+        $input = $request->all();
+
+        // Get user records, excluding ServerAdmin, for IDs in input limited by role if necessary
+        $server_admin = config('ccplus.server_admin');
+        $limit_insts = ($consoAdmin) ? [] : $thisUser->adminInsts();
+        $userData = User::where('email','<>',$server_admin)->whereIn('id',$input['ids'])
+                        ->when( count($limit_insts) > 0, function ($qry, $limit_insts) {
+                            return $qry->whereIn('inst_id', $limit_insts);
+                        })->get(['id','is_active']);
+
+        // Handle set active/inactive
+        if ($input['action'] == 'Set Active' || $input['action'] == 'Set Inactive') {
+            $new_is_active = ($input['action'] == 'Set Active') ? 1 : 0;
+            $userIds = $userData->where('is_active','<>',$new_is_active)->pluck('id')->toArray();
+            $args = array('is_active' => $new_is_active);
+            User::whereIn('id',$userIds)->update($args);
+            return response()->json(['result' => true, 'msg' => '', 'affectedIds' => $userIds], 200);
+
+        // Handle set delete
+        } else if ($input['action'] == 'Delete') {
+            $userIds = $userData->pluck('id')->toArray();
+            User::whereIn('id',$userIds)->delete();
+            return response()->json(['result' => true, 'msg' => '', 'affectedIds' => $userIds], 200);
+
+        // Unrecognized action
+        } else {
+            return response()->json(['result' => false, 'msg' => 'Unrecognized bulk action requested'], 200);
+        }
+    }
+
+    /**
      * Export user records from the database.
      *
      * @param  \Illuminate\Http\Request  $request
