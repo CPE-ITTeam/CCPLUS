@@ -1,4 +1,4 @@
-<!-- toolbar/FiltersAndActions -->
+<!-- shared/ToolbarFilters -->
 <script setup>
   const filters = defineModel({type: Object, required: true});
   const emit = defineEmits(['setFilter']);
