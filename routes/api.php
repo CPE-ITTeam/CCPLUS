@@ -29,6 +29,8 @@ Route::middleware('ccplusAuth')->group( function () {
         Route::post('/store', 'App\Http\Controllers\CredentialController@store')->name('credentials.store');
         Route::patch('/update/{credential}', 'App\Http\Controllers\CredentialController@update')->name('credentials.update');
         Route::delete('/delete/{credential}', 'App\Http\Controllers\CredentialController@destroy')->name('credentials.destroy');
+        Route::post('/bulk', 'App\Http\Controllers\CredentialController@bulk')->name('credentials.bulk');
+        Route::post('/unset', 'App\Http\Controllers\CredentialController@unset')->name('credentials.unset');
     });
     Route::prefix('connections')->group(function () {
         Route::get('/get', 'App\Http\Controllers\ConnectionController@index')->name('connections.index');
