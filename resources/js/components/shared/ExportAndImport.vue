@@ -1,15 +1,12 @@
 <!-- toolbar/ExportAndImport -->
 
 <script setup>
-  const props = defineProps({
-    showAdd: { type: Boolean, required: false, default: false },
-  });
   defineEmits(['export', 'import', 'add']);
 </script>
 
 <template>
   <!-- Add Button -->
-  <v-col v-if="props.showAdd" cols="auto">
+  <v-col cols="auto">
     <v-btn color="primary" @click="$emit('add')">
     <v-icon start>mdi-plus</v-icon>
       Add
