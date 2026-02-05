@@ -13,7 +13,6 @@
   const props = defineProps({
     search: { type: String, required: true },
     showSelectedOnly: { type: Boolean, required: true },
-    showAdd: { type: Boolean, required: false, default: false },
     dataset: { type: String, required: true },
     selectedRows: { type: Array, required: true },
     bulkOptions: {type: Object, required: true },
@@ -80,8 +79,7 @@
                       return-object item-value="ccp_key" @update:modelValue="$emit('updateConso', $event)" />
     </v-col>
     <!-- Export, Import, & Add -->
-    <ExportAndImport v-if="!consoOnly" :showAdd="props.showAdd" @export="$emit('export')"
-                     @import="$emit('import')" @add="$emit('add')"/>
+    <ExportAndImport v-if="!consoOnly" @export="$emit('export')" @import="$emit('import')" @add="$emit('add')"/>
   </v-row>
   <!-- Search + Selected Toggle -->
   <v-row class="my-2">
