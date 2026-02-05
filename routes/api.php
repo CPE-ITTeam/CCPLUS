@@ -42,6 +42,7 @@ Route::middleware('ccplusAuth')->group( function () {
         Route::post('/store', 'App\Http\Controllers\InstitutionController@store')->name('institutions.store');
         Route::patch('/update/{institution}', 'App\Http\Controllers\InstitutionController@update')->name('institutions.update');
         Route::delete('/delete/{institution}', 'App\Http\Controllers\InstitutionController@destroy')->name('institutions.destroy');
+        Route::post('/bulk', 'App\Http\Controllers\InstitutionController@bulk')->name('institutions.bulk');
     });
     Route::prefix('types')->group(function () {
         Route::get('/get', 'App\Http\Controllers\InstitutionTypeController@index')->name('types.index');
@@ -67,12 +68,14 @@ Route::middleware('ccplusAuth')->group( function () {
         Route::post('/store', 'App\Http\Controllers\UserController@store')->name('users.store');
         Route::patch('/update/{user}', 'App\Http\Controllers\UserController@update')->name('users.update');
         Route::delete('/delete/{user}', 'App\Http\Controllers\UserController@destroy')->name('users.destroy');
+        Route::post('/bulk', 'App\Http\Controllers\UserController@bulk')->name('users.bulk');
     });
     Route::prefix('roles')->group(function () {
         Route::get('/get', 'App\Http\Controllers\RoleController@index')->name('roles.index');
         Route::post('/store', 'App\Http\Controllers\RoleController@store')->name('roles.store');
         // Route::patch('/update/{role}', 'App\Http\Controllers\RoleController@update')->name('roles.update');
         Route::delete('/delete/{role}', 'App\Http\Controllers\RoleController@destroy')->name('roles.destroy');
+        Route::post('/bulk', 'App\Http\Controllers\RoleController@bulk')->name('roles.bulk');
     });
     Route::prefix('settings')->group(function () {
         Route::get('/get/{type}', 'App\Http\Controllers\GlobalSettingController@index')->name('settings.index');
