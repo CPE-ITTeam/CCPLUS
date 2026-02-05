@@ -82,20 +82,6 @@ class CredentialController extends Controller
                                                          ->get(['id','name']);
         }
 
-        // Set an array of Inst->Prov pairs that don't have a credential set yet
-        $existing_pairs = $data->map(function ($cred) {
-            return [ 'plat_id' => $cred->prov_id, 'inst_id' => $cred->inst_id ];
-        })->toArray();
-        $filter_options['unset'] = array();
-        foreach ($filter_options['platforms'] as $plat) {
-            foreach ($filter_options['institutions'] as $inst) {
-                $pair = array('plat_id' => $plat['id'], 'inst_id' => $inst['id']);
-                if (!in_array($pair,$existing_pairs)) {
-                    $filter_options['unset'][] = $pair;
-                }
-            }
-        }
-
         // Keep track of the last error values for the filter options
         $nh_count = 0;
         $seen_codes = array(0); // preset success code
@@ -559,6 +545,119 @@ class CredentialController extends Controller
         $credential->delete();
         return response()->json(['result' => true, 'msg' => 'Credentials successfully deleted']);
     }
+
+    /**
+     * Bulk operations from the U/I.
+     *
+     * @param  \Illuminate\Http\Request  $request
+     * @return JSON
+     */
+    public function bulk(Request $request)
+    {
+        global $thisUser;
+        $thisUser = auth()->user();
+        if (!$thisUser->isAdmin()) {
+            return response()->json(['result' => false, 'msg' => 'Request failed (403) - Forbidden']);
+        }
+        $consoAdmin = $thisUser->isConsoAdmin();
+
+        // Validate form inputs
+        $this->validate($request, ['ids' => 'required', 'action' => 'required']);
+        $input = $request->all();
+
+        // Get insitution and group limits for this user's role(s)
+        $limit_to_insts = $thisUser->adminInsts();
+        if ($limit_to_insts === [1]) $limit_to_insts = [];
+        $limit_to_groups = $thisUser->adminGroups();
+        if ($limit_to_groups === [1]) $limit_to_groups = [];
+
+        // Get credentials
+        $credentials = Credential::with('institution:id,name,is_active','provider','lastHarvest')
+                                 ->whereIn('id',$input['ids'])
+                                 ->when(count($limit_to_insts) > 0, function ($qry) use ($limit_to_insts) {
+                                     return $qry->whereIn('inst_id',$limit_to_insts);
+                                 })->get();
+
+        // For Enable, confirm inst/prov is_active and required connection values set using class resetStatus()
+        if ($input['action'] == 'Enable') {
+            // Loop across all requested+allowed credentials
+            $affectedIds = array();
+            foreach ($credentials as $cred) {
+                $status_before = $cred->status;
+                $cred->status = 'Enabled';
+                // This may update/hange status, and will save the credential
+                $cred->resetStatus();
+                if ($cred->status != $status_before) {
+                    $affectedIds[] = $cred->id;
+                }
+            }
+            return response()->json(['result' => true, 'msg' => '', 'affectedIds' => $affectedIds], 200);
+
+        // For Disable, just update the status for credentials not already disabled
+        } else if ($input['action'] == 'Disable') {
+            $credIds = $credentials->where('status','<>','Disabled')->pluck('id')->toArray();
+            Credential::whereIn('id',$credIds)->update(['status' => 'Disabled']);
+            return response()->json(['result' => true, 'msg' => '', 'affectedIds' => $credIds], 200);
+
+        // Handle delete
+        } else if ($input['action'] == 'Delete') {
+            $credIds = $credentials->pluck('id')->toArray();
+            Credential::whereIn('id',$credIds)->delete();
+            return response()->json(['result' => true, 'msg' => '', 'affectedIds' => $credIds], 200);
+
+        // Unrecognized action
+        } else {
+            return response()->json(['result' => false, 'msg' => 'Unrecognized bulk action requested'], 200);
+        }
+    }
+
+    /**
+     * Return an array of IDs for not-set credentials
+     *   $input['inst_id'] returns platform IDs without a credential for the institution
+     *   $input['plat_id'] returns institution IDs without a credential for the platform
+     *
+     * @param  \Illuminate\Http\Request  $request
+     * @return JSON $unset_ids
+     */
+    public function unset(Request $request)
+    {
+        global $thisUser;
+        $thisUser = auth()->user();
+        if (!$thisUser->isAdmin()) {
+            return response()->json(['result' => false, 'msg' => 'Request failed (403) - Forbidden']);
+        }
+        $input = $request->all();
+
+        // Get insitution limits for this user's role(s) if not consoAdmin
+        $consoAdmin = $thisUser->isConsoAdmin();
+        $limit_insts = ($consoAdmin) ? [] : $thisUser->adminInsts();
+
+        $unset_ids = array();
+        // Return an array of unset platforms for the institution
+        if ( isset($input['inst_id']) ) {
+            if (!$consoAdmin && !in_array($input['inst_id'],$limit_insts)) {
+                return response()->json(['result' => false, 'msg' => 'Request failed (403) - Forbidden']);
+            }
+            $allPlatIds = GlobalProvider::where('is_active',1)->pluck('id')->toArray();
+            $setPlatIds = Credential::where('inst_id',$input['inst_id'])->pluck('prov_id')->toArray();
+            $unset_ids = array_diff($allPlatIds, $setPlatIds);
+
+        // Return an array of unset institutions for the platform
+        } else if ( isset($input['plat_id']) ) {
+            $allInstIds = Institution::where('is_active',1)->pluck('id')->toArray();
+            $setInstIds = Credential::where('prov_id',$input['plat_id'])
+                                    ->when(!$consoAdmin, function ($qry) use ($limit_insts) {
+                                        return $qry->whereIn('inst_id',$limit_insts);
+                                    })->pluck('inst_id')->toArray();
+            $unset_ids = array_diff($allInstIds, $setInstIds);
+
+        // Return an error
+        } else {
+            return response()->json(['result' => false, 'msg' => 'Request failed - Missing argument(s)']);
+        }
+        return response()->json(['result' => true, 'msg' => '', 'unset_ids' => array_values($unset_ids)]);
+    }
+
     /**
      * Export credentials records from the database.
      *
@@ -846,7 +945,7 @@ class CredentialController extends Controller
                 $fileName .= ($prov_name == "") ? "_SomePlatforms": "_" . preg_replace('/ /', '', $prov_name);
             }
             if ( count($status_filters) > 0) {
-                $fileName .= ($status_name == "") ? "_SomeStauses" : "_".$status_name;
+                $fileName .= ($status_name == "") ? "_SomeStatuses" : "_".$status_name;
             }
         }
         $fileName .= "_COUNTERCredentials.xlsx";
