@@ -99,8 +99,14 @@ class InstitutionGroupController extends Controller
         // Set type_id of type restriction if sent
         $type_id = (isset($input['type'])) ? $input['type'] : null;
 
-        // Create the group
+        // Check to see if the group already exists
         $user_id = ($thisUser->isConsoAdmin()) ? null : $thisUser->id;
+        $exists = InstitutionGroup::where('user_id',$user_id)->where('name',$input['name'])->first();
+        if ($exists) {
+            return response()->json(['result' => false, 'msg' => 'A Group with that name already exists']);
+        }
+
+        // Create the group
         $group = InstitutionGroup::create(['name' => $input['name'], 'type_id' => $type_id, 'user_id' => $user_id]);
         $group->load('typeRestriction');
 
