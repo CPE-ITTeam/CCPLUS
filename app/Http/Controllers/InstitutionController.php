@@ -268,19 +268,8 @@ class InstitutionController extends Controller
             $institution->unsetRelation('institutionGroups'); // we'll add it back below
 
             // If is_active is changing, check and update related credentials
-            $credentials = Credential::with('provider')->where('inst_id',$institution->id)->get();
             if ($was_active != $institution->is_active) {
-                foreach ($credentials as $credential) {
-                    // Went from Active to Inactive
-                    if ($was_active) {
-                        if ($credential->status != 'Disabled') {
-                            $credential->update(['status' => 'Suspended']);
-                        }
-                    // Went from Inactive to Active
-                    } else {
-                        $credential->resetStatus();
-                    }
-                }
+                $this->updateCredentials($institution->id, $institution->is_active);
             }
         }
 
@@ -326,6 +315,84 @@ class InstitutionController extends Controller
         }
 
         return response()->json(['result' => true, 'msg' => 'Institution successfully deleted']);
+    }
+
+    /**
+     * Bulk operations from the U/I.
+     *
+     * @param  \Illuminate\Http\Request  $request
+     * @return JSON
+     */
+    public function bulk(Request $request)
+    {
+        global $thisUser;
+        $thisUser = auth()->user();
+        $consoAdmin = $thisUser->isConsoAdmin();
+
+        // Validate form inputs
+        $this->validate($request, ['ids' => 'required', 'action' => 'required']);
+        $input = $request->all();
+
+        // Create/Add-To Group requires another input value
+        if ( ($input['action'] == 'Create New Group' && !isset($input['name'])) ||
+             ($input['action'] == 'Add to Existing Group' && !isset($input['group_id'])) ) {
+            return response()->json(['result' => false, 'msg' => 'Missing input value(s) for requested operation'], 200);
+        }
+
+        // Get adminInsts for $thisUser
+        $adminInsts = $thisUser->adminInsts();
+        $instIDs = ($consoAdmin) ? $input['ids'] : array_intersect($adminInsts, $input['ids']);
+
+        // Check for missing inputs - or rights. Dekete or changing is_active is consoAdmin only;
+        // group actions require Conso, or admin of multiple insts
+        if (!$consoAdmin &&
+            ($input['action']=='Set Active' || $input['action']=='Set Inactive' || $input['action']=='Delete' ||
+             (count($adminInsts)<2 && ($input['action']=='Create New Group' || $input['action']=='Add to Existing Group')))) {
+            return response()->json(['result' => false, 'msg' => 'No Authorization for requested operation'], 200);
+        }
+
+        // Handle the action
+        $affectedIds = array();
+        if ($input['action'] == 'Set Active' || $input['action'] == 'Set Inactive') {
+            $new_is_active = ($input['action'] == 'Set Active') ? 1 : 0;
+            // Get matching institutions that need to change
+            $institutions = Institution::whereIn('id',$instIDs)->where('is_active','<>',$new_is_active)
+                                       ->get(['id','is_active']);
+            $args = array('is_active' => $new_is_active);
+            foreach ($institutions as $inst) {
+                $inst->update($args);
+                // Update related the is_active and credentials for all the institution IDs
+                $this->updateCredentials($inst->id, $new_is_active);
+            }
+            $affectedIds  = $institutions->pluck('id')->toArray();
+            return response()->json(['result' => true, 'msg' => '', 'affectedIds' => $affectedIds], 200);
+
+        } else if ($input['action'] == 'Create New Group' || $input['action'] == 'Add to Existing Group') {
+            // Set user_id for the group to check/create
+            $user_id = ($consoAdmin) ? null : $thisUser->id;
+            if ($input['action'] == 'Create New Group') {
+                $exists = InstitutionGroup::where('user_id',$user_id)->where('name',$input['name'])->first();
+                if ($exists) {
+                    return response()->json(['result' => false, 'msg' => 'Group already exists - no updates applied'], 200);
+                }
+                // Create the group
+                $group = InstitutionGroup::create(['name' => $input['name'], 'user_id' => $user_id]);
+            } else  {  // 'Add to Existing Group' , make sure group is there
+                $group = InstitutionGroup::where('user_id',$user_id)->where('id',$input['group_id'])->first();
+                if (!$group) {
+                    return response()->json(['result' => false, 'msg' => 'Target Group not found - no updates applied'], 200);
+                }
+            }
+            // Attach member institutions (to either existing or new group)
+            foreach ($instIDs as $inst_id) {
+                $group->institutions()->attach($inst_id);
+            }
+            return response()->json(['result' => true, 'msg' => '', 'affectedIds' => $instIDs, 'group' => $group], 200);
+
+        // Unrecognized action
+        } else {
+            return response()->json(['result' => false, 'msg' => 'Unrecognized bulk action requested'], 200);
+        }
     }
 
     /**
@@ -690,65 +757,25 @@ class InstitutionController extends Controller
     }
 
     /**
-     * Build string representation of master_reports array
+     * Update credentials when an institution is_active setting is changed
      *
-     * @param  Array  $reports
-     * @param  Collection  $master_reports
+     * @param  Integer  $instId
+     * @param  Integer  $active (0/1)
      * @return String
      */
-    private function makeReportString($reports, $master_reports) {
-        if (count($reports) == 0) return 'None';
-        $report_string = '';
-        foreach ($master_reports as $mr) {
-            if (in_array($mr->id,$reports)) {
-                $report_string .= ($report_string == '') ? '' : ', ';
-                $report_string .= $mr->name;
+    private function updateCredentials($instId, $active) {
+        // If is_active is changing, check and update related credentials
+        $credentials = Credential::with('provider')->where('inst_id',$instId)->get();
+        foreach ($credentials as $credential) {
+            if ($active == 1) {
+                if ($credential->status != 'Disabled') {
+                    $credential->update(['status' => 'Suspended']);
+                }
+            // Went from Inactive to Active
+            } else {
+                $credential->resetStatus();
             }
         }
-        return $report_string;
-    }
-
-    /**
-     * Build array of flags by-report for the UI
-     *
-     * @param  Collection master_reports
-     * @param  Array  $master_ids  (ID's available from the global platform)
-     * @param  Array  $conso_enabled  (ID's enabled for the consortium)
-     * @param  Array  $prov_enabled  (ID's enabled for the institution)
-     * @return Array  $flags
-     */
-    private function setReportFlags($master_reports, $master_ids, $conso_enabled, $prov_enabled) {
-        $flags = array();
-        foreach ($master_reports as $mr) {
-            $rpt = array('name' => $mr->name, 'status' => 'NA');
-            if (in_array($mr->id, $conso_enabled)) {
-                $rpt['status'] = 'C';
-            } else if (in_array($mr->id, $prov_enabled)) {
-                $rpt['status'] = 'I';
-            } else if (in_array($mr->id, $master_ids)) {
-                $rpt['status'] = 'A';
-            }
-            $flags[] = $rpt;
-        }
-        return $flags;
-    }
-
-    /**
-     * Return an array of booleans for report-state from provider reports columns
-     *
-     * @param  Collection master_reports
-     * @param  Array  $conso_enabled  (ID's)
-     * @param  Array  $prov_enabled  (ID's)
-     * @return Array  $report-state
-     */
-    private function reportState($master_reports, $conso_enabled, $prov_enabled) {
-        $rpt_state = array();
-        foreach ($master_reports as $rpt) {
-            $rpt_state[$rpt->name] = array();
-            $rpt_state[$rpt->name]['prov_enabled'] = (in_array($rpt->id, $prov_enabled)) ? true : false;
-            $rpt_state[$rpt->name]['conso_enabled'] = (in_array($rpt->id, $conso_enabled)) ? true : false;
-        }
-        return $rpt_state;
     }
 
     /**
