@@ -176,6 +176,48 @@ class RoleController extends Controller
     }
 
     /**
+     * Bulk operations from the U/I.
+     *
+     * @param  \Illuminate\Http\Request  $request
+     * @return JSON
+     */
+    public function bulk(Request $request)
+    {
+        global $thisUser;
+        $thisUser = auth()->user();
+        if (!$thisUser->isAdmin()) {
+            return response()->json(['result' => false, 'msg' => 'Request failed (403) - Forbidden']);
+        }
+        $consoAdmin = $thisUser->isConsoAdmin();
+
+        // Validate form inputs
+        $this->validate($request, ['ids' => 'required', 'action' => 'required']);
+        $input = $request->all();
+
+        // Get userRole records, excluding ServerAdmin, for IDs in input limited by role if necessary
+        $server_admin = config('ccplus.server_admin');
+        $limit_insts = ($consoAdmin) ? [] : $thisUser->adminInsts();
+        $userIds = User::where('email', '<>', $server_admin)
+                       ->when( count($limit_insts)>0, function ($qry) use ($limit_insts) {
+                           return $qry->whereIn('inst_id', $limit_insts);
+                       })->pluck('id')->toArray();
+        $userRoleIds = UserRole::whereIn('user_id',$userIds)->whereIn('id',$input['ids'])
+                               ->pluck('id')->toArray();
+        // Handle delete action
+//NOTE:::
+//  Might be a good thing to set any "active" users to "Viewer" if their only role gets deleted....
+//-------
+        if ($input['action'] == 'Delete') {
+            UserRole::whereIn('id',$input['ids'])->delete();
+            return response()->json(['result' => true, 'msg' => '', 'affectedIds' => $userRoleIds], 200);
+
+        // Unrecognized action
+        } else {
+            return response()->json(['result' => false, 'msg' => 'Unrecognized bulk action requested'], 200);
+        }
+    }
+
+    /**
      * Remove the specified resource from storage.
      *
      * @param  Role  $role
@@ -183,7 +225,10 @@ class RoleController extends Controller
      */
     public function destroy($id)
     {
-        $role = UserRole::findOrFail($id);
+        $role = UserRole::with('user')->findOrFail($id);
+        if (!$role->user->canManage()) {
+            return response()->json(['result' => false, 'msg' => 'Request failed (403) - Forbidden']);
+        }
         $role->delete();
         return response()->json(['result'=>true, 'msg'=>'Role deleted successfully', 'record'=>null]);
     }
