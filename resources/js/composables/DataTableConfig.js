@@ -224,6 +224,7 @@
       ],
       required: ['institutions','platforms','customer_id', 'requestor_id', 'api_key'],
       static: ['groups', 'statuses', 'results', 'inst_id', 'prov_id'],
+      bulkOptions: ['Enable', 'Disable', 'Delete'],
       sortby: 'platform',
     },
     jobs: {
@@ -248,6 +249,7 @@
       ],
       required: [],
       static: ['id'],
+      bulkOptions: ['Pause', 'ReStart', 'Kill'],
       // ASC or DESC??
       sortby: 'created',
     },
@@ -274,6 +276,7 @@
       ],
       required: [],
       static: ['id'],
+      bulkOptions: ['Restart', 'ReStart as r5', 'ReStart as r5.1', 'Delete'],
       // ASC or DESC??
       sortby: 'updated',
     },
@@ -355,6 +358,7 @@
       ],
       required: ['name', 'abbrev', 'dataHost'],
       static: ['id'],
+      bulkOptions: ['Enable', 'Disable', 'Refresh Registry', 'Delete'],
       sortby: 'name',
     }
 };
