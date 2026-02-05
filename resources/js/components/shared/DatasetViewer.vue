@@ -31,6 +31,7 @@
   var reptItem = reactive({});
   var unsetPairs = reactive([]);
   var allOptions = {};
+  var bulkOptions = ref([]);
   const filterOptions = reactive({});
   const headers = ref([]);
   const searchFields = ref([]);
@@ -85,6 +86,13 @@
       }
     } catch (error) {
       console.log('Error fetching records for '+datasetKey+' : ', error);
+    }
+    // Setup bulkOptions
+    bulkOptions.value = {'dataset': props.datasetKey, 'items': []};
+    if (typeof(config.bulkOptions) != 'undefined') bulkOptions.value.items = [...config.bulkOptions];
+    // institutions dataset needs groups for "add-to-group" action
+    if (props.datasetKey == 'institutions' && typeof(allOptions.groups) != 'undefined') {
+      bulkOptions.value['groups'] = [...allOptions.groups];
     }
     // set datatable header, display, and editor options
     headers.value = [{ title: "", key: "" }];
@@ -176,6 +184,56 @@
       config.fields[idx]['visible'] = true;
     });
     formDialogOpen.value = true;
+  }
+
+  async function handleBulk(data) {
+console.log('Bulk Action emit caught : '+data.action);
+console.log('There are '+selectedRows.value.length+' Rows selected');
+    let bulkUrl = urlRoot.value+'/bulk';
+    let args = {ids: selectedRows.value.map(ii => ii.id)};
+    Object.keys(data).forEach( (key) => { args[key] = data[key]; });
+    // Update the items
+    try {
+// NOTE:: bulk routes need to accept *at minumum* 'ids' and 'action'
+//        and then return ... either  'affectedIds' or 'items' :
+//          for affectedIds, update status (or whatever);
+//          for items, needs to replace the complete item(s) in the rows
+      const response = await ccPost(bulkUrl, args);
+
+      if (response.result) {
+        if (response.affectedIds.length>0 && data.action == 'Set Active' || data.action == 'Set Inactive') {
+          allItems.filter(aitm => response.affectedIds.includes(aitm.id)).forEach( itm => {
+            if ( typeof(itm.is_active) != 'undefined' ) itm.is_active = (data.action == 'Set Active') ? 1 : 0;
+            if ( typeof(itm.status) != 'undefined' ) itm.status = (data.action == 'Set Active') ? 'Active' : 'Inactive';
+          })
+        } else if (data.action == 'Create New Group' || data.action=='Add to Existing Group') {
+          if (data.action == 'Create New Group') {
+            filterOptions.groups.items.push({'id': response.group.id, 'name': response.group.name});
+          }
+          allItems.filter(aitm => response.affectedIds.includes(aitm.id)).forEach( itm => {
+            if ( typeof(itm.group_string) != 'undefined' ) {
+              itm.group_string += (itm.group_string.length>0) ? ',' : '';
+              itm.group_string += response.group.name;
+            }
+            if (Array.isArray(itm.group_ids)) itm.group_ids.push(response.group.id);
+          });
+        } else if (data.action == 'Delete') {
+          response.affectedIds.forEach( itemId => {
+            allItems.splice(allItems.findIndex( ii => ii.id == itemId),1);
+            filteredItems.splice(filteredItems.findIndex( ii => ii.id == itemId),1);
+          });
+        } else if (data.action == 'Some other Action') {
+
+        }
+        success.value = response.msg
+        // Reset the item rows and filteredItems
+        updateItems();
+      } else {
+        failure.value = response.msg
+      }
+    } catch (error) {
+      console.log('Error processing bulk request: ', error);
+    }
   }
 
   // function sortItems() {
@@ -382,8 +440,9 @@ console.log('Handling for includeZeros toggle not written yet');
 <template>
   <v-sheet>
     <DataToolbar v-model="toolbarFilters" :search="search" :showSelectedOnly="showSelectedOnly" :dataset="props.datasetKey"
-                 :showAdd="unsetPairs.length>0 || props.datasetKey!='credentials'" @add="handleAddItem" @setFilter="updateItems"
-                  @update:search="search=$event" @update:showSelectedOnly="handleToggle" @updateConso="handleChangeConso" />
+                 :showAdd="unsetPairs.length>0 || props.datasetKey!='credentials'" :bulkOptions="bulkOptions"
+                 @add="handleAddItem" @setFilter="updateItems" @bulkAction="handleBulk" :selectedRows="selectedRows" 
+                 @update:search="search=$event" @update:showSelectedOnly="handleToggle" @updateConso="handleChangeConso" />
     <div v-if="success || failure" class="status-message">
       <span v-if="success"      class="good" v-text="success"></span>
       <span v-else-if="failure" class="fail" v-text="failure"></span>
