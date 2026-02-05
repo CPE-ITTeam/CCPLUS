@@ -29,7 +29,6 @@
   var allItems = reactive([]);
   var filteredItems = reactive([]);
   var reptItem = reactive({});
-  var unsetPairs = reactive([]);
   var allOptions = {};
   var bulkOptions = ref([]);
   const filterOptions = reactive({});
@@ -60,11 +59,11 @@
   const formSchema = computed(() => {
     const config = datasetConfig[props.datasetKey];
     return {
+      dataset: props.datasetKey,
       type: formDialogType.value,
       fields: [...config.fields],
       requiredKeys: [...config.required],
       options: {...allOptions},
-      unset: [...unsetPairs],
     };
   });
 
@@ -81,9 +80,6 @@
       allItems = [ ...data.records ];
       filteredItems = [ ...data.records ];
       allOptions = { ...data.options };
-      if (typeof(allOptions['unset']) != 'undefined') {
-        unsetPairs = [...allOptions['unset']];
-      }
     } catch (error) {
       console.log('Error fetching records for '+datasetKey+' : ', error);
     }
@@ -206,6 +202,9 @@ console.log('There are '+selectedRows.value.length+' Rows selected');
             if ( typeof(itm.is_active) != 'undefined' ) itm.is_active = (data.action == 'Set Active') ? 1 : 0;
             if ( typeof(itm.status) != 'undefined' ) itm.status = (data.action == 'Set Active') ? 'Active' : 'Inactive';
           })
+// NOTE:: will need to handle the various return data/actions that come back
+//     :: if possible, standardizing action options/values that are similar
+//     :: across dataSets would make this section way less clunky
         } else if (data.action == 'Create New Group' || data.action=='Add to Existing Group') {
           if (data.action == 'Create New Group') {
             filterOptions.groups.items.push({'id': response.group.id, 'name': response.group.name});
@@ -440,9 +439,9 @@ console.log('Handling for includeZeros toggle not written yet');
 <template>
   <v-sheet>
     <DataToolbar v-model="toolbarFilters" :search="search" :showSelectedOnly="showSelectedOnly" :dataset="props.datasetKey"
-                 :showAdd="unsetPairs.length>0 || props.datasetKey!='credentials'" :bulkOptions="bulkOptions"
-                 @add="handleAddItem" @setFilter="updateItems" @bulkAction="handleBulk" :selectedRows="selectedRows" 
-                 @update:search="search=$event" @update:showSelectedOnly="handleToggle" @updateConso="handleChangeConso" />
+                 :bulkOptions="bulkOptions" @add="handleAddItem" @setFilter="updateItems" @bulkAction="handleBulk"
+                 :selectedRows="selectedRows" @update:search="search=$event" @update:showSelectedOnly="handleToggle"
+                 @updateConso="handleChangeConso" />
     <div v-if="success || failure" class="status-message">
       <span v-if="success"      class="good" v-text="success"></span>
       <span v-else-if="failure" class="fail" v-text="failure"></span>
