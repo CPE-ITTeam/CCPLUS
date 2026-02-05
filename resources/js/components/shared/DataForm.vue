@@ -1,6 +1,7 @@
 <!-- components/shared/DataForm.vue -->
 <script setup>
   import { computed, ref, reactive, onMounted } from 'vue';
+  import { useAuthStore } from '@/plugins/authStore.js';
   import ToggleIcon from './ToggleIcon.vue';
 
   const props = defineProps({
@@ -16,6 +17,7 @@
     },
     schema: { type: Object, required: true },
   });
+  const { ccPost } = useAuthStore();
   const formRef = ref();
   var pw_show = ref(false);
   var pwc_show = ref(false);
@@ -101,30 +103,30 @@
   }
 
   // select-specific changes
-  function selectChanged(fieldName) {
+  async function selectChanged(fieldName) {
+    // Update inst/platform options in credentials dataset
+    if ( m_schema.dataset == 'credentials') {
+      if (fieldName=='institutions' || fieldName=='platforms') {
+        // Changing institutions affects platforms and vice-versa
+        let optionsKey = (fieldName=='platforms') ? 'institutions' : 'platforms';
+        let arg = (fieldName=='platforms') ? {'plat_id' : formValues['platforms']}
+                                            : {'inst_id' : formValues['institutions']};
+        const response = await ccPost("/api/credentials/unset", arg);
+        if (response.result) {
+          m_schema.options[optionsKey] = props.schema.options[optionsKey].filter(
+            opt => response.unset_ids.includes(opt.id)
+          );
+        }
+      }
+    }
     if (fieldName=='institution') {
       let _idx = m_schema.fields.findIndex(f => f.name=='group');
       if (_idx >= 0) m_schema.fields[_idx]['visible'] = false;
       if (typeof(formValues['group']) != 'undefined') formValues['group'] = null;
     } else if (fieldName=='institutions') {
-      // If UNSET exists in options, limit platforms based on chosen inst
-      if (m_schema.unset.length>0) {
-        // get all UNSET platforms for the selected inst
-        m_schema.options.platforms = m_schema.options.platforms.filter( plat =>
-          m_schema.unset.filter( opt => opt.inst_id == formValues['institutions'])
-                        .map( p => p.plat_id).includes(plat.id)
-        );
-      }
       let _idx = m_schema.fields.findIndex(f => f.name=='inst_id');
       if (_idx >= 0) formValues['inst_id'] = formValues['institutions'];
     } else if (fieldName=='platforms') {
-      // If UNSET exists in options, limit institutions based on chosen platform
-      if (m_schema.unset.length>0) {
-        m_schema.options.institutions = m_schema.options.institutions.filter( inst =>
-          m_schema.unset.filter( opt => opt.plat_id == formValues['platforms'])
-                        .map( p => p.inst_id).includes(inst.id)
-        );
-      }
       let _idx = m_schema.fields.findIndex(f => f.name=='prov_id');
       if (_idx >= 0) formValues['prov_id'] = formValues['platforms'];
     } else if (fieldName=='group') {
@@ -154,21 +156,12 @@
       emit('submit', formValues);
     }
   }
-onMounted(() => {
-  // Preset and/or limit specific select fields
-  m_schema.fields.forEach( (fld) => {
-    if (fld.type == 'select' && typeof(m_schema.options[fld.name])!='undefined' &&
-        typeof(formValues[fld.name])!='undefined') {
-      if (Array.isArray(m_schema.options[fld.name]) && m_schema.unset.length>0) {
-        // Limit options for insitutions and platforms using unset pairs
-        if (fld.name == 'institutions') {
-          m_schema.options[fld.name] = props.schema.options[fld.name].filter(
-            inst => m_schema.unset.map( p => p.inst_id).includes(inst.id));
-        }
-        if (fld.name == 'platforms') {
-          m_schema.options[fld.name] = props.schema.options[fld.name].filter(
-            plat => m_schema.unset.map( p => p.plat_id).includes(plat.id));
-        }
+
+  onMounted(() => {
+    // Preset and/or limit specific select fields
+    m_schema.fields.forEach( (fld) => {
+      if (fld.type == 'select' && typeof(m_schema.options[fld.name])!='undefined' &&
+          typeof(formValues[fld.name])!='undefined') {
         // Preset values if there's only one item in options
         if (m_schema.options[fld.name].length == 1) {
           formValues[fld.name] = m_schema.options[fld.name][0][fld.optVal];
@@ -180,10 +173,9 @@ onMounted(() => {
             formValues['prov_id'] = formValues['platforms'];
           }
         }
-      }
-    } 
+      } 
+    });
   });
-});
 </script>
 
 <template>
@@ -199,6 +191,12 @@ onMounted(() => {
             <div v-if="opType!='Add' && (!field.editable || field.renderAsText)">
               <strong>{{ field.label }}:</strong> &nbsp;
               <span class="text-medium-emphasis">{{ formValues[field.name] }}</span>
+            </div>
+            <div v-else-if="opType=='Add' && m_schema.dataset=='credentials' &&
+                            (field.name=='institutions' || field.name=='platforms') &&
+                            m_schema.options[field.name].length==0">
+              <strong>{{ field.label }}:</strong> &nbsp;
+              <span class="text-medium-emphasis">No {{ field.name }} can be added</span>
             </div>
 
             <!-- ToggleIcon input -->
