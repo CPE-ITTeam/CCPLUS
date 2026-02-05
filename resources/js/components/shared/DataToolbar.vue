@@ -6,7 +6,8 @@
   import { useCCPlusStore } from '@/plugins/CCPlusStore.js';
   import FlexCol from './FlexCol.vue';
   import SearchAndSelect from './SearchAndSelect.vue';
-  import FiltersAndActions from './FiltersAndActions.vue';
+  import ToolbarFilters from './ToolbarFilters.vue';
+  import BulkActions from './BulkActions.vue';
   import ExportAndImport from './ExportAndImport.vue';
   const filter_options = defineModel({type: Object, required: true});
   const props = defineProps({
@@ -14,6 +15,8 @@
     showSelectedOnly: { type: Boolean, required: true },
     showAdd: { type: Boolean, required: false, default: false },
     dataset: { type: String, required: true },
+    selectedRows: { type: Array, required: true },
+    bulkOptions: {type: Object, required: true },
   });
 
   const authStore = useAuthStore();
@@ -49,7 +52,6 @@
     emit('setFilter');
   }
 
-  // ToDo:: Catch emits from child components
   const emit = defineEmits([
     'updateConso',
     'update:search',
@@ -57,7 +59,8 @@
     'add',
     'export',
     'import',
-    'setFilter'
+    'setFilter',
+    'bulkAction'
   ]);
 </script>
 
@@ -82,9 +85,14 @@
   </v-row>
   <!-- Search + Selected Toggle -->
   <v-row class="my-2">
-    <FlexCol>
+    <v-col v-if="props.selectedRows.length>0" cols="2">
+      <BulkActions v-model="props.bulkOptions" @bulkAction="$emit('bulkAction', $event)" />
+    </v-col>
+    <v-col v-else cols="2">&nbsp;</v-col>
+    <v-col v-if="anyFilterSet" cols="1">
       <v-btn v-if="anyFilterSet" icon="mdi-restore" color="#dd0000" @click="resetFilters"></v-btn>
-    </FlexCol>
-    <FiltersAndActions v-model="filter_options" @setFilter="$emit('setFilter')" />
+    </v-col>
+    <v-col v-else cols="1">&nbsp;</v-col>
+    <ToolbarFilters v-model="filter_options" @setFilter="$emit('setFilter')" />
   </v-row>
 </template>
