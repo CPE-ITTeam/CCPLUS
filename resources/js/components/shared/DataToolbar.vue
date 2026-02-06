@@ -63,7 +63,6 @@
   ]);
 </script>
 
-
 <template>
   <!-- Search + Selected Toggle -->
   <v-row class="my-2" no-gutters>
@@ -83,7 +82,7 @@
   </v-row>
   <!-- Search + Selected Toggle -->
   <v-row class="my-2">
-    <v-col v-if="props.selectedRows.length>0 && props.bulkOptions.length>0" cols="2">
+    <v-col v-if="props.selectedRows.length>0 && props.bulkOptions.items.length>0" cols="2">
       <BulkActions v-model="props.bulkOptions" @bulkAction="$emit('bulkAction', $event)" />
     </v-col>
     <v-col v-else cols="2">&nbsp;</v-col>
