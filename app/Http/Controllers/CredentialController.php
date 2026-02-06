@@ -395,7 +395,7 @@ class CredentialController extends Controller
         // Get connection record
         $cnx = Connection::where('inst_id',$inst_id)->where('global_id',$global->id)->with('reports')->first();
         if ($cnx) {
-            $attached = (!is_null($cnx->reports()->where('id',$report_id)->first()));
+            $attached = (!is_null($cnx->reports->where('id',$report_id)->first()));
         } else if ($requested) {
             // Enabling a report for a platform not-yet connected?
             $_data = array('name' => $global->name, 'global_id' => $global->id, 'is_active' => $global->is_active,
@@ -581,17 +581,17 @@ class CredentialController extends Controller
         // For Enable, confirm inst/prov is_active and required connection values set using class resetStatus()
         if ($input['action'] == 'Enable') {
             // Loop across all requested+allowed credentials
-            $affectedIds = array();
+            $affectedItems = array();
             foreach ($credentials as $cred) {
                 $status_before = $cred->status;
                 $cred->status = 'Enabled';
                 // This may update/hange status, and will save the credential
                 $cred->resetStatus();
                 if ($cred->status != $status_before) {
-                    $affectedIds[] = $cred->id;
+                    $affectedItems[] = array('id' => $cred->id, 'status' => $cred->status);
                 }
             }
-            return response()->json(['result' => true, 'msg' => '', 'affectedIds' => $affectedIds], 200);
+            return response()->json(['result' => true, 'msg' => '', 'affectedItems' => $affectedItems], 200);
 
         // For Disable, just update the status for credentials not already disabled
         } else if ($input['action'] == 'Disable') {
