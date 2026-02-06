@@ -191,41 +191,51 @@ console.log('There are '+selectedRows.value.length+' Rows selected');
     // Update the items
     try {
 // NOTE:: bulk routes need to accept *at minumum* 'ids' and 'action'
-//        and then return ... either  'affectedIds' or 'items' :
-//          for affectedIds, update status (or whatever);
-//          for items, needs to replace the complete item(s) in the rows
+//        and then return ... either  'affectedIds' or 'affectedItems' :
+//          for affectedIds, action is applied to allItems with no extra detail;
+//          for affectedItems, additional data is included beyond just the IDs
       const response = await ccPost(bulkUrl, args);
 
-      if (response.result) {
-        if (response.affectedIds.length>0 && data.action == 'Set Active' || data.action == 'Set Inactive') {
+      if (response.result && allItems.length>0) {
+        // Active/Inactive actions update 'is_active' and 'status' keys in allItems
+        if ( (data.action == 'Set Active' || data.action == 'Set Inactive') && response.affectedIds.length>0 ) {
           allItems.filter(aitm => response.affectedIds.includes(aitm.id)).forEach( itm => {
             if ( typeof(itm.is_active) != 'undefined' ) itm.is_active = (data.action == 'Set Active') ? 1 : 0;
             if ( typeof(itm.status) != 'undefined' ) itm.status = (data.action == 'Set Active') ? 'Active' : 'Inactive';
           })
-// NOTE:: will need to handle the various return data/actions that come back
-//     :: if possible, standardizing action options/values that are similar
-//     :: across dataSets would make this section way less clunky
-        } else if (data.action == 'Create New Group' || data.action=='Add to Existing Group') {
+        // Grouping actions (institution dataset) return an extra key for the group
+        } else if ((data.action == 'Create New Group' || data.action=='Add to Existing Group') &&
+                   response.affectedIds.length>0 && typeof(allItems[0]['group_string'] != 'undefined')) {
           if (data.action == 'Create New Group') {
             filterOptions.groups.items.push({'id': response.group.id, 'name': response.group.name});
           }
           allItems.filter(aitm => response.affectedIds.includes(aitm.id)).forEach( itm => {
-            if ( typeof(itm.group_string) != 'undefined' ) {
-              itm.group_string += (itm.group_string.length>0) ? ',' : '';
-              itm.group_string += response.group.name;
+            itm.group_string += (itm.group_string.length>0) ? ',' : '';
+            itm.group_string += response.group.name;
+            if (Array.isArray(itm.group_ids)) {
+              itm.group_ids.push(response.group.id);
             }
-            if (Array.isArray(itm.group_ids)) itm.group_ids.push(response.group.id);
           });
-        } else if (data.action == 'Delete') {
-          response.affectedIds.forEach( itemId => {
-            allItems.splice(allItems.findIndex( ii => ii.id == itemId),1);
-            filteredItems.splice(filteredItems.findIndex( ii => ii.id == itemId),1);
+        // Enable action (credentials dataset) should return affectedItems containing
+        // [ {'id': <int>, 'status': <string>}, {}, ...]
+        } else if (data.action == 'Enable' && response.affectedItems.length>0 && 
+                   typeof(allItems[0]['status']) != 'undefined') {
+          response.affectedItems.forEach( ritm => {
+            var idx = allItems.findIndex( itm => itm.id == ritm.id);
+            if (idx >= 0) allItems[idx]['status'] = ritm.status;
           });
+        // Disable action (credentials dataset) sets 'status' key in allItems to 'Disabled'
+        } else if (data.action == 'Disable' && response.affectedIds.length>0 &&
+                   typeof(allItems[0]['status']) != 'undefined') {
+          allItems.filter(aitm => response.affectedIds.includes(aitm.id)).forEach( itm => { itm.status = 'Disabled'; });
+        // Delete action sets removes records from allItems
+        } else if (data.action == 'Delete' && response.affectedIds.length>0) {
+          response.affectedIds.forEach( itemId => { allItems.splice(allItems.findIndex( ii => ii.id == itemId),1); });
         } else if (data.action == 'Some other Action') {
 
         }
         success.value = response.msg
-        // Reset the item rows and filteredItems
+        // Records changed above, update the datatable and filteredItems
         updateItems();
       } else {
         failure.value = response.msg
