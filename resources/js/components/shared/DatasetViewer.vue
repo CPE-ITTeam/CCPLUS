@@ -121,7 +121,7 @@
       } else if (Array.isArray(fld.options)) {
         filterOptions[fld.name] = {
           'name': fld.name, 'label': fld.label, 'type': fld.type, 'val': fld.optVal, 'txt': fld.optTxt,
-          'show': fld.isFilter, 'col': fld.filterCol, 'items': [...fld.options], 'value': fld.options[0]
+          'show': fld.isFilter, 'col': fld.filterCol, 'items': [...fld.options], 'value': null
         };
       } else if (fld.name == 'fiscalYr') {
         allOptions['fiscalYr'] = [...fyMonths];
