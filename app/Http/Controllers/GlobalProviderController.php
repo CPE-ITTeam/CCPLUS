@@ -5,7 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\GlobalProvider;
 use App\Models\Consortium;
 use App\Models\Report;
-use App\Models\Provider;
+use App\Models\Connection;
 use App\Models\ConnectionField;
 use App\Models\CounterRegistry;
 use Illuminate\Http\Request;
@@ -36,30 +36,17 @@ class GlobalProviderController extends Controller
 
         // Set and confirm the role returning data for
         $thisUser = auth()->user();
-        $type = ($role=='admin') ? 'admin' : 'viewer';
-        abort_unless($type=='viewer' || $thisUser->hasAnyRole(['Admin']), 403);
+        abort_unless($thisUser->isServerAdmin(), 403);
 
-        // Set institution limits based on users's role(s) and what's been requested
-        $_insts = ($type == 'admin') ? $thisUser->adminInsts() : $thisUser->viewerInsts();
-        $limit_to_insts = ($_insts == [1]) ? [] : $_insts;
-
-        // Pull globalProvider IDs based on the consortium providers defined for institutions in
-        // $limit_to_insts. Admins and Viewers both get consortium-wide providers (where inst_id=1)
-        $globalIDs = Provider::where('inst_id',1)
-                             ->when(count($limit_to_insts) > 0, function ($qry) use ($limit_to_insts) {
-                                return $qry->orWhereIn('inst_id',$limit_to_insts);
-                             })
-                             ->select('global_id')->distinct()->pluck('global_id')->toArray();
+        // Get all provider records
+        $gp_data = GlobalProvider::orderBy('name', 'ASC')->get();
 
         // Pull master reports and connection fields regardless of JSON flag
         $this->getMasterReports();
         $this->getConnectionFields();
         $all_connectors = $allConnectors->toArray();
 
-        // Get provider records and filter as-needed
-        $gp_data = GlobalProvider::whereIn('id', $globalIDs)->orderBy('name', 'ASC')->get();
-
-        // get all the consortium instances and preserve the current instance database setting
+        // get all the consortium instances
         $instances = Consortium::get();
 
         // Build the providers array to pass back to the datatable
@@ -67,6 +54,7 @@ class GlobalProviderController extends Controller
         foreach ($gp_data as $gp) {
             $provider = $gp->toArray();
             $provider['status'] = ($gp->is_active) ? "Active" : "Inactive";
+            $provider['refreshable'] = ($gp->refreshable) ? "Active" : "Inactive";
             $provider['registry_id'] = (is_null($gp->registry_id) || $gp->registry_id=="") ? null : $gp->registry_id;
 
             // Set release-related fields
@@ -91,7 +79,7 @@ class GlobalProviderController extends Controller
             // Walk all instances scan for harvests connected to this provider
             // If any are found, the can_delete flag will be set to false to disable deletion option in the U/I
             $provider['can_delete'] = true;
-            $provider['connection_count'] = 0;
+            $provider['instance_count'] = 0;
             $connections = array();
             foreach ($instances as $instance) {
                 // Collect details from the instance for this provider
@@ -99,12 +87,13 @@ class GlobalProviderController extends Controller
                 if ($details['harvest_count'] > 0) {
                     $provider['can_delete'] = false;
                 }
-                if ($details['connections'] > 0) {
-                    $connections[] = array('key'=>$instance->ccp_key, 'name'=>$instance->name, 'num'=>$details['connections'],
+                if ($details['cnxcount'] > 0) {
+                    $connections[] = array('key'=>$instance->ccp_key, 'name'=>$instance->name, 'num'=>$details['cnxcount'],
                                             'last_harvest'=>$details['last_harvest']);
-                    $provider['connection_count'] += 1;
+                    $provider['instance_count'] += 1;
                 }
             }
+            $provider['can_edit'] = true;
             $parsedUrl = parse_url($provider['service_url']);
             $provider['host_domain'] = (isset($parsedUrl['host'])) ? $parsedUrl['host'] : "-missing-";
             $provider['connections'] = $connections;
@@ -128,14 +117,14 @@ class GlobalProviderController extends Controller
 
       // Validate form inputs
       $this->validate($request, [ 'name' => 'required', 'is_active' => 'required', 'service_url' => 'required',
-                                  'release' => 'required' ]);
+                                  'release' => 'required', 'refreshable' => 'required' ]);
       $input = $request->all();
 
       // Create new global provider
       $provider = new GlobalProvider;
       $provider->name = $input['name'];
       $provider->is_active = $input['is_active'];
-      $provider->refreshable = $input['refreshable'];
+      $provider->refreshable = ($input['refreshable'] == 'Active') ? 1 : 0;
       $provider->refresh_result = null;
       $provider->day_of_month = (isset($input['day_of_month'])) ? $input['day_of_month'] : 15;
       $provider->platform_parm = $input['platform_parm'];
@@ -175,8 +164,9 @@ class GlobalProviderController extends Controller
 
       // Build return object to match what index() shows
       $provider['can_delete'] = true;
-      $provider['connection_count'] = 0;
+      $provider['cnxcount'] = 0;
       $provider['status'] = ($provider->is_active) ? "Active" : "Inactive";
+      $provider['refreshable'] = ($provider->refreshable) ? "Active" : "Inactive";
       $provider['connector_state'] = $input['connector_state'];
       $provider['report_state'] = (isset($input['report_state'])) ? $input['report_state'] : array();
       $provider['service_url'] = $provider->service_url();
@@ -213,7 +203,7 @@ class GlobalProviderController extends Controller
           $provider->refresh_result = null;
       }
       if (array_key_exists('refreshable', $input)) {
-          $provider->refreshable = ($input['refreshable']) ? 1 : 0;
+          $provider->refreshable = ($input['refreshable'] == 'Active') ? 1 : 0;
       } else {
           $provider->refreshable = 0;
       }
@@ -297,23 +287,49 @@ class GlobalProviderController extends Controller
       $provider->updated_at = now();
       $provider->save();
       $provider->load('registries');
-      $provider['status'] = ($provider->is_active) ? "Active" : "Inactive";
-      $provider['report_state'] = (isset($input['report_state'])) ? $input['report_state'] : array();
+
       // Set connector_state by-release
       foreach ($provider->registries as $registry) {
           $registry->connector_state = $this->connectorState($registry->connectors);
           $registry->is_selected = ($registry->release == $provider->selected_release);
       }
-      $provider['release'] = $release;
-      $provider['service_url'] = ($registry) ? $registry->service_url : $provider->service_url();
-      // Set connection field labels in an array for the datatable display
-      $provider['updated'] = (is_null($provider->updated_at)) ? null : date("Y-m-d H:i", strtotime($provider->updated_at));
 
       // Apply changes system-wide
-      $provider->appyToInstances();
+      $provider->applyToInstances();
+
+      // Setup Return record
+      $record = $provider->toArray();
+      $record['status'] = ($provider->is_active) ? "Active" : "Inactive";
+      $record['refreshable'] = ($provider->refreshable) ? "Active" : "Inactive";
+      $record['report_state'] = (isset($input['report_state'])) ? $input['report_state'] : array();
+      $record['release'] = $release;
+      $record['service_url'] = ($registry) ? $registry->service_url : $provider->service_url();
+      $parsedUrl = parse_url($record['service_url']);
+      $record['host_domain'] = (isset($parsedUrl['host'])) ? $parsedUrl['host'] : "-missing-";
+
+      // Check all instances scan for harvests connected to this provider to set the can_delete flag
+      $record['can_edit'] = true;
+      $record['can_delete'] = true;
+      $record['instance_count'] = 0;
+      $connections = array();
+      $instances = Consortium::get();
+      foreach ($instances as $instance) {
+          // Collect details from the instance for this provider
+          $details = $this->instanceDetails($instance->ccp_key, $provider);
+          if ($details['harvest_count'] > 0) {
+              $record['can_delete'] = false;
+          }
+          if ($details['cnxcount'] > 0) {
+              $connections[] = array('key'=>$instance->ccp_key, 'name'=>$instance->name, 'num'=>$details['cnxcount'],
+                                      'last_harvest'=>$details['last_harvest']);
+              $record['instance_count'] += 1;
+          }
+      }
+      $record['connections'] = $connections;
+      $record['updated'] = (is_null($provider->updated_at)) ? "" : date("Y-m-d H:i", strtotime($provider->updated_at));
 
       return response()->json(['result' => true, 'msg' => 'Global Platform settings successfully updated',
-                               'provider' => $provider]);
+                               'record' => $record]);
     }
 
     /**
@@ -325,7 +341,7 @@ class GlobalProviderController extends Controller
     {
         $globalProvider = GlobalProvider::findOrFail($id);
 
-        // Loop through all consortia instances and delete from the providers tables
+        // Loop through all consortia instances and delete related connections
         $instances = Consortium::get();
         $keepDB  = config('database.connections.consodb.database');
         foreach ($instances as $instance) {
@@ -338,7 +354,7 @@ class GlobalProviderController extends Controller
             }
 
             try {
-                Provider::where('global_id',$id)->delete();
+                Connection::where('global_id',$id)->delete();
             } catch (\Exception $ex) {
                 return response()->json(['result' => false, 'msg' => $ex->getMessage()]);
             }
@@ -354,6 +370,68 @@ class GlobalProviderController extends Controller
         }
 
         return response()->json(['result' => true, 'msg' => 'Global Platform successfully deleted']);
+    }
+
+    /**
+     * Bulk operations from the U/I.
+     *
+     * @param  \Illuminate\Http\Request  $request
+     * @return JSON
+     */
+    public function bulk(Request $request)
+    {
+        global $thisUser;
+        $thisUser = auth()->user();
+        if (!$thisUser->isServerAdmin()) {
+            return response()->json(['result' => false, 'msg' => 'Request failed (403) - Forbidden']);
+        }
+
+        // Validate form inputs
+        $this->validate($request, ['ids' => 'required', 'action' => 'required']);
+        $input = $request->all();
+
+        // Unrecognized action - NOTE - Registry Refresh happens in the CounterRegistryController... not here
+        if (!in_array($input['action'],['Set Active','Set Inactive','Delete'])) {
+            return response()->json(['result' => false, 'msg' => 'Unrecognized bulk action requested'], 200);
+        }
+
+        // Get platforms
+        $gp_data = GlobalProvider::whereIn('id',$input['ids'])->get();
+
+        // Update providers one-at-a-time; we need to apply changes to instances as we go.
+        $successIds = array();
+        $skippedIds = array();
+        $failureIds = array();
+        $new_value = ($input['action'] == 'Set Active') ? 1 : 0;
+        foreach ($gp_data as $global) {
+
+            // Update is_active value
+            if ($input['action'] == 'Set Active' || $input['action'] == 'Set Inactive') {
+                if ($global->is_active == $new_value) {  // skip if already has the new value
+                    $global->update(['is_active' => $new_value]);
+                    $successIds[] = $global->id;
+                } else {
+                    $skippedIds[] = $global->id;
+                }
+            // Delete the global entry
+            } else if ($input['action'] == 'Delete') {
+                try {
+                    $global->delete();
+                    $successIds[] = $global->id;
+                } catch (\Exception $ex) {
+                    $failureIds[] = $global->id;
+                }
+            }
+            // Apply changes system-wide
+            $global->applyToInstances();
+        }
+        $msg = '';
+        if (count($skippedIds)> 0 || count($failureIds)>0) {
+            $msg  = count($successIds).' records successfully updated';
+            $msg .= (count($skippedIds>0)) ? '; '.count($skippedIds).' were skipped' : '';
+            $msg .= (count($failureIds>0)) ? '; '.count($failureIds).' failed' : '';
+        }
+        return response()->json(['result' => true, 'msg' => $msg, 'affectedIds' => $successIds], 200);
     }
 
     /**
@@ -833,7 +911,7 @@ class GlobalProviderController extends Controller
             }
             $provider['report_state'] = $this->reportState($gp->master_reports);
             $provider['can_delete'] = true;
-            $provider['connection_count'] = 0;
+            $provider['instance_count'] = 0;
             $provider['updated'] = (is_null($gp->updated_at)) ? "" : date("Y-m-d H:i", strtotime($gp->updated_at));
             // Collect details from the instance for this provider
             foreach ($instances as $instance) {
@@ -841,7 +919,7 @@ class GlobalProviderController extends Controller
                 if ($details['harvest_count'] > 0) {
                     $provider['can_delete'] = false;
                 }
-                $provider['connection_count'] += $details['connections'];
+                $provider['instance_count'] += 1;
             }
             $updated_providers[] = $provider;
         }
@@ -907,7 +985,7 @@ class GlobalProviderController extends Controller
     }
 
     /**
-     * Return harvest_count, connection_count, and last_harvest for a global provider in a given instance
+     * Return harvest_count, connection count, and last_harvest for a global provider in a given instance
      *
      * @param  String  $instanceKey
      * @param  GlobalProvider  $gp
@@ -919,7 +997,7 @@ class GlobalProviderController extends Controller
         $qry  = "Select count(*) as num, max(last_harvest) as last from ccplus_" . $instanceKey . ".credentials ";
         $qry .= "where prov_id = " . $gp->id;
         $result = DB::select($qry);
-        $connections = $result[0]->num;
+        $cnxcount = $result[0]->num;
         $last = $result[0]->last;
 
         // Get the number of harvests
@@ -928,6 +1006,6 @@ class GlobalProviderController extends Controller
         $count = $result[0]->num;
 
         // return the numbers
-        return array('harvest_count' => $count , 'connections' => $connections, 'last_harvest' => $last);
+        return array('harvest_count' => $count , 'cnxcount' => $cnxcount, 'last_harvest' => $last);
     }
 }
