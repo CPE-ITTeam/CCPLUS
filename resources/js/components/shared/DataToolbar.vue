@@ -78,7 +78,9 @@
                       return-object item-value="ccp_key" @update:modelValue="$emit('updateConso', $event)" />
     </v-col>
     <!-- Export, Import, & Add -->
-    <ExportAndImport v-if="!consoOnly" @export="$emit('export')" @import="$emit('import')" @add="$emit('add')"/>
+    <ExportAndImport v-if="!consoOnly" :showRefresh="props.dataset=='platforms'" @export="$emit('export')"
+                     @import="$emit('import')" @add="$emit('add')"
+                     @refresh="$emit('bulkAction', {action:'Full Refresh'})"/>
   </v-row>
   <!-- Search + Selected Toggle -->
   <v-row class="my-2">
