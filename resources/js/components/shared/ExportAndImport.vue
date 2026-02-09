@@ -1,10 +1,17 @@
 <!-- toolbar/ExportAndImport -->
 
 <script setup>
-  defineEmits(['export', 'import', 'add']);
+  const props = defineProps({
+    showRefresh: { type: Boolean, required: true },
+  });
+  defineEmits(['export', 'import', 'add', 'refresh']);
 </script>
 
 <template>
+  <!-- Refresh Button -->
+  <v-col v-if='props.showRefresh' cols="auto">
+    <v-btn color="primary" @click="$emit('refresh')">Full Registry Refresh</v-btn>
+  </v-col>
   <!-- Add Button -->
   <v-col cols="auto">
     <v-btn color="primary" @click="$emit('add')">
