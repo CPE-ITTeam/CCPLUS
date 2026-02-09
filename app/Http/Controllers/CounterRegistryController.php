@@ -24,7 +24,7 @@ class CounterRegistryController extends Controller
      * @param  \Illuminate\Http\Request  $request
      * @return \Illuminate\Http\Response
      */
-    public function registryRefresh(Request $request)
+    public function refresh(Request $request)
     {
         global $client, $options, $masterReports, $allConnectors;
 
@@ -35,7 +35,7 @@ class CounterRegistryController extends Controller
         ];
 
         // Validate form inputs
-        $this->validate($request, [ 'id' => 'required' ]);
+        $this->validate($request, [ 'ids' => 'required' ]);
         $input = $request->all();
 
         $full_refresh = false;
@@ -44,24 +44,23 @@ class CounterRegistryController extends Controller
         // Get all current platforms with a registry_id value
         $all_globals = GlobalProvider::whereNotNull('registry_id')->get();
 
-        if ($input['id'] == "ALL") {
+        if ($input['ids'] == "ALL") {
             $global_providers = $all_globals->where('refreshable',1);
             $no_refresh = $all_globals->where('refreshable',0)->pluck('name')->toArray();
-            $is_dialog = 0;
+            $is_dialog = false;
             $full_refresh = true;
         } else {
-            $is_dialog = json_decode($request->input('dialog'));
-            $global_provider_ids = json_decode($request->input('id'));
-            if (!is_array($global_provider_ids)) {
+            $is_dialog = (isset($input['dialog'])) ? $input['dialog'] : false;
+            if (!is_array($input['ids'])) {
                 return response()->json(['result' => false, 'msg' => "Refresh Request Failed - Invalid Input!"]);
             }
-            $global_providers = $all_globals->where('refreshable',1)->whereIn('id', $global_provider_ids);
+            $global_providers = $all_globals->where('refreshable',1)->whereIn('id', $input['ids']);
 
             // If nothing requested is refreshable, report the error and exit
             if ($global_providers->count() == 0) {
                 return response()->json(['result'=>false, 'msg'=>"The requested platform(s) are marked not refreshable"]);
             }
-            $no_refresh = $all_globals->where('refreshable',0)->whereIn('id', $global_provider_ids)->pluck('name')->toArray();
+            $no_refresh = $all_globals->where('refreshable',0)->whereIn('id', $input['ids'])->pluck('name')->toArray();
         }
         $gpCount = count($global_providers);
         $ids_to_update = $global_providers->pluck('registry_id')->toArray();
@@ -226,7 +225,7 @@ class CounterRegistryController extends Controller
                         $global_provider->updated_at = now();
                         $global_provider->save();
                         if ($orig_isActive) {
-                            $global_provider->appyToInstances();
+                            $global_provider->applyToInstances();
                         }
                     }
                     if ($gpCount == 1) {
@@ -335,7 +334,7 @@ class CounterRegistryController extends Controller
 
             // If changes implicate connection settings, apply to all instances
             if ($global_provider->name != $orig_name || $global_provider->is_active!=$orig_isActive || $connectors_changed) {
-                $global_provider->appyToInstances();
+                $global_provider->applyToInstances();
             }
 
             // Setup return data
@@ -349,6 +348,7 @@ class CounterRegistryController extends Controller
             $return_rec['release'] = $global_provider->default_release();
             $return_rec['service_url'] = $global_provider->service_url();
             $return_rec['status'] = ($global_provider->is_active) ? "Active" : "Inactive";
+            $return_rec['refreshable'] = ($global_provider->refreshable) ? "Active" : "Inactive";
             $return_rec['report_state'] = $this->reportState($reportIds);
             $return_rec['updated'] = date("Y-m-d H:i", strtotime($global_provider->updated_at));
             $updated_ids[] = $global_provider->id;
@@ -419,7 +419,7 @@ class CounterRegistryController extends Controller
                 }
             }
         }
-        return response()->json(['result' => true, 'providers' => $return_data, 'summary' => $summary_html]);
+        return response()->json(['result' => true, 'affectedItems' => $return_data, 'summary' => $summary_html]);
     }
 
     private function requestURI($uri) {
