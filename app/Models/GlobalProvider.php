@@ -285,7 +285,7 @@ class GlobalProvider extends Model
     *
     * @return \Illuminate\Http\Response
     */
-    public function appyToInstances()
+    public function applyToInstances()
     {
         $global_reports = $this->master_reports;
 
@@ -312,7 +312,7 @@ class GlobalProvider extends Model
             $_cnx = $conns->first();
             if (!$_cnx) continue;
             $was_active = $_cnx->is_active;
-            $conns->update(['is_active' => $this->is_active]);
+            Connection::where('global_id',$this->id)->update(['is_active' => $this->is_active]);
 
             // Detach any reports that are no longer available
             foreach ($conns as $cnx) {
