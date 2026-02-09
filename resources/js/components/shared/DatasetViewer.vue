@@ -8,6 +8,7 @@
   import DataTable from './DataTable.vue';
   import DataForm from './DataForm.vue';
   import ReportToggle from '../dialogs/ReportToggle.vue';
+  import Swal from 'sweetalert2';
 
   const authStore = useAuthStore();
   const is_admin = authStore.is_admin;
@@ -42,6 +43,7 @@
   const reptDialog = ref(false);
   const editableFields = ref([]);
   const urlRoot = ref('');
+  var dtLoading = ref(false);
   var success = ref('');
   var failure = ref('');
 
@@ -72,6 +74,7 @@
     const config = datasetConfig[datasetKey];
     try {
       if (consoKey.value=='') return;
+      dtLoading.value = true;
       let itemsUrl = config.urlRoot+'/get';
       if (datasetKey == 'institutions' || datasetKey== 'platforms') {
         itemsUrl += (is_admin) ? '/admin' : '/viewer';
@@ -131,6 +134,7 @@
     searchFields.value = config.fields.filter(fld => fld.searchable).map(f => f.name);
     editableFields.value = config.fields.filter(fld => fld.editable).map(f => f.name);
     urlRoot.value = config.urlRoot;
+    dtLoading.value = false;
   }
 
   function handleToggle(value) {
@@ -183,17 +187,17 @@
   }
 
   async function handleBulk(data) {
-console.log('Bulk Action emit caught : '+data.action);
-console.log('There are '+selectedRows.value.length+' Rows selected');
-    let bulkUrl = urlRoot.value+'/bulk';
-    let args = {ids: selectedRows.value.map(ii => ii.id)};
-    Object.keys(data).forEach( (key) => { args[key] = data[key]; });
+    var bulkUrl = urlRoot.value;
+    bulkUrl += (data.action=='Refresh Registry' || data.action=='Full Refresh') ? '/refresh' : '/bulk';
+    if (data.action != 'Full Refresh') {
+      var args = {ids: selectedRows.value.map(ii => ii.id)};
+      Object.keys(data).forEach( (key) => { args[key] = data[key]; });
+    } else {
+      var args = {ids: 'ALL'};
+    }
     // Update the items
     try {
-// NOTE:: bulk routes need to accept *at minumum* 'ids' and 'action'
-//        and then return ... either  'affectedIds' or 'affectedItems' :
-//          for affectedIds, action is applied to allItems with no extra detail;
-//          for affectedItems, additional data is included beyond just the IDs
+      dtLoading.value = true;
       const response = await ccPost(bulkUrl, args);
 
       if (response.result && allItems.length>0) {
@@ -231,9 +235,36 @@ console.log('There are '+selectedRows.value.length+' Rows selected');
         // Delete action sets removes records from allItems
         } else if (data.action == 'Delete' && response.affectedIds.length>0) {
           response.affectedIds.forEach( itemId => { allItems.splice(allItems.findIndex( ii => ii.id == itemId),1); });
+        // Refresh Registry sends back replacement data for allItems
+        } else if ((data.action == 'Refresh Registry' || data.action != 'Full Refresh') && response.affectedItems.length>0) {
+          let new_platforms = false;
+          response.affectedItems.forEach( plat => {
+            let _idx = allItems.findIndex( itm => itm.id == plat.id);
+            if ( _idx < 0) {  // did the refresh send back something new?
+                allItems.push(plat);
+                new_platforms = true;
+            } else {
+                Object.keys(plat).forEach( (key) =>  { allItems[_idx][key] = plat[key]; });
+            }
+          });
+          dtLoading.value = false;
+          // Display the summary
+          if (response.summary != "") {
+              Swal.fire({
+                title: 'Refresh Results', html: response.summary, icon: 'info', showCancelButton: false,
+                confirmButtonColor: '#3085d6', confirmButtonText: 'Close'
+              });
+          }
+          // Resort allItems if we just added some
+          if (new_platforms) {
+            allItems.sort( (a,b) => {
+                return a.name.toLowerCase().localeCompare(b.name.toLowerCase());
+            });
+          }
         } else if (data.action == 'Some other Action') {
 
         }
+        dtLoading.value = false;
         success.value = response.msg
         // Records changed above, update the datatable and filteredItems
         updateItems();
@@ -459,12 +490,12 @@ console.log('Handling for includeZeros toggle not written yet');
     <DataTable v-if="consoKey!=''" :items="filteredItems" :search="search" :dataset="props.datasetKey" :key="dtKey"
                :showSelectedOnly="showSelectedOnly" :headers="headers" :editableFields="editableFields"
                :searchFields="searchFields" :selectedRows="selectedRows" @update:selectedRows="selectedRows = $event"
-               @edit="handleEdit" @delete="handleDelete" @update:toggle="handleToggleUpdate"
+               :isLoading="dtLoading" @edit="handleEdit" @delete="handleDelete" @update:toggle="handleToggleUpdate"
                @update:report="handleReportToggle"/>
 
     <v-dialog v-if="editingItem && isEditable" v-model="formDialogOpen" max-width="600px">
       <v-card>
-        <v-card-title class="text-indigo-darken-2 pa-6 d-flex justify-space-between align-center">
+        <v-card-title class="text-indigo-darken-2 pa-2 d-flex justify-space-between align-center">
           <span>{{ formDialogTitle }}</span>
           <v-tooltip text="Cancel" location="bottom">
             <template #activator="{ props }">
