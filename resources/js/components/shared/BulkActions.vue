@@ -26,6 +26,7 @@
     } else {
       emit('bulkAction', { 'action': option.value });
     }
+    option.value = null;
   }
 
   function groupFormSubmit() {
