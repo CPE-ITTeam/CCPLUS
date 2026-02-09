@@ -24,6 +24,8 @@
   const requiredRule = (v) => !!v || 'This field is required';
   const opType = ref(props.schema.type);
   var consoFlag = ref(false);
+  var dialog_error = ref('');
+  var dialog_success = ref('');
   // Set m_schema as a local, mutable copy of the input schema prop
   var m_schema = reactive(JSON.parse(JSON.stringify(props.schema)));
   var formValues = reactive({...props.initialValues});
@@ -157,6 +159,21 @@
     }
   }
 
+  async function regRefresh() {
+    dialog_error.value = '';
+    dialog_success.value = '';
+    var args = {ids: [ formValues['id'] ], dialog: true };
+    const response = await ccPost('/api/platforms/refresh', args);
+    if (response.result && typeof(response.affectedItems[0] != 'undefined')) {
+      Object.keys(formValues).forEach( (key) => {
+        if (typeof(response.affectedItems[0][key]) != 'undefined') {
+          formValues[key] = response.affectedItems[0][key];
+        }
+      });
+      dialog_success.value = "Selected platform successfully retrieved.";
+    }
+  }
+
   onMounted(() => {
     // Preset and/or limit specific select fields
     m_schema.fields.forEach( (fld) => {
@@ -182,7 +199,13 @@
   <div>
     <v-form v-if="m_schema.fields.length" ref="formRef" @submit.prevent="submitForm">
       <v-container>
-        <v-row v-for="field in m_schema.fields" :key="field.name" class="mb-3">
+        <v-row v-if="(typeof(formValues['id'])!='undefined')" class="d-flex ma-0" no-gutters>
+          <v-col class="d-flex px-4" cols="10">&nbsp;</v-col>       
+          <v-col class="d-flex px-4 idbox" cols="2">
+            <v-icon title="CC+ ID">mdi-web</v-icon>&nbsp; {{ formValues['id'] }}
+          </v-col>
+        </v-row>
+        <v-row v-for="field in m_schema.fields" :key="field.name" class="ma-0 py-1" no-gutters>
           <v-col v-if="field.visible && (!field.static && (
                                          (opType=='Edit' && (field.editable || !field.isFilter)) ||
                                          (opType=='Add'  && m_schema.requiredKeys.includes(field.name))))"
@@ -241,11 +264,27 @@
                           persistent-hint density="compact"/>
           </v-col>
         </v-row>
-
-        <v-row>
+        <v-row v-if="props.schema.dataset=='platforms' && formValues['refreshable']=='Active'" class="d-flex ma-0" no-gutters>
+          <v-col cols="9" class="d-flex ma-0 pa-0">
+            <v-text-field v-model="formValues['registry_id']" label="COUNTER Registry ID" outlined dense></v-text-field>
+          </v-col>
+          <v-col cols="3" class="d-flex ma-0 pa-0">
+            <v-btn color="primary" @click="regRefresh">Registry Refresh</v-btn>
+          </v-col>
+        </v-row>
+        <v-row class="d-flex mt-2" no-gutters>
           <v-col cols="12" class="text-left">
             <v-btn color="primary" @click="submitForm">Save</v-btn>
             <v-btn variant="text" class="ml-2" @click="emit('cancel')">Cancel</v-btn>
+          </v-col>
+        </v-row>
+        <v-row v-if="dialog_error || dialog_success" class="d-flex my-1 status-message" no-gutters>
+          <span v-if="dialog_success" class="good" role="alert" v-text="dialog_success"></span>
+          <span v-if="dialog_error" class="fail" role="alert" v-text="dialog_error"></span>
+        </v-row>
+        <v-row v-if="(typeof(formValues['updated']) != 'undefined')" class="d-flex mt-2" no-gutters>
+          <v-col v-if="formValues['updated'].length>0" class="d-flex justify-center">
+            <em>Last Updated: {{ formValues['updated'] }}</em>
           </v-col>
         </v-row>
       </v-container>
