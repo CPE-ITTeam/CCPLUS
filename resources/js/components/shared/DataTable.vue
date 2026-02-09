@@ -1,6 +1,6 @@
 <!-- components/shared/DataTable.vue -->
 <script setup>
-  import { ref, computed, onMounted } from 'vue';
+  import { ref, computed } from 'vue';
   import ToggleIcon from './ToggleIcon.vue';
 
   const props = defineProps({
@@ -11,7 +11,8 @@
     showSelectedOnly: { type: Boolean, required: true },
     searchFields: { type: Array, required: true },
     selectedRows: { type: Array, required: true },
-    editableFields: { type: Array, required: true }
+    editableFields: { type: Array, required: true },
+    isLoading: { type: Boolean, required:true }
   });
 
   const computedHeaders = computed(() => {
@@ -49,7 +50,6 @@
   });
   const confirmDialog = ref(false);
   var curItem = ref({});
-  var isLoading = ref(true);
 
   const emit = defineEmits(['update:selectedRows', 'update:toggle', 'update:report', 'edit', 'delete']);
 
@@ -105,8 +105,6 @@
     curItem.value = {};
     confirmDialog.value = false;
   }
-
-  onMounted(() => isLoading.value=false);
 </script>
 
 <template>
@@ -115,7 +113,7 @@
       ✅ {{ selectedRows.length }} item{{ selectedRows.length=== 1 ? '' : 's' }} selected
     </div>
     <v-data-table v-model="internalSelectedRows" :headers="computedHeaders" :items="filteredItems"
-                  item-key="id" item-value="id" show-select return-object :loading="isLoading"
+                  item-key="id" item-value="id" show-select return-object :loading="props.isLoading"
                   :custom-key-sort="customKeySort">
 
       <!-- Dynamic editable fields -->
