@@ -40,26 +40,13 @@ class RoleController extends Controller
         $filter_options = array();
 
         // Role options need to be dependent on $thisUser's roles
-        $all_roles = Role::where('name','<>','ServerAdmin')->get(['id','name']);
         $filter_options['role'] = array();
-        $key = 1;
-        $user_roles = array();
-        foreach ($all_roles as $role) {
-            if ($role->id <= $thisUser->maxRole()) {
-                $row = array('ur_id' => $key, 'name' => $role->name, 'role_id' => $role->id, 'inst_id' => null);
-                $filter_options['role'][] = $row;
-                $user_roles[$key] = $role->name;
-                // if user is conso-admin, add extra rows for "conso"+"name"
-                if ($thisUser->isConsoAdmin()) {
-                    $key++;
-                    $row['ur_id'] = $key;
-                    $row['name'] = "Consortium ".$row['name'];
-                    $row['inst_id'] = 1;
-                    $filter_options['role'][] = $row;
-                    $user_roles[$key] = $row['name'];
-                }
-            }
-            $key++;
+        $all_roles = Role::where('id', '<=', $thisUser->maxRole())->orderBy('id', 'DESC')
+                         ->where('name','<>','ServerAdmin')->get(['name', 'id'])->toArray();
+        foreach ($all_roles as $idx => $r) {
+            if ($r['name'] == 'Admin' && $thisUser->isConsoAdmin())  $filter_options['role'][] = "Consortium Admin";
+            if ($r['name'] == 'Viewer' && $thisUser->isConsoAdmin()) $filter_options['role'][] = "Consortium Viewer";
+            $filter_options['role'][] = $r['name'];
         }
 
         // Pull user records - exclude serverAdmin
@@ -79,7 +66,6 @@ class RoleController extends Controller
                              'inst_id' => $role['inst_id'], 'group_id' => $role['group_id'], 'name' => $user->name,
                              'email' => $user->email);
                 $rec['role_string'] = ($role['inst_id']==1) ? 'Consortium '.$role['name'] : $role['name'];
-                $rec['ur_id'] = array_search($rec['role_string'],$user_roles);
                 $rec['inst_name'] = $role['inst'];
                 $rec['group_name'] = $role['group'];
                 $rec['scope'] = (!is_null($rec['inst_id'])) ? $role['inst'] : $role['group'];
@@ -137,14 +123,14 @@ class RoleController extends Controller
         $role_group = ($group_id) ? InstitutionGroup::where('id',$group_id)->first() : null;
 
         // Confirm that Role, User and (Inst-or-Group) exist
-        $role = Role::where('id',$input['role'])->first();
+        $role = Role::where('name',$input['role'])->first();
         $user = User::where('id',$input['user'])->with('roles','institution:id,name')->first();
         if ( !$user || !$role || (!$role_inst && !$role_group) ) {
             return response()->json(['result' => false, 'msg' => 'Operation failed - invalid references']);
         }
 
         // Confirm requested role is allowed
-        if ($thisUser->maxRole() < $input['role']) {
+        if ($thisUser->maxRole() < $role->id) {
             return response()->json(['result' => false, 'msg' => 'Operation failed - not authorized']);
         }
         // If user aleady has the role, bail out
