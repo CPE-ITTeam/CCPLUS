@@ -5,7 +5,8 @@
 </script>
 
 <template>
-  <v-col v-for="(filter,idx) in filters" :key="idx" :cols="(typeof(filter.cols)=='undefined') ? 2 : filter.cols">
+  <!-- <v-col v-for="(filter,idx) in filters" :key="idx" :cols="(typeof(filter.cols)=='undefined') ? 2 : filter.cols"> -->
+  <v-col v-for="(filter,idx) in filters" :key="idx" cols="2">
 
     <!-- AutoComplete - multiple select -->
     <v-autocomplete v-if="filter.show && filter.type=='mselect'" v-model="filters[filter.name].value" :label="filter.label"
