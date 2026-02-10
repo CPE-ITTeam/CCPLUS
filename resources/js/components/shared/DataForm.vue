@@ -179,6 +179,11 @@
     m_schema.fields.forEach( (fld) => {
       if (fld.type == 'select' && typeof(m_schema.options[fld.name])!='undefined' &&
           typeof(formValues[fld.name])!='undefined') {
+        // Hide 'Consortium' options for role options (there's a toggle for it)
+        if (fld.name == 'role') {
+          let _options = m_schema.options.role.filter( opt => !(opt.includes('Consortium')) );
+          m_schema.options.role = [..._options];
+        }
         // Preset values if there's only one item in options
         if (m_schema.options[fld.name].length == 1) {
           formValues[fld.name] = m_schema.options[fld.name][0][fld.optVal];
