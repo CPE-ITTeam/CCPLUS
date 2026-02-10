@@ -74,8 +74,8 @@ class UserController extends Controller
         $all_roles = Role::where('id', '<=', $thisUser->maxRole())->orderBy('id', 'DESC')
                          ->where('name','<>','ServerAdmin')->get(['name', 'id'])->toArray();
         foreach ($all_roles as $idx => $r) {
-            if ($r['name'] == 'Admin')  $filter_options['uroles'][] = "Consortium Admin";
-            if ($r['name'] == 'Viewer') $filter_options['uroles'][] = "Consortium Viewer";
+            if ($r['name'] == 'Admin' && $thisUser->isConsoAdmin())  $filter_options['uroles'][] = "Consortium Admin";
+            if ($r['name'] == 'Viewer' && $thisUser->isConsoAdmin()) $filter_options['uroles'][] = "Consortium Viewer";
             $filter_options['uroles'][] = $r['name'];
         }
 
