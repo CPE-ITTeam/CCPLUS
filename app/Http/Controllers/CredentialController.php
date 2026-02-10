@@ -73,13 +73,14 @@ class CredentialController extends Controller
         // Set institution and group filter options, depending on role(s)
         if ($thisUser->isConsoAdmin()) {
             // Conso admin allowed to replace a conso-connection with one to insts or groups
-            $filter_options['groups'] = InstitutionGroup::get(['id','name']);
-            $filter_options['institutions'] = Institution::where('is_active',1)->get(['id','name']);
+            $filter_options['groups'] = InstitutionGroup::orderBy('name','ASC')->get(['id','name']);
+            $filter_options['institutions'] = Institution::where('is_active',1)->orderBy('name','ASC')
+                                                         ->get(['id','name']);
         } else {
             $inst_ids = $thisUser->adminInsts();
             $filter_options['groups'] = array();
             $filter_options['institutions'] = Institution::where('is_active',1)->whereIn('id',$inst_ids)
-                                                         ->get(['id','name']);
+                                                         ->orderBy('name','ASC')->get(['id','name']);
         }
 
         // Keep track of the last error values for the filter options
