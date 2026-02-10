@@ -82,8 +82,8 @@ class UserController extends Controller
         // Add filtering options for institutions
         $instIds = $user_data->pluck('inst_id')->toArray();
         $filter_options['institutions'] = ($thisUser->isConsoAdmin())
-                                          ? Institution::get(['id','name'])->toArray()
-                                          : Institution::whereIn('id',$instIds)->get(['id','name'])->toArray();
+            ? Institution::orderBy('name', 'ASC')->get(['id','name'])->toArray()
+            : Institution::orderBy('name', 'ASC')->get(['id','name'])->whereIn('id',$instIds)->toArray();
 
         return response()->json(['records' => $data, 'options' => $filter_options, 'result' => true], 200);
     }
@@ -352,7 +352,7 @@ class UserController extends Controller
             User::whereIn('id',$userIds)->update($args);
             return response()->json(['result' => true, 'msg' => '', 'affectedIds' => $userIds], 200);
 
-        // Handle set delete
+        // Handle delete
         } else if ($input['action'] == 'Delete') {
             $userIds = $userData->pluck('id')->toArray();
             User::whereIn('id',$userIds)->delete();

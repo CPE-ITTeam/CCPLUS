@@ -67,7 +67,7 @@ class InstitutionGroupController extends Controller
         }
 
         // send institution types for filter option
-        $filter_options['type'] = InstitutionType::get(['id','name'])->toArray();
+        $filter_options['type'] = InstitutionType::orderBy('name', 'ASC')->get(['id','name'])->toArray();
         $filter_options['institutions'] = $all_institutions->toArray();
 
         return response()->json(['records' => $data, 'options' => $filter_options, 'result' => true], 200);
