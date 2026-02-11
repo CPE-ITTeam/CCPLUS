@@ -44,7 +44,7 @@
   // Get UI options
   const initializeOptions = async () => {
     try {
-      const { data } = await ccGet("/api/getManualOptions");
+      const { data } = await ccGet("/api/harvests/options");
       institutions.value = [...data.records.institutions];
       institution_options.value = [...data.records.institutions];
       inst_groups.value = [...data.records.groups];
