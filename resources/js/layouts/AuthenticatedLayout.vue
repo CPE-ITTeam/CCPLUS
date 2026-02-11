@@ -144,6 +144,7 @@
                       </v-expansion-panels>
                     </div>
                     <div v-else>
+                      <p>&nbsp;</p>
                       <component :is="child.component" :key="child.meta.key"
                                 @updateConso="handleChangeConso(child.name)"/>
                     </div>
