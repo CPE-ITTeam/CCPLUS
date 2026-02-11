@@ -52,10 +52,17 @@
     return (editingItem.value && config && editableFields.value.length>0);
   });
 
+  // toolbarFilters pre-chunks filters into rows of at-most 4 to a row
   const toolbarFilters = computed(() => {
-    return Object.fromEntries(
-      Object.entries(filterOptions).filter(([key,val]) => filterOptions[key]['show'])
-    )
+    var rows = [];
+    const keys = Object.keys(filterOptions).filter( key => filterOptions[key]['show'] );
+    for (let i=0; i<keys.length; i+=4) {
+      const row = {};
+      const rKeys = keys.slice(i, i+4);
+      rKeys.forEach( key => { row[key] = {...filterOptions[key]}; });
+      rows.push({...row});
+    }
+    return rows;
   });
 
   const formSchema = computed(() => {
@@ -121,6 +128,12 @@
             'show': fld.isFilter, 'col': fld.filterCol, 'items': [...f_options], 'value': initVal
           };
         }
+      } else if (fld.isFilter && (fld.type == 'text' || fld.type == 'mtext')) {
+          filterOptions[fld.name] = {
+            'name': fld.name, 'label': fld.label, 'type': fld.type, 'show': true, 'col': fld.filterCol, 'value': null
+          };
+          filterOptions[fld.name]['items'] = (fld.options=='fromURL' && typeof(allOptions[fld.name])!='undefined')
+                                             ? [...allOptions[fld.name]] : [...fld.options];
       } else if (Array.isArray(fld.options)) {
         filterOptions[fld.name] = {
           'name': fld.name, 'label': fld.label, 'type': fld.type, 'val': fld.optVal, 'txt': fld.optTxt,
@@ -293,8 +306,29 @@
   //   });
   // }
 
-//  NOTE::: Currently - changing one filter means (re)apply all that are set to the original item-set
-//
+  // Handle toolbar filter emits
+  function handleFilter(filt) {
+    // if key=='reset', clear all set filter values
+    if (filt.key == 'reset') {
+      for (const key of Object.keys(filterOptions)) {
+        const filter = filterOptions[key];
+        if (!filter.show) continue;
+        if ( Array.isArray(filter.value) ) {
+          if (filter.value.length > 0) filter.value = [];
+        } else if (filter.value) {
+          filter.value = null;
+        }
+      }
+      updateItems();
+    // Otherwise, update a specific filter key
+    } else if (typeof(filterOptions[filt.key]['value']) != 'undefined') {
+      filterOptions[filt.key]['value'] = filt.value;
+      updateItems();
+    }
+  }
+
+  //  NOTE::: Currently - changing one filter means (re)apply all that are set to the original item-set
+  //
   function updateItems() {
     if (allItems.length==0) return;
     var filterResult = [...allItems];
@@ -479,10 +513,10 @@ console.log('Handling for includeZeros toggle not written yet');
 
 <template>
   <v-sheet>
-    <DataToolbar v-model="toolbarFilters" :search="search" :showSelectedOnly="showSelectedOnly" :dataset="props.datasetKey"
-                 :bulkOptions="bulkOptions" @add="handleAddItem" @setFilter="updateItems" @bulkAction="handleBulk"
-                 :selectedRows="selectedRows" @update:search="search=$event" @update:showSelectedOnly="handleToggle"
-                 @updateConso="handleChangeConso" />
+    <DataToolbar v-if="toolbarFilters.length>0" v-model="toolbarFilters" :search="search" :showSelectedOnly="showSelectedOnly"
+                 :dataset="props.datasetKey" :bulkOptions="bulkOptions" @add="handleAddItem" @setFilter="handleFilter"
+                 :selectedRows="selectedRows" @bulkAction="handleBulk" @update:search="search=$event"
+                 @update:showSelectedOnly="handleToggle" @updateConso="handleChangeConso" />
     <div v-if="success || failure" class="status-message">
       <span v-if="success"      class="good" v-text="success"></span>
       <span v-else-if="failure" class="fail" v-text="failure"></span>
