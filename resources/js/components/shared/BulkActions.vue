@@ -44,7 +44,8 @@
 </script>
 
 <template>
-  <v-autocomplete v-model="option" label="Bulk Actions" :items="bulkOptions.items" @update:modelValue="changeOption" />
+  <v-autocomplete v-model="option" label="Bulk Actions" :items="bulkOptions.items" density="compact"
+                  @update:modelValue="changeOption" />
 
   <!-- Institutions bulk dialog to prompt for existing group (for Add-To) or name (for New-Group) -->
   <v-dialog v-model="groupDialog" max-width="500px">

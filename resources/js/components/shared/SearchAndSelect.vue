@@ -34,7 +34,7 @@
   </v-col>
 
   <v-col>
-    <v-text-field v-model="search" label="Search" @input="$emit('update:search', search)" clearable
+    <v-text-field v-model="search" label="Search" @input="$emit('update:search', search)" clearable density="compact"
                   prepend-inner-icon="mdi-magnify" variant="outlined" hide-details single-line/>
   </v-col>
 </template>
