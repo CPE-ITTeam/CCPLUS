@@ -38,16 +38,10 @@ class HarvestLog extends Model
 
     public function canManage()
     {
-      // Admins can manage any record
-        if (auth()->user()->hasRole("Admin")) {
-            return true;
-        }
-      // Managers can manage harvests for their own inst only
-        if (auth()->user()->hasRole("Manager")) {
-            return auth()->user()->inst_id == $this->Credential->inst_id;
-        }
-      // Otherwise, return false
-        return false;
+      // ConsoAdmins can manage any record
+        if (auth()->user()->isConsoAdmin()) return true;
+      // Otherwise, user must be admin of the harvest inst
+        return auth()->user()->isAdmin($this->credential->inst_id);
     }
 
     public function lastError()

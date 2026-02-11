@@ -76,8 +76,8 @@ class User extends Authenticatable
             if ($this->roles->where("role.name", "ServerAdmin")->first()) return false;
         }
 
-        // If Admin for this user's inst, allow it 
-        if (auth()->user()->hasRole("Admin", $this->inst_id)) return true;
+        // If Admin for this user's inst, allow it
+        if (auth()->user()->isAdmin($this->inst_id)) return true;
 
         // Users can manage themselves
         return $this->id == auth()->id();
@@ -102,7 +102,7 @@ class User extends Authenticatable
     // }
 
     public function adminInsts() {
-        if ($this->isConsoAdmin() || $this->roles->whereIn("role.name", ["ServerAdmin"])->first()) return [1];
+        if ($this->isConsoAdmin()) return [1];
         $insts = array();
         foreach ($this->roles as $uRole) {
             if ( !is_null($uRole->inst_id) && $uRole->role->name == 'Admin' ) {
@@ -118,7 +118,7 @@ class User extends Authenticatable
     }
 
     public function adminGroups() {
-        if ($this->isConsoAdmin() || $this->roles->whereIn("role.name", ["ServerAdmin"])->first()) return [1];
+        if ($this->isConsoAdmin()) return [1];
         $groups = array();
         foreach ($this->roles as $uRole) {
             if ( !is_null($uRole->group_id) && $uRole->role->name == 'Admin' ) {
@@ -129,7 +129,7 @@ class User extends Authenticatable
     }
 
     public function viewerInsts() {
-        if ($this->isConsoAdmin() || $this->roles->whereIn("role.name", ["ServerAdmin"])->first()) return [1];
+        if ($this->isConsoAdmin()) return [1];
         $insts = array();
         foreach ($this->roles as $uRole) {
             if ( !is_null($uRole->inst_id) &&
@@ -147,7 +147,7 @@ class User extends Authenticatable
     }
 
     public function viewerGroups() {
-        if ($this->isConsoAdmin() || $this->roles->whereIn("role.name", ["ServerAdmin"])->first()) return [1];
+        if ($this->isConsoAdmin()) return [1];
         $groups = array();
         foreach ($this->roles as $uRole) {
             if ( !is_null($uRole->group_id) && ($uRole->role->name == 'Viewer' || $uRole->role->name == 'Admin') ) {
@@ -160,7 +160,7 @@ class User extends Authenticatable
 //NOTE:: Need to test+confirm that this works:: i.e. chaining off to in_array of adminInsts() & adminGroups()
     public function isAdmin($inst=null, $group=null)
     {
-        if ($this->roles->where("role.name", "ServerAdmin")->first()) return true;
+        if ($this->isConsoAdmin()) return true;
         if (!is_null($inst)) {
             return (in_array($inst, $this->adminInsts()));
         } else if (!is_null($group)) {

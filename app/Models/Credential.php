@@ -83,10 +83,10 @@ class Credential extends Model
 
     public function canManage()
     {
-      // Admins manage
+      // ConsoAdmins can manage any record
         if (auth()->user()->isConsoAdmin()) return true;
       // Otherwise, user must have admin of the credentials' inst
-        return $this->institution->canManage();
+        return auth()->user()->isAdmin($this->inst_id);
     }
 
     // Resets status and connection fields when updating or an institution or provider status is made Active
