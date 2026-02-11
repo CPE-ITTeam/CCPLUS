@@ -9,7 +9,7 @@
   import ToolbarFilters from './ToolbarFilters.vue';
   import BulkActions from './BulkActions.vue';
   import ExportAndImport from './ExportAndImport.vue';
-  const filter_options = defineModel({type: Object, required: true});
+  const filter_options = defineModel({type: Array, required: true});
   const props = defineProps({
     search: { type: String, required: true },
     showSelectedOnly: { type: Boolean, required: true },
@@ -26,29 +26,41 @@
   const consoOnly = computed(() => {
     return (consoKey.value == '' && is_serveradmin);
   });
-  const anyFilterSet = computed(() => {
-    for (const key of Object.keys(filter_options.value)) {
-      const filter = filter_options.value[key]; 
-      if (!filter.show) continue;
-      if ( Array.isArray(filter.value) ) {
-        if (filter.value.length > 0) return true;
-      } else if (filter.value) {
-        return true;
-      }
-    }
-    return false;
+
+  const flat_filter_options = computed(() => {
+    let _options = {};
+    filter_options.value.forEach( (row,idx) => {
+      for (const key of Object.keys(row)) {
+        _options[key] = {...filter_options.value[idx][key]};
+      };
+    });
+    return _options;
   });
-  function resetFilters() {
-    for (const key of Object.keys(filter_options.value)) {
-      const filter = filter_options.value[key]; 
+
+  const anyFilterSet = computed(() => {
+    var is_set = false;
+    for (const key of Object.keys(flat_filter_options.value)) {
+      const filter = flat_filter_options.value[key];
       if (!filter.show) continue;
       if ( Array.isArray(filter.value) ) {
-        if (filter.value.length > 0) filter.value = [];
+        if (filter.value.length > 0) is_set = true;
       } else if (filter.value) {
-        filter.value = null;
+        is_set = true;
       }
+      if (is_set) break;
     }
-    emit('setFilter');
+    return is_set;
+  });
+
+  function handleFilter(filt) {
+    // update filter by finding it in the filter_options rows
+    let updated = false;
+    filter_options.value.forEach( (row,idx) => {
+      if (updated || typeof(filter_options.value[idx][filt.key]) == 'undefined') return;
+      filter_options.value[idx][filt.key]['value'] = filt.value;
+      updated = true;
+    });
+    if (updated) emit('setFilter', filt);
   }
 
   const emit = defineEmits([
@@ -65,7 +77,7 @@
 
 <template>
   <!-- Search + Selected Toggle -->
-  <v-row class="my-2" no-gutters>
+  <v-row class="mt-2 mb-2" no-gutters>
     <FlexCol v-if="!consoOnly" cols="4">
       <v-row no-gutters >
         <SearchAndSelect :search="search" :showSelectedOnly="showSelectedOnly"
@@ -74,7 +86,7 @@
       </v-row>
     </FlexCol>
     <v-col v-if="is_serveradmin && consortia.length>1 && props.dataset!='jobs'" class="flex px-4" cols="3">
-      <v-autocomplete v-model="consoKey" label="Consortium" :items="consortia" item-title="name"
+      <v-autocomplete v-model="consoKey" label="Consortium" :items="consortia" item-title="name" density="compact"
                       return-object item-value="ccp_key" @update:modelValue="$emit('updateConso', $event)" />
     </v-col>
     <!-- Export, Import, & Add -->
@@ -83,15 +95,19 @@
                      @refresh="$emit('bulkAction', {action:'Full Refresh'})"/>
   </v-row>
   <!-- Search + Selected Toggle -->
-  <v-row class="my-2">
+  <v-row class="ma-0" no-gutters>
     <v-col v-if="props.selectedRows.length>0 && props.bulkOptions.items.length>0" cols="2">
       <BulkActions v-model="props.bulkOptions" @bulkAction="$emit('bulkAction', $event)" />
     </v-col>
     <v-col v-else cols="2">&nbsp;</v-col>
     <v-col v-if="anyFilterSet" cols="1">
-      <v-btn v-if="anyFilterSet" icon="mdi-restore" color="#dd0000" @click="resetFilters"></v-btn>
+      <v-btn icon="mdi-restore" color="#dd0000" @click="$emit('setFilter',{key: 'reset'})"></v-btn>
     </v-col>
     <v-col v-else cols="1">&nbsp;</v-col>
-    <ToolbarFilters v-model="filter_options" @setFilter="$emit('setFilter')" />
+    <ToolbarFilters :filters="filter_options[0]" @setFilter="handleFilter($event)" />
+  </v-row>
+  <v-row v-if="filter_options.length>1" v-for="(row, index) in filter_options" :key="index" class="ma-0" no-gutters>
+    <v-col v-if="index>0" cols="3">&nbsp;</v-col>
+    <ToolbarFilters v-if="index>0" :filters="filter_options[index]" @setFilter="handleFilter($event)" />
   </v-row>
 </template>
