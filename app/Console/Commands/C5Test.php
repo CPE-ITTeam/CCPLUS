@@ -4,33 +4,28 @@ namespace App\Console\Commands;
 
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\Cache;
-use GuzzleHttp\Exception\GuzzleException;
 use GuzzleHttp\Client;
 use DB;
 use App\Models\Report;
 use App\Models\Consortium;
-use App\Models\Provider;
+use App\Models\GlobalProvider;
 use App\Models\Institution;
-use App\Models\CcplusError;
 use App\Models\Counter5Processor;
-use \ubfr\c5tools\Report as RawReport;
-use \ubfr\c5tools\JsonR5Report;
-use \ubfr\c5tools\CheckResult;
-use \ubfr\c5tools\ParseException;
 
 class C5Test extends Command
 {
     /**
-     * The name and signature of the console command.
+     * C5Test runs a 1-shot attempt to validate, process, and SAVE a given input (JSON) report
      *
      * @var string
      */
     protected $signature = 'ccplus:C5test {consortium : The Consortium ID or key-string}
                               {infile : The input file}
-                              {--M|month= : YYYY-MM to process [lastmonth]}
-                              {--P|provider= : Provider ID to process [ALL]}
-                              {--I|institution= : Institution ID to process [ALL]}
-                              {--R|report= : Master report NAME to harvest [ALL]}';
+                              {--M|month= : YYYY-MM for the file}
+                              {--P|provider= : (Global) Provider ID to process}
+                              {--I|institution= : Institution ID to process}
+                              {--R|report= : Master report NAME to harvest}
+                              {--D|debug=0 : Dump validation details}';
 
     /**
      * The console command description.
@@ -56,7 +51,7 @@ class C5Test extends Command
      */
     public function handle()
     {
-       // Get the consortium as ID or Key
+        // Get the consortium as ID or Key
         $conarg = $this->argument('consortium');
         $consortium = Consortium::find($conarg);
         if (is_null($consortium)) {
@@ -67,153 +62,100 @@ class C5Test extends Command
             return 0;
         }
 
-       // The other required arguments
+        // The other required arguments
         $month  = is_null($this->option('month')) ? 'lastmonth' : $this->option('month');
         $prov_id = is_null($this->option('provider')) ? 0 : $this->option('provider');
         $inst_id = is_null($this->option('institution')) ? 0 : $this->option('institution');
         $rept = is_null($this->option('report')) ? 'ALL' : $this->option('report');
+        $debug = $this->argument('debug');
         $infile = $this->argument('infile');
 
-       // Aim the consodb connection at specified consortium's database and setup
-       // path for keeping raw report responses
+        // Aim the consodb connection at specified consortium's database and setup
+        // path for keeping raw report responses
         config(['database.connections.consodb.database' => 'ccplus_' . $consortium->ccp_key]);
         DB::reconnect();
 
-       // Get Provider data as a collection regardless of whether we just need one
-        $providers = Provider::where('is_active', '=', true)->where('id', '=', $prov_id)->get();
+        // Get/confirm report
+        $master_report = Report::where('name', $rept)->first();
+        if (!$master_report) {
+            $this->line("Report (".$rept.") not found; check requested report name");
+            return 0;
+        }
+        // Get/confirm global provider record
+        $global = GlobalProvider::where('is_active', 1)->where('id', $prov_id)->first();
+        if (!$global) {
+            $this->line("Provider (".$prov_id.") not found; check requested (global) provider ID");
+            return 0;
+        }
+        $global_ids = $global->master_reports;
+        if (!in_array($master_report->id,$global_ids)) {
+            $this->line($global->name . " does not provide the requested report (".$rept.")");
+            return 0;
+        }
 
-       // Get Institution data
-        $institutions = Institution::where('is_active', '=', true)->where('id', '=', $inst_id)
-                                       ->pluck('name', 'id');
+        // Get/confirm institution recordThe name and signature of the console command
+        $institution = Institution::where('is_active', 1)->where('id', $inst_id)-first();
+        if (!$institution) {
+            $this->line("Institution (".$inst_id.") not found; check requested institution ID");
+            return 0;
+        }
 
-       // Loop on providers
-        $logmessage = false;
-        foreach ($providers as $provider) {
-           // Skip this provider if there are no reports defined for it
-            if (count($provider->reports) == 0) {
-                $this->line($provider->name . " has no reports defined; skipping...");
-                continue;
-            }
+        // Get/confirm input file
+        $json_text = file_get_contents($infile);
+        if ($json_text === false) {
+            $this->line("System Error - reading file {$infile} failed");
+            return 0;
+        }
 
-           // Skip this provider if there are no sushi settings for it
-            if (count($provider->sushisettings) == 0) {
-                $this->line($provider->name . " has no sushi settings defined; skipping...");
-                continue;
-            }
+        // Try to decode the file as JSON
+        $json = json_decode($json_text);
+        if (json_last_error() !== JSON_ERROR_NONE) {
+            $this->line("Error decoding JSON - " . json_last_error_msg());
+            return 0;
+        }
 
-           // Loop through all sushisettings for this provider
-            foreach ($provider->sushisettings as $setting) {
-               // Skip this setting if we're just processing a single inst and the IDs don't match
-                if (($inst_id != 0) && ($setting->inst_id != $inst_id)) {
-                    continue;
-                }
+        // Make sure $json is a proper object
+        if (! is_object($json)) {
+            $this->line('JSON must be an object, found ' . (is_array($json) ? 'an array' : 'a scalar'));
+            return 0;
+        }
 
-               // Create the processor object
-                $C5processor = new Counter5Processor($provider->id, $setting->inst_id, $month, $month, "");
+        // Create the processor object
+        $C5processor = new Counter5Processor($prov_id, $inst_id, $month, $month, "");
+        $this->line("Processing " . $master_report->name . " for " . $global->name);
 
-               // Loop through all reports for this provider
-                foreach ($provider->reports as $report) {
-                    if ($report->name != $rept) {
-                        continue;
-                    }
-                    $this->line("Processing " . $report->name . " for " . $provider->name);
+        // Validate report
+        try {
+            $report = \ubfr\c5tools\Report::fromFile($filename);
+            $checkResult = $report->getCheckResult();
+        } catch (Exception $e) {
+            $checkResult = new \ubfr\c5tools\CheckResult();
+            $checkResult->addFatalError($e->getMessage(), $e->getMessage());
+            $this->line($checkResult->asText(0));
+            return 0;
+        }
 
-                    $json_text = file_get_contents($infile);
-                    if ($json_text === false) {
-                        $this->line("System Error - reading file {$infile} failed");
-                        return 0;
-                    }
+        // Get validation results
+        $details = null;
+        $_res = $report->isUsable() ? "usable" : "unusable";
+        $this->line('Validation result shows report is ' . $_res);
+        if ($debug) $details = $report->debug();
 
-                   // Issue a warning if it looks like we'll run out of memory
-                    // $mem_avail = intval(ini_get('memory_limit'));
-                    // $body_len = strlen($json_text());
-                    // $mem_needed = ($body_len * 8) + memory_get_usage(true);
-                    // if ($mem_needed > ($mem_avail * 1024 * 1024)) {
-                    //     $mb_need = intval($mem_needed / (1024 * 1024));
-                    //     echo "Warning! Projected memory required: " . $mb_need . "Mb but only " .
-                    //                                                 $mem_avail . "Mb available\n";
-                    //     echo "-------> Decoding this report may exhaust system memory (JSON len = $body_len)\n";
-                    // }
+        // Process and store the report if it's valid
+        if ($report->isUsable()) {
+            $result = $C5processor->{$master_report->name}($report->asJson());
+        } else {
+            $this->line("COUNTER Validation Failed");
+            return 0;
+        }
 
-                   // Decode JSON response
-                    $json = json_decode($json_text);
-                    if (json_last_error() !== JSON_ERROR_NONE) {
-                        $this->line("Error decoding JSON - " . json_last_error_msg());
-                        return 0;
-                    }
-
-                   // Make sure $json is a proper object
-                    if (! is_object($json)) {
-                        $this->line('JSON must be an object, found ' . (is_array($json) ? 'an array' : 'a scalar'));
-                        return 0;
-                    }
-
-                   // Validate report
-                    try {
-                        $valid_report = self::validateJson($json);
-                    } catch (\Exception $e) {
-                        $this->line("COUNTER Validation Failed: " . $e->getMessage());
-                        return 0;
-                    }
-
-                   // Store the report if it's valid
-                    if ($valid_report) {
-                        // $this->line("Data valid, but skipping processing...");
-                        $result = $C5processor->{$report->name}($json);
-                    }
-                }  // foreach reports
-            }  // foreach sushisettings
-        }  // foreach providers
+        // Summarize result
+        if ($debug && !is_null($details)) {
+            dump($details);
+        }
         $this->line("Memory Usage : " . memory_get_usage() . " / " . memory_get_usage(true));
         $this->line("Peak Usage: " . memory_get_peak_usage() . " / " . memory_get_peak_usage(true));
         $this->line("Test completed: " . date("Y-m-d H:i:s"));
         return 1;
-    }
-
-    protected static function validateJson($json)
-    {
-        // Confirm Report_Header is present and a valid object, store in $header
-        if (! property_exists($json, 'Report_Header')) {
-            throw new \Exception('Report_Header is missing');
-        }
-         $header = $json->Report_Header;
-        if (! is_object($header)) {
-            throw new \Exception('Report_Header must be an object, found ' .
-                                 (is_array($header) ? 'an array' : 'a scalar'));
-        }
-
-        // Get release value; we're only handling Release 5
-        if (! property_exists($header, 'Release')) {
-            throw new \Exception("Could not determine COUNTER Release");
-        }
-        if (! is_scalar($header->Release)) {
-            throw new \Exception('Report_Header.Release must be a scalar, found an ' .
-                                 (is_array($header->Release) ? 'array' : 'object'));
-        }
-         $release = trim($header->Release);
-        if ($release !== '5') {
-            throw new \Exception("COUNTER Release '{$release}' invalid/unsupported");
-        }
-
-        // Make sure there are Report_Items to process
-        if (!isset($json->Report_Items)) {
-            throw new \Exception("COUNTER API error: no Report_Items included in JSON response.");
-        }
-
-        // Make sure there are Report_Items to process
-        try {
-            $report = new JsonR5Report($json);
-            $checkResult = $report->getCheckResult();
-        } catch (\Exception $e) {
-            $checkResult = new CheckResult();
-            try {
-                $checkResult->fatalError($e->getMessage());
-            } catch (ParseException $e) {
-                // ignore
-            }
-            $message = $checkResult->asText();
-            throw new \Exception($message());
-        }
-        return true;
     }
 }

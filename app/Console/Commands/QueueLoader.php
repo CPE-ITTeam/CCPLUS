@@ -9,20 +9,20 @@ use GuzzleHttp\Exception\GuzzleException;
 use GuzzleHttp\Client;
 use DB;
 use App\Models\Consortium;
-use App\Models\Provider;
-use App\Models\SushiSetting;
+use App\Models\Connection;
+use App\Models\Credential;
 use App\Models\HarvestLog;
 use App\Models\Report;
-use App\Models\SushiQueueJob;
+use App\Models\GlobalQueueJob;
 
-class SushiQLoader extends Command
+class QueueLoader extends Command
 {
     /**
      * The name and signature of the console command.
      *
      * @var string
      */
-    protected $signature = 'ccplus:sushiloader {consortium : Consortium ID or key-string}
+    protected $signature = 'ccplus:queueloader {consortium : Consortium ID or key-string}
                                                {--M|month= : YYYY-MM to override day_of_month [lastmonth]}
                                                {--P|provider= : Global Provider ID to process [ALL]}
                                                {--I|institution= : Institution ID to process [ALL]}
@@ -34,7 +34,7 @@ class SushiQLoader extends Command
      *
      * @var string
      */
-    protected $description = 'Nightly CC-Plus Sushi Queue Loader';
+    protected $description = 'Nightly CC-Plus Global Queue Loader';
 
     /**
      * Create a new command instance.
@@ -49,13 +49,13 @@ class SushiQLoader extends Command
     /**
      * Execute the console command.
      * ----------------------------
-     *   ccplus:sushiqloader is intended to be run primarily as a nightly job.
+     *   ccplus:queueloader is intended to be run primarily as a nightly job.
      *      The optional arguments exist to allow the script to be run from the artisan command-line
      *      to add harvests and jobs in a more customized way.
      *   Processing phase-1:
      *      The day-of-month harvest setting for all (active) providers of the given consortium are checked,
-     *      and if today is the day, all harvests defined by the sushisettings are added to the HarvestLogs table.
-     *      Settings for providers or institutions with is_active=false are ignored.
+     *      and if today is the day, all harvests defined by the credentials are added to the HarvestLogs table.
+     *      Providers or institutions set is_active=false are ignored.
      *   Processing phase-2:
      *      Any harvests just added in phase-1 are added to the globaldb:jobs queue along with any harvests
      *      that are in a "Retry" state.
@@ -116,58 +116,62 @@ class SushiQLoader extends Command
 
        // Get active provider data
         if ($prov_id == 0) {
-            $conso_providers = Provider::with('globalProv','globalProv.registries','reports')
-                                       ->where('is_active',true)->get();
+            $global_connections = Connection::with('globalProv','globalProv.registries','reports')
+                                            ->where('is_active',true)->get();
         } else {
-            $conso_providers = Provider::with('globalProv','globalProv.registries','reports')
-                                       ->where('is_active',true)->where('global_id',$prov_id)->get();
+            $global_connections = Connection::with('globalProv','globalProv.registries','reports')
+                                            ->where('is_active',true)->where('global_id',$prov_id)->get();
         }
 
-       // Get sushi settings for the consortium providers using their global_id 
-        $global_ids = $conso_providers->unique('global_id')->pluck('global_id')->toArray();
-        $settings = SushiSetting::with('institution', 'provider')
-                                ->when($inst_id > 0, function ($qry) use ($inst_id) {
-                                    return $qry->where('inst_id', $inst_id);
-                                })
-                                ->whereIn('prov_id',$global_ids)
-                                ->where('status', 'Enabled')
-                                ->get();
+       // Get credentials for the consortium providers using their global_id 
+        $global_ids = $global_connections->unique('global_id')->pluck('global_id')->toArray();
+        $credentials = Credential::with('institution', 'provider')
+                                 ->when($inst_id > 0, function ($qry) use ($inst_id) {
+                                     return $qry->where('inst_id', $inst_id);
+                                 })
+                                 ->whereIn('prov_id',$global_ids)
+                                 ->where('status', 'Enabled')
+                                 ->get();
 
        // Part I : Load any new harvests (based on today's date) into the HarvestLog table
        // ------------------------------------------------------------------------------
-        foreach ($settings as $setting) {
-           // Skip this setting if we're just processing a single inst and the IDs don't match
-            if (!$setting->institution->is_active) {
+        foreach ($credentials as $credential) {
+           // Skip this credential if we're just processing a single inst and the IDs don't match
+            if (!$credential->institution->is_active) {
                 continue;
             }
-           // Get (conso) provider(s) related to the setting (based on the global_id)
-            $providers = $conso_providers->where('global_id',$setting->prov_id);
-            $conso_connection = $providers->where('inst_id',1)->first();
+           // Limit connections to the (global) prov_id in the credential
+            $connections = $global_connections->where('global_id',$credential->prov_id);
+            $conso_connection = $connections->where('inst_id',1)->first();
             $conso_reports = ($conso_connection) ? $conso_connection->reports->pluck('id')->toArray() : [];
+            $doneInsts = array();
+           // Loop through connections for the global provider
+            foreach ($connections as $cnx) {
 
-           // Loop through related (conso) providers
-            foreach ($providers as $provider) {
-
-                // If not overriding day-of-month, and today is not the day, skip to next provider
-                if (!$override_dom && $provider->globalProv->day_of_month != date('j')) {
+                // Inst may be in more than one connection.. if processed already, skip this connection
+                if (in_array($credential->inst_id, $doneInsts)) {
                     continue;
                 }
-               // if the provider is inst-assigned, skip it on mismatch to sushi setting inst_id
-                if ($provider->inst_id>1 && $provider->inst_id != $setting->inst_id) {
+                // If not overriding day-of-month, and today is not the day, skip the connection
+                if (!$override_dom && $cnx->globalProv->day_of_month != date('j')) {
+                    continue;
+                }
+               // if credential inst_id not related to this connection, skip it
+                if (!in_array($credential->inst_id,$cnx->institutionIds())) {
                     continue;
                 }
 
-               // De-dupe provider reports against $conso_reports and skip this provider if no unique reports
-                $prov_report_ids = $provider->reports->pluck('id')->toArray();
-                if ($provider->inst_id>1 && $conso_connection) {
-                    $prov_report_ids = array_intersect( $prov_report_ids, array_diff($prov_report_ids, $conso_reports) );
+               // De-dupe connection reports against $conso_reports and skip this connection if no unique reports
+                $cnx_report_ids = $cnx->reports->pluck('id')->toArray();
+                if ($cnx->inst_id>1 && $conso_connection) {
+                    $cnx_report_ids = array_intersect( $cnx_report_ids, array_diff($cnx_report_ids, $conso_reports) );
                 }
-                if (count($prov_report_ids) == 0) continue;
-                $reports = $master_reports->whereIn('id',$prov_report_ids)->whereIn('name',$requested_reports);
-                $source = ($provider->inst_id == 1) ? "C" : "I";
+                if (count($cnx_report_ids) == 0) continue;
+                $reports = $master_reports->whereIn('id',$cnx_report_ids)->whereIn('name',$requested_reports);
+                $source = ($cnx->inst_id == 1) ? "C" : "I";
 
                 // Figure out which COUNTER release to pull
-                $available_releases = $provider->globalProv->registries->sortByDesc('release')->pluck('release')->toArray();
+                $available_releases = $cnx->globalProv->registries->sortByDesc('release')->pluck('release')->toArray();
 
                 // To override default release, there need to be: multiple releases, "5.1" needs to be
                 // one of the choices, and the GlobalSetting (first_yearmon_51) needs to be non-null
@@ -183,21 +187,21 @@ class SushiQLoader extends Command
                     }
                 }
 
-                // Use provider's default release override no set
-                $release = (!is_null($or_release)) ? $or_release : $provider->default_release();
+                // Use connection's default release override if or_release still not set
+                $release = (!is_null($or_release)) ? $or_release : $cnx->default_release();
 
                 // Loop through all the reports
                 foreach ($reports as $report) {
                     $ts = date("Y-m-d H:i:s");
                    // Create new HarvestLog record; catch and prevent duplicates
                     try {
-                        HarvestLog::insert(['status' => 'New', 'sushisettings_id' => $setting->id, 'release' => $release,
+                        HarvestLog::insert(['status' => 'New', 'credentials_id' => $credential->id, 'release' => $release,
                                            'report_id' => $report->id, 'yearmon' => $yearmon, 'source' => $source,
                                            'attempts' => 0, 'created_at' => $ts]);
                     } catch (QueryException $e) {
                         $errorCode = $e->errorInfo[1];
                         if ($errorCode == '1062') {
-                            $harvest = HarvestLog::where([['sushisettings_id', $setting->id],
+                            $harvest = HarvestLog::where([['credentials_id', $credential->id],
                                                           ['report_id', $report->id],
                                                           ['yearmon', $yearmon]
                                                          ])->first();
@@ -205,7 +209,7 @@ class SushiQLoader extends Command
                                 continue;                    // since Part II will requeue it anyway
                             }
                             $this->line('Harvest ' . '(ID:' . $harvest->id . ') already defined. Updating to retry (' .
-                                        'setting: ' . $setting->id . ', ' . $report->name . ':' . $yearmon . ').');
+                                        'credential: ' . $credential->id . ', ' . $report->name . ':' . $yearmon . ').');
                             $harvest->status = 'ReQueued';
                             $harvest->save();
                         } else {
@@ -214,8 +218,10 @@ class SushiQLoader extends Command
                         }
                     }
                 } // for each report
-            } // for each (conso) provider
-        } // for each sushisetting
+                // Add inst_id to the doneInsts array
+                if (!in_array($credential->inst_id)) $doneInsts[] = $credential->inst_id;
+            } // for each connection
+        } // for each credential
 
        // Part II : Create queue jobs based on HarvestLogs
        // -----------------------------------------------
@@ -223,7 +229,7 @@ class SushiQLoader extends Command
         foreach ($harvests as $harvest) {
             $ts = date("Y-m-d H:i:s");
             try {
-                SushiQueueJob::insert(['consortium_id' => $consortium->id,
+                GlobalQueueJob::insert(['consortium_id' => $consortium->id,
                                        'harvest_id' => $harvest->id,
                                        'replace_data' => $replace,
                                        'created_at' => $ts]);

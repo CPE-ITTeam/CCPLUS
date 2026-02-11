@@ -5,7 +5,7 @@ namespace App\Console\Commands;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\Artisan;
 use App\Models\Consortium;
-use App\Models\SushiSetting;
+use App\Models\Credential;
 use DB;
 use Illuminate\Support\Facades\File;
 use Illuminate\Support\Facades\Crypt;
@@ -13,20 +13,20 @@ use PhpOffice\PhpSpreadsheet\Spreadsheet;
 use PhpOffice\PhpSpreadsheet\Writer\Xlsx;
 
 
-class AuditSushiSettings extends Command
+class AuditCredentials extends Command
 {
     /**
-     * The name and signature for the Sushi Batch processing console command.
+     * The name and signature for the AuditCredentials processing console command.
      * @var string
      */
-    protected $signature = "ccplus:auditsushisettings {consortium : Consortium ID or key-string}";
+    protected $signature = "ccplus:auditcredentials {consortium : Consortium ID or key-string}";
 
     /**
      * The console command description.
      *
      * @var string
      */
-    protected $description = 'Generates spreadsheet of sushisettings against last-observed raw JSON data';
+    protected $description = 'Generates spreadsheet of credentials against last-observed raw JSON data';
 
     /**
      * Create a new command instance.
@@ -45,7 +45,7 @@ class AuditSushiSettings extends Command
      */
     public function handle()
     {
-        $ident = "Sushi Settings Auditor";
+        $ident = "CC+ Credentials Auditor";
         $ts = date("Y-m-d H:i:s") . " ";
         $conarg = $this->argument('consortium');
         $consortium = Consortium::find($conarg);
@@ -79,13 +79,13 @@ class AuditSushiSettings extends Command
         }
         $consortium_root = $report_path . $consortium->id . '/';
 
-        // Get all Sushi Settings with successful harvestlogs that have a rawfile set
-        $settings = SushiSetting::with(['provider','institution',
-                                        'harvestLogs' => function ($qry) {
-                                            $qry->where('status','Success')->whereNotNull('rawfile')->orderBy('yearmon','DESC');
-                                        }
-                                      ])
-                                ->get();
+        // Get all Credentials with successful harvestlogs that have a rawfile set
+        $settings = Credential::with(['provider','institution',
+                                      'harvestLogs' => function ($qry) {
+                                          $qry->where('status','Success')->whereNotNull('rawfile')->orderBy('yearmon','DESC');
+                                      }
+                                    ])
+                              ->get();
         if (!$settings) {
             $this->line('No settings to audit.');
             return 0;
@@ -138,7 +138,7 @@ class AuditSushiSettings extends Command
                         }
                     }
 
-                    // if we got values, go on to the next sushi setting (otherwise, try another harvest)
+                    // if we got values, go on to the next credential (otherwise, try another harvest)
                     if (substr($json_plat,0,3)!="no-" && substr($json_inst,0,3)!="no-") {
                         break;
                     }
@@ -157,7 +157,7 @@ class AuditSushiSettings extends Command
         $bar->finish();
 
         // Save the data in the storage path
-        $fileName = storage_path() . "/SushiSettings_Audit_" . date("Y_m_d" . ".xlsx");
+        $fileName = storage_path() . "/Credentials_Audit_" . date("Y_m_d" . ".xlsx");
         $writer = new \PhpOffice\PhpSpreadsheet\Writer\Xlsx($spreadsheet);
         $writer->save($fileName);
 

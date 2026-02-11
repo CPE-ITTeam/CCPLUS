@@ -9,7 +9,7 @@ use Illuminate\Support\Facades\Storage;
 use DB;
 use Hash;
 use App\Models\Consortium;
-use App\Models\Provider;
+use App\Models\Connection;
 use App\Models\GlobalProvider;
 use App\Models\Institution;
 use App\Models\SushiSetting;
@@ -106,7 +106,8 @@ class DataArchiveCommand extends Command
        // Provider, Inst and Report options
         $prov_id = $this->option('provider');
         if ($prov_id) {
-            $conso_providers = Provider::where('global_id',$prov_id)->get();
+            $connections = Connection::where('global_id',$prov_id)->get();
+//NOTE:: This sends back GROUP connections too.......
             $providers = GlobalProvider::where('id',$prov_id)->get();
             if ($providers) {
                 $providerName = $providers[0]->name;
@@ -116,7 +117,8 @@ class DataArchiveCommand extends Command
             }
         } else {
             $providerName = "ALL";
-            $conso_providers = Provider::get();
+            $connections = Connection::get();
+//NOTE:: This sends back GROUP connections too.......
             $providers = GlobalProvider::get();
         }
         $inst_id = $this->option('institution');
@@ -247,17 +249,18 @@ class DataArchiveCommand extends Command
        // import if the records still exist.
         if ($saveRelated) {
            // Set arrays with the provider an institution ids just archived
-            $conso_prov_ids = $conso_providers->pluck('id')->toArray();
+            $cnx_ids = $connections->pluck('id')->toArray();
+            $global_ids = $connections->pluck('global_id')->toArray();
             $institution_ids = $institutions->pluck('id')->toArray();
 
            // Save providers to the output file
-            $_res = self::relatedData('providers', 'Consortium Providers', 'id', $conso_prov_ids);
+            $_res = self::relatedData('connections', 'Connections', 'id', $cnx_ids);
 
            // Save institutions to the output file
             $_res = self::relatedData('institutions', 'Institutions', 'id', $institution_ids);
 
            // Get sushi settings IDs
-            $settingsIDs = SushiSetting::whereIn('prov_id',$conso_prov_ids)->whereIn('inst_id',$institution_ids)
+            $settingsIDs = SushiSetting::whereIn('prov_id',$global_ids)->whereIn('inst_id',$institution_ids)
                                        ->pluck('id')->toArray();
 
            // Save sushi_settings to the output file

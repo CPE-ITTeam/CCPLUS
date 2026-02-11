@@ -12,7 +12,7 @@ use DB;
 class CleanupJson extends Command
 {
     /**
-     * The name and signature for the Sushi Batch processing console command.
+     * The name and signature for the CleanupJSON processing console command.
      * @var string
      */
     protected $signature = "ccplus:cleanupjson
@@ -66,7 +66,7 @@ class CleanupJson extends Command
         // Get all the harvest records that might have JSON files needing attention
         // (we're skipping 'Queued', 'ReQueued', 'Pending', 'Active', 'Harvested', and 'New')
         $check_statuses = array('Success', 'Fail', 'Stopped');
-        $all_harvests = Harvestlog::with('sushiSetting','failedHarvests:id,harvest_id,error_id')
+        $all_harvests = Harvestlog::with('credential','failedHarvests:id,harvest_id,error_id')
                                   ->whereIn('status',$check_statuses)->get();
 
         // check by-harvest first. and clear unneeded JSON files in the "saved" folder
@@ -101,8 +101,8 @@ class CleanupJson extends Command
 
             // Delete the saved JSON?
             if ($deleteFile) {
-                $prov_id = $harvest->sushiSetting->prov_id;
-                $inst_id = $harvest->sushiSetting->inst_id;
+                $prov_id = $harvest->credential->prov_id;
+                $inst_id = $harvest->credential->inst_id;
                 $filePath = $consortium_root . '/' . $inst_id . '/' . $prov_id . '/' . $harvest->rawfile;
                 if (file_exists($filePath) && !is_dir($filePath)) {
                     unlink($filePath);
@@ -122,7 +122,7 @@ class CleanupJson extends Command
         }
 
         // Get these again since we may have changed things above
-        $all_harvests = Harvestlog::with('sushiSetting','failedHarvests:id,harvest_id,error_id')
+        $all_harvests = Harvestlog::with('credential','failedHarvests:id,harvest_id,error_id')
                                   ->whereIn('status',$check_statuses)->get();
         // Walk the files
         foreach ($file_glob as $jsonFile) {
@@ -141,11 +141,11 @@ class CleanupJson extends Command
                 $begin = $parts[2];
                 $end = substr($parts[3],0,10);
                 $yearmon = substr($begin,0,7);
-                if (is_null($harvest->sushiSetting)) {
+                if (is_null($harvest->credential)) {
                     $deleteFile = true;
                 } else {
-                    $prov_id = $harvest->sushiSetting->prov_id;
-                    $inst_id = $harvest->sushiSetting->inst_id;
+                    $prov_id = $harvest->credential->prov_id;
+                    $inst_id = $harvest->credential->inst_id;
                 }
             } else {
                 $deleteFile = true;
