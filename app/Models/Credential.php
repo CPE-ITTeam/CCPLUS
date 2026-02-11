@@ -84,14 +84,9 @@ class Credential extends Model
     public function canManage()
     {
       // Admins manage
-        if (auth()->user()->hasRole("Admin")) {
-            return true;
-        }
-      // Managers can manage credentials for their own inst
-        if (auth()->user()->hasRole("Manager")) {
-            return (auth()->user()->inst_id == $this->inst_id);
-        }
-        return false;
+        if (auth()->user()->isConsoAdmin()) return true;
+      // Otherwise, user must have admin of the credentials' inst
+        return $this->institution->canManage();
     }
 
     // Resets status and connection fields when updating or an institution or provider status is made Active
