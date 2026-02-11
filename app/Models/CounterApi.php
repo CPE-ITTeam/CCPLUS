@@ -12,7 +12,7 @@ use \ubfr\c5tools\ParseException;
 use Illuminate\Support\Facades\File;
 use Illuminate\Support\Facades\Crypt;
 
-class Sushi extends Model
+class CounterApi extends Model
 {
     private static $begin;
     private static $end;
