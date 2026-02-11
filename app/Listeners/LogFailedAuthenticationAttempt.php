@@ -17,7 +17,7 @@ class LogFailedAuthenticationAttempt
     {
         if (config('ccplus.log_login_fails')) {
             $message = "";
-            $prefix = " :: Consortium " . session('ccp_con_key') . " :: ";
+            $prefix = " :: Consortium " . session('ccp_key') . " :: ";
             foreach ($event->credentials as $key => $cred) {
               $message .= ($message == "") ? "" : ", ";
               $message .= $key . "=" . $cred;
