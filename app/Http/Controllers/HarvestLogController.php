@@ -9,13 +9,13 @@ use App\Models\HarvestLog;
 use App\Models\Consortium;
 use App\Models\FailedHarvest;
 use App\Models\Report;
-use App\Models\Provider;
+use App\Models\Connection;
 use App\Models\GlobalProvider;
 use App\Models\Institution;
 use App\Models\InstitutionGroup;
 use App\Models\Credential;
-use App\Models\Sushi;
-use App\Models\SushiQueueJob;
+use App\Models\CounterApi;
+use App\Models\GlobalQueueJob;
 use App\Models\ConnectionField;
 use App\Models\CcplusError;
 use App\Services\HarvestService;
@@ -26,11 +26,18 @@ use Illuminate\Support\Facades\Crypt;
 
 class HarvestLogController extends Controller
 {
+   private $all_error_codes;
    private $connection_fields;
    protected $harvestService;
 
    public function __construct(HarvestService $harvestService)
    {
+       // Load all known error codes
+       try {
+           $this->all_error_codes = CcplusError::pluck('id')->toArray();
+       } catch (\Exception $e) {
+           $this->all_error_codes = collect();
+       }
        // Load all connection fields
        try {
            $this->connection_fields = ConnectionField::get();
@@ -48,25 +55,24 @@ class HarvestLogController extends Controller
     */
    public function index(Request $request)
    {
-       $thisUser = auth()->user();
-       abort_unless($thisUser->isAdmin(), 403);
+        $thisUser = auth()->user();
+        abort_unless($thisUser->isAdmin(), 403);
 
-       // Setup limit arrays for the instID's and provIDs we'll pull credentials for
-       $limit_to_insts = ($thisUser->isConsoAdmin()) ? array() : $thisUser->adminInsts();
-       $limit_to_provs = GlobalProvider::with('credentials', 'credentials.institution:id,is_active')
-                                       ->when(count($limit_to_insts) > 0, function ($qry) use ($limit_to_insts) {
-                                           return $qry->where('inst_id',1)->orWhereIn('inst_id', $limit_to_insts);
-                                       })
-                                       ->pluck('id')->toArray();
+        $filter_options = array();
 
-        // Get credentials limited by-inst and/or by-prov
+        // Setup limit arrays for the instID's we'll pull credentials for
+        $limit_to_insts = ($thisUser->isConsoAdmin()) ? array() : $thisUser->adminInsts();
+        $filter_options['institutions'] = Institution::when(count($limit_to_insts) > 0, function ($qry) use ($limit_to_insts) {
+                                            return $qry->where('inst_id',1)->orWhereIn('inst_id', $limit_to_insts);
+                                        })->get(['id','name'])->toArray();
+
+        // Get all global IDs and names
+        $filter_options['platforms'] = GlobalProvider::get(['id','name'])->toArray();
+
+        // Get credentials limited by-inst
         $credential_ids = Credential::when(count($limit_to_insts) > 0, function ($qry) use ($limit_to_insts) {
                                         return $qry->whereIn('inst_id', $limit_to_insts);
-                                    })
-                                    ->when(count($limit_to_provs) > 0, function ($qry) use ($limit_to_provs) {
-                                        return $qry->whereIn('prov_id', $limit_to_provs);
-                                    })
-                                    ->pluck('id')->toArray();
+                                    })->pluck('id')->toArray();
 
         // Get the harvest rows based on credentials
         $harvest_data = HarvestLog::
@@ -93,7 +99,19 @@ class HarvestLogController extends Controller
             $harvests[] = $formatted_harvest;
         }
 
-        return response()->json(['records' => $harvests], 200);
+        // Query for min and max yearmon values
+        $bounds = $this->harvestBounds();
+
+        // Setup the rest of the filtering options
+        $filter_options['statuses'] = array('Harvest Queue', 'Harvesting', 'Queued by Vendor', 'Paused', 'ReQueued',
+                                            'Process Queue', 'Processing');
+        $filter_options['reports'] = Report::where('parent_id',0)->orderBy('dorder','ASC')
+                                           ->get(['id','name'])->toArray();
+        $filter_options['codes'] = $harvest_data->where('error_id','>',0)->unique('error_id')->sortBy('error_id')
+                                                ->pluck('error_id')->toArray();
+        array_unshift($filter_options['codes'], 'No Error');
+
+        return response()->json(['records' => $harvests, 'options' => $filter_options, ], 200);
    }
 
     /**
@@ -105,25 +123,27 @@ class HarvestLogController extends Controller
     public function create(Request $request)
     {
         $thisUser = auth()->user();
+        $consoAdmin = $thisUser->isConsoAdmin();
 
-        // limit institutions by user rols(s)
-        $_insts = $thisUser->viewerInsts(); // returns [1] for conso or serverAdmin
-        $limit_by_inst = ($_insts === [1]) ? array() : $_insts;
-        // Pull globalProvider IDs based on the consortium providers defined for institutions
-        // in $limit_by_inst ; everyone gets consortium-wide providers (where inst_id=1)
-        $global_ids = Provider::when(count($limit_by_inst) > 0, function ($qry) use ($limit_by_inst) {
-                                  return $qry->where('inst_id',1)->orWhereIn('inst_id',$limit_by_inst);
-                              })->select('global_id')->distinct()->pluck('global_id')->toArray();
+        // Limit institutions by user role(s)
+        $limit_by_inst = ($consoAdmin) ? array() : $thisUser->viewerInsts();
+
+        // Pull globalProvider IDs based on the connections defined for institutions
+        // in $limit_by_inst ; everyone gets consortium-wide connections (where inst_id=1)
+        $global_ids = Connection::when(count($limit_by_inst) > 0, function ($qry) use ($limit_by_inst) {
+                                    return $qry->where('inst_id',1)->orWhereIn('inst_id',$limit_by_inst);
+                                })->select('global_id')->distinct()->pluck('global_id')->toArray();
 
         // Get allowed/visible institutions
         $institutions = Institution::when(count($limit_by_inst)>0, function ($qry) use ($limit_by_inst) {
                                        return $qry->whereIn('id', $limit_by_inst);
                                    })->get(['id','name'])->toArray();
 
-        // Admins see groups, but only ones that have members
+        // Admins see groups they admin - that have members
         $groups = array();
-        if ($thisUser->isAdmin()) {
-            $data = InstitutionGroup::with('institutions:id,name')->orderBy('name', 'ASC')->get();
+        $group_ids = $thisUser->adminGroups();
+        if (count($group_ids) > 0) {
+            $data = InstitutionGroup::whereIn('id',$group_ids)->with('institutions:id,name')->orderBy('name', 'ASC')->get();
             foreach ($data as $group) {
                 if ( $group->institutions->count() > 0 ) {
                     $groups[] = array('id' => $group->id, 'name' => $group->name, 'institutions' => $group->institutions);
@@ -132,7 +152,7 @@ class HarvestLogController extends Controller
         }
 
         // Build platform list of globals connected to insts in limit_by_inst 
-        $globals = GlobalProvider::with('consoProviders','consoProviders.reports')->whereIn('id',$global_ids)
+        $globals = GlobalProvider::with('connections','connections.reports')->whereIn('id',$global_ids)
                                  ->orderBy('name','ASC')->get(['id','name']);
         $platforms = array();
         foreach ($globals as $global) {
@@ -176,540 +196,371 @@ class HarvestLogController extends Controller
     * @param  \Illuminate\Http\Request  $request
     * @return \Illuminate\Http\Response
     */
-   public function store(Request $request)
-   {
-       $thisUser = auth()->user();
-       abort_unless($thisUser->hasAnyRole(['Admin','Manager']), 403);
-       $this->validate($request,
-           ['plat' => 'required', 'reports' => 'required', 'fromYM' => 'required', 'toYM' => 'required', 'when' => 'required']
-       );
-       $input = $request->all();
-       if (!isset($input["inst"]) || !isset($input["inst_group_id"])) {
-           return response()->json(['result' => false, 'msg' => 'Error: Missing input arguments!']);
-       }
-       if (sizeof($input["inst"]) == 0 && $input["inst_group_id"] <= 0) {
-           return response()->json(['result' => false, 'msg' => 'Error: Institution/Group invalid in request']);
-       }
-       $input_release = (isset($input["release"])) ? $input["release"] : "";
-       $user_inst =$thisUser->inst_id;
-       $is_admin =$thisUser->hasRole('Admin');
-       $firstYM = config('ccplus.first_yearmon_51');
+    public function store(Request $request)
+    {
+        $thisUser = auth()->user();
+        abort_unless($thisUser->hasRole('Admin'), 403);
+        $consoAdmin = $thisUser->isConsoAdmin();
 
-       // Set flag for "skip previously harvested data"
-       $skip_harvested = false;
-       if (isset($input["skip_harvested"])) {
-           $skip_harvested = $input["skip_harvested"];
-       }
+        $this->validate($request,
+            ['plat' => 'required', 'reports' => 'required', 'fromYM' => 'required', 'toYM' => 'required', 'when' => 'required']
+        );
+        $input = $request->all();
+        if (!isset($input["inst"]) || !isset($input["inst_group_id"])) {
+            return response()->json(['result' => false, 'msg' => 'Error: Missing input arguments!']);
+        }
+        if (sizeof($input["inst"]) == 0 && $input["inst_group_id"] <= 0) {
+            return response()->json(['result' => false, 'msg' => 'Error: Institution/Group invalid in request']);
+        }
+        $input_release = (isset($input["release"])) ? $input["release"] : "";
+        $user_inst =$thisUser->inst_id;
+        $firstYM = config('ccplus.first_yearmon_51');
 
-       // Admins can harvest multiple insts or a group
-       $inst_ids = array();
-       if ($is_admin) {
-           // Set inst_ids (force to user's inst if not an admin)
-           if ($input["inst_group_id"] > 0) {
-               $group = InstitutionGroup::with('institutions')->findOrFail($input["inst_group_id"]);
-               $inst_ids = $group->institutions->pluck('id')->toArray();
-           } else {
-               // A value of 0 in inst_ids means we're doing consortium
-               if (in_array(0,$input["inst"])) {
-                   $inst_ids = Institution::where('is_active',true)->pluck('id')->toArray();
-               } else {
-                   $inst_ids = $input["inst"];
-               }
-           }
-       // Managers are confined to only their inst
-       } else {
-           $inst_ids = array($user_inst);
-       }
-       if (sizeof($inst_ids) == 0) {
-           return response()->json(['result' => false, 'msg' => 'Error: no matching institutions to harvest']);
-       }
-
-       // Get detail on (master) reports requested
-       $master_reports = Report::where('parent_id',0)->orderBy('dorder','ASC')->get(['id','name']);
-
-       // Get platform info
-       if (in_array(0,$input["plat"])) {    //  Get all consortium-enabled global platforms?
-           $global_ids = Provider::where('is_active',true)->where('inst_id',1)->pluck('global_id')->toArray();
-       } else {
-           $plat_ids = $input["plat"];
-           $global_ids = array();
-           // plat_ids with  -1  means ALL, set global_ids based whose asking (admin or not)
-           if ($is_admin) {
-               if (in_array(-1, $plat_ids) || count($plat_ids) == 0) {
-                   $global_ids = Provider::where('is_active',true)->pluck('global_id')->toArray();
-               } else {
-                   $global_ids = Provider::where('is_active',true)->whereIn('global_id',$plat_ids)->pluck('global_id')->toArray();
-               }
-           } else {
-               if (in_array(-1, $plat_ids) || count($plat_ids) == 0) {
-                   $global_ids = Provider::where('is_active',true)->whereIn('inst_id',[1,$user_inst])
-                                         ->pluck('global_id')->toArray();
-               } else {
-                   $global_ids = Provider::where('is_active',true)->whereIn('inst_id',[1,$user_inst])
-                                         ->whereIn('global_id',$plat_ids)->pluck('global_id')->toArray();
-               }
-           }
-       }
-       $global_platforms = GlobalProvider::with('credentials','credentials.institution:id,is_active','consoProviders',
-                                                'consoProviders.reports','registries')
-                                         ->where('is_active',true)->whereIn('id',$global_ids)->get();
-
-       // Set the status for the harvests we're creating based on "when"
-       $state = "New";
-       if ($input["when"] == 'now') {
-           $state = "Queued";
-           $con = Consortium::where('ccp_key', '=', session('ccp_con_key'))->first();
-           if (!$con) {
-               return response()->json(['result' => false, 'msg' => 'Cannot create jobs with current consortium setting.']);
-           }
-       }
-
-       // Check From/To - truncate to current month if in future and ensure from <= to ,
-       // then turn them into an array of yearmon strings
-       $this_month = date("Y-m", mktime(0, 0, 0, date("m"), date("d"), date("Y")));
-       $to = ($input["toYM"] > $this_month) ? $this_month : $input["toYM"];
-       $from = ($input["fromYM"] > $to) ? $to : $input["fromYM"];
-       $year_mons = self::createYMarray($from, $to);
-
-       // Loop for all months requested
-       $num_queued = 0;
-       $created_ids = [];
-       $updated_ids = [];
-       foreach ($year_mons as $yearmon) {
-           // Loop for all global providers
-           foreach ($global_platforms as $global_platform) {
-
-               // Set the COUNTER release to be harvested 
-               $release = $global_platform->default_release();
-               if ($input_release == 'System Default' && !is_null($firstYM)) {
-                   $available_releases = $global_platform->registries->sortByDesc('release')->pluck('release')->toArray();
-                   if ($available_releases > 1 && in_array("5.1",$available_releases)) {
-                       $idx51 = array_search("5.1", $available_releases);
-                       // requested yearmon before 5.1 default begin date
-                       if ($yearmon < $firstYM) {
-                           if (isset($available_releases[$idx51+1])) {
-                               $release = $available_releases[$idx51+1];
-                           }
-                       // requested yearmon on/after 5.1 default begin date
-                       } else {
-                           $release = "5.1";
-                       }
-                    }
-               }
-               // Set an array with the report_ids enabled consortium-wide
-               $consoProv = $global_platform->consoProviders->where('inst_id',1)->first();
-               $conso_reports = ($consoProv) ? $consoProv->reports->pluck('id')->toArray() : [];
-
-               // Loop through all credentials
-               foreach ($global_platform->credentials as $cred) {
-                  // If institution is inactive or this inst_id is not in the $inst_ids array, skip it
-                   if ($cred->status != "Enabled" ||
-                       !$cred->institution->is_active || !in_array($cred->inst_id,$inst_ids)) {
-                       continue;
-                   }
-
-                  // Set reports to process based on consortium-wide and, if defined, institution-specific credential_ids
-                   $report_ids = array();
-                   foreach ($global_platform->consoProviders as $conso_provider) {
-                        // if inst-specific provider for an inst different from the current cred, skip it
-                        if ($conso_provider->inst_id != 1 && $conso_provider->inst_id != $cred->inst_id) {
-                            continue;
-                        }
-                       $_ids = $conso_provider->reports->pluck('id')->toArray();
-                       $report_ids = array_unique(array_merge($report_ids,$_ids));
-                   }
-
-                   // Add a "source" value to $reports
-                   $report_data = $master_reports->whereIn('id',$report_ids);
-                   $reports = $report_data->map(function ($rec) use ($conso_reports) {
-                       $rec->source = (in_array($rec->id,$conso_reports)) ? "C" : "I";
-                       return $rec;
-                   });
-
-                   // Loop through all reports
-                   foreach ($reports as $report) {
-                      // if this report isn't in $inputs['reports'], skip it
-                       if (!in_array($report->name, $input['reports'])) {
-                           continue;
-                       }
-
-                       // Get the harvest record, if it exists
-                       $harvest = HarvestLog::where([['credentials_id', '=', $cred->id],
-                                                     ['report_id', '=', $report->id],
-                                                     ['yearmon', '=', $yearmon]
-                                                    ])->first();
-                       // Harvest exists
-                       if ($harvest) {
-                           if ($skip_harvested) {
-                             continue;
-                           }
-                           // We're not skipping... reset the harvest
-                           $harvest->release = $release;
-                           $harvest->attempts = 0;
-                           $harvest->status = $state;
-                           $harvest->save();
-                           $updated_ids[] = $harvest->id;
-                       // Insert new HarvestLog record
-                       } else {
-                           $harvest = HarvestLog::create(['status' => $state, 'credentials_id' => $cred->id,
-                                                'release' => $release, 'report_id' => $report->id, 'yearmon' => $yearmon,
-                                                'source' => $report->source, 'attempts' => 0]);
-                            $created_ids[] = $harvest->id;
-                       }
-
-                       // If user wants it added now create the queue entry - set replace_data to overwrite
-                       if ($input["when"] == 'now') {
-                           try {
-                               $newjob = SushiQueueJob::create(['consortium_id' => $con->id,
-                                                                'harvest_id' => $harvest->id,
-                                                                'replace_data' => 1
-                                                              ]);
-                               $num_queued++;
-                           } catch (QueryException $e) {
-                               $code = $e->errorInfo[1];
-                               if ($code == '1062') {     // If already in queue, continue silently
-                                   continue;
-                               } else {
-                                   $msg = 'Failure adding Harvest ID: ' . $harvest->id . ' to Queue! Error ' . $code;
-                                   return response()->json(['result' => false, 'msg' => $msg]);
-                               }
-                           }
-                       }
-                   }
-               }
-           }
-       }
-
-       // Setup full details for new harvest entries
-       $new = array();
-       if (count($created_ids) > 0) {
-           $new_data = HarvestLog::whereIn('id', $created_ids)->with('report:id,name','credential',
-                               'credential.institution:id,name','credential.provider:id,name',
-                               'lastError','failedHarvests','failedHarvests.ccplusError')->get();
-           foreach ($new_data as $rec) {
-               $new[] = $this->formatRecord($rec);
-           }
-       }
-       // New harvests means "bounds" changed
-       $bounds = (count($created_ids) > 0) ? $this->harvestBounds() : array();
-
-       // Setup full details for updated harvest entries
-       $updated = array();
-       if (count($updated_ids) > 0) {
-           $upd_data = HarvestLog::whereIn('id', $updated_ids)->with('report:id,name','credential',
-                               'credential.institution:id,name','credential.provider:id,name',
-                               'lastError','failedHarvests','failedHarvests.ccplusError')->get();
-           foreach ($upd_data as $rec) {
-               $updated[] = $this->formatRecord($rec);
-           }
-       }
-
-       // Send back confirmation with counts of what happened
-       $msg  = "Success : " . count($created_ids) . " new harvests added, " . count($updated_ids) . " harvests updated";
-       $msg .= ($num_queued > 0) ? ", and " . $num_queued . " queue jobs created." : ".";
-       return response()->json(['result'=>true, 'msg'=>$msg, 'new_harvests'=>$new, 'upd_harvests'=>$updated,
-                                'bounds'=>$bounds]);
-   }
-
-   /**
-    * Return available providers for an array of inst_ids or an inst_group
-    *
-    * @param  \Illuminate\Http\Request  $request
-    * @return \Illuminate\Http\Response
-   */
-   public function availableProviders(Request $request)
-   {
-       abort_unless(auth()->user()->hasAnyRole(['Admin','Manager']), 403);
-       $group_id = json_decode($request->group_id, true);
-       $insts = json_decode($request->inst_ids, true);
-
-       // Setup an array of inst_ids for querying against the credentials
-       if ($group_id > 0) {
-           $group = InstitutionGroup::with('institutions')->findOrFail($group_id);
-           $inst_ids = $group->institutions->pluck('id')->toArray();
-       } else if (sizeof($insts) > 0) {
-           $inst_ids = $insts;
-       } else {
-           return response()->json(['result' => false, 'msg' => 'Missing expected inputs!']);
-       }
-
-       // Query the credentials for providers connected to the requested inst IDs
-       if (in_array(0,$inst_ids)) {
-           $availables = Credential::where('status','Enabled')->pluck('prov_id')->toArray();
-       } else {
-           $availables = Credential::where('status','Enabled')->whereIn('inst_id',$inst_ids)->pluck('prov_id')->toArray();
-       }
-
-       // Use availables (IDs) to get the provider data and return it via JSON
-       // ( include inst_id and reports relationship like index() does )
-       $providers = array();
-       $provider_data = GlobalProvider::with('credentials','consoProviders','consoProviders.reports','registries')
-                                      ->whereIn('id', $availables)->orderBy('name', 'ASC')->get(['id','name']);
-       foreach ($provider_data as $gp) {
-            $rec = array('id' => $gp->id, 'name' => $gp->name);
-            $consoCnx = $gp->consoProviders->where('inst_id',1)->first();
-            $rec['inst_id'] = ($consoCnx) ? 1 : null;
-            $enabled_cred = $gp->credentials->where('status','Enabled')->first();
-            $rec['sushi_enabled'] = ($enabled_cred) ? true : false;
-            $_reports = $gp->enabledReports();
-            $rec['reports'] = $_reports;
-            $rec['releases'] = $gp->registries->sortBy('release')->pluck('release');
-            if ($rec['releases']->count() > 1) {
-                $rec['releases']->prepend('System Default');
-            }              
-            $providers[] = $rec;
+        // Set flag for "skip previously harvested data"
+        $skip_harvested = false;
+        if (isset($input["skip_harvested"])) {
+            $skip_harvested = $input["skip_harvested"];
         }
 
-       if (sizeof($providers) == 0) {
-           return response()->json(['result' => false, 'msg' => 'No matching, active platforms found']);
-       } else {
-           return response()->json(['providers' => $providers], 200);
-       }
-   }
+        // Admins can harvest multiple insts
+        $inst_ids = $thisUser->adminInsts();
 
-   /**
-    * Return available institutions for an array of provider IDs
-    *
-    * @param  \Illuminate\Http\Request  $request
-    * @return \Illuminate\Http\Response
-   */
-   public function availableInstitutions(Request $request)
-   {
-       $thisUser = auth()->user();
-       abort_unless($thisUser->hasAnyRole(['Admin','Manager']), 403);
-       $provs = json_decode($request->prov_ids, true);
+        // Get detail on (master) reports requested
+        $master_reports = Report::where('parent_id',0)->orderBy('dorder','ASC')->get(['id','name']);
 
-       if (sizeof($provs) > 0) {
-           $prov_ids = $provs;
-       } else {
-           return response()->json(['result' => false, 'msg' => 'Missing expected inputs!']);
-       }
-
-       // Query the credentials for institutions connected to the requested inst IDs
-       if (in_array(0,$prov_ids)) {
-           $availables = Credential::where('status','Enabled')->pluck('inst_id')->toArray();
-       } else {
-           $availables = Credential::where('status','Enabled')->whereIn('prov_id',$prov_ids)->pluck('inst_id')->toArray();
-       }
-
-       // Use availables (IDs) to get the provider data and return it via JSON
-       // ( include inst_id and reports relationship like index() does )
-       $institutions = array();
-       $inst_data = Institution::with('credentials:id,inst_id,prov_id','institutionGroups','institutionGroups.institutions')
-                               ->whereIn('id', $availables)->orderBy('name', 'ASC')->get(['id','name']);
-
-       // Loop through institutions and build output records and list of groups
-       $groups = array();
-       $group_ids = array();    // keep track of group IDs seen
-       foreach ($inst_data as $inst) {
-           $rec = array('id' => $inst->id, 'name' => $inst->name);
-           $new_groups = $inst->institutionGroups->whereNotIn('id',$group_ids);
-           foreach ($new_groups as $group) {
-               $groups[] = array('id' => $group->id, 'name' => $group->name, 'institutions' => $group->institutions);
-               $group_ids[] = $group->id;
-           }
-           $institutions[] = $rec;
-       }
-
-       if (sizeof($institutions) == 0) {
-           return response()->json(['result' => false, 'msg' => 'No matching, active institutions found']);
-       } else {
-           return response()->json(['institutions' => $institutions, 'groups' => $groups], 200);
-       }
-   }
-
-   /**
-    * Update status for a given harvest
-    *
-    * @param  \Illuminate\Http\Request  $request
-    * @return \Illuminate\Http\Response
-    */
-   public function updateStatus(Request $request)
-   {
-       abort_unless(auth()->user()->hasAnyRole(['Admin','Manager']), 403);
-
-       // Get and verify input or bail with error in json response
-       try {
-           $input = json_decode($request->getContent(), true);
-       } catch (\Exception $e) {
-           return response()->json(['result' => false, 'msg' => 'Error decoding input!']);
-       }
-       if (!isset($input['ids']) || !isset($input['status'])) {
-           return response()->json(['result' => false, 'msg' => 'Missing expected inputs!']);
-       }
-
-       // Limit new status input to 2 possible values
-       $new_status_allowed = array('Pause', 'ReStart', '5', '5.1');
-       if (!in_array($input['status'], $new_status_allowed)) {
-           return response()->json(['result' => false,
-                                    'msg' => 'Invalid request: status cannot be set to requested value.']);
-       }
-       $status_action = ($input['status'] == 'Pause') ? "Pause" : "ReStart";
-
-       // Get consortium info
-       $con = Consortium::where("ccp_key", session("ccp_con_key"))->first();
-       if (!$con) {
-           return response()->json(['result' => false, 'msg' => 'Error: Corrupt session or consortium settings']);
-       }
-
-       // Check status input for a specific COUNTER release for restarting
-       $forceRelease = ($input['status']=='5' || $input['status']=='5.1') ? $input['status'] : null;
-
-       // Get and process the harvest(s)
-       $changed = 0;
-       $skipped = [];
-       $harvests = HarvestLog::with('credential','credential.institution','credential.provider',
-                                    'credential.provider.registries')
-                             ->whereIn('id',$input['ids'])->get();
-       foreach ($harvests as $harvest) {
-           // keep track of original status
-           $original_status = $harvest->status;
-
-           // Disallow ReStart on any harvest where credentials are not Enabled, or provider or institution are
-           // are not active
-           if ( ($status_action == 'ReStart') && ($harvest->credential->status != 'Enabled' ||
-                !$harvest->credential->institution->is_active || !$harvest->credential->provider->is_active) ) {
-               $skipped[] = $harvest->id;
-               continue;
-           }
-
-           // Confirm that a "forcedRelease" is available for this harvests' provider
-           if (!is_null($forceRelease)) {
-               $registry = $harvest->credential->provider->registries->where('release',$forceRelease)->first();
-               if (!$registry) {
-                   $skipped[] = $harvest->id;
-                   continue;
-               }
-               // Update the release value in the harvest record now so that the new job processes it right
-               if ($forceRelease != trim($harvest->release)) {
-                   $harvest->release = $forceRelease;
-               }
-           }
-
-           // Setting Paused just changes status
-           if ($status_action == 'Pause') {
-               $harvest->status = 'Paused';
-
-           // Setting Queued means attempts get set to zero
-           // Restart will reset attempts and create a SushiQueueJob if one does not exist
-           } else if ($status_action == 'ReStart') {
-               $_job = SushiQueueJob::where('consortium_id',$con->id)->where('harvest_id',$harvest->id)->first();
-               if (!$_job) {
-                   try {
-                       $newjob = SushiQueueJob::create(['consortium_id' => $con->id,
-                                                        'harvest_id' => $harvest->id,
-                                                        'replace_data' => 1
-                                                      ]);
-                   } catch (\Exception $e) {
-                       return response()->json(['result' => false, 'msg' => 'Error creating job entry in global table!']);
-                   }
-               }
-               $harvest->attempts = 0;
-               $harvest->status = 'Queued';
-           }
-
-           // Update the harvest record and return
-           $harvest->updated_at = now();
-           $harvest->save();
-           $changed++;
-       }
-
-       // Return result
-       $msg_result = ($status_action == 'ReStart') ? "restarted" : "paused";
-       if ($changed > 0) {
-           $msg  = "Successfully  " . $msg_result . " " . $changed . " harvests";
-           $msg .= (!is_null($forceRelease)) ? " as release ".$forceRelease : "";
-           if (count($skipped) > 0) {
-               $msg .= " , and skipped " . count($skipped) . " harvests";
-               $msg .= (!is_null($forceRelease)) ? " (release ".$forceRelease." may not be available)." : ".";
+        // Get Global Platforms
+        if (in_array(0,$input["plat"])) {    // Get all consortium-enabled global platforms?
+            $global_ids = Connection::where('is_active',true)->where('inst_id',1)->pluck('global_id')->toArray();
+        } else {
+            $plat_ids = $input["plat"];
+            $global_ids = array();
+            // plat_ids with  -1  means ALL, set global_ids based whose asking
+            if (in_array(-1, $plat_ids) || count($plat_ids) == 0) {
+                $global_ids = Connection::where('is_active',true)
+                                        ->when( !$consoAdmin,  function ($qry) use ($inst_ids) {
+                                            $qry->where('inst_id',1)->orWhereIn('instid',$inst_ids);
+                                        })->select('global_id')->distinct()->pluck('global_id')->toArray();
+            } else {
+                $global_ids = Connection::where('is_active',true)->whereIn('global_id',$plat_ids)
+                                        ->when( !$consoAdmin,  function ($qry) use ($inst_ids) {
+                                            $qry->where('inst_id',1)->orWhereIn('instid',$inst_ids);
+                                        })->select('global_id')->distinct()->pluck('global_id')->toArray();
             }
-       } else {
-           $msg = "No selected harvests modified";
-           $msg .= (!is_null($forceRelease)) ? ", release ".$forceRelease." may not be available" : "";
-       }
-       return response()->json(['result' => true, 'msg' => $msg, 'skipped' => $skipped]);
-   }
+        }
+        $global_platforms = GlobalProvider::with('credentials','credentials.institution:id,is_active','connections',
+                                                 'connections.reports','registries')
+                                          ->where('is_active',true)->whereIn('id',$global_ids)->get();
 
-  /**
-   * Display a form for editting the specified resource.
-   *
-   * @param  int  $id
-   * @return \Illuminate\Http\Response
-   */
-   public function edit($id)
-   {
-       $harvest = HarvestLog::with('report:id,name','credential', 'credential.institution:id,name',
-                                   'credential.provider:id,name')
-                            ->findOrFail($id);
+        // Set the status for the harvests we're creating based on "when"
+        $state = "New";
+        if ($input["when"] == 'now') {
+            $state = "Queued";
+            $con = Consortium::where('ccp_key', '=', session('ccp_key'))->first();
+            if (!$con) {
+                return response()->json(['result' => false, 'msg' => 'Cannot create jobs with current consortium setting.']);
+            }
+        }
 
-       // Get any failed attempts, pass as an array
-       $data = FailedHarvest::with('ccplusError', 'ccplusError.severity')->where('harvest_id', '=', $id)
-                            ->orderBy('created_at','DESC')->get();
-       $attempts = $data->map(function ($rec) {
-           $rec->severity = $rec->ccplusError->severity->name;
-           $rec->message = $rec->ccplusError->message;
-           $rec->attempted = ($rec->created_at) ? date("Y-m-d H:i", strtotime($rec->created_at)) : " ";
-           return $rec;
-       })->toArray();
+        // Check From/To - truncate to current month if in future and ensure from <= to ,
+        // then turn them into an array of yearmon strings
+        $this_month = date("Y-m", mktime(0, 0, 0, date("m"), date("d"), date("Y")));
+        $to = ($input["toYM"] > $this_month) ? $this_month : $input["toYM"];
+        $from = ($input["fromYM"] > $to) ? $to : $input["fromYM"];
+        $year_mons = self::createYMarray($from, $to);
 
-       // If harvest successful, pass it as an array
-       if ($harvest->status == 'Success') {
-           $rec = array('process_step' => 'SUCCESS', 'error_id' => '', 'severity' => '', 'detail' => '');
-           $rec['message'] = "Harvest successfully completed";
-           $rec['attempted'] = ($harvest->created_at) ? date("Y-m-d H:i", strtotime($harvest->created_at)) : " ";
-           array_unshift($attempts,$rec);
-       } else {
-           // Harvests could have prior failures, but attampes has been reset to zero to requeue ot
-           if (sizeof($attempts) == 0) {
-               if ($harvest->attempts == 0) {
-                   $attempts[] = array('severity' => "Unknown", 'message' => "Harvest has not yet been attempted",
-                                       'attempted' => "Unknown");
-               } else {
-                   $attempts[] = array('severity' => "Unknown", 'message' => "Failure records are missing!",
-                                       'attempted' => "Unknown");
-               }
-           }
-       }
+        // Loop for all months requested
+        $num_queued = 0;
+        $created_ids = [];
+        $updated_ids = [];
+        foreach ($year_mons as $yearmon) {
+            // Loop for all global providers
+            foreach ($global_platforms as $global_platform) {
 
-       return view('harvests.edit', compact('harvest', 'attempts'));
-   }
+               
+                // Set the COUNTER release to be harvested 
+                $release = $global_platform->default_release();
+                if ($input_release == 'System Default' && !is_null($firstYM)) {
+                    $available_releases = $global_platform->registries->sortByDesc('release')->pluck('release')->toArray();
+                    if ($available_releases > 1 && in_array("5.1",$available_releases)) {
+                        $idx51 = array_search("5.1", $available_releases);
+                        // requested yearmon before 5.1 default begin date
+                        if ($yearmon < $firstYM) {
+                            if (isset($available_releases[$idx51+1])) {
+                                $release = $available_releases[$idx51+1];
+                            }
+                        // requested yearmon on/after 5.1 default begin date
+                        } else {
+                            $release = "5.1";
+                        }
+                    }
+                }
+                // Set an array with the report_ids enabled consortium-wide
+                $consoCnx = $global_platform->connections->where('inst_id',1)->first();
+                $conso_reports = ($consoCnx) ? $consoCnx->reports->pluck('id')->toArray() : [];
 
-   /**
-    * Display the resource w/ built-in form (manager/admin) for editting the specified resource.
-    *
-    * @param  int  $id
-    * @return \Illuminate\Http\Response
-    */
-   public function show($id)
-   {
-       //
-   }
+                // Loop through all credentials
+                foreach ($global_platform->credentials as $cred) {
+                    // If institution is inactive or this inst_id is not in the $inst_ids array, skip it
+                    if ($cred->status != "Enabled" || !$cred->institution->is_active ||
+                       (!$consoAdmin && !in_array($cred->inst_id,$inst_ids))) {
+                        continue;
+                    }
 
-   /**
-    * Update the specified resource in storage.
-    *
-    * @param  \Illuminate\Http\Request $request
-    * @param  int  $id
-    * @return \Illuminate\Http\Response
-    */
-   public function update(Request $request, $id)
-   {
-       abort_unless(auth()->user()->hasAnyRole(['Admin','Manager']), 403);
+                    // Set reports to process based on consortium-wide and, if defined, institution-specific credential_ids
+                    $report_ids = array();
+                    foreach ($global_platform->connections as $cnx) {
+                         // skip credentials for other insts
+                         if ($cnx->inst_id != 1 && $cnx->inst_id != $cred->inst_id) {
+                             continue;
+                         }
+                        $_ids = $cnx->reports->pluck('id')->toArray();
+                        $report_ids = array_unique(array_merge($report_ids,$_ids));
+                    }
 
-       $harvest = HarvestLog::findOrFail($id);
-       $this->validate($request, ['status' => 'required']);
+                    // Add a "source" value to $reports
+                    $report_data = $master_reports->whereIn('id',$report_ids);
+                    $reports = $report_data->map(function ($rec) use ($conso_reports) {
+                        $rec->source = (in_array($rec->id,$conso_reports)) ? "C" : "I";
+                        return $rec;
+                    });
 
-       // A harvest being updated to ReQueued means setting attempts to zero
-       if ($request->input('status') == 'ReQueued' && $harvest->status != "ReQueued") {
-           $harvest->attempts = 0;
-       }
-       $harvest->status = $request->input('status');
-       $harvest->save();
-       $harvest->load('report:id,name','credential','credential.institution:id,name','credential.provider:id,name');
-       $harvest->updated = ($harvest->updated_at) ? date("Y-m-d H:i", strtotime($harvest->updated_at)) : " ";
+                    // Loop through all reports
+                    foreach ($reports as $report) {
+                        // if this report isn't in $inputs['reports'], skip it
+                        if (!in_array($report->name, $input['reports'])) {
+                            continue;
+                        }
 
-       return response()->json(['result' => true, 'harvest' => $harvest]);
-   }
+                        // Get the harvest record, if it exists
+                        $harvest = HarvestLog::where([['credentials_id', '=', $cred->id],
+                                                      ['report_id', '=', $report->id],
+                                                      ['yearmon', '=', $yearmon]
+                                                     ])->first();
+                        // Harvest exists
+                        if ($harvest) {
+                            if ($skip_harvested) {
+                              continue;
+                            }
+                            // We're not skipping... reset the harvest
+                            $harvest->release = $release;
+                            $harvest->attempts = 0;
+                            $harvest->status = $state;
+                            $harvest->save();
+                            $updated_ids[] = $harvest->id;
+                        // Insert new HarvestLog record
+                        } else {
+                            $harvest = HarvestLog::create(['status' => $state, 'credentials_id' => $cred->id,
+                                                 'release' => $release, 'report_id' => $report->id, 'yearmon' => $yearmon,
+                                                 'source' => $report->source, 'attempts' => 0]);
+                            $created_ids[] = $harvest->id;
+                        }
+
+                        // If user wants it added now create the queue entry - set replace_data to overwrite
+                        if ($input["when"] == 'now') {
+                            try {
+                                $newjob = GlobalQueueJob::create(['consortium_id' => $con->id,
+                                                                 'harvest_id' => $harvest->id,
+                                                                 'replace_data' => 1
+                                                               ]);
+                                $num_queued++;
+                            } catch (QueryException $e) {
+                                $code = $e->errorInfo[1];
+                                if ($code == '1062') {     // If already in queue, continue silently
+                                    continue;
+                                } else {
+                                    $msg = 'Failure adding Harvest ID: ' . $harvest->id . ' to Queue! Error ' . $code;
+                                    return response()->json(['result' => false, 'msg' => $msg]);
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        // Setup full details for new harvest entries
+        $new = array();
+        if (count($created_ids) > 0) {
+            $new_data = HarvestLog::whereIn('id', $created_ids)->with('report:id,name','credential',
+                                'credential.institution:id,name','credential.provider:id,name',
+                                'lastError','failedHarvests','failedHarvests.ccplusError')->get();
+            foreach ($new_data as $rec) {
+                $new[] = $this->formatRecord($rec);
+            }
+        }
+        // New harvests means "bounds" changed
+        $bounds = (count($created_ids) > 0) ? $this->harvestBounds() : array();
+
+        // Setup full details for updated harvest entries
+        $updated = array();
+        if (count($updated_ids) > 0) {
+            $upd_data = HarvestLog::whereIn('id', $updated_ids)->with('report:id,name','credential',
+                                'credential.institution:id,name','credential.provider:id,name',
+                                'lastError','failedHarvests','failedHarvests.ccplusError')->get();
+            foreach ($upd_data as $rec) {
+                $updated[] = $this->formatRecord($rec);
+            }
+        }
+
+        // Send back confirmation with counts of what happened
+        $msg  = "Success : " . count($created_ids) . " new harvests added, " . count($updated_ids) . " harvests updated";
+        $msg .= ($num_queued > 0) ? ", and " . $num_queued . " queue jobs created." : ".";
+        return response()->json(['result'=>true, 'msg'=>$msg, 'new_harvests'=>$new, 'upd_harvests'=>$updated,
+                                 'bounds'=>$bounds]);
+    }
+
+    /**
+     * Bulk operations from the U/I.
+     *
+     * @param  \Illuminate\Http\Request  $request
+     * @return JSON
+     */
+    public function bulk(Request $request)
+    {
+        global $thisUser;
+        $thisUser = auth()->user();
+        if (!$thisUser->isAdmin()) {
+            return response()->json(['result' => false, 'msg' => 'Request failed (403) - Forbidden']);
+        }
+        $consoAdmin = $thisUser->isConsoAdmin();
+
+        // Validate form inputs
+        $this->validate($request, ['ids' => 'required', 'action' => 'required']);
+        $input = $request->all();
+
+        // Setup institution limits and start setting up filter options
+        $filter_options = array();
+        $limit_to_insts = ($consoAdmin) ? array() : $thisUser->adminInsts();
+        $filter_options['institutions'] = Institution::when(count($limit_to_insts) > 0, function ($qry) use ($limit_to_insts) {
+                                            return $qry->where('inst_id',1)->orWhereIn('inst_id', $limit_to_insts);
+                                        })->get(['id','name'])->toArray();
+        $filter_options['platforms'] = GlobalProvider::get(['id','name'])->toArray();
+
+        // Get credentials limited by-inst; non-conso-admins are limited to the records they can affect
+        $credential_ids = Credential::when(count($limit_to_insts) > 0, function ($qry) use ($limit_to_insts) {
+                                        return $qry->whereIn('inst_id', $limit_to_insts);
+                                    })->pluck('id')->toArray();
+
+        // Get the harvests we'll be updating, limited by credential IDs
+        $harvests = HarvestLog::with('report:id,name','credential','credential.institution:id,name',
+                                        'credential.provider','credential.provider.registries')
+                              ->whereIn('id', $input['ids'])->whereIn('credentials_id', $credential_ids)            
+                              ->orderBy('updated_at', 'DESC')->get();
+        $harvestIds = $harvests->pluck('id')->toArray();
+
+        // Get consortium_id for updating the global jobs queue
+        $con = Consortium::where('ccp_key', session('ccp_key'))->first();
+        if (!$con) {
+            return response()->json(['result' => false, 'msg' => 'Error: Corrupt session or consortium settings']);
+        }
+
+        // Handle status changes
+        if ($input['action']=='Pause') {
+
+            // Pause updates only status and 'updated_at'; return full row to replace item(s)
+            $affectedItems = array();
+            foreach ($harvests as $harvest) {
+                $harvest->status = 'Paused';
+                $harvest->updated_at = now();
+                $harvest->save();
+                $affectedItems[] = $this->formatRecord($harvest);
+            }
+            return response()->json(['result' => true, 'msg' => '', 'affectedItems' => $affectedItems], 200);
+
+        } else if ($input['action']=='Restart' || $input['action']=='Restart as r5' || $input['action']=='Restart as r5.1') {
+
+            // Check status input for a specific COUNTER release for restarting
+            $forceRelease = (substr($input['action'],0,10) == 'Restart as') ? substr($input['action'],12) : null;
+
+            // Get and process the harvest(s)
+            $changed = 0;
+            $skipped = array();
+            $affectedItems = array();
+            foreach ($harvests as $harvest) {
+                // keep track of original status
+                $original_status = $harvest->status;
+
+                // Disallow ReStart if credentials are not Enabled, or provider/institution are inactive
+                if ( $harvest->credential->status != 'Enabled' || !$harvest->credential->institution->is_active ||
+                     !$harvest->credential->provider->is_active ) {
+                    $skipped[] = $harvest->id;
+                    continue;
+                }
+
+                // Confirm that a "forcedRelease" is available for this harvests' provider
+                if (!is_null($forceRelease)) {
+                    $registry = $harvest->credential->provider->registries->where('release',$forceRelease)->first();
+                    if (!$registry) {
+                        $skipped[] = $harvest->id;
+                        continue;
+                    }
+                    // Update the release value in the harvest record now so that the new job processes it right
+                    if ($forceRelease != trim($harvest->release)) {
+                        $harvest->release = $forceRelease;
+                    }
+                }
+
+                // Restart sets status to 'Queued, resets attempts and creates a GlobalQueueJob if one does not exist
+                $_job = GlobalQueueJob::where('consortium_id',$con->id)->where('harvest_id',$harvest->id)->first();
+                if (!$_job) {
+                    try {
+                        $newjob = GlobalQueueJob::create(['consortium_id' => $con->id,
+                                                          'harvest_id' => $harvest->id,
+                                                          'replace_data' => 1
+                                                        ]);
+                    } catch (\Exception $e) {
+                        return response()->json(['result' => false, 'msg' => 'Error creating job entry in global table!']);
+                    }
+                }
+                $harvest->attempts = 0;
+                $harvest->status = 'Queued';
+
+                // Update the harvest record and return
+                $harvest->updated_at = now();
+                $harvest->save();
+                $affectedItems[] = $this->formatRecord($harvest);
+                $changed++;
+            }
+
+            // Return result
+            if ($changed > 0) {
+                $msg  = "Successfully restarted " . $msg_result . " " . $changed . " harvests";
+                $msg .= (!is_null($forceRelease)) ? " as release ".$forceRelease : "";
+                if (count($skipped) > 0) {
+                    $msg .= " , and skipped " . count($skipped) . " harvests";
+                    $msg .= (!is_null($forceRelease)) ? " (release ".$forceRelease." may not be available)." : ".";
+                }
+                return response()->json(['result' => true, 'msg' => $msg, 'affectedItems' => $affectedItems], 200);
+            } else {
+                $msg = "No selected harvests modified";
+                $msg .= (!is_null($forceRelease)) ? ", release ".$forceRelease." may not be available" : "";
+                return response()->json(['result' => true, 'msg' => $msg, 'affectedItems' => array()], 200);
+            }
+
+        // Handle delete (assumes U/I already confirmed... make it happen)
+        } else if ($input['action'] == 'Delete' || $input['action'] == 'Kill') {
+
+            // Delete any related jobs from the global queue before deleting the harvest records
+            $result = GlobalQueueJob::where('consortium_id',$con->id)->whereIn('harvest_id', $harvestIds)->delete();
+
+            // Delete stored data for the harvest(s)
+            $related_credential_ids = $this->deleteStoredData($harvestIds);
+
+            // Delete the harvest record(s)
+            $result = HarvestLog::whereIn('id', $harvestIds)->delete();
+
+            // Update last_harvest setting for affected credentials based on what's left
+            if ( count($related_credential_ids) > 0) {
+                $this->resetLastHarvest($related_credential_ids);
+            }
+            return response()->json(['result' => true, 'msg' => '', 'affectedIds' => $harvestIds], 200);
+
+        // Unrecognized action
+        } else {
+            return response()->json(['result' => false, 'msg' => 'Unrecognized bulk action requested'], 200);
+        }
+
+    }
 
    /**
     * Download raw data for a harvest
@@ -721,14 +572,12 @@ class HarvestLogController extends Controller
    {
        $thisUser = auth()->user();
        $harvest = HarvestLog::findOrFail($id);
-       if (!$thisUser->hasRole(['Admin'])) {
-           if (!$thisUser->hasRole(['Manager']) || $harvest->credential->inst_id != $thisUser->inst_id) {
-               return response()->json(['result' => false, 'msg' => 'Error - Not authorized']);
-           }
+       if (!$harvest->canManage()) {
+           return response()->json(['result' => false, 'msg' => 'Error - Not authorized']);
        }
 
        // Get consortium_id
-       $con = Consortium::where('ccp_key', session('ccp_con_key'))->first();
+       $con = Consortium::where('ccp_key', session('ccp_key'))->first();
        if (!$con) {
           return response()->json(['result'=>false, 'msg'=>'Error: Current consortium is undefined.']);
        }
@@ -777,7 +626,7 @@ class HarvestLogController extends Controller
        }
 
        // Delete any related jobs from the global queue
-       $jobs = SushiQueueJob::where('harvest_id', $id)->get();
+       $jobs = GlobalQueueJob::where('harvest_id', $id)->get();
        foreach ($jobs as $job) {
            $job->delete();
        }
@@ -795,123 +644,25 @@ class HarvestLogController extends Controller
        return response()->json(['result' => true, 'msg' => 'Log record deleted successfully']);
    }
 
-   /**
-    * Delete multiple harvests
-    *
-    * @param  \Illuminate\Http\Request  $request
-    * @return \Illuminate\Http\Response
-    */
-   public function bulkDestroy(Request $request)
-   {
-       abort_unless(auth()->user()->hasAnyRole(['Admin','Manager']), 403);
-
-       // Get and verify input or bail with error in json response
-       try {
-           $input = json_decode($request->getContent(), true);
-       } catch (\Exception $e) {
-           return response()->json(['result' => false, 'msg' => 'Error decoding input!']);
-       }
-       if (!isset($input['harvests'])) {
-           return response()->json(['result' => false, 'msg' => 'Missing expected inputs!']);
-       }
-
-       // Get the harvests requested
-       $harvest_data = HarvestLog::with('credential','report')->whereIn('id', $input['harvests'])->get();
-       $skipped = 0;
-       $msg = "Result: ";
-
-       // Build a list of IDs that current user allowed to delete
-       $deleted = 0;
-       $deleteable_ids = [];
-       foreach ($harvest_data as $harvest) {
-           if (!$harvest->canManage()) {
-               $skipped++;
-               continue;
-           }
-           $deleteable_ids[] = $harvest->id;
-       }
-       if (count($deleteable_ids) == 0) {
-           return response()->json(['result' => false, 'msg' => 'Error: Authorization failed for requested inputs']);
-       }
-       // Get consortium_id
-       $con = Consortium::where('ccp_key', session('ccp_con_key'))->first();
-       if (!$con) {
-           return response()->json(['result'=>false, 'msg'=>'Error: Cannot delete harvests with current consortium settings.']);
-       }
-
-       // Delete any related jobs from the global queue before deleting the harvests
-       $result = SushiQueueJob::where('consortium_id',$con->id)->whereIn('harvest_id', $deleteable_ids)->delete();
-
-       // Delete stored data for the harvest(s)
-       $related_credential_ids = $this->deleteStoredData($deleteable_ids);
-
-       // Delete the harvest record(s)
-       $result = HarvestLog::whereIn('id', $deleteable_ids)->delete();
-
-       // Update last_harvest setting for affected credentials based on what's left
-       if ( count($related_credential_ids) > 0) {
-           $this->resetLastHarvest($related_credential_ids);
-       }
-
-       // return result
-       $msg .= count($deleteable_ids) . " harvests deleted";
-       $msg .= ($skipped>0) ? ", and " . $skipped . "harvests skipped." : " successfully.";
-       return response()->json(['result' => true, 'msg' => $msg, 'removed' => $deleteable_ids]);
-   }
-
-   /**
-    * return #-jobs in the global harvesting queue
-    *
-    * @param  \Illuminate\Http\Request  $request
-    * @return JSON
-    */
-   public function queueCount(Request $request)
-   {
-       abort_unless(auth()->user()->hasAnyRole(["Admin","Manager"]), 403);
-
-       // Get job count for current consortium
-       $count = 0;
-       $con = Consortium::where("ccp_key", session("ccp_con_key"))->first();
-       if ($con) {
-          $count = SushiQueueJob::where('consortium_id', $con->id)->count();
-       }
-
-       // Get the job-count
-       return response()->json(['count' => $count]);
-   }
-
     /**
      * Entry point for returning Harvest Queue records for the current consortium_id
      *
      * @param  \Illuminate\Http\Request  $request
-     * @return \Illuminate\Http\Response
+     * @return \Illuminate\Http\JSON
      */
    public function harvestQueue(Request $request)
    {
        $thisUser = auth()->user();
        abort_unless($thisUser->isAdmin(), 403);
+       $consoAdmin = $thisUser->isConsoAdmin();
 
-       // Get and verify input or bail with error in json response
-       try {
-           $input = json_decode($request->getContent(), true);
-       } catch (\Exception $e) {
-           return response()->json(["result" => false, "msg" => "Error decoding input!"]);
-       }
-
-       // Get consortium_id; if not set, return empty results
-       $con = Consortium::where("ccp_key", session("ccp_con_key"))->first();
-       if (!$con) {
-           return response()->json(["result" => true, "harvests" => [], "prov_ids" => [], "inst_ids" => [], "rept_ids" => [],
-                                    "statuses" => [], "codes" => []]);
-       }
-
-       // Setup "display names" for internal system status values; these also limit what is sent back
-       $displayStatus = array('Queued' => 'Harvest Queue', 'Harvesting' => '*Harvesting', 'Pending' => 'Queued by Vendor',
-                              'Paused' => 'Paused', 'ReQueued' => 'ReQueued', 'Waiting' => 'Process Queue',
-                              'Processing' => '*Processing');
+       // Translator (for more verbose statuses) and Log filter (to limit results) 
+       $xlStatus = array('Queued' => 'Harvest Queue', 'Harvesting' => '*Harvesting', 'Pending' => 'Queued by Vendor',
+                         'Paused' => 'Paused', 'ReQueued' => 'ReQueued', 'Waiting' => 'Process Queue',
+                         'Processing' => '*Processing');
 
        // Setup limit_to_insts with the instID's we'll pull settings for
-       $limit_to_insts = ($thisUser->isConsoAdmin()) ? array() : $thisUser->adminInsts();
+       $limit_to_insts = ($consoAdmin) ? array() : $thisUser->adminInsts();
 
        // Get all harvests joined with credentials that match the statuses
        $data = HarvestLog::with('credential','credential.provider','credential.institution:id,name','report',
@@ -919,7 +670,7 @@ class HarvestLogController extends Controller
                          ->when(count($limit_to_insts) > 0, function ($qry) use ($limit_to_insts) {
                              return $qry->whereIn('credential.inst_id', $limit_to_insts);
                          })
-                         ->whereIn('status',array_keys($displayStatus))
+                         ->whereIn('status',array_keys($xlStatus))
                          ->orderBy("updated_at", "DESC")->get();
 
        // Build an output array of no more than 500 harvests
@@ -934,7 +685,8 @@ class HarvestLogController extends Controller
           $rec->inst_name = $rec->credential->institution->name;
           $rec->report_name = $rec->report->name;
           $rec->created = date("Y-m-d H:i", strtotime($rec->updated_at));
-          $rec->dStatus = $displayStatus[$rec->status];
+          $rec->d_status = $xlStatus[$rec->status];
+
           // Include last error details if they exist
           $_error = [];
           $lastFailed = null;
@@ -962,9 +714,9 @@ class HarvestLogController extends Controller
           // Add a test+confirm URL
           $beg = $rec->yearmon . '-01';
           $end = $rec->yearmon . '-' . date('t', strtotime($beg));
-          $sushi = new Sushi($beg, $end);
+          $capi = new CounterApi($beg, $end);
           // set url for manual retry/confirm icon using buildUri
-          $rec->retryUrl = $sushi->buildUri($rec->credential, 'reports', $rec->report, $rec->release);
+          $rec->retryUrl = $capi->buildUri($rec->credential, 'reports', $rec->report, $rec->release);
           // add record to the outbound array
           $harvests[] = $rec->toArray();
 
@@ -975,7 +727,24 @@ class HarvestLogController extends Controller
               break;
           }
        }
-       return response()->json(['records' => $harvests], 200);
+
+       // Setup options for the U/I - it will limit options further based on what's there
+       $filter_options = array();
+       // Setup limit arrays for the instID's and provIDs we'll pull credentials for
+       $filter_options['institutions'] = Institution::when(count($limit_to_insts) > 0, function ($qry) use ($limit_to_insts) {
+                                           return $qry->where('inst_id',1)->orWhereIn('inst_id', $limit_to_insts);
+                                       })->get(['id','name'])->toArray();
+
+       // Get all global IDs and names
+       $filter_options['platforms'] = GlobalProvider::get(['id','name'])->toArray();
+       $filter_options['reports'] = Report::where('parent_id',0)->orderBy('dorder','ASC')
+                                          ->get(['id','name'])->toArray();
+       $filter_options['codes'] = $data->where('error_id','>',0)->unique('error_id')->sortBy('error_id')
+                                       ->pluck('error_id')->toArray();
+       array_unshift($filter_options['codes'], 'No Error');
+       $filter_options['statuses'] = array_values($xlStatus);
+
+       return response()->json(['records' => $harvests, 'options' => $filter_options], 200);
 
    }
 
@@ -995,23 +764,9 @@ class HarvestLogController extends Controller
        return $range;
    }
 
-   // user-defined comparison function to sort based on timestamp
-   static function sortTimeStamp($time1, $time2)
-   {
-       if (strtotime($time1) < strtotime($time2)) {
-           return 1;
-       } else if (strtotime($time1) > strtotime($time2)) {
-           return -1;
-       } else {
-           return 0;
-       }
-   }
-
    // Return an array of bounding yearmon strings based on exsiting Harvestlogs
    //   bounds[0] will hold absolute min and max yearmon for all harvests across all reports
    private function harvestBounds() {
-
-       $conso_db = config('database.connections.consodb.database');
 
        // Query for min and max yearmon values
        $raw_query = "min(yearmon) as YM_min, max(yearmon) as YM_max";
@@ -1024,6 +779,8 @@ class HarvestLogController extends Controller
    // Build a consistent output record using an input harvest record
    // input should include Report, Credential with institution+provider and failedHarvests with ccplusError
    private function formatRecord($harvest) {
+       $xlStatus = array('Queued' => 'Harvest Queue', 'Pending' => 'Queued by Vendor', 'Waiting' => 'Process Queue',
+                         'BadCreds' => 'Bad Credentials', 'NoRetries' => 'Out of Retries');
        $rec = array('id' => $harvest->id, 'yearmon' => $harvest->yearmon, 'attempts' => $harvest->attempts,
                     'inst_name' => $harvest->credential->institution->name,
                     'prov_name' => $harvest->credential->provider->name,
@@ -1034,15 +791,13 @@ class HarvestLogController extends Controller
                     'error_id' => 0, 'error' => []
                    );
        $rec['updated'] = ($harvest->updated_at) ? date("Y-m-d H:i", strtotime($harvest->updated_at)) : " ";
+       $rec['created'] = ($rec['updated'] != " ") ? date("Y-m-d H:i", strtotime($harvest->updated_at)) : " ";
        $rec['release'] = (is_null($harvest->release)) ? "" : $harvest->release;
 
        // Setup error details array (starting with default values)
        $rec['error'] = array('id' => $harvest->error_id, 'message' => '');
        $rec['error']['color'] = ($rec['status'] == 'Success') ? '#00DD00' : '#999999';
-       $rec['statusAlt'] = $rec['status'];
-       if (in_array($rec['status'],array('BadCreds','NoRetries'))) {
-           $rec['statusAlt'] = ($rec['status']=='BadCreds') ? 'Bad Credentials' : 'Out of Retries';
-       }
+       $rec['d_status'] = (isset($xlStatus[$rec['status']])) ? $xlStatus[$rec['status']] : $rec['status'];
        $lastFailed = null;
        if ($harvest->failedHarvests) {
            $lastFailed = $harvest->failedHarvests->sortByDesc('created_at')->first();
@@ -1069,15 +824,15 @@ class HarvestLogController extends Controller
            ? "https://cop5.countermetrics.org/en/5.1/appendices/d-handling-errors-and-exceptions.html"
            : "https://cop5.projectcounter.org/en/5.0.3/appendices/f-handling-errors-and-exceptions.html";
 
-       // Build a URL to test+confirm the error(s); let Sushi class do the work
+       // Build a URL to test+confirm the error(s); let CounterApi class do the work
        $beg = $harvest->yearmon . '-01';
        $end = $harvest->yearmon . '-' . date('t', strtotime($beg));
-       $sushi = new Sushi($beg, $end);
+       $capi = new CounterApi($beg, $end);
  
        // setup required connectors for buildUri
        $prov_connectors = $harvest->credential->provider->connectors();
        $connectors = $this->connection_fields->whereIn('id',$prov_connectors)->pluck('name')->toArray();
-       $rec['retryUrl'] = $sushi->buildUri($harvest->credential, 'reports', $harvest->report, $harvest->release);
+       $rec['retryUrl'] = $capi->buildUri($harvest->credential, 'reports', $harvest->report, $harvest->release);
        return $rec;
    }
 
