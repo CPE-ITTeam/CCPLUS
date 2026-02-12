@@ -215,65 +215,79 @@
 
       if (response.result && allItems.length>0) {
         // Active/Inactive actions update 'is_active' and 'status' keys in allItems
-        if ( (data.action == 'Set Active' || data.action == 'Set Inactive') && response.affectedIds.length>0 ) {
-          allItems.filter(aitm => response.affectedIds.includes(aitm.id)).forEach( itm => {
-            if ( typeof(itm.is_active) != 'undefined' ) itm.is_active = (data.action == 'Set Active') ? 1 : 0;
-            if ( typeof(itm.status) != 'undefined' ) itm.status = (data.action == 'Set Active') ? 'Active' : 'Inactive';
-          })
-        // Grouping actions (institution dataset) return an extra key for the group
-        } else if ((data.action == 'Create New Group' || data.action=='Add to Existing Group') &&
-                   response.affectedIds.length>0 && typeof(allItems[0]['group_string'] != 'undefined')) {
-          if (data.action == 'Create New Group') {
-            filterOptions.groups.items.push({'id': response.group.id, 'name': response.group.name});
-          }
-          allItems.filter(aitm => response.affectedIds.includes(aitm.id)).forEach( itm => {
-            itm.group_string += (itm.group_string.length>0) ? ',' : '';
-            itm.group_string += response.group.name;
-            if (Array.isArray(itm.group_ids)) {
-              itm.group_ids.push(response.group.id);
-            }
-          });
-        // Enable action (credentials dataset) should return affectedItems containing
-        // [ {'id': <int>, 'status': <string>}, {}, ...]
-        } else if (data.action == 'Enable' && response.affectedItems.length>0 && 
-                   typeof(allItems[0]['status']) != 'undefined') {
-          response.affectedItems.forEach( ritm => {
-            var idx = allItems.findIndex( itm => itm.id == ritm.id);
-            if (idx >= 0) allItems[idx]['status'] = ritm.status;
-          });
-        // Disable action (credentials dataset) sets 'status' key in allItems to 'Disabled'
-        } else if (data.action == 'Disable' && response.affectedIds.length>0 &&
-                   typeof(allItems[0]['status']) != 'undefined') {
-          allItems.filter(aitm => response.affectedIds.includes(aitm.id)).forEach( itm => { itm.status = 'Disabled'; });
-        // Delete action sets removes records from allItems
-        } else if (data.action == 'Delete' && response.affectedIds.length>0) {
-          response.affectedIds.forEach( itemId => { allItems.splice(allItems.findIndex( ii => ii.id == itemId),1); });
-        // Refresh Registry sends back replacement data for allItems
-        } else if ((data.action == 'Refresh Registry' || data.action != 'Full Refresh') && response.affectedItems.length>0) {
-          let new_platforms = false;
-          response.affectedItems.forEach( plat => {
-            let _idx = allItems.findIndex( itm => itm.id == plat.id);
-            if ( _idx < 0) {  // did the refresh send back something new?
-                allItems.push(plat);
-                new_platforms = true;
-            } else {
-                Object.keys(plat).forEach( (key) =>  { allItems[_idx][key] = plat[key]; });
-            }
-          });
-          dtLoading.value = false;
-          // Display the summary
-          if (response.summary != "") {
-              Swal.fire({
-                title: 'Refresh Results', html: response.summary, icon: 'info', showCancelButton: false,
-                confirmButtonColor: '#3085d6', confirmButtonText: 'Close'
-              });
-          }
-          // Resort allItems if we just added some
-          if (new_platforms) {
-            allItems.sort( (a,b) => {
-                return a.name.toLowerCase().localeCompare(b.name.toLowerCase());
+        if (data.action == 'Set Active' || data.action == 'Set Inactive') {
+          if (response.affectedIds.length>0) {
+            allItems.filter(aitm => response.affectedIds.includes(aitm.id)).forEach( itm => {
+              if ( typeof(itm.is_active) != 'undefined' ) itm.is_active = (data.action == 'Set Active') ? 1 : 0;
+              if ( typeof(itm.status) != 'undefined' ) itm.status = (data.action == 'Set Active') ? 'Active' : 'Inactive';
             });
           }
+        // Grouping actions (institution dataset) return an extra key for the group
+        } else if (data.action == 'Create New Group' || data.action=='Add to Existing Group') {
+          if (response.affectedIds.length>0 && typeof(allItems[0]['group_string'] != 'undefined')) {
+            if (data.action == 'Create New Group') {
+              filterOptions.groups.items.push({'id': response.group.id, 'name': response.group.name});
+            }
+            allItems.filter(aitm => response.affectedIds.includes(aitm.id)).forEach( itm => {
+              itm.group_string += (itm.group_string.length>0) ? ',' : '';
+              itm.group_string += response.group.name;
+              if (Array.isArray(itm.group_ids)) {
+                itm.group_ids.push(response.group.id);
+              }
+            });
+          }
+        // Enable action (credentials dataset) should return affectedItems containing
+        // [ {'id': <int>, 'status': <string>}, {}, ...]
+        } else if (data.action == 'Enable') {
+          if (response.affectedItems.length>0 && typeof(allItems[0]['status']) != 'undefined') {
+            response.affectedItems.forEach( ritm => {
+              var idx = allItems.findIndex( itm => itm.id == ritm.id);
+              if (idx >= 0) allItems[idx]['status'] = ritm.status;
+            });
+          }
+        // Disable action (credentials dataset) sets 'status' key in allItems to 'Disabled'
+        } else if (data.action == 'Disable') {
+          if (response.affectedIds.length>0 && typeof(allItems[0]['status']) != 'undefined') {
+            allItems.filter(aitm => response.affectedIds.includes(aitm.id)).forEach( itm => { itm.status = 'Disabled'; });
+          }
+        // Delete action sets removes records from allItems
+        } else if (data.action == 'Delete' || data.action == 'Kill') {
+          if (response.affectedIds.length>0) {
+            response.affectedIds.forEach( itemId => { allItems.splice(allItems.findIndex( ii => ii.id == itemId),1); });
+          }
+        // Refresh Registry sends back replacement data for allItems
+        } else if ((data.action == 'Refresh Registry' || data.action == 'Full Refresh')) {
+          if (response.affectedItems.length>0) {
+            let new_platforms = false;
+            response.affectedItems.forEach( plat => {
+              let _idx = allItems.findIndex( itm => itm.id == plat.id);
+              if ( _idx < 0) {  // did the refresh send back something new?
+                  allItems.push(plat);
+                  new_platforms = true;
+              } else {
+                  Object.keys(plat).forEach( (key) =>  { allItems[_idx][key] = plat[key]; });
+              }
+            });
+            dtLoading.value = false;
+            // Display the summary
+            if (response.summary != "") {
+                Swal.fire({
+                  title: 'Refresh Results', html: response.summary, icon: 'info', showCancelButton: false,
+                  confirmButtonColor: '#3085d6', confirmButtonText: 'Close'
+                });
+            }
+            // Resort allItems if we just added some
+            if (new_platforms) {
+              allItems.sort( (a,b) => {
+                  return a.name.toLowerCase().localeCompare(b.name.toLowerCase());
+              });
+            }
+          }
+        // Restart* and Pause actions (HarvestQueue and HarvestLogs) return arrays of full items
+        } else if (data.action.includes('ReStart') || data.action == 'Pause') {
+            response.affectedItems.forEach( newItem => {
+              allItems.splice(allItems.findIndex(ii => ii.id == newItem.id),1,newItem);
+            });
         } else if (data.action == 'Some other Action') {
 
         }
