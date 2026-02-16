@@ -21,58 +21,142 @@ use App\Models\CcplusError;
 use App\Services\HarvestService;
 use App\Models\ReportField;
 use Storage;
+use Illuminate\Support\Arr;
 use Illuminate\Support\Facades\File;
 use Illuminate\Support\Facades\Crypt;
 
 class HarvestLogController extends Controller
 {
-   private $all_error_codes;
-   private $connection_fields;
-   protected $harvestService;
+    private $all_error_codes;
+    private $connection_fields;
+    private $xlStatus;
+    private $colors;
+    protected $harvestService;
 
-   public function __construct(HarvestService $harvestService)
-   {
-       // Load all known error codes
-       try {
-           $this->all_error_codes = CcplusError::pluck('id')->toArray();
-       } catch (\Exception $e) {
-           $this->all_error_codes = collect();
-       }
-       // Load all connection fields
-       try {
-           $this->connection_fields = ConnectionField::get();
-       } catch (\Exception $e) {
-           $this->connection_fields = collect();
-       }
-       $this->harvestService = $harvestService;
-   }
+    public function __construct(HarvestService $harvestService)
+    {
+        // Load all known error codes
+        try {
+            $this->all_error_codes = CcplusError::pluck('id')->toArray();
+        } catch (\Exception $e) {
+            $this->all_error_codes = collect();
+        }
+        // Load all connection fields
+        try {
+            $this->connection_fields = ConnectionField::get();
+        } catch (\Exception $e) {
+            $this->connection_fields = collect();
+        }
+        $this->harvestService = $harvestService;
+        $this->xlStatus = array('Queued' => 'Harvest Queue', 'Harvesting' => '*Harvesting', 'Pending' => 'Queued by Vendor',
+                               'BadCreds' => 'Bad Credentials', 'Paused' => 'Paused', 'ReQueued' => 'ReQueued',
+                                'Waiting' => 'Process Queue', 'Processing' => '*Processing', 'NoRetries' => 'Out of Retries');
+        $this->colors = array('Success'=>'#00dd00', 'Fail'=>'#dd0000', 'NoRetries'=>'#999999', 'BadCreds'=>'#ff9900');
+
+    }
 
    /**
-    * Display a listing of the resource.
+    * Returns filter_options for the U/I. Item records returned with getItems() below
     *
     * @param  \Illuminate\Http\Request  $request
     * @return \Illuminate\Http\Response or JSON
     */
-   public function index(Request $request)
-   {
+    public function index(Request $request)
+    {
         $thisUser = auth()->user();
         abort_unless($thisUser->isAdmin(), 403);
+        $consoAdmin = $thisUser->isConsoAdmin();
 
         $filter_options = array();
 
-        // Setup limit arrays for the instID's we'll pull credentials for
-        $limit_to_insts = ($thisUser->isConsoAdmin()) ? array() : $thisUser->adminInsts();
-        $filter_options['institutions'] = Institution::when(count($limit_to_insts) > 0, function ($qry) use ($limit_to_insts) {
-                                            return $qry->where('inst_id',1)->orWhereIn('inst_id', $limit_to_insts);
-                                        })->get(['id','name'])->toArray();
+        // Setup limit arrays for the institutions and groups
+        $limit_insts = ($consoAdmin) ? array() : $thisUser->adminInsts();
+        $filter_options['institutions'] = Institution::when(count($limit_insts) > 0, function ($qry) use ($limit_insts) {
+                                                         return $qry->whereIn('id', $limit_insts);
+                                                     })->get(['id','name'])->toArray();
+        $limit_groups = ($consoAdmin) ? array() : $thisUser->adminGroups();
+        $filter_options['groups'] = InstitutionGroup::when(count($limit_groups) > 0, function ($qry) use ($limit_groups) {
+                                                        return $qry->where('id', $limit_groups);
+                                                    })->get(['id','name'])->toArray();
 
         // Get all global IDs and names
         $filter_options['platforms'] = GlobalProvider::get(['id','name'])->toArray();
 
-        // Get credentials limited by-inst
-        $credential_ids = Credential::when(count($limit_to_insts) > 0, function ($qry) use ($limit_to_insts) {
-                                        return $qry->whereIn('inst_id', $limit_to_insts);
+        // Setup the rest of the filtering options
+        $filter_options['yymms'] = HarvestLog::select('yearmon')->distinct()->pluck('yearmon')->toArray();
+        $filter_options['statuses'] = array('Success','Fail','Bad Credentials');
+        $filter_options['reports'] = Report::where('parent_id',0)->orderBy('dorder','ASC')
+                                           ->get(['id','name'])->toArray();
+        $filter_options['codes'] = CcplusError::where('new_status','<>','ReQueued')->pluck('id')->toArray();
+        array_unshift($filter_options['codes'], 'No Error');
+
+        return response()->json(['records' => [], 'options' => $filter_options, ], 200);
+    }
+
+   /**
+    * Returns (possibly filtered) items for the U/I
+    *
+    * @param  \Illuminate\Http\Request  $request
+    * @return \Illuminate\Http\Response or JSON
+    */
+    public function getItems(Request $request)
+    {
+        $thisUser = auth()->user();
+        abort_unless($thisUser->isAdmin(), 403);
+        $consoAdmin = $thisUser->isConsoAdmin();
+
+        // Setup for known filters
+        $filters = array('institutions' => [], 'groups' => [], 'platforms' => [], 'yymms' => [], 'reports' => [],
+                          'codes' => [], 'statuses' => ['Success','Fail','BadCreds']);
+
+        // Validate/handle input filters
+        $input = $request->all();
+        if ($input['filters']) {
+            foreach ($input['filters'] as $key => $val) {
+                $filters[$key] = (is_null($val)) ? [] : $val;
+            }
+        }
+
+        // Enforce limits on institutions and groups
+        $limit_insts = array();
+        $group_insts = array();
+        // Turn groups into a set of institutions (harvests happen to insts, not groups)
+        if (count($filters['groups']) > 0 || !$consoAdmin) {
+            $limit_groups = (!$consoAdmin) ? array_intersect($thisUser->adminGroups(), $filters['groups'])
+                                           : $filters['groups'];
+            $data = InstitutionGroup::whereIn('id',$limit_groups)->with('institutions:id,name')->get();
+            foreach ($data as $group) {
+                $_inst_ids = $group->institutions->pluck('id')->toArray();
+                $group_insts = array_unique(array_merge($group_insts, $_inst_ids));
+            }
+        }
+        if (!$consoAdmin || count($filters['institutions']) > 0) {
+            $limit_insts = (!$consoAdmin) ? array_intersect($thisUser->adminInsts(), $filters['institutions'])
+                                          : $filters['institutions'];
+        }
+        if (count($filters['institutions']) > 0 && count($filters['groups']) > 0) {
+            $limit_insts = array_intersect($limit_insts,$group_insts);
+        }
+
+        // Get credentials limited by-inst and/or platform (to limit harvests pulled)
+        $credential_ids = Credential::when(count($limit_insts) > 0, function ($qry) use ($limit_insts) {
+                                        return $qry->whereIn('inst_id', $limit_insts);
+                                    })->when(count($filters['platforms']) > 0, function ($qry) use ($filters) {
+                                        return $qry->whereIn('prov_id', $filters['platforms']);
                                     })->pluck('id')->toArray();
+
+        // Replace 'No Error' in codes with 0, if present
+        if (count($filters["codes"]) > 0 && in_array('No Error', $filters['codes'])) {
+            $idx = array_search('No Error', $filters['codes']);
+            if ($idx !== false) $filters["codes"][$idx] = 0;
+        }
+        // Touch up status filter for BadCreds
+        if (count($filters['statuses']) == 0) {     // Limit status if not set
+            $filters["statuses"] = array('Success','Fail','BadCreds');
+        } else {
+            $idx = array_search('Bad Credentials', $filters['statuses']);
+            if ($idx !== false) $filters["statuses"][$idx] = 'BadCreds';
+        }
 
         // Get the harvest rows based on credentials
         $harvest_data = HarvestLog::
@@ -80,39 +164,30 @@ class HarvestLogController extends Controller
                  'lastError','failedHarvests','failedHarvests.ccplusError')
             ->whereIn('credentials_id', $credential_ids)
             ->orderBy('updated_at', 'DESC')
-            ->get();
+            ->when(count($filters['reports']) > 0, function ($qry) use ($filters) {
+                return $qry->whereIn('report_id', $filters['reports']);
+            })
+            ->when(count($filters['codes']) > 0, function ($qry) use ($filters) {
+                return $qry->whereIn('error_id', $filters['codes']);
+            })
+            ->when(count($filters['statuses']) > 0, function ($qry) use ($filters) {
+                return $qry->whereIn('status', $filters['statuses']);
+            })
+            ->when(count($filters['yymms']) > 0, function ($qry) use ($filters) {
+                return $qry->whereIn('yearmon', $filters['yymms']);
+            })
+            ->limit(501)->get();
 
-        // Make arrays for updating the filter options in the U/I
         // Format records for display , limit to 500 output records
-        $count = 0;
-        $truncated = false;
-        $max_records = 500;
+        $truncated = ($harvest_data->count()>500);
+        if ($truncated) $harvest_data->pop();
         $harvests = array();
         foreach ($harvest_data as $key => $harvest) {
-            $formatted_harvest = $this->formatRecord($harvest);
-            // bump counter and add the record to the output array
-            $count += 1;
-            if ($count > $max_records) {
-                $truncated = true;
-                break;
-            }
-            $harvests[] = $formatted_harvest;
+            $harvests[] = $this->formatRecord($harvest);
         }
 
-        // Query for min and max yearmon values
-        $bounds = $this->harvestBounds();
-
-        // Setup the rest of the filtering options
-        $filter_options['statuses'] = array('Harvest Queue', 'Harvesting', 'Queued by Vendor', 'Paused', 'ReQueued',
-                                            'Process Queue', 'Processing');
-        $filter_options['reports'] = Report::where('parent_id',0)->orderBy('dorder','ASC')
-                                           ->get(['id','name'])->toArray();
-        $filter_options['codes'] = $harvest_data->where('error_id','>',0)->unique('error_id')->sortBy('error_id')
-                                                ->pluck('error_id')->toArray();
-        array_unshift($filter_options['codes'], 'No Error');
-
-        return response()->json(['records' => $harvests, 'options' => $filter_options, ], 200);
-   }
+        return response()->json(['result' => true, 'records' => $harvests, 'truncated' => $truncated ], 200);
+    }
 
     /**
      * Return options for Manual Harvesting
@@ -430,15 +505,15 @@ class HarvestLogController extends Controller
 
         // Setup institution limits and start setting up filter options
         $filter_options = array();
-        $limit_to_insts = ($consoAdmin) ? array() : $thisUser->adminInsts();
-        $filter_options['institutions'] = Institution::when(count($limit_to_insts) > 0, function ($qry) use ($limit_to_insts) {
-                                            return $qry->where('inst_id',1)->orWhereIn('inst_id', $limit_to_insts);
+        $limit_insts = ($consoAdmin) ? array() : $thisUser->adminInsts();
+        $filter_options['institutions'] = Institution::when(count($limit_insts) > 0, function ($qry) use ($limit_insts) {
+                                            return $qry->where('inst_id',1)->orWhereIn('inst_id', $limit_insts);
                                         })->get(['id','name'])->toArray();
         $filter_options['platforms'] = GlobalProvider::get(['id','name'])->toArray();
 
         // Get credentials limited by-inst; non-conso-admins are limited to the records they can affect
-        $credential_ids = Credential::when(count($limit_to_insts) > 0, function ($qry) use ($limit_to_insts) {
-                                        return $qry->whereIn('inst_id', $limit_to_insts);
+        $credential_ids = Credential::when(count($limit_insts) > 0, function ($qry) use ($limit_insts) {
+                                        return $qry->whereIn('inst_id', $limit_insts);
                                     })->pluck('id')->toArray();
 
         // Get the harvests we'll be updating, limited by credential IDs
@@ -656,21 +731,17 @@ class HarvestLogController extends Controller
        abort_unless($thisUser->isAdmin(), 403);
        $consoAdmin = $thisUser->isConsoAdmin();
 
-       // Translator (for more verbose statuses) and Log filter (to limit results) 
-       $xlStatus = array('Queued' => 'Harvest Queue', 'Harvesting' => '*Harvesting', 'Pending' => 'Queued by Vendor',
-                         'Paused' => 'Paused', 'ReQueued' => 'ReQueued', 'Waiting' => 'Process Queue',
-                         'Processing' => '*Processing');
-
-       // Setup limit_to_insts with the instID's we'll pull settings for
-       $limit_to_insts = ($consoAdmin) ? array() : $thisUser->adminInsts();
+       // Setup limits on the query for the log records
+       $limit_insts = ($consoAdmin) ? array() : $thisUser->adminInsts();
+       $limit_status = array('Queued', 'Harvesting', 'Pending', 'Paused', 'ReQueued', 'Waiting','Processing');
 
        // Get all harvests joined with credentials that match the statuses
        $data = HarvestLog::with('credential','credential.provider','credential.institution:id,name','report',
                                 'lastError','failedHarvests','failedHarvests.ccplusError')
-                         ->when(count($limit_to_insts) > 0, function ($qry) use ($limit_to_insts) {
-                             return $qry->whereIn('credential.inst_id', $limit_to_insts);
+                         ->when(count($limit_insts) > 0, function ($qry) use ($limit_insts) {
+                             return $qry->whereIn('credential.inst_id', $limit_insts);
                          })
-                         ->whereIn('status',array_keys($xlStatus))
+                         ->whereIn('status',$limit_status)
                          ->orderBy("updated_at", "DESC")->get();
 
        // Build an output array of no more than 500 harvests
@@ -685,7 +756,7 @@ class HarvestLogController extends Controller
           $rec->inst_name = $rec->credential->institution->name;
           $rec->report_name = $rec->report->name;
           $rec->created = date("Y-m-d H:i", strtotime($rec->updated_at));
-          $rec->d_status = $xlStatus[$rec->status];
+          $rec->d_status = $this->xlStatus[$rec->status];
 
           // Include last error details if they exist
           $_error = [];
@@ -731,8 +802,8 @@ class HarvestLogController extends Controller
        // Setup options for the U/I - it will limit options further based on what's there
        $filter_options = array();
        // Setup limit arrays for the instID's and provIDs we'll pull credentials for
-       $filter_options['institutions'] = Institution::when(count($limit_to_insts) > 0, function ($qry) use ($limit_to_insts) {
-                                           return $qry->where('inst_id',1)->orWhereIn('inst_id', $limit_to_insts);
+       $filter_options['institutions'] = Institution::when(count($limit_insts) > 0, function ($qry) use ($limit_insts) {
+                                           return $qry->where('inst_id',1)->orWhereIn('inst_id', $limit_insts);
                                        })->get(['id','name'])->toArray();
 
        // Get all global IDs and names
@@ -742,7 +813,7 @@ class HarvestLogController extends Controller
        $filter_options['codes'] = $data->where('error_id','>',0)->unique('error_id')->sortBy('error_id')
                                        ->pluck('error_id')->toArray();
        array_unshift($filter_options['codes'], 'No Error');
-       $filter_options['statuses'] = array_values($xlStatus);
+       $filter_options['statuses'] = array_intersect_key($this->xlStatus, array_flip($limit_status));
 
        return response()->json(['records' => $harvests, 'options' => $filter_options], 200);
 
@@ -779,16 +850,11 @@ class HarvestLogController extends Controller
    // Build a consistent output record using an input harvest record
    // input should include Report, Credential with institution+provider and failedHarvests with ccplusError
    private function formatRecord($harvest) {
-       $xlStatus = array('Queued' => 'Harvest Queue', 'Pending' => 'Queued by Vendor', 'Waiting' => 'Process Queue',
-                         'BadCreds' => 'Bad Credentials', 'NoRetries' => 'Out of Retries');
-       $rec = array('id' => $harvest->id, 'yearmon' => $harvest->yearmon, 'attempts' => $harvest->attempts,
-                    'inst_name' => $harvest->credential->institution->name,
-                    'prov_name' => $harvest->credential->provider->name,
-                    'prov_inst_id' => $harvest->credential->provider->inst_id,
-                    'release' => $harvest->release,
-                    'report_name' => $harvest->report->name,
-                    'status' => $harvest->status, 'rawfile' => $harvest->rawfile,
-                    'error_id' => 0, 'error' => []
+       $rec = array('id' => $harvest->id, 'inst_id' => $harvest->credential->inst_id, 'prov_id' => $harvest->credential->prov_id,
+                    'release' => $harvest->release, 'yearmon' => $harvest->yearmon, 'attempts' => $harvest->attempts,
+                    'inst_name' => $harvest->credential->institution->name, 'prov_name' => $harvest->credential->provider->name,
+                    'report_id' => $harvest->report->id, 'report_name' => $harvest->report->name, 'status' => $harvest->status,
+                    'rawfile' => $harvest->rawfile, 'error_id' => 0, 'error' => []
                    );
        $rec['updated'] = ($harvest->updated_at) ? date("Y-m-d H:i", strtotime($harvest->updated_at)) : " ";
        $rec['created'] = ($rec['updated'] != " ") ? date("Y-m-d H:i", strtotime($harvest->updated_at)) : " ";
@@ -796,8 +862,7 @@ class HarvestLogController extends Controller
 
        // Setup error details array (starting with default values)
        $rec['error'] = array('id' => $harvest->error_id, 'message' => '');
-       $rec['error']['color'] = ($rec['status'] == 'Success') ? '#00DD00' : '#999999';
-       $rec['d_status'] = (isset($xlStatus[$rec['status']])) ? $xlStatus[$rec['status']] : $rec['status'];
+       $rec['d_status'] = (isset($this->xlStatus[$rec['status']])) ? $this->xlStatus[$rec['status']] : $rec['status'];
        $lastFailed = null;
        if ($harvest->failedHarvests) {
            $lastFailed = $harvest->failedHarvests->sortByDesc('created_at')->first();
@@ -819,6 +884,7 @@ class HarvestLogController extends Controller
        }
        $rec['error']['known_error'] = in_array($rec['error_id'],$this->all_error_codes);
        $rec['error']['noretries'] = ($harvest->status == 'NoRetries');
+       $rec['error']['color'] = (isset($this->colors[$rec['status']])) ?  $this->colors[$rec['status']] : '#999999';
        $rec['failed'] = [];
        $rec['error']['counter_url'] = ($harvest->release == '5.1')
            ? "https://cop5.countermetrics.org/en/5.1/appendices/d-handling-errors-and-exceptions.html"
