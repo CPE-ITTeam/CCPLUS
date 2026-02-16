@@ -88,6 +88,7 @@ Route::middleware('ccplusAuth')->group( function () {
     });
     Route::prefix('harvests')->group(function () {
         Route::get('/get', 'App\Http\Controllers\HarvestLogController@index')->name('harvests.index');
+        Route::post('/getItems', 'App\Http\Controllers\HarvestLogController@getItems')->name('harvests.items');
         Route::get('/options', 'App\Http\Controllers\HarvestLogController@create')->name('harvests.options');
         Route::post('/store', 'App\Http\Controllers\HarvestLogController@store')->name('harvests.store');
         Route::delete('/delete/{harvest}', 'App\Http\Controllers\HarvestLogController@destroy')->name('harvests.destroy');
