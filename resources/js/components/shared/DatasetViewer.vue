@@ -44,6 +44,7 @@
   const editableFields = ref([]);
   const urlRoot = ref('');
   var dtLoading = ref(false);
+  var truncated = ref(false);
   var success = ref('');
   var failure = ref('');
 
@@ -76,6 +77,31 @@
     };
   });
 
+  // Load/Refresh dataset items, with filters applied (uses POST route)
+  const refreshData = async (datasetKey) => {
+    const config = datasetConfig[datasetKey];
+    dtLoading.value = true;
+    // Setup filters to be passed
+    let _filters = {};
+    Object.keys(filterOptions).forEach( key => {
+      _filters[key] = filterOptions[key]['value'];
+    });
+    try {
+      if (consoKey.value=='') return;
+      let itemsUrl = config.urlRoot+'/getItems';
+      const response = await ccPost(itemsUrl, { filters: _filters });
+      if (response.result) {
+        allItems = [ ...response.records ];
+        filteredItems = [ ...response.records ];
+        truncated = response.truncated;
+        dtKey.value++;
+      }
+    } catch (error) {
+      console.log('Error refreshing records for '+datasetKey+' : ', error);
+    }
+    dtLoading.value = false;
+  };
+
   // Load dataset
   const loadDataset = async (datasetKey) => {
     const config = datasetConfig[datasetKey];
@@ -107,22 +133,30 @@
       if (fld.name == 'conso' && !is_conso_admin) return;
       config.fields[idx].static = config.static.includes(fld.name);
       // Set filterOptions for select(s) and toggle
+      //   options will be limited by values in allItems, but only when there are items
+      //   (so harvests tables can show options without item records)
+      const _options = (typeof(fld.options)!='undefined') ? fld.options : [];
+      var f_options = (typeof(allOptions[fld.name])!='undefined') ? allOptions[fld.name] : _options;
       if ( (fld.type == 'select' || fld.type == 'mselect' || fld.type == 'selectObj' || fld.type == 'toggle') &&
            fld.options == 'fromURL' && typeof(allOptions[fld.name]) != 'undefined' ) {
-        var f_options = [];
-        if ( typeof(fld.optTxt) == 'undefined' || typeof(fld.optVal) == 'undefined' ||
-            (props.datasetKey=='roles' && fld.name=='role')) {
+        if (Array.isArray(allOptions[fld.name]) && ((props.datasetKey=='roles' && fld.name=='role') ||
+            typeof(fld.optTxt) == 'undefined' || typeof(fld.optVal) == 'undefined')) {
+          if (allItems.length>0) {
+            f_options = allOptions[fld.name].filter(
+              opt => allItems.flatMap( itm => itm[fld.filterCol] ).includes(opt[fld.optVal])
+            );
+          }
           filterOptions[fld.name] = {
             'name': fld.name, 'label': fld.label, 'type': 'text', 'show': fld.isFilter, 'col': fld.filterCol,
-            'items': [...allOptions[fld.name]], 'value': null
+            'items': [...f_options], 'value': null
           };
-        // limit filter options based on allItems
         } else {
           let initVal = (fld.type == 'mselect') ? [] : null;
-          // use flatMap since item[fld.filterCol] may hold an array of values...
-          f_options = allOptions[fld.name].filter(
-            opt => allItems.flatMap( itm => itm[fld.filterCol] ).includes(opt[fld.optVal])
-          );
+          if (allItems.length>0) {
+            f_options = allOptions[fld.name].filter(
+              opt => allItems.flatMap( itm => itm[fld.filterCol] ).includes(opt[fld.optVal])
+            );
+          }
           filterOptions[fld.name] = {
             'name': fld.name, 'label': fld.label, 'type': fld.type, 'val': fld.optVal, 'txt': fld.optTxt,
             'show': fld.isFilter, 'col': fld.filterCol, 'items': [...f_options], 'value': initVal
@@ -132,12 +166,22 @@
           filterOptions[fld.name] = {
             'name': fld.name, 'label': fld.label, 'type': fld.type, 'show': true, 'col': fld.filterCol, 'value': null
           };
-          filterOptions[fld.name]['items'] = (fld.options=='fromURL' && typeof(allOptions[fld.name])!='undefined')
+          if (allItems.length>0 && Array.isArray(allOptions[fld.name])) {
+            f_options = allOptions[fld.name].filter(
+              opt => allItems.flatMap( itm => itm[fld.filterCol] ).includes(opt[fld.optVal])
+            );
+          }
+          filterOptions[fld.name]['items'] = (fld.options=='fromURL' && Array.isArray(allOptions[fld.name]))
                                              ? [...allOptions[fld.name]] : [...fld.options];
       } else if (Array.isArray(fld.options)) {
+        if (allItems.length>0) {
+          f_options = fld.options.filter(
+            opt => allItems.flatMap( itm => itm[fld.filterCol] ).includes(opt[fld.optVal])
+          );
+        }
         filterOptions[fld.name] = {
           'name': fld.name, 'label': fld.label, 'type': fld.type, 'val': fld.optVal, 'txt': fld.optTxt,
-          'show': fld.isFilter, 'col': fld.filterCol, 'items': [...fld.options], 'value': null
+          'show': fld.isFilter, 'col': fld.filterCol, 'items': [...f_options], 'value': null
         };
       } else if (fld.name == 'fiscalYr') {
         allOptions['fiscalYr'] = [...fyMonths];
@@ -325,12 +369,11 @@
     // if key=='reset', clear all set filter values
     if (filt.key == 'reset') {
       for (const key of Object.keys(filterOptions)) {
-        const filter = filterOptions[key];
-        if (!filter.show) continue;
-        if ( Array.isArray(filter.value) ) {
-          if (filter.value.length > 0) filter.value = [];
-        } else if (filter.value) {
-          filter.value = null;
+        if (!filterOptions[key]['show']) continue;
+        if ( Array.isArray(filterOptions[key]['value']) ) {
+          if (filterOptions[key]['value'].length > 0) filterOptions[key]['value'] = [];
+        } else if (filterOptions[key]['value']) {
+          filterOptions[key]['value'] = null;
         }
       }
       updateItems();
@@ -530,13 +573,14 @@ console.log('Handling for includeZeros toggle not written yet');
     <DataToolbar v-if="toolbarFilters.length>0" v-model="toolbarFilters" :search="search" :showSelectedOnly="showSelectedOnly"
                  :dataset="props.datasetKey" :bulkOptions="bulkOptions" @add="handleAddItem" @setFilter="handleFilter"
                  :selectedRows="selectedRows" @bulkAction="handleBulk" @update:search="search=$event"
-                 @update:showSelectedOnly="handleToggle" @updateConso="handleChangeConso" />
+                 @update:showSelectedOnly="handleToggle" @updateConso="handleChangeConso"
+                 @refreshRecords="refreshData(props.datasetKey)"/>
     <div v-if="success || failure" class="status-message">
       <span v-if="success"      class="good" v-text="success"></span>
       <span v-else-if="failure" class="fail" v-text="failure"></span>
     </div>
     <DataTable v-if="consoKey!=''" :items="filteredItems" :search="search" :dataset="props.datasetKey" :key="dtKey"
-               :showSelectedOnly="showSelectedOnly" :headers="headers" :editableFields="editableFields"
+               :showSelectedOnly="showSelectedOnly" :headers="headers" :editableFields="editableFields" :truncated="truncated"
                :searchFields="searchFields" :selectedRows="selectedRows" @update:selectedRows="selectedRows = $event"
                :isLoading="dtLoading" @edit="handleEdit" @delete="handleDelete" @update:toggle="handleToggleUpdate"
                @update:report="handleReportToggle"/>
