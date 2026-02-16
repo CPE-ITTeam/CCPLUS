@@ -2,6 +2,8 @@
 <script setup>
   import { ref, computed } from 'vue';
   import ToggleIcon from './ToggleIcon.vue';
+  import DeleteConfirm from '../dialogs/DeleteConfirm.vue';
+  import ErrorDetails from '../dialogs/ErrorDetails.vue';
 
   const props = defineProps({
     headers: { type: Array, required: true },
@@ -12,7 +14,8 @@
     searchFields: { type: Array, required: true },
     selectedRows: { type: Array, required: true },
     editableFields: { type: Array, required: true },
-    isLoading: { type: Boolean, required:true }
+    isLoading: { type: Boolean, required:true },
+    truncated: { type: Boolean, required:true }
   });
 
   const computedHeaders = computed(() => {
@@ -48,8 +51,10 @@
       })
     );
   });
-  const confirmDialog = ref(false);
+  const deleteDialog = ref(false);
   var curItem = ref({});
+  const errorDialog = ref(false);
+  var current_error = ref({id:null, message:'', explanation:'', detail:'', process_step:'', help_url:''});
 
   const emit = defineEmits(['update:selectedRows', 'update:toggle', 'update:report', 'edit', 'delete']);
 
@@ -72,43 +77,29 @@
     IR: (a, b) => reportSort(a, b),
   };
 
-  // Choose component type based on field
-  function getFieldComponent(field) {
-    if (field === 'status') return ToggleIcon;
-    if (field === 'password') return 'v-text-field';
-    return 'v-text-field';
-  }
-
-  // Optional: map field labels
-  function getFieldLabel(field) {
-    const labels = {
-      username: 'Username',
-      email: 'Email',
-      institution: 'Institution',
-      consortiumKey: 'Consortium Key',
-      role: 'Role',
-      status: 'Status',
-      password: 'Password',
-    };
-    return labels[field] || field;
-  }
-  function enableDialog(item) {
+  function enableDeleteDialog(item) {
     curItem.value = {...item};
-    confirmDialog.value = true;
+    deleteDialog.value = true;
   }
-  function cancelDialog() {
+  function closeDeleteDialog() {
     curItem.value = {};
-    confirmDialog.value = false;
+    deleteDialog.value = false;
   }
-  function confirmDelete() {
-    emit('delete', curItem.value.id);
-    curItem.value = {};
-    confirmDialog.value = false;
+  function enableErrorDialog(error) {
+      current_error.value = { ...error };
+      errorDialog.value = true;
   }
-</script>
+  function closeErrorDialog() {
+    current_error.value = {id:null, message:'', explanation:'', detail:'', process_step:'', help_url:''};
+    errorDialog.value = false;
+  }
+  </script>
 
 <template>
   <div>
+    <v-row v-if="truncated" class="my-1" no-gutters>
+      <span style="color: red; font-weight: bold">Available records truncated to 500 items</span>
+    </v-row>
     <div style="margin-bottom: 8px; font-weight: bold">
       ✅ {{ selectedRows.length }} item{{ selectedRows.length=== 1 ? '' : 's' }} selected
     </div>
@@ -184,6 +175,23 @@
         </span>
       </template>
 
+      <!-- statusDot Key (icon) -->
+      <template v-slot:item.statusDot="{ item }">
+        <span >
+          <v-icon :title="item.d_status" :color="item.error.color">mdi-record</v-icon>
+        </span>
+      </template>
+
+      <!-- Error Key -->
+      <template #item.error="{ item }">
+        <span v-if="item.error.id>0">
+          {{ item.error.id }}
+          <v-icon title="View Error Details" @click="enableErrorDialog(item.error)"
+                  :color="item.error.color">mdi-dots-vertical</v-icon>
+        </span>
+        <span v-else >Success</span>
+      </template>
+
       <!-- Email Key -->
       <!-- <template #item.email="{ item }">
         <span v-if="!item.email.includes('@')">{{ item.email }}</span>
@@ -202,46 +210,21 @@
           <v-tooltip v-if="item.can_delete" text="Delete" location="top">
             <template v-slot:activator="{ props }">
               <v-icon icon="mdi-delete" color="medium-emphasis" v-bind="props"
-                      @click="enableDialog(item)"/>
+                      @click="enableDeleteDialog(item)"/>
             </template>
           </v-tooltip>
         </div>
       </template>
     </v-data-table>
-    <v-dialog v-model="confirmDialog" max-width="600px">
-      <v-card>
-        <v-card-title class="text-indigo-darken-2 pa-6 d-flex justify-space-between align-center">
-          <span>Confirm Delete</span>
-          <v-tooltip text="Cancel" location="bottom">
-            <template #activator="{ props }">
-              <v-btn icon variant="outlined" class="close-btn" v-bind="props" @click="cancelDialog">
-                <v-icon size="18">mdi-close</v-icon>
-              </v-btn>
-            </template>
-          </v-tooltip>
-        </v-card-title>
-        <v-card-text>
-          <p>&nbsp;</p>
-          <p>
-            <strong>You are about to delete {{ curItem.name }} from {{ props.dataset }}</strong>
-          </p>
-          <p>&nbsp;</p>
-          <h3> Are you Sure?</h3>
-          <p>&nbsp;</p>
-          <v-row>
-            <v-col cols="12" class="text-left">
-              <v-btn color="primary" @click="confirmDelete">Yes, Delete it</v-btn>
-              <v-btn variant="text" class="ml-2" @click="cancelDialog">Cancel</v-btn>
-            </v-col>
-          </v-row>
-        </v-card-text>
-      </v-card>
+    <v-dialog v-model="deleteDialog" max-width="600px">
+      <DeleteConfirm :item="curItem" :dataset="props.dataset" @confirm="$emit('delete', curItem.id)"
+                     @close="closeDeleteDialog" />
+    </v-dialog>
+    <v-dialog v-model="errorDialog" max-width="600px">
+      <ErrorDetails :error="current_error" @close="closeErrorDialog" />
     </v-dialog>
   </div>
 </template>
 <style scoped>
-  .required-field {
-    color: orange;
-    font-style: italic;
-  }
+  .required-field { color: orange; font-style: italic; }
 </style>
