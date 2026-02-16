@@ -251,7 +251,7 @@
       ],
       required: [],
       static: ['id'],
-      bulkOptions: ['Pause', 'ReStart', 'Kill'],
+      bulkOptions: ['Pause', 'Restart', 'Kill'],
       sortby: 'created',
     },
     harvests: {
@@ -295,7 +295,7 @@
       ],
       required: [],
       static: ['id'],
-      bulkOptions: ['Restart', 'ReStart as r5', 'ReStart as r5.1', 'Delete'],
+      bulkOptions: ['Restart', 'Restart as r5', 'Restart as r5.1', 'Delete'],
       sortby: 'updated',
     },
     savedreports: {
