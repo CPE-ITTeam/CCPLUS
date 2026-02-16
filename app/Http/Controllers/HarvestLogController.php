@@ -517,8 +517,8 @@ class HarvestLogController extends Controller
                                     })->pluck('id')->toArray();
 
         // Get the harvests we'll be updating, limited by credential IDs
-        $harvests = HarvestLog::with('report:id,name','credential','credential.institution:id,name',
-                                        'credential.provider','credential.provider.registries')
+        $harvests = HarvestLog::with('report:id,name','credential','credential.institution','credential.provider',
+                                     'credential.provider.registries')
                               ->whereIn('id', $input['ids'])->whereIn('credentials_id', $credential_ids)            
                               ->orderBy('updated_at', 'DESC')->get();
         $harvestIds = $harvests->pluck('id')->toArray();
@@ -555,7 +555,7 @@ class HarvestLogController extends Controller
                 // keep track of original status
                 $original_status = $harvest->status;
 
-                // Disallow ReStart if credentials are not Enabled, or provider/institution are inactive
+                // Disallow Restart if credentials are not Enabled, or provider/institution are inactive
                 if ( $harvest->credential->status != 'Enabled' || !$harvest->credential->institution->is_active ||
                      !$harvest->credential->provider->is_active ) {
                     $skipped[] = $harvest->id;
@@ -599,7 +599,7 @@ class HarvestLogController extends Controller
 
             // Return result
             if ($changed > 0) {
-                $msg  = "Successfully restarted " . $msg_result . " " . $changed . " harvests";
+                $msg  = "Successfully restarted " . $changed . " harvests";
                 $msg .= (!is_null($forceRelease)) ? " as release ".$forceRelease : "";
                 if (count($skipped) > 0) {
                     $msg .= " , and skipped " . count($skipped) . " harvests";
