@@ -27,6 +27,14 @@
     return (consoKey.value == '' && is_serveradmin);
   });
 
+  const harvestDataset = computed(() => {
+    return (props.dataset=='harvests' || props.dataset=='jobs');
+  });
+
+  const showExportImport = computed(() => {
+    return (!consoOnly.value && !harvestDataset.value);
+  });
+
   const flat_filter_options = computed(() => {
     let _options = {};
     filter_options.value.forEach( (row,idx) => {
@@ -71,7 +79,8 @@
     'export',
     'import',
     'setFilter',
-    'bulkAction'
+    'bulkAction',
+    'refreshRecords'
   ]);
 </script>
 
@@ -85,14 +94,19 @@
                          @update:showSelectedOnly="$emit('update:showSelectedOnly', $event)"/>
       </v-row>
     </FlexCol>
-    <v-col v-if="is_serveradmin && consortia.length>1 && props.dataset!='jobs'" class="flex px-4" cols="3">
+    <v-col v-if="is_serveradmin && consortia.length>1 && !harvestDataset" class="flex px-4" cols="3">
       <v-autocomplete v-model="consoKey" label="Consortium" :items="consortia" item-title="name" density="compact"
                       return-object item-value="ccp_key" @update:modelValue="$emit('updateConso', $event)" />
     </v-col>
     <!-- Export, Import, & Add -->
-    <ExportAndImport v-if="!consoOnly" :showRefresh="props.dataset=='platforms'" @export="$emit('export')"
+    <ExportAndImport v-if="showExportImport" :showRefresh="props.dataset=='platforms'" @export="$emit('export')"
                      @import="$emit('import')" @add="$emit('add')"
                      @refresh="$emit('bulkAction', {action:'Full Refresh'})"/>
+              
+    <!-- Refresh Items button for harvest tables -->
+    <v-col v-if="harvestDataset" class="d-flex justify-center">
+      <v-btn color="primary" @click="$emit('refreshRecords')">Refresh Records</v-btn>
+    </v-col>
   </v-row>
   <!-- Search + Selected Toggle -->
   <v-row class="ma-0" no-gutters>
