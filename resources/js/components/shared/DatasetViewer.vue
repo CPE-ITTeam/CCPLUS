@@ -91,9 +91,11 @@
       let itemsUrl = config.urlRoot+'/getItems';
       const response = await ccPost(itemsUrl, { filters: _filters });
       if (response.result) {
+        truncated = response.truncated;
         allItems = [ ...response.records ];
         filteredItems = [ ...response.records ];
-        truncated = response.truncated;
+        // Clear selected rows    
+        selectedRows.value = [];
         dtKey.value++;
       }
     } catch (error) {
