@@ -572,7 +572,7 @@ console.log('Handling for includeZeros toggle not written yet');
 
 <template>
   <v-sheet>
-    <DataToolbar v-if="toolbarFilters.length>0" v-model="toolbarFilters" :search="search" :showSelectedOnly="showSelectedOnly"
+    <DataToolbar v-model="toolbarFilters" :search="search" :showSelectedOnly="showSelectedOnly"
                  :dataset="props.datasetKey" :bulkOptions="bulkOptions" @add="handleAddItem" @setFilter="handleFilter"
                  :selectedRows="selectedRows" @bulkAction="handleBulk" @update:search="search=$event"
                  @update:showSelectedOnly="handleToggle" @updateConso="handleChangeConso"
