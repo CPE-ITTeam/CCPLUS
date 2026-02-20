@@ -60,9 +60,20 @@ class UserController extends Controller
         foreach ($user_data as $rec) {
             // Setup array for this user data
             $user = array('id' => $rec->id, 'email' => $rec->email, 'name' => $rec->name, 'inst_id' => $rec->inst_id,
-                          'institution' => $rec->institution, 'last_login' => $rec->last_login);
+                          'institution' => $rec->institution, 'password' => '', 'phone' => $rec->phone,
+                          'last_login' => $rec->last_login);
             $user['status'] = ($rec->is_active) ? "Active" : "Inactive";
             $user['user_role'] = $rec->fullRoleName();
+            // Set all user roles as arrays of <role>:<ID> pairs for institutions and groups
+            $inst_roles = array();
+            $group_roles = array();
+            foreach ($rec->allRoles() as $r) {
+                $_name = preg_replace('/ /', '', $r['name']);
+                if  (!is_null($r['inst_id']))  $inst_roles[] = $_name . ":" . $r['inst_id'];
+                if (!is_null($r['group_id'])) $group_roles[] = $_name . ":" . $r['group_id'];
+            }
+            $user['inst_roles'] = $inst_roles;
+            $user['group_roles'] = $group_roles;
             $user['fiscalYr'] = ($rec->fiscalYr) ? $rec->fiscalYr : config('ccplus.fiscalYr');
             $user['can_edit'] = $rec->canManage();
             $user['can_delete'] = $rec->canManage();
@@ -284,13 +295,17 @@ class UserController extends Controller
         $updated_user['status'] = ($user->is_active) ? "Active" : "Inactive";
         $updated_user['inst_name'] = $user->institution->name;
         $updated_user['fiscalYr'] = ($user->fiscalYr) ? $user->fiscalYr : config('ccplus.fiscalYr');
-        // Set user_role to hold user's highest access right
-        $updated_user['user_role'] = $user->maxRoleName();
-        if ($user->inst_id!=1 && $updated_user['user_role'] == 'Admin') {
-            $updated_user['user_role'] = "Local Admin";
-        } else if ($user->inst_id==1 && $updated_user['user_role'] != 'ServerAdmin') {
-            $updated_user['user_role'] = 'Consortium '.$updated_user['user_role'];
-        }    
+        $updated_user['user_role'] = $rec->fullRoleName();
+        // Set all user roles as arrays of <role>:<ID> pairs for institutions and groups
+        $inst_roles = array();
+        $group_roles = array();
+        foreach ($user->allRoles() as $r) {
+            $_name = preg_replace('/ /', '', $r['name']);
+            if (!is_null($r['inst_id'])) $inst_roles[] = $_name . ":" . $r['inst_id'];
+            if (!is_null($r['group_id'])) $group_roles[] = $_name . ":" . $r['group_id'];
+        }
+        $updated_user['inst_roles'] = $inst_roles;
+        $updated_user['group_roles'] = $group_roles;
         $updated_user['can_edit'] = $user->canManage();
         $updated_user['can_delete'] = $user->canManage();
         return response()->json(['result' => true, 'msg' => 'User settings successfully updated',
