@@ -5,5 +5,5 @@
 </script>
 
 <template>
-  <DatasetViewer datasetKey="institutionTypes" @updateConso="$emit('updateConso', $event)" />
+  <DatasetViewer datasetKey="types" @updateConso="$emit('updateConso', $event)" />
 </template>
