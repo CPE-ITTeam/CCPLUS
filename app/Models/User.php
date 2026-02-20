@@ -157,7 +157,6 @@ class User extends Authenticatable
         return $groups;
     }
 
-//NOTE:: Need to test+confirm that this works:: i.e. chaining off to in_array of adminInsts() & adminGroups()
     public function isAdmin($inst=null, $group=null)
     {
         if ($this->isConsoAdmin()) return true;
@@ -217,6 +216,7 @@ class User extends Authenticatable
         return $userRole->role->name;
     }
 
+    // Return a single string with users' "highest" role
     public function fullRoleName() {
         if ($this->isServerAdmin()) return "ServerAdmin";
         if ($this->isConsoAdmin()) return "Consortium Admin";
