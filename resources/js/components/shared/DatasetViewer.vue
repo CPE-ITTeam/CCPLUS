@@ -8,6 +8,7 @@
   import DataTable from './DataTable.vue';
   import DataForm from './DataForm.vue';
   import ReportToggle from '../dialogs/ReportToggle.vue';
+  import * as XLSX from 'xlsx';
   import Swal from 'sweetalert2';
 
   const authStore = useAuthStore();
@@ -53,7 +54,7 @@
     return (editingItem.value && config && editableFields.value.length>0);
   });
 
-  // toolbarFilters pre-chunks filters into rows of at-most 4 to a row
+  // toolbarFilters holds pre-chunks rows of at-most 4 filters per-row
   const toolbarFilters = computed(() => {
     var rows = [];
     const keys = Object.keys(filterOptions).filter( key => filterOptions[key]['show'] );
@@ -123,7 +124,7 @@
     }
     // Setup bulkOptions
     bulkOptions.value = {'dataset': props.datasetKey, 'items': []};
-    if (typeof(config.bulkOptions) != 'undefined') bulkOptions.value.items = [...config.bulkOptions];
+    if (config.bulkOptions.length>0) bulkOptions.value.items = [...config.bulkOptions];
     // institutions dataset needs groups for "add-to-group" action
     if (props.datasetKey == 'institutions' && typeof(allOptions.groups) != 'undefined') {
       bulkOptions.value['groups'] = [...allOptions.groups];
@@ -166,8 +167,9 @@
         }
       } else if (fld.isFilter && (fld.type == 'text' || fld.type == 'mtext')) {
           filterOptions[fld.name] = {
-            'name': fld.name, 'label': fld.label, 'type': fld.type, 'show': true, 'col': fld.filterCol, 'value': null
+            'name': fld.name, 'label': fld.label, 'type': fld.type, 'show': true, 'col': fld.filterCol
           };
+          filterOptions[fld.name]['value'] = (fld.type == 'text') ? null : [];
           if (allItems.length>0 && Array.isArray(allOptions[fld.name])) {
             f_options = allOptions[fld.name].filter(
               opt => allItems.flatMap( itm => itm[fld.filterCol] ).includes(opt[fld.optVal])
@@ -209,10 +211,167 @@
     dtKey.value++;
   }
 
+  const capDataset = computed(() => {
+    return (props.datasetKey) ? props.datasetKey.charAt(0).toUpperCase() + props.datasetKey.slice(1) : "";
+  });
+
+  const exportable = computed(() => {
+    const config = datasetConfig[props.datasetKey];
+    return (config.exportFields.length>0);
+  });
+
+  const exportInstScope = computed(() => {
+    if (typeof(filterOptions.institutions)=='undefined' && typeof(filterOptions.groups)=='undefined') return "";
+    // For groups dataset, scope is All or type-restriction
+    if ((props.datasetKey=='groups')) {
+      let _scope = "_AllGroups";
+      if (typeof(filterOptions.types)!='undefined') {
+        var ftype = filterOptions.types.items.find( t => t.id == filterOptions.types['value']);
+        if (typeof(ftype)!='undefined') _scope = "_"+ftype.name;
+      }
+      return _scope;
+    }
+    // If groups filter has one+more values, return the group(s) and ignore institutions
+    if (typeof(filterOptions.groups) != 'undefined') {
+      let group_name = "";
+      if (filterOptions.groups['value'].length==0 && typeof(filterOptions.institutions)=='undefined') {
+        group_name = (props.datasetKey=='institutions') ? "_AllInstitutions" : "_AllGroups";
+      } else if (filterOptions.groups['value'].length==1) {
+        var _grp = filterOptions.groups.items.find( g => g.id == filterOptions.groups['value'][0]);
+        if (typeof(_grp)!='undefined') group_name = "_"+_grp.name;
+      } else if (filterOptions.groups['value'].length>1) {
+        group_name = "_SomeGroups";
+      }
+      if (group_name != "") {
+        return group_name;
+      }
+    }
+    // If institutions filter has one+more values
+    let inst_name = ""; 
+    if (typeof(filterOptions.institutions) != 'undefined') {
+      if (Array.isArray(filterOptions.institutions['value'])) {
+        if (filterOptions.institutions['value'].length==0) {
+          inst_name = "_AllInstitutions";
+        } else if (filterOptions.institutions['value'].length==1) {
+          var _inst = filterOptions.institutions.items.find( g => g.id == filterOptions.institutions['value'][0]);
+          if (typeof(_inst)!='undefined') inst_name = "_"+_inst.name
+        } else if (filterOptions.institutions['value'].length>1) {
+          inst_name = "_SomeInstitutions";
+        }
+      } else {
+        inst_name = (filterOptions.institutions['value']!='' && filterOptions.institutions['value']!=null)
+                    ? "_"+filterOptions.institutions['value'] : "_AllInstitutions";
+      }
+    }
+    return inst_name;
+  });
+
+  const exportPlatScope = computed(() => {
+    if (typeof(filterOptions.platforms) == 'undefined') return '';
+    if (filterOptions.platforms['value'].length==0) return "_AllPlatforms";
+    let plat_name = ""; 
+    if (filterOptions.platforms['value'].length==1) {
+      var _plat = filterOptions.platforms.items.find( g => g.id == filterOptions.platforms['value'][0]);
+      if (typeof(_plat)!='undefined') plat_name = _plat.name
+    }
+    return (plat_name == "") ? "_SomePlatforms" : "_"+plat_name;
+  });
+
+  const exportStatus = computed(() => {
+    if (typeof(filterOptions.statuses) == 'undefined') return '';
+    let stat_name = "";
+    if (Array.isArray(filterOptions.statuses['value'])) {
+      if (filterOptions.statuses['value'].length <= 1) {
+        stat_name = (filterOptions.statuses['value'].length==1) ? "_"+filterOptions.statuses['value'][0] : ""; 
+      } else {
+        stat_name = "_SomeStatuses";
+      }
+    } else {
+      if (filterOptions.statuses['value']!='' && filterOptions.statuses['value']!=null) {
+        stat_name = "_"+filterOptions.statuses['value'];
+      }
+    }
+    return stat_name;
+  });
+
+  const exportDataRows = computed(() => {
+    const config = datasetConfig[props.datasetKey];
+    if (config.exportFields.length==0) return [];
+
+    // Filter out static and isFilter columns from filteredItems
+    return filteredItems.map( row => {
+      // Use reduce to build a new object with only the desired keys
+      return config.exportFields.reduce( (newRow, col) => {
+        let fld = config.fields.find( f => f.name==col);
+        let label = (typeof(fld)!='undefined') ? fld.label : col;
+        if (col in row) {
+          if (Array.isArray(row[col])) {  // Convert arrays to a comma-separated string
+            newRow[label] = row[col].join();
+          } else {  // not an array, just set in output row
+            newRow[label] = row[col];
+          }
+        }
+        return newRow;
+      }, {});
+    });
+  });
+
+  async function handleExport() {
+    const config = datasetConfig[props.datasetKey];
+    // Setup a workbook and pull in the HowTo sheet from the public folder
+    if (props.datasetKey != 'audit') {
+      let publicPath = '/exportTemplates/'+props.datasetKey+'.xlsx';
+
+      console.log('Public path: '+publicPath);
+      // Setup filename
+      let fileName = "CCplus_"+consoKey.value;
+      fileName += (exportInstScope.value != '') ? exportInstScope.value : '';
+      fileName += (exportPlatScope.value != '') ? exportPlatScope.value : '';
+      fileName += (exportStatus.value != '') ? exportStatus.value : '';
+      fileName += "_"+capDataset.value+".xlsx";
+      try {
+        // Fetch template file from the public directory as an ArrayBuffer
+        const response = await fetch(publicPath);
+        if (!response.ok) {
+          throw new Error('Network response was not ok');
+        }
+        const arrayBuffer = await response.arrayBuffer();
+        // Get the workbook from the buffer and extract the HowToImport sheet
+        const templateBook = XLSX.read(arrayBuffer, { type: 'array' });
+        const howToSheet = templateBook.Sheets['HowToImport'];
+        if (!howToSheet) {
+          throw new Error(`HowToImport Sheet not found in the template for : `+props.datasetKey);
+        }
+        // Setup new workbook and add the HowToImport
+        const newWorkbook = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(newWorkbook, howToSheet, 'How to Import');
+        // Add items to a new tab in the workbook and send it
+        const itemsSheet = XLSX.utils.json_to_sheet(exportDataRows.value);
+        let sheet_name = config.title+'s';
+        XLSX.utils.book_append_sheet(newWorkbook, itemsSheet, sheet_name);
+        XLSX.writeFile(newWorkbook, fileName);
+      } catch (error) {
+        console.error("Error during file processing or download: ", error);
+      }
+    // audit doesn't need/provide a HowTo tab
+    } else {
+      const worksheet = XLSX.utils.json_to_sheet(exportDataRows.value);
+      // Setup filename and include status if we're filtering it
+      let fileName = "CCplus_"+consoKey.value+exportInstScope.value+exportPlatScope.value;
+      fileName += (exportStatus.value != '') ? exportStatus.value : '';
+      fileName += "_COUNTERAudit.xlsx";
+      /* Create a new workbook and append the worksheet */
+      const workbook = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(workbook, worksheet, 'Credentials Audit');
+      /* Export and trigger the download */
+      XLSX.writeFile(workbook, fileName);
+    }
+  }
+
   function handleEdit(item) {
     const config = datasetConfig[props.datasetKey];
     formDialogType.value = "Edit";
-    formDialogTitle = "Edit "+config.dialogTitle;
+    formDialogTitle = "Edit "+config.title;
     config.fields.forEach( (fld, idx) => {
       if (props.datasetKey=='institutions' && fld.name=='creds') {
         config.fields[idx]['visible'] = false;
@@ -229,7 +388,7 @@
   function handleAddItem() {
     const config = datasetConfig[props.datasetKey];
     formDialogType.value = "Add";
-    formDialogTitle = "Add New "+config.dialogTitle;
+    formDialogTitle = "Add New "+config.title;
     editingItem.value = {};
     config.fields.forEach( (fld, idx) => {
       // Skip fields not required for Add
@@ -371,6 +530,15 @@
     // if key=='reset', clear all set filter values
     if (filt.key == 'reset') {
       for (const key of Object.keys(filterOptions)) {
+        // restore visibility of group(s)/institution(s) if they've been suppressed
+        if (key.includes('institution')) {
+          if (typeof(filterOptions.group) != 'undefined') filterOptions.group.show = true;
+          if (typeof(filterOptions.groups) != 'undefined') filterOptions.groups.show = true;
+        }
+        if (key.includes('group')) {
+          if (typeof(filterOptions.institution) != 'undefined') filterOptions.institution.show = true;
+          if (typeof(filterOptions.institutions) != 'undefined') filterOptions.institutions.show = true;
+        }
         if (!filterOptions[key]['show']) continue;
         if ( Array.isArray(filterOptions[key]['value']) ) {
           if (filterOptions[key]['value'].length > 0) filterOptions[key]['value'] = [];
@@ -382,6 +550,23 @@
     // Otherwise, update a specific filter key
     } else if (typeof(filterOptions[filt.key]['value']) != 'undefined') {
       filterOptions[filt.key]['value'] = filt.value;
+      // Setting/clearing 'institution(s)' or 'group(s)' suppresses/reveals the other
+      if (filt.key.includes('institution') || filt.key.includes('group')) {
+        let cleared = false;
+        if (Array.isArray(filterOptions[filt.key]['value'])) {
+          cleared = (filterOptions[filt.key]['value'].length==0);
+        } else {
+          cleared = (filterOptions[filt.key]['value']==null || filterOptions[filt.key]['value']=="");
+        }
+        if (filt.key.includes('institution')) {
+          if (typeof(filterOptions.group) != 'undefined') filterOptions.group.show = cleared;
+          if (typeof(filterOptions.groups) != 'undefined') filterOptions.groups.show = cleared;
+        }
+        if (filt.key.includes('group')) {
+          if (typeof(filterOptions.institution) != 'undefined') filterOptions.institution.show = cleared;
+          if (typeof(filterOptions.institutions) != 'undefined') filterOptions.institutions.show = cleared;
+        }
+      }
       updateItems();
     }
   }
@@ -408,7 +593,7 @@
       if (filter.type == 'select' || filter.type == 'text') {
         filterResult = filterResult.filter( item => item[filter.col]==filter.value );
       // Filter items with a multi-select array
-      } else if (filter.type == 'mselect') {
+      } else if (filter.type == 'mselect' || filter.type == 'mtext') {
         // If item column is an array (like groups, roles, etc.)
         if ( Array.isArray(allItems[0][filter.col]) ) {
           filterResult = filterResult.filter( item => item[filter.col].some(f => filter.value.includes(f)) );
@@ -572,19 +757,19 @@ console.log('Handling for includeZeros toggle not written yet');
 
 <template>
   <v-sheet>
-    <DataToolbar v-model="toolbarFilters" :search="search" :showSelectedOnly="showSelectedOnly"
-                 :dataset="props.datasetKey" :bulkOptions="bulkOptions" @add="handleAddItem" @setFilter="handleFilter"
-                 :selectedRows="selectedRows" @bulkAction="handleBulk" @update:search="search=$event"
-                 @update:showSelectedOnly="handleToggle" @updateConso="handleChangeConso"
+    <DataToolbar v-model="toolbarFilters" :search="search" :showSelectedOnly="showSelectedOnly" :dataset="props.datasetKey"
+                 :bulkOptions="bulkOptions" :selectedRows="selectedRows" :hideExport="!exportable || filteredItems.length==0"
+                 @updateConso="handleChangeConso" @export="handleExport" @setFilter="handleFilter" @bulkAction="handleBulk"
+                 @add="handleAddItem" @update:search="search=$event" @update:showSelectedOnly="handleToggle"
                  @refreshRecords="refreshData(props.datasetKey)"/>
     <div v-if="success || failure" class="status-message">
       <span v-if="success"      class="good" v-text="success"></span>
       <span v-else-if="failure" class="fail" v-text="failure"></span>
     </div>
-    <DataTable v-if="consoKey!=''" :items="filteredItems" :search="search" :dataset="props.datasetKey" :key="dtKey"
-               :showSelectedOnly="showSelectedOnly" :headers="headers" :editableFields="editableFields" :truncated="truncated"
-               :searchFields="searchFields" :selectedRows="selectedRows" @update:selectedRows="selectedRows = $event"
-               :isLoading="dtLoading" @edit="handleEdit" @delete="handleDelete" @update:toggle="handleToggleUpdate"
+    <DataTable v-if="consoKey!=''" :items="filteredItems" :key="dtKey" :search="search" :headers="headers" :isLoading="dtLoading"
+               :dataset="props.datasetKey" :showSelectedOnly="showSelectedOnly" :editableFields="editableFields"
+               :truncated="truncated" :searchFields="searchFields" :selectedRows="selectedRows" @edit="handleEdit"
+               @delete="handleDelete" @update:selectedRows="selectedRows = $event" @update:toggle="handleToggleUpdate"
                @update:report="handleReportToggle"/>
 
     <v-dialog v-if="editingItem && isEditable" v-model="formDialogOpen" max-width="600px">
