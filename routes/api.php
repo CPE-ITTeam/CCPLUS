@@ -32,6 +32,9 @@ Route::middleware('ccplusAuth')->group( function () {
         Route::post('/bulk', 'App\Http\Controllers\CredentialController@bulk')->name('credentials.bulk');
         Route::post('/unset', 'App\Http\Controllers\CredentialController@unset')->name('credentials.unset');
     });
+    Route::prefix('audit')->group(function () {
+        Route::get('/get', 'App\Http\Controllers\CredentialController@audit')->name('credentials.audit');
+    });
     Route::prefix('connections')->group(function () {
         Route::get('/get', 'App\Http\Controllers\ConnectionController@index')->name('connections.index');
         Route::post('/store', 'App\Http\Controllers\ConnectionController@store')->name('connections.store');
