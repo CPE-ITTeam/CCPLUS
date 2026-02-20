@@ -26,7 +26,7 @@ import CredentialsTable from '@/components/tables/CredentialsTable.vue';
 import ConnectionsTable from '@/components/tables/ConnectionsTable.vue';
 import PlaceHolder from '@/pages/PlaceHolder.vue';
 import AccountSettings from '@/components/panels/AccountSettings.vue';
-// import CredentialsAudit from '@/components/tables/CredentialsAudit.vue';
+import CredentialsAudit from '@/components/tables/CredentialsAudit.vue';
 // import ReportPreview from '@/components/panels/ReportPreview.vue';
 // Pinia datastore
 import { createPinia } from 'pinia';
@@ -103,7 +103,7 @@ export const router = createRouter({
             },
             { path: '/admin/credentialsaudit', name: 'CredentialsAudit', show:1,
               meta: { title: 'Credentials Audit', layout: AuthenticatedLayout, role: 'Admin', key:0, level:3 }, 
-              component: markRaw(PlaceHolder),
+              component: markRaw(CredentialsAudit),
             },
           ],
         },
