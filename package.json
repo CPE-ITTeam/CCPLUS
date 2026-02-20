@@ -25,6 +25,7 @@
         "sweetalert2": "^11.22.3",
         "vite-plugin-vuetify": "^2.1.2",
         "vue-router": "^4.5.1",
-        "vuetify": "^3.9.4"
+        "vuetify": "^3.9.4",
+        "xlsx": "^0.18.5"
     }
 }
