@@ -15,7 +15,8 @@
     showSelectedOnly: { type: Boolean, required: true },
     dataset: { type: String, required: true },
     selectedRows: { type: Array, required: true },
-    bulkOptions: {type: Object, required: true },
+    bulkOptions: { type: Object, required: true },
+    hideExport: { type: Boolean, required: true },
   });
 
   const authStore = useAuthStore();
@@ -99,8 +100,9 @@
                       return-object item-value="ccp_key" @update:modelValue="$emit('updateConso', $event)" />
     </v-col>
     <!-- Export, Import, & Add -->
-    <ExportAndImport v-if="showExportImport" :showRefresh="props.dataset=='platforms'" @export="$emit('export')"
-                     @import="$emit('import')" @add="$emit('add')"
+    <ExportAndImport v-if="showExportImport" :showRefresh="props.dataset=='platforms'"
+                     :exportOnly="(props.dataset=='audit')" :hideExport="props.hideExport"
+                     @export="$emit('export')" @import="$emit('import')" @add="$emit('add')"
                      @refresh="$emit('bulkAction', {action:'Full Refresh'})"/>
               
     <!-- Refresh Items button for harvest tables -->
@@ -118,7 +120,7 @@
       <v-btn icon="mdi-restore" color="#dd0000" @click="$emit('setFilter',{key: 'reset'})"></v-btn>
     </v-col>
     <v-col v-else cols="1">&nbsp;</v-col>
-    <ToolbarFilters :filters="filter_options[0]" @setFilter="handleFilter($event)" />
+    <ToolbarFilters v-if="filter_options.length>0" :filters="filter_options[0]" @setFilter="handleFilter($event)" />
   </v-row>
   <v-row v-if="filter_options.length>1" v-for="(row, index) in filter_options" :key="index" class="ma-0" no-gutters>
     <v-col v-if="index>0" cols="3">&nbsp;</v-col>
