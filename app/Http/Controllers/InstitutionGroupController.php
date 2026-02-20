@@ -20,7 +20,7 @@ class InstitutionGroupController extends Controller
     public function index(Request $request)
     {
         $thisUser = auth()->user();
-        $filter_options = array('type' => array(), 'institutions' => array());
+        $filter_options = array('types' => array(), 'institutions' => array());
 
         // Server/Conso Admins get conso-groups
         if ($thisUser->isConsoAdmin()) {
@@ -57,7 +57,7 @@ class InstitutionGroupController extends Controller
         $data = array();
         foreach ($groups as $group) {
             $rec = array('id' => $group->id, 'name' => $group->name, 'type_id' => $group->type_id);
-            $rec['type'] = ($group->typeRestriction) ? $group->typeRestriction->name : "";
+            $rec['type_string'] = ($group->typeRestriction) ? $group->typeRestriction->name : "";
             $rec['institutions'] = $group->institutions->toArray();
             $memberIds = $group->institutions->pluck('id')->toArray();
             $rec['count'] = sizeof($memberIds);
@@ -67,7 +67,7 @@ class InstitutionGroupController extends Controller
         }
 
         // send institution types for filter option
-        $filter_options['type'] = InstitutionType::orderBy('name', 'ASC')->get(['id','name'])->toArray();
+        $filter_options['types'] = InstitutionType::orderBy('name', 'ASC')->get(['id','name'])->toArray();
         $filter_options['institutions'] = $all_institutions->toArray();
 
         return response()->json(['records' => $data, 'options' => $filter_options, 'result' => true], 200);
@@ -219,7 +219,7 @@ class InstitutionGroupController extends Controller
         $institutionData = Institution::orderBy('name', 'ASC')->get(['id','name','type_id']);
         $group->load('institutions:id,name,type_id','typeRestriction');
         $group->count = $group->institutions->count();
-        $group->type = ($group->typeRestriction) ? $group->typeRestriction->name : "";
+        $group->type_string = ($group->typeRestriction) ? $group->typeRestriction->name : "";
         $group->can_edit = true;
         $group->can_delete = true;
 
