@@ -109,7 +109,6 @@ class ConnectionController extends Controller
     {
         $thisUser = auth()->user();
         $consoAdmin = $thisUser->isConsoAdmin();
-        // abort_unless($thisUser->isConsoAdmin(), 403);
 
         $this->validate($request, ['id' => 'required', 'rept' => 'required', 'flags' => 'required']);
         $input = $request->all();
@@ -141,7 +140,7 @@ class ConnectionController extends Controller
             }
             if ( !in_array($report->id,$conso_ids) ) {
                 $consoCnx->reports()->attach($report->id);
-                $conso_ids = $cnx->consoCnx->reports->pluck('id')->toArray();
+                $conso_ids = $consoCnx->reports->pluck('id')->toArray();
             }
             // Remove the report from all other connections with this report defined
             $res = $gp->updateReports($conso_ids, "detach");
