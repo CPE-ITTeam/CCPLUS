@@ -1,550 +1,576 @@
-/* Fonts */
-@import url('https://fonts.bunny.net/css?family=Roboto');
-
-/* Variables */
+@import url('https://fonts.bunny.net/css?family=Nunito');
 @import './_variables';
-
-/* Bootstrap */
-/* @import '../../node_modules/bootstrap/scss/bootstrap'; */
-
-/* SweetAlert styles */
 @import 'sweetalert2/src/sweetalert2.scss';
 
+:root {
+  /* Brand colors */
+  --cc-blue: #0066a1;
+  --cc-blue-med: #3686b4;
+  --cc-alt-blue: #39aae0;
+
+  /* Status / toggle colors */
+  --red: #dd0000;
+  --orange: #ff9800;
+  --green: #00dd00;
+  --gray: #6d6d6d;
+
+  /* Spacing scale */
+  --space-xs: 4px;
+  --space-sm: 8px;
+  --space-md: 16px;
+  --space-lg: 24px;
+  --space-xl: 32px;
+
+  /* Radius */
+  --radius-sm: 4px;
+  --radius-md: 6px;
+  --radius-lg: 8px;
+
+  /* Borders */
+  --border-light: 1px solid #dadada;
+  --border-strong: 2px solid #d4dee3;
+}
+
+/* Global background */
 body,
 .v-application__wrap,
 .v-footer {
   background-color: #e7f1f6;
 }
 
-.poppins-light {
-    font-family: 'Poppins', sans-serif;
-    font-weight: 100;
-    font-style: normal;
-    src: url(https://fonts.gstatic.com/s/poppins/v23/pxiGyp8kv8JHgFVrLPTucHtA.woff2)
-      format('woff2');
-    font-size: 1.6rem;
-}
-
-.d-none {
-    display: none !important;
-}
-  
-.text-truncate {
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-}
-  
-.v-progress-linear {
-    color: #0066a1 !important;
-}
-  
-td.v-data-table-column--align-center {
-    padding-left: 0 !important;
-}
-  
-.v-card {
-    min-height: 97vh;
-}
-  
-.v-card .v-card {
-    min-height:10vh;
-}
-  
-.custom-tooltip-background {
-    background-color: #0066a1 !important; /* Your desired color */
-}
-  
-.v-toolbar {
-    border-bottom: 1px solid white;
-}
-.v-toolbar .v-tabs {
-    background-color: #eceff1;
-    color: #0066a1;
-    border-top: 1px solid;
-}
-    
-.page-title {
-    color: #0066a1;
-    font-size: 1.7rem;
-    font-weight: 400;
-}
-
-.selectAll {
-    padding-left: 16px;
-    color: #0066a1;
-    background-color: #0066a110;
-}
-  
-[class*='toggle'] {
-    font-size: 36px;
-}
-
-.mdi-toggle-switch {
-    color: #00dd00;
-    & [class*='off'] {
-      color: #dd0000;
-    }
-}
-
-td.v-data-table-column--align-center {
-    padding-left: 0 !important;
-}
-
-.custom-tooltip {
-    background-color: #0066a1 !important;
-    color: white;
-    border: 1px solid white;
-    border-radius: 4px;
-    font-size: 14px;
-    padding: 6px 12px;
-}
-
-h1 {
-    margin: 0 !important;
-    font-size: 1.75rem !important;
-    padding-bottom: 1rem !important;
-    color: #003d61 !important;
-}
-
-h2 {
-    font-size: 1.5rem !important;
-    font-weight: 400 !important;
-    margin: 0 !important;
-}
-
-.v-expansion-panel {
-    box-shadow: none;
-    padding: .5rem 0;
-    border-radius:  6px;
-}
-
-.v-expansion-panel-title {
-    color: #0066a1;
-    font-weight: 500;
-    font-size: 1.2rem;
-    background-color: #0066a110;
-}
-  
-.v-expansion-panel::before {
-    box-shadow: none;
-}
-
-.v-expansion-panel.v-expansion-panel--active.v-item--active, .v-expansion-panel--active:not(:first-child), .v-expansion-panel--active + .v-expansion-panel  {
-     margin: 0 auto;
-}
-
-button.v-expansion-panel-header {
-    background-color: #b0ddf3;
-    background-color: #fff;
-    color: #004771;
-    border: .5px solid #004771;
- }
-
-button.v-expansion-panel-header.v-expansion-panel-header--active {
-    background-color: #1a75aa;
-    color: #fff;
-}
-
-button.v-expansion-panel-header:not(.v-expansion-panel-header--active) {
-    border-radius:6px;
-}
-
-i.v-icon.notranslate.mdi.mdi-chevron-down.theme--light {
-    color: inherit;
-}
-
-.v-expansion-panel:not(:first-child)::after {
-    border: none;
-}
-
-.v-expansion-panel-content {
-    border: .5px solid #004771;
-    border-bottom-left-radius: 6px;
-    border-bottom-right-radius: 6px;
-    padding-top:20px;
-}
-
-nav.navbar.navbar-expand.navbar-light {
-    width: 100%;
-}
-
-.no-underline {
-    text-decoration: none;
-}
-
-.v-btn {
-    margin: 0 10px;
-}
-  
-button.v-btn.v-btn--round.v-btn--outline {
-    width: 60px;
-    height: 60px;
-    border:  1px solid blue;
-    border-radius: 50%;
-}
-
-.v-btn--size-default {
-    font-size: 12px !important;
-}
-
-i.v-icon.mdi.admin {
-    font-size: 60px;
-}
-
-main.main_content {
-    padding-bottom:  0px;
-}
-
-.footer-container {
-    padding-top:10px;
-    position: absolute;
-    width: 100%;
-    background-color: #fff;
-}
-
-.v-data-table__wrapper {
-    padding-top: 20px;
-}
-
-/* adding stuff here - SED, 2/28/20*/
-.related-list {
-    width: 100%;
-    clear: both;
-    padding-top: 2em;
-}
-.details,
-.users {
-    float: left;
-}
-.details {
-    width: 50%;
-}
-.users {
-    width: 50%;
-    padding-left: 3em;
-}
-.section-title,
-.section-action {
-    display: inline-block;
-}
-.section-action.v-btn,
-a.section-action {
-    margin-left: 1em;
-    vertical-align: super;
-}
-.section-action.align-right {
-    display: block;
-    float: right;
-    margin-top: 1em;
-}
-.page-header {
-    float: left;
-    width: 80%;
-    margin-bottom: 1em;
-}
-.page-action {
-    float: left;
-    width: 20%;
-}
-form .v-subheader {
-    padding-left: .5em;
-}
-form .v-subheader,
-.field-wrapper .v-input {
-    display: inline-block;
-    margin-bottom: 1em;
-}
+/* App shell */
 .v-application--wrap {
-    min-height: fit-content !important;
-    max-height: fit-content;
+  min-height: fit-content !important;
+  max-height: fit-content;
+  border-left: var(--border-strong);
+  border-right: var(--border-strong);
 }
+
 main #app {
-    padding: 1em;
+  padding: var(--space-md);
 }
+
+.main_content {
+  width: 96%;
+  max-height: fit-content;
+  margin: 0 auto;
+  overflow: auto;
+  padding: 0 0 80px 0;
+}
+
+.footer_content {
+  width: 96%;
+  display: flex;
+  flex-shrink: 0;
+  justify-content: space-around;
+  overflow: auto;
+  margin: 0;
+  padding: var(--space-sm) 0;
+  border-top: 1px solid var(--cc-alt-blue);
+}
+
+/* ----------------------------- */
+/* Forms & Field Layout          */
+/* ----------------------------- */
+
+/* Inline form container */
 .in-page-form {
-    width: 100%;
-    margin-bottom: 1em;
-    padding: .5em;
-    border: 1px solid #dadada;
-    background-color: transparent;
-    border-radius: 5px;
+  width: 100%;
+  margin-bottom: var(--space-md);
+  padding: var(--space-sm);
+  border: var(--border-light);
+  background-color: transparent;
+  border-radius: var(--radius-sm);
 }
+
+/* Remove extra spacing on selection controls */
 .in-page-form .v-input-selection-controls {
-    margin-top: 0;
-    padding-top: 0;
+  margin-top: 0;
+  padding-top: 0;
 }
+
+/* Outlined text fields */
 .v-application--is-ltr .v-text-field--outlined fieldset {
-    background-color: #fff;
+  background-color: #fff;
 }
+
+/* Textareas */
 .theme--light.v-input textarea {
-    background-color: #fff;
-    border-radius: 5px;
-    margin-bottom: .5em;
+  background-color: #fff;
+  border-radius: var(--radius-sm);
+  margin-bottom: var(--space-sm);
 }
+
+/* Field wrapper */
 .field-wrapper .v-input {
-    padding-top: 0;
-    margin-top: 0;
-    max-width: 75%;
+  padding-top: 0;
+  margin-top: 0;
+  max-width: 75%;
 }
+
+/* Field wrapper with label */
 .field-wrapper.has-label {
-    margin-top: 1em;
+  margin-top: var(--space-md);
 }
+
+/* Textarea label alignment */
 .in-page-form .v-textarea label {
-    padding-left: .5em;
+  padding-left: var(--space-sm);
 }
+
+/* Form fields inline layout */
 .form-fields .v-input {
-    display: inline-block;
-    margin-right: 1em;
+  display: inline-block;
+  margin-right: var(--space-md);
 }
+
+/* Subheaders inside forms */
+form .v-subheader {
+  padding-left: var(--space-sm);
+  display: inline-block;
+  margin-bottom: var(--space-md);
+}
+
+/* ----------------------------- */
+/* Buttons                       */
+/* ----------------------------- */
+
+/* Base Vuetify button spacing + font size */
+.v-btn {
+  margin: 0 var(--space-sm);
+  font-size: 12px !important;
+}
+
+/* Circular outline button (kept name because it may be used in templates) */
+button.v-btn.v-btn--round.v-btn--outline {
+  width: 60px;
+  height: 60px;
+  border: 1px solid var(--cc-blue);
+  border-radius: 50%;
+}
+
+/* Primary button override */
+.v-application .v-btn.primary {
+  background-color: var(--cc-blue) !important;
+  border-color: var(--cc-blue) !important;
+  color: #fff !important;
+}
+
+/* Login-specific primary button */
+.v-btn.login-primary {
+  background-color: var(--cc-blue) !important;
+  border-color: var(--cc-blue) !important;
+  color: #fff !important;
+  font-weight: bold !important;
+}
+
+/* Section action button (kept name for Vue safety) */
 .btn.section-action {
-    color: #006699;
+  color: var(--cc-blue);
 }
+
+/* ----------------------------- */
+/* Cards                         */
+/* ----------------------------- */
+
+/* Base card cleanup */
+.v-card {
+  min-height: 1vh;
+  height: auto;
+  border-radius: var(--radius-md);
+  background-color: #fff;
+}
+
+/* Card title */
+.v-card-title {
+  font-size: 1.4rem;
+  padding: var(--space-md) var(--space-sm) 0;
+  color: var(--cc-blue);
+  font-weight: 500;
+}
+
+/* Card actions */
+.v-card-actions {
+  vertical-align: 0.2em;
+  padding: var(--space-sm);
+}
+
+/* Saved report cards */
 .saved-report .v-card-actions,
 .saved-report .v-card-title {
-    display: inline-block;
+  display: inline-block;
 }
-.v-application .v-btn.primary {
-    background-color: #006699 !important;
-    border: #006699 !important;
-    color: white;
-}
-.v-card-title {
-    font-size: 1.4rem;
-    padding: .75em .5em 0;
-}
-.v-card-actions {
-    vertical-align: 0.2em;
-}
-.component-subhead {
-    margin-bottom: 1em;
-}
-.v-application.theme--light a {
-    color: #069;
-}
-.alert-High {
-    background-color: red;
-    color: white;
-}
-.alert-Medium {
-    background-color: #006699;
-    color: white;
-}
-.alert-Low {
-    background-color: #3399CC;
-}
+
 .saved-report .v-card__text p {
-    font-size: 1.2em;
-    color: black;
-    font-weight: 500;
+  font-size: 1.2em;
+  color: #000;
+  font-weight: 500;
 }
-.actionable-subhead {
-    display: inline-block;
-}
-.more {
-    margin-top: 1em;
-}
-.dashboard-section {
-    margin-top: 2em;
-}
-.status-message {
-    position: relative;
-    margin-bottom: 1rem;
-    margin-bottom: 1rem;
-    border-radius: 0.25rem;
-    font-weight: bold;
-}
-.good {
-    display: block;
-    padding: 0.75rem 1.25rem;
-    border: 1px solid #1b5e20;
-   background-color: #66bb6a;
-}
-.fail {
-    display: block;
-    padding: 0.75rem 1.25rem;
-    border: 1px solid #d50000;
-    background-color: #ff5252;
-}
-.harvest-status {
-    margin-top: 1em;
-    font-size: 1.2em;
-    font-weight: bold;
-}
-/* new class - LSR: 11/28/22 */
-.main_content {
-    width: 96%;
-    max-height: fit-content;
-    margin: 0px auto;
-    overflow: auto;
-    padding: 0px;
-    padding-bottom: 80px;
-}
-.footer_content {
-    width: 96%;
-    display: flex;
-    flex-shrink: 0;
-    justify-content: space-around;
-    overflow: auto;
-    margin: 0px;
-    padding-top: 10px;
-    padding-bottom: 10px;
-    border-top: 1px #39aae0 solid;
-}
-.dt_action {
-    display: flex;
-    justify-content: flex-end;
-}
-// Reversed input variant
-.v-input--reverse .v-input__slot {
-    flex-direction: row-reverse;
-    justify-content: flex-end;
-    .v-application--is-ltr & {
-        .v-input--selection-controls__input {
-            margin-right: 0;
-            margin-left: 8px;
-        }
-    }
-    .v-application--is-rtl & {
-        .v-input--selection-controls__input {
-            margin-left: 0;
-            margin-right: 8px;
-        }
-    }
-}
-//Login-page-specific styles
-.loginContainer {
-    background-color: #9fc5f8;
-    width: 100vw;
-    height: 100vh;
-    margin-left: 0;
-    margin-right: 0;
-    display: flex;
-    justify-content: center;
-}
-.loginBox {
-    display: flex;
-    overflow: auto;
-    margin-top: 100px;
-    width: 400px;
-    height: fit-content;
-    border-radius: 5px;
-    background-color: #fff;
-    border: 2px solid #000000;
-}
-.login-notices {
-    display: flex;
-    overflow: auto;
-    align-items: center;
-    justify-content: center;
-    margin-top: -7px;
-    width: 396px;
-    border-bottom-left-radius: 5px;
-    border-bottom-right-radius: 5px;
-    background-color: #fff;
-    border: 1px solid #000000;
-}
-.img-top {
-    display: flex;
-    width: 100%;
-    flex-shrink: 0;
-    justify-content: center !important;
-}
-.login-form {
-    width: 100%;
-    margin-top: 1em;
-    margin-bottom: 1em;
-    padding: 1em;
-}
-.login-form-fields {
-    display: flex;
-    width: 100%;
-    flex-direction: column;
-    align-content: space-between;
-}
-.v-btn.login-primary {
-    background-color: #006699 !important;
-    border: #006699 !important;
-    color: #fff !important;
-    font-weight: bold !important;
-}
-i.size-16 {
-    width: 16px;
-    height: 16px;
-    line-height: 16px;
-}
-.body-container {
-    display: flex;
-    flex-wrap: wrap;
-    justify-content: center;
-}
+
+/* ----------------------------- */
+/* Navigation & Header           */
+/* ----------------------------- */
+
+/* Navbar container */
 .navbar {
-    margin-bottom: 1em;
+  margin-bottom: var(--space-md);
 }
+
 .navbar-items {
-    background-color: #fff;
-    border: 1px solid #000000;
+  background-color: #fff;
+  border: 1px solid #000;
+  padding: var(--space-sm);
+  border-radius: var(--radius-sm);
 }
+
+/* Nav select alignment */
 .nav-select {
-    padding-right: 0;
-    padding-left: 0;
-    align-items: center !important;
+  padding-right: 0;
+  padding-left: 0;
+  align-items: center !important;
 }
+
+/* Bootstrap-style navbar override */
+.navbar.navbar-expand.navbar-light {
+  width: 100%;
+}
+
+/* Nav list alignment */
 .navbar-nav {
-    align-items: center;
+  align-items: center;
 }
+
+/* App container */
 .app-container {
-    width: 82%;
-    min-height: 100vh;
-    max-height: fit-content !important;
-    margin: 0px auto;
+  width: 82%;
+  min-height: 100vh;
+  max-height: fit-content !important;
+  margin: 0 auto;
 }
-.footer-container {
-    display: flex;
-    justify-content: center;
-    margin: 0px;
-    position: fixed;
-    width: 82%;
-    padding: 0px;
-    bottom: 0px;
-    background-color: #fff;
+
+.body-container {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  background-color: #ebf7fc;
 }
-.ccplus-dialog {
-    background-color: #fff;
-    border-radius: 5px;
-    border: 2px solid #000000;
-    min-height: fit-content !important;
-    max-height: 90vh !important;
-    max-width: 550px !important;
-    padding-bottom: 20px;
-    overflow: auto;
+
+/* ----------------------------- */
+/* Expansion Panels              */
+/* ----------------------------- */
+
+/* Base panel cleanup */
+.v-expansion-panel {
+  box-shadow: none !important;
+  border-radius: var(--radius-md);
+  padding: 0;
+  background-color: #fff;
 }
-.warning-message {
-    position: relative;
-    margin-bottom: 1rem;
-    padding: 0.5rem 1.0rem;
-    border: 1px solid #f00;
-    border-radius: 0.25rem;
-    font-weight: bold;
+
+/* Remove default Vuetify before-shadow */
+.v-expansion-panel::before {
+  box-shadow: none !important;
 }
-.idbox {
-    display: flex;
-    height: 40px;
-    max-width: fit-content;
-    align-items: center;
-    justify-content: center;
-    margin-bottom: 1em;
-    padding: .5em;
-    border: 1px solid #dadada;
-    background-color: #fff;
-    border-radius: 5px;
+
+/* Active panel spacing cleanup */
+.v-expansion-panel.v-expansion-panel--active.v-item--active,
+.v-expansion-panel--active:not(:first-child),
+.v-expansion-panel--active + .v-expansion-panel {
+  margin: 0 auto;
+  box-shadow: none !important;
 }
+
+/* Panel title */
+.v-expansion-panel-title {
+  color: var(--cc-blue-med);
+  background-color: #fff;
+  border: 1px solid var(--cc-blue);
+  font-size: 1.15rem;
+  padding: var(--space-sm) var(--space-md);
+  border-radius: var(--radius-sm);
+}
+
+/* Active title state */
+button.v-expansion-panel-title--active {
+  background-color: var(--cc-blue-med);
+  color: #fff;
+}
+
+/* Remove divider between panels */
+.v-expansion-panel:not(:first-child)::after {
+  border: none;
+}
+
+/* ----------------------------- */
+/* Data Tables                   */
+/* ----------------------------- */
+
+/* Wrapper spacing */
+.v-data-table__wrapper {
+  padding-top: var(--space-lg);
+}
+
+/* Cell padding normalization */
+.v-data-table > .v-data-table__wrapper > table > tbody > tr > td,
+.v-data-table > .v-data-table__wrapper > table > tbody > tr > th,
+.v-data-table > .v-data-table__wrapper > table > thead > tr > td,
+.v-data-table > .v-data-table__wrapper > table > thead > tr > th,
+.v-data-table > .v-data-table__wrapper > table > tfoot > tr > td,
+.v-data-table > .v-data-table__wrapper > table > tfoot > tr > th {
+  padding: 0 var(--space-sm) !important;
+}
+
+/* List item height normalization */
 [id^="list-item"] {
-    min-height:  30px;
+  min-height: 30px;
 }
+
+/* List item content cleanup */
 .v-list-item__content {
-    padding:  0;
+  padding: 0;
 }
+
 .v-list-item__action {
-    margin: 0;
+  margin: 0;
+}
+
+/* ----------------------------- */
+/* Dialogs & Overlays            */
+/* ----------------------------- */
+/* Base overlay cleanup */
+.v-overlay {
+  background-color: rgba(0, 0, 0, 0.4) !important;
+}
+.v-overlay:not(.v-overlay--active) {
+  opacity: 0 !important;
+  pointer-events: none !important;
+}
+
+/* Dialog container */
+.v-dialog {
+  border-radius: var(--radius-md);
+  max-width: 570px;
+}
+
+/* Dialog content */
+.v-dialog .v-card {
+  border-radius: var(--radius-md);
+  padding: var(--space-md);
+  background-color: #fff;
+}
+
+/* Dialog title */
+.v-dialog .v-card-title {
+  font-size: 1.3rem;
+  font-weight: 600;
+  color: var(--cc-blue);
+  padding-bottom: var(--space-sm);
+}
+
+/* Dialog actions */
+.v-dialog .v-card-actions {
+  padding-top: var(--space-md);
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--space-sm);
+}
+
+.v-dialog__content {
+  padding: 0px !important;
+  margin: 0px !important;
+  background: transparent !important;
+  border: none !important;
+  box-shadow: none !important;
+}
+
+.ccplus-dialog {
+  padding: var(--space-md);
+  border-radius: var(--radius-md);
+  background-color: #fff;
+}
+
+/* CC+ dialog title */
+.ccplus-dialog .v-card-title {
+  font-size: 1.25rem;
+  color: var(--cc-blue);
+  padding-bottom: var(--space-sm);
+}
+
+/* CC+ dialog actions */
+.ccplus-dialog .v-card-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--space-sm);
+}
+
+/* ----------------------------- */
+/* Alerts & Messages             */
+/* ----------------------------- */
+
+/* Generic status messages */
+.status-message {
+  padding: var(--space-sm) var(--space-md);
+  border-radius: var(--radius-sm);
+  margin-bottom: var(--space-md);
+  font-weight: 500;
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+}
+
+/* Success message (kept name for Vue safety) */
+.good {
+  background-color: #e6f7ec;
+  color: var(--green);
+  border: 1px solid var(--green);
+}
+
+/* Failure message (kept name for Vue safety) */
+.fail {
+  background-color: #fdecea;
+  color: var(--red);
+  border: 1px solid var(--red);
+}
+
+/* Work-in-progress / neutral message (kept name for Vue safety) */
+.work {
+  background-color: #fff8e6;
+  color: var(--orange);
+  border: 1px solid var(--orange);
+}
+
+.warning-message {
+  background-color: #fff4d6;
+  color: var(--orange);
+  border: 1px solid var(--orange);
+  padding: var(--space-sm) var(--space-md);
+  border-radius: var(--radius-sm);
+  margin-bottom: var(--space-md);
+}
+
+/* Alert severity colors */
+.alert-High {
+  color: var(--red);
+  font-weight: bold;
+}
+
+.alert-Medium {
+  color: var(--orange);
+  font-weight: 600;
+}
+
+.alert-Low {
+  color: var(--green);
+  font-weight: 500;
+}
+
+/* ----------------------------- */
+/* Harvest Status                */
+/* ----------------------------- */
+
+.harvest-status {
+  padding: var(--space-md);
+  border-radius: var(--radius-md);
+  background-color: #fff;
+  border: var(--border-light);
+  margin-bottom: var(--space-lg);
+}
+
+.harvest-status h2 {
+  color: var(--cc-blue);
+  margin-bottom: var(--space-sm);
+}
+
+.harvest-status .status-row {
+  display: flex;
+  justify-content: space-between;
+  padding: var(--space-sm) 0;
+  border-bottom: var(--border-light);
+}
+
+.harvest-status .status-row:last-child {
+  border-bottom: none;
+}
+
+
+/* ----------------------------- */
+/* Login Page Styles             */
+/* ----------------------------- */
+
+.loginContainer {
+  width: 100%;
+  display: flex;
+  justify-content: center;
+  padding-top: var(--space-xl);
+}
+
+.loginBox {
+  width: 400px;
+  padding: var(--space-lg);
+  background-color: #fff;
+  border-radius: var(--radius-md);
+  border: var(--border-light);
+  box-shadow: 0 2px 6px rgba(0,0,0,0.08);
+}
+
+.loginBox h1 {
+  font-size: 1.6rem;
+  color: var(--cc-blue);
+  margin-bottom: var(--space-md);
+}
+
+.loginBox .v-input {
+  margin-bottom: var(--space-md);
+}
+
+.loginBox .v-btn {
+  width: 100%;
+  margin-top: var(--space-md);
+}
+
+
+/* ----------------------------- */
+/* Misc Components               */
+/* ----------------------------- */
+
+.idbox {
+  padding: var(--space-md);
+  border: var(--border-light);
+  border-radius: var(--radius-sm);
+  background-color: #fff;
+  margin-bottom: var(--space-md);
+}
+
+.img-top {
+  width: 100%;
+  height: auto;
+  border-radius: var(--radius-sm);
+}
+
+/* Actionable subhead */
+.actionable-subhead {
+  font-size: 1.2rem;
+  color: var(--cc-blue);
+  margin-bottom: var(--space-sm);
+}
+
+/* Component subhead */
+.component-subhead {
+  font-size: 1.1rem;
+  color: var(--cc-blue-med);
+  margin-bottom: var(--space-sm);
+}
+
+.more {
+  color: var(--cc-blue);
+  font-weight: 500;
+  cursor: pointer;
+}
+
+/* Users + details layout (converted from float → flex) */
+.users,
+.details {
+  display: flex; /* converted from float */
+  flex-direction: column;
+  gap: var(--space-sm);
 }
