@@ -95,13 +95,15 @@
   }
   </script>
 
-<template>
+<template #top>
   <div>
-    <v-row v-if="truncated" class="my-1" no-gutters>
-      <span style="color: red; font-weight: bold">Available records truncated to 500 items</span>
-    </v-row>
-    <div style="margin-bottom: 8px; font-weight: bold">
-      ✅ {{ selectedRows.length }} item{{ selectedRows.length=== 1 ? '' : 's' }} selected
+    <div class="d-flex flex-column ga-1 mb-2">
+      <v-row v-if="truncated" class="text-red font-weight-bold" no-gutters>
+        <span>Available records truncated to 500 items</span>
+      </v-row>
+      <div class="font-weight-bold" style="margin-bottom: 8px; font-weight: bold">
+        ✅ {{ selectedRows.length }} item{{ selectedRows.length=== 1 ? '' : 's' }} selected
+      </div>
     </div>
     <v-data-table v-model="internalSelectedRows" :headers="computedHeaders" :items="filteredItems"
                   item-key="id" item-value="id" show-select return-object :loading="props.isLoading"
@@ -216,11 +218,11 @@
         </div>
       </template>
     </v-data-table>
-    <v-dialog v-model="deleteDialog" max-width="600px">
+    <v-dialog v-model="deleteDialog">
       <DeleteConfirm :item="curItem" :dataset="props.dataset" @confirm="$emit('delete', curItem.id)"
                      @close="closeDeleteDialog" />
     </v-dialog>
-    <v-dialog v-model="errorDialog" max-width="600px">
+    <v-dialog v-model="errorDialog">
       <ErrorDetails :error="current_error" @close="closeErrorDialog" />
     </v-dialog>
   </div>

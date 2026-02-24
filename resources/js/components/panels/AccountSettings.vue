@@ -96,7 +96,7 @@
         <v-col cols="8" class="d-flex px-2">
           User Role(s)
           <div>
-            <ul style="padding-left: 30px;">  
+            <ul class="roles-list">  
               <li class="verydense" v-for="(role,idx) in acctSettings.roles" :key="idx">
                 <span class="d-flex pl-4" v-if="role.inst_id==1">{{ role.role.name }} : Consortium-Wide</span>
                 <span class="d-flex pl-4" v-if="role.inst_id>1">{{ role.role.name }} : {{ role.institution.name }}</span>
@@ -132,5 +132,8 @@
    width: 80% !important;
    margin-left: auto !important;
    margin-right: auto !important;
+ }
+ .roles-list {
+   padding-left: 30px;
  }
 </style>

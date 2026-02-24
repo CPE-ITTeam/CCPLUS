@@ -48,7 +48,7 @@
                   @update:modelValue="changeOption" />
 
   <!-- Institutions bulk dialog to prompt for existing group (for Add-To) or name (for New-Group) -->
-  <v-dialog v-model="groupDialog" max-width="500px">
+  <v-dialog v-model="groupDialog">
     <v-card>
       <v-card-title class="text-indigo-darken-2 pa-6 d-flex justify-space-between align-center">
         <span v-if="groupingType=='Create'">Create a New Institution Group</span>
@@ -86,7 +86,7 @@
       </v-form>
     </v-card>
   </v-dialog>
-  <v-dialog v-model="deleteDialog" max-width="500px">
+  <v-dialog v-model="deleteDialog">
     <v-card>
       <v-card-title class="text-indigo-darken-2 pa-6 d-flex justify-space-between align-center">
         <span>Confirm Delete</span>

@@ -53,12 +53,12 @@
       <!-- Append "None of the above" for Inst Types and Inst Groups -->
       <template v-slot:append-item>
         <template v-if="label === 'Institution Types' && shouldShowNoneOfTheAboveType">
-          <v-divider class="my-0 py-0" style="pointer-events: none" />
+          <v-divider class="my-0 py-0 no-pointer" />
           <v-list-item title="None of the above" value="No type assigned"
                       @click="$emit('update:selected', ['No type assigned'])" />
         </template>
         <template v-else-if="label === 'Institution Groups' && shouldShowNoneOfTheAboveGroup">
-          <v-divider class="my-0 py-0" style="pointer-events: none" />
+          <v-divider class="my-0 py-0 no-pointer" />
           <v-list-item title="None of the above" value="No groups assigned"
                       @click="$emit('update:selected', ['No groups assigned'])" />
         </template>
@@ -70,10 +70,7 @@
   .selectAll {
     padding-left: 16px;
   }
-  .non-selectable {
-    pointer-events: none;
-  }
-  .non-selectable .v-checkbox {
+  .no-pointer {
     pointer-events: auto;
   }
 </style>
