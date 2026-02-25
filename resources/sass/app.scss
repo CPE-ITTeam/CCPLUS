@@ -170,6 +170,18 @@ button.v-btn.v-btn--round.v-btn--outline {
 }
 
 /* ----------------------------- */
+/* Icons                         */
+/* ----------------------------- */
+i.md:not(.mdi-checkbox-blank-outline):not(.mdi-pencil):not(.mdi-delete):not(.mdi-filter) {
+  font-size: 30px;
+  padding-right: 30px;
+}
+i.mdi[class*="toggle"] {
+  font-size: 36px !important;
+  padding-right: 26px !important;  
+}
+
+/* ----------------------------- */
 /* Cards                         */
 /* ----------------------------- */
 
@@ -339,7 +351,11 @@ button.v-expansion-panel-title--active {
 /* ----------------------------- */
 /* Base overlay cleanup */
 .v-overlay {
-  background-color: rgba(0, 0, 0, 0.4) !important;
+  background: transparent !important;
+}
+.v-overlay__scrim {
+  background-color: rgba(111,111,111,.8);
+  opacity: 1;
 }
 .v-overlay:not(.v-overlay--active) {
   opacity: 0 !important;
