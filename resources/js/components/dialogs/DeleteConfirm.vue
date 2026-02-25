@@ -8,7 +8,7 @@
 </script>
 <template>
   <v-card>
-    <v-card-title class="text-indigo-darken-2 pa-6 d-flex justify-space-between align-center">
+    <v-card-title class="pa-6 d-flex justify-space-between align-center">
       <span>Confirm Delete</span>
       <v-tooltip text="Cancel" location="bottom">
         <template #activator="{ props }">

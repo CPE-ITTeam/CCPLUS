@@ -50,7 +50,7 @@
   <!-- Institutions bulk dialog to prompt for existing group (for Add-To) or name (for New-Group) -->
   <v-dialog v-model="groupDialog">
     <v-card>
-      <v-card-title class="text-indigo-darken-2 pa-6 d-flex justify-space-between align-center">
+      <v-card-title class="pa-6 d-flex justify-space-between align-center">
         <span v-if="groupingType=='Create'">Create a New Institution Group</span>
         <span v-if="groupingType=='Add'">Add Institutions to An Existing Group</span>
         <v-tooltip text="Cancel" location="bottom">
@@ -88,7 +88,7 @@
   </v-dialog>
   <v-dialog v-model="deleteDialog">
     <v-card>
-      <v-card-title class="text-indigo-darken-2 pa-6 d-flex justify-space-between align-center">
+      <v-card-title class="pa-6 d-flex justify-space-between align-center">
         <span>Confirm Delete</span>
         <v-tooltip text="Cancel" location="bottom">
           <template #activator="{ props }">

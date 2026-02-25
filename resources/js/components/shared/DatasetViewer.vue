@@ -774,7 +774,7 @@ console.log('Handling for includeZeros toggle not written yet');
 
     <v-dialog v-if="editingItem && isEditable" v-model="formDialogOpen" max-width="600px">
       <v-card>
-        <v-card-title class="text-indigo-darken-2 pa-2 d-flex justify-space-between align-center">
+        <v-card-title class="pa-2 d-flex justify-space-between align-center">
           <span>{{ formDialogTitle }}</span>
           <v-tooltip text="Cancel" location="bottom">
             <template #activator="{ props }">
@@ -793,7 +793,7 @@ console.log('Handling for includeZeros toggle not written yet');
 
     <v-dialog v-model="reptDialog" max-width="600px">
       <v-card>
-        <v-card-title class="text-indigo-darken-2 d-flex justify-space-between align-center">
+        <v-card-title class="d-flex justify-space-between align-center">
           <span>{{ reptItem.rept }} Report Connection(s)</span>
           <v-tooltip text="Cancel" location="bottom">
             <template #activator="{ props }">

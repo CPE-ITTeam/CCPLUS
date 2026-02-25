@@ -16,7 +16,7 @@
 </script>
 <template>
   <v-card>
-    <v-card-title class="text-indigo-darken-2 pa-6 d-flex justify-space-between align-center">
+    <v-card-title class="pa-6 d-flex justify-space-between align-center">
       <span v-if="error.id<9000">COUNTER Error : {{ error.id }}</span>
       <span v-else>CC-Plus Error : {{ error.id }}</span>
       <v-tooltip text="Cancel" location="bottom">
