@@ -124,14 +124,6 @@ const buildEbscoUrl = (ref) => {
         </a>
       </div>
     </footer>
-  <!-- <v-app>
-    <div class="loginContainer">
-      <div class="loginBox">
-        <v-main>
-          <router-view />
-        </v-main>
-      </div>
-    </div> -->
   </v-app>
 </template>
 <style scoped>
