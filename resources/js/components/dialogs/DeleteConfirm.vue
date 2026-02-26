@@ -1,7 +1,7 @@
 <!-- components/dialogs/DeleteConfirm.vue -->
 <script setup>
   const props = defineProps({
-    dataset: { type:Object, required: true },
+    dataset: { type:String, required: true },
     item: { type:Object, required: true },
   });
   const emit = defineEmits(['close', 'confirm']);
