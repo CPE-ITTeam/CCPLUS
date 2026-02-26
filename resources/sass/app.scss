@@ -178,7 +178,7 @@ i.md:not(.mdi-checkbox-blank-outline):not(.mdi-pencil):not(.mdi-delete):not(.mdi
 }
 i.mdi[class*="toggle"] {
   font-size: 36px !important;
-  padding-right: 26px !important;  
+  padding: 0px 26px 12px 26px !important;
 }
 
 /* ----------------------------- */
@@ -544,6 +544,9 @@ button.v-expansion-panel-title--active {
   margin-top: var(--space-md);
 }
 
+.swal-container {
+  z-index: 9999 !important;
+}
 
 /* ----------------------------- */
 /* Misc Components               */
