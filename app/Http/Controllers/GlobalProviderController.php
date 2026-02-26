@@ -50,31 +50,44 @@ class GlobalProviderController extends Controller
         $instances = Consortium::get();
 
         // Build the providers array to pass back to the datatable
+        $all_releases = array();
         $providers = array();
         foreach ($gp_data as $gp) {
-            $provider = $gp->toArray();
+            $provider = array('id'=>$gp->id, 'name'=>$gp->name, 'abbrev'=>$gp->abbrev, 'day_of_month'=>$gp->day_of_month,
+                              'platform_parm' => $gp->platform_parm);
             $provider['status'] = ($gp->is_active) ? "Active" : "Inactive";
             $provider['refreshable'] = ($gp->refreshable) ? "Active" : "Inactive";
             $provider['registry_id'] = (is_null($gp->registry_id) || $gp->registry_id=="") ? null : $gp->registry_id;
-
             // Set release-related fields
+            $provider['cur_release'] = $gp->default_release();
+            $service_url = $gp->service_url();
+            $provider['service_url'] = $service_url;
             $provider['registries'] = array();
-            $provider['releases'] = array();
-            $provider['release'] = $gp->default_release();
-            $provider['service_url'] = $gp->service_url();
+            $provider['reg_releases'] = array();
+            $provider['is_selected'] = 'Inactive';
+            $provider['connector_state'] = array();
             foreach ($gp->registries->sortBy('release') as $registry) {
+                if (!in_array($registry->release,$all_releases)) $all_releases[] = $registry->release;
                 $reg = $registry->toArray();
                 $reg['connector_state'] = $this->connectorState($registry->connectors);
-                $reg['is_selected'] = ($registry->release == $provider['release']);
+                $reg['is_selected'] = ($registry->release == $provider['cur_release']) ? 'Active' : 'Inactive';
+                if ( $reg['is_selected'] == 'Active' ) {
+                    $provider['is_selected'] = 'Active';
+                    $provider['connector_state'] = $reg['connector_state'];
+                    // Set array of booleans for connectors (so they show as Y/N in exports - not shown in U/I)
+                    foreach ($provider['connector_state'] as $con => $val) {
+                        $provider[$con] = ($val) ? 'Y' : 'N';
+                    }
+                }
                 $provider['registries'][] = $reg;
-                $provider['releases'][] = trim($registry->release);
-            }
-            if (is_null($gp->selected_release)) {
-                $provider['selected_release'] = $provider['release'];
+                $provider['reg_releases'][] = trim($registry->release);
             }
 
-            // Build arrays of booleans for connecion fields and reports for the U/I chackboxes
+            // Set array of booleans for reports (so they show as Y/N in exports - not shown in U/I)
             $provider['report_state'] = $this->reportState($gp->master_reports);
+            foreach ($provider['report_state'] as $rpt => $val) {
+                $provider[$rpt] = ($val) ? 'Y' : 'N';
+            }
 
             // Walk all instances scan for harvests connected to this provider
             // If any are found, the can_delete flag will be set to false to disable deletion option in the U/I
@@ -94,15 +107,21 @@ class GlobalProviderController extends Controller
                 }
             }
             $provider['can_edit'] = true;
-            $parsedUrl = parse_url($provider['service_url']);
+            $parsedUrl = parse_url($service_url);
             $provider['host_domain'] = (isset($parsedUrl['host'])) ? $parsedUrl['host'] : "-missing-";
             $provider['connections'] = $connections;
             $provider['updated'] = (is_null($gp->updated_at)) ? "" : date("Y-m-d H:i", strtotime($gp->updated_at));
             $providers[] = $provider;
         }
 
+        // Pass master_reports and all_connectors with releases filter options for the edit form
+        $filter_options = array();
+        $filter_options['releases'] = $all_releases;
+        $filter_options['all_connectors'] = $all_connectors;
+        $filter_options['master_reports'] = $masterReports; 
+
         // Return the data array
-        return response()->json(['records' => $providers], 200);
+        return response()->json(['records' => $providers, 'options' => $filter_options], 200);
     }
 
     /**
@@ -116,14 +135,14 @@ class GlobalProviderController extends Controller
       global $masterReports, $allConnectors;
 
       // Validate form inputs
-      $this->validate($request, [ 'name' => 'required', 'is_active' => 'required', 'service_url' => 'required',
-                                  'release' => 'required', 'refreshable' => 'required' ]);
+      $this->validate($request, [ 'name' => 'required', 'status' => 'required', 'service_url' => 'required',
+                                  'cur_release' => 'required', 'refreshable' => 'required' ]);
       $input = $request->all();
 
       // Create new global provider
       $provider = new GlobalProvider;
       $provider->name = $input['name'];
-      $provider->is_active = $input['is_active'];
+      $provider->is_active = ($input['status'] == 'Active') ? 1 : 0;
       $provider->refreshable = ($input['refreshable'] == 'Active') ? 1 : 0;
       $provider->refresh_result = null;
       $provider->day_of_month = (isset($input['day_of_month'])) ? $input['day_of_month'] : 15;
@@ -147,8 +166,8 @@ class GlobalProviderController extends Controller
       $registry = new CounterRegistry;
       $registry->global_id = $provider->id;
       $registry->service_url = $input['service_url'];
-      $input_release = (isset($input['release'])) ? $input['release'] : "";
-      $registry->release = (strlen(trim($input_release)) > 0) ? $input_release : "0";
+      $input_release = (isset($input['cur_release'])) ? trim($input['cur_release']) : "";
+      $registry->release = (strlen($input_release) > 0) ? $input_release : "0";
 
       // Turn array of connection checkboxes into an array of IDs
       $connectors = array();
@@ -161,20 +180,30 @@ class GlobalProviderController extends Controller
       }
       $registry->connectors = $connectors;
       $registry->save();
+      $provider->load('registries');
 
-      // Build return object to match what index() shows
-      $provider['can_delete'] = true;
-      $provider['cnxcount'] = 0;
-      $provider['status'] = ($provider->is_active) ? "Active" : "Inactive";
-      $provider['refreshable'] = ($provider->refreshable) ? "Active" : "Inactive";
-      $provider['connector_state'] = $input['connector_state'];
-      $provider['report_state'] = (isset($input['report_state'])) ? $input['report_state'] : array();
-      $provider['service_url'] = $provider->service_url();
-      $parsedUrl = parse_url($provider->service_url());
-      $provider['host_domain'] = (isset($parsedUrl['host'])) ? $parsedUrl['host'] : "-missing-";    
+      // Setup Return record
+      $record = array('id'=>$provider->id, 'name'=>$provider->name, 'abbrev'=>$provider->abbrev,
+                      'day_of_month'=>$provider->day_of_month, 'platform_parm' => $provider->platform_parm);
+      $record['can_edit'] = true;
+      $record['can_delete'] = true;
+      $record['cnxcount'] = 0;
+      $record['status'] = ($provider->is_active) ? "Active" : "Inactive";
+      $record['refreshable'] = ($provider->refreshable) ? "Active" : "Inactive";
+      $record['connector_state'] = (isset($input['connector_state'])) ? $input['connector_state'] : array();
+      $record['report_state'] = (isset($input['report_state'])) ? $input['report_state'] : array();
+      $record['registries'] = $provider->registries->toArray();
+      $record['cur_release'] = $provider->default_release();
+      $record['reg_releases'] = array($input_release);
+      $record['is_selected'] = 'Active';
+      $record['service_url'] = $provider->service_url();
+      $parsedUrl = parse_url($record['service_url']);
+      $record['host_domain'] = (isset($parsedUrl['host'])) ? $parsedUrl['host'] : "-missing-";    
+      $record['connections'] = array();
+      $record['instance_count'] = 0;
+      $record['updated'] = (is_null($provider->updated_at)) ? "" : date("Y-m-d H:i", strtotime($provider->updated_at));
 
-      return response()->json(['result' => true, 'msg' => 'Platform successfully created',
-                               'provider' => $provider]);
+      return response()->json(['result' => true, 'msg' => 'Platform successfully created', 'record' => $record]);
     }
 
     /**
@@ -193,11 +222,10 @@ class GlobalProviderController extends Controller
       $orig_refreshable = $provider->refreshable;
 
       // Validate form inputs
-      $this->validate($request, [ 'is_active' => 'required' ]);
       $input = $request->all();
 
       // Going INactive or making the platform NO-Refresh means we also clear the refresh_result
-      $isActive = ($input['is_active']) ? 1 : 0;
+      $isActive = ($input['status'] == 'Active') ? 1 : 0;
       $provider->is_active = $isActive;
       if (!$isActive) {
           $provider->refresh_result = null;
@@ -225,7 +253,7 @@ class GlobalProviderController extends Controller
       }
 
       // Get or create the registry record and set service_url
-      $input_release = (isset($input['release'])) ? $input['release'] : "";
+      $input_release = (isset($input['cur_release'])) ? $input['cur_release'] : "";
       $release = (strlen(trim($input_release)) > 0) ? $input_release : "0";
       // If there is only one registry, allow input value to modify the release set for the entry
       if ($provider->registries->count() == 1) {
@@ -234,33 +262,35 @@ class GlobalProviderController extends Controller
       } else {
           $registry = $provider->registries->where('release',$release)->first();
       }
-      if ($registry) {
-          $registry->service_url = (isset($input['service_url'])) ? $input['service_url'] : null;
-      } else {
+
+      // Allow input form to modify service_url when refreshable is off
+      if (isset($input['service_url']) && !$provider->refreshable) {
+          $registry->service_url = $input['service_url'];
+      }
+
+      if (!$registry) {
           // Create a CounterRegistry record
           $registry = new CounterRegistry;
           $registry->global_id = $provider->id;
           $registry->service_url = (isset($input['service_url'])) ? $input['service_url'] : null;
           $registry->release = $release;
       }
-      if ($registry) {
-          // Turn array of connection checkboxes into an array of IDs
-          $new_connectors = array();
-          if (array_key_exists('connector_state', $input)) {
-              foreach ($allConnectors as $cnx) {
-                  if (!isset($input['connector_state'][$cnx->name])) continue;
-                  if ($input['connector_state'][$cnx->name]) {
-                      $new_connectors[] = $cnx->id;
-                  }
+      // Turn array of connection checkboxes into an array of IDs
+      $new_connectors = array();
+      if (array_key_exists('connector_state', $input)) {
+          foreach ($allConnectors as $cnx) {
+              if (!isset($input['connector_state'][$cnx->name])) continue;
+              if ($input['connector_state'][$cnx->name]) {
+                  $new_connectors[] = $cnx->id;
               }
-              $registry->connectors = $new_connectors;
           }
+          $registry->connectors = $new_connectors;
       }
       $registry->save();
 
       // Set Provider's selected_release if the input flag is on
-      $isSelected = (isset($input['is_selected'])) ? $input['is_selected'] : 0;
-      if ($isSelected) {
+      $isSelected = (isset($input['is_selected'])) ? $input['is_selected'] : null;
+      if ($isSelected == 'Active') {
           $provider->selected_release = trim($registry->release);
       }
 
@@ -289,23 +319,32 @@ class GlobalProviderController extends Controller
       $provider->load('registries');
 
       // Set connector_state by-release
+      $reg_releases = array();
       foreach ($provider->registries as $registry) {
           $registry->connector_state = $this->connectorState($registry->connectors);
           $registry->is_selected = ($registry->release == $provider->selected_release);
+          $reg_releases[] = $registry->release;
       }
 
       // Apply changes system-wide
       $provider->applyToInstances();
 
       // Setup Return record
-      $record = $provider->toArray();
+      $record = array('id'=>$provider->id, 'name'=>$provider->name, 'abbrev'=>$provider->abbrev,
+                      'day_of_month'=>$provider->day_of_month, 'platform_parm' => $provider->platform_parm);
       $record['status'] = ($provider->is_active) ? "Active" : "Inactive";
       $record['refreshable'] = ($provider->refreshable) ? "Active" : "Inactive";
-      $record['report_state'] = (isset($input['report_state'])) ? $input['report_state'] : array();
-      $record['release'] = $release;
+      $record['registry_id'] = (is_null($provider->registry_id) || $provider->registry_id=="") ? null : $provider->registry_id;
+      // Set release-related fields
+      $record['registries'] = $provider->registries->toArray();
+      $record['cur_release'] = $provider->default_release();
+      $record['is_selected'] = ($record['cur_release'] == $release) ? 'Active' : 'Inactive';
+      $record['reg_releases'][] = $reg_releases;
       $record['service_url'] = ($registry) ? $registry->service_url : $provider->service_url();
       $parsedUrl = parse_url($record['service_url']);
       $record['host_domain'] = (isset($parsedUrl['host'])) ? $parsedUrl['host'] : "-missing-";
+      $record['report_state'] = (isset($input['report_state'])) ? $input['report_state'] : array();
+      $record['connector_state'] = (isset($input['connector_state'])) ? $input['connector_state'] : array();
 
       // Check all instances scan for harvests connected to this provider to set the can_delete flag
       $record['can_edit'] = true;
@@ -328,7 +367,7 @@ class GlobalProviderController extends Controller
       $record['connections'] = $connections;
       $record['updated'] = (is_null($provider->updated_at)) ? "" : date("Y-m-d H:i", strtotime($provider->updated_at));
 
-      return response()->json(['result' => true, 'msg' => 'Global Platform settings successfully updated',
+      return response()->json(['result' => true, 'msg' => 'Platform settings successfully updated',
                                'record' => $record]);
     }
 
