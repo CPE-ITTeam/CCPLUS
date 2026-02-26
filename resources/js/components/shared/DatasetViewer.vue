@@ -7,6 +7,7 @@
   import DataToolbar from './DataToolbar.vue';
   import DataTable from './DataTable.vue';
   import DataForm from './DataForm.vue';
+  import PlatformDialog from '../dialogs/PlatformDialog.vue';
   import ReportToggle from '../dialogs/ReportToggle.vue';
   import * as XLSX from 'xlsx';
   import Swal from 'sweetalert2';
@@ -397,7 +398,25 @@
       if (fld.type == 'toggle') {
         editingItem.value[fld.name] = fld.addValue;
       } else {
-        editingItem.value[fld.name] = null;
+        if (fld.name == 'report_state') {
+          if (typeof(formSchema.value.options['master_reports'])!='undefined') {
+            let _state = {};
+            formSchema.value.options['master_reports'].forEach(rpt => _state[rpt.name]=false);
+            editingItem.value[fld.name] = _state;
+          } else {
+            editingItem.value[fld.name] = {PR:false, DR:false, TR:false, IR:false};
+          }
+        } else if (fld.name == 'connector_state') {
+          if (typeof(formSchema.value.options['all_connectors'])!='undefined') {
+            let _state = {};
+            formSchema.value.options['all_connectors'].forEach(cnx => _state[cnx.name]=false);
+            editingItem.value[fld.name] = _state;
+          } else {
+            editingItem.value[fld.name] = {customer_id:false, requestor_id:false, api_key:false, extra_args:false};
+          }
+        } else {
+          editingItem.value[fld.name] = null;
+        }
       }
       config.fields[idx]['visible'] = true;
     });
@@ -772,7 +791,7 @@ console.log('Handling for includeZeros toggle not written yet');
                @delete="handleDelete" @update:selectedRows="selectedRows = $event" @update:toggle="handleToggleUpdate"
                @update:report="handleReportToggle"/>
 
-    <v-dialog v-if="editingItem && isEditable" v-model="formDialogOpen" max-width="600px">
+    <v-dialog v-if="editingItem && isEditable" v-model="formDialogOpen">
       <v-card>
         <v-card-title class="pa-2 d-flex justify-space-between align-center">
           <span>{{ formDialogTitle }}</span>
@@ -784,14 +803,18 @@ console.log('Handling for includeZeros toggle not written yet');
             </template>
           </v-tooltip>
         </v-card-title>
-        <v-card-text>
+        <v-card-text v-if="props.datasetKey=='platforms'">
+          <PlatformDialog :schema="formSchema" :initialValues="editingItem"
+                          @submit="handleFormSubmit" @cancel="handleFormCancel" />
+        </v-card-text>
+        <v-card-text v-else>
           <DataForm :schema="formSchema" :initialValues="editingItem"
                     @submit="handleFormSubmit" @cancel="handleFormCancel" />
         </v-card-text>
       </v-card>
     </v-dialog>
 
-    <v-dialog v-model="reptDialog" max-width="600px">
+    <v-dialog v-model="reptDialog">
       <v-card>
         <v-card-title class="d-flex justify-space-between align-center">
           <span>{{ reptItem.rept }} Report Connection(s)</span>
