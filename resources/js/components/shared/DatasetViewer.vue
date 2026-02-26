@@ -269,13 +269,20 @@
 
   const exportPlatScope = computed(() => {
     if (typeof(filterOptions.platforms) == 'undefined') return '';
-    if (filterOptions.platforms['value'].length==0) return "_AllPlatforms";
     let plat_name = ""; 
-    if (filterOptions.platforms['value'].length==1) {
-      var _plat = filterOptions.platforms.items.find( g => g.id == filterOptions.platforms['value'][0]);
-      if (typeof(_plat)!='undefined') plat_name = _plat.name
+    if (Array.isArray(filterOptions.platforms['value'])) {
+      if (filterOptions.platforms['value'].length==0) {
+        plat_name = "_AllPlatforms";
+      } else if (filterOptions.platforms['value'].length==1) {
+        var _plat = filterOptions.platforms.items.find( g => g.id == filterOptions.platforms['value'][0]);
+        if (typeof(_plat)!='undefined') plat_name = _plat.name
+      }
+      plat_name = "_SomePlatforms";
+    } else {
+      plat_name = (filterOptions.platforms['value']!='' && filterOptions.platforms['value']!=null)
+                  ? "_"+filterOptions.platforms['value'] : "_AllPlatforms";
     }
-    return (plat_name == "") ? "_SomePlatforms" : "_"+plat_name;
+    return plat_name;
   });
 
   const exportStatus = computed(() => {
@@ -348,7 +355,7 @@
         XLSX.utils.book_append_sheet(newWorkbook, howToSheet, 'How to Import');
         // Add items to a new tab in the workbook and send it
         const itemsSheet = XLSX.utils.json_to_sheet(exportDataRows.value);
-        let sheet_name = config.title+'s';
+        let sheet_name = (config.title=='Credentials') ? 'Credentials' : config.title+'s';
         XLSX.utils.book_append_sheet(newWorkbook, itemsSheet, sheet_name);
         XLSX.writeFile(newWorkbook, fileName);
       } catch (error) {
