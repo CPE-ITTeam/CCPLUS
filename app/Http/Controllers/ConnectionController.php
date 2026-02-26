@@ -31,7 +31,8 @@ class ConnectionController extends Controller
         }
 
         // Get all active Global Providers
-        $globals = GlobalProvider::with("connections","connections.reports")->where('is_active',1)->get();
+        $globals = GlobalProvider::with("connections","connections.reports")->where('is_active',1)
+                                 ->orderBy('name', 'ASC')->get();
 
         // Keep track of the last error values for the filter options
         $nh_count = 0;
@@ -58,6 +59,11 @@ class ConnectionController extends Controller
             // Set boolean flags for available and conso and add sortval
             $enabledReports = $global->enabledReports();
             foreach ($enabledReports as $name => $rpt) {
+                // set export-variable values
+                $prefix = strtolower($name);
+                $rec[$prefix.'_conso'] = ($rpt['conso']) ? 'Y' : 'N';
+                $rec[$prefix.'_insts'] = $rpt['insts'];
+                $rec[$prefix.'_groups'] = $rpt['groups'];
                 $rec[$name] = $rpt;
                 // Requested is true if report is assigned to any group or institution (other than conso)
                 $cnxCount = count($rpt['insts']) + count($rpt['groups']);
