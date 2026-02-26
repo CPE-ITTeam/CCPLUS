@@ -43,7 +43,7 @@ class CredentialController extends Controller
         if ($limit_to_groups === [1]) $limit_to_groups = [];
 
         // Get credentials
-        $data = Credential::with('institution:id,name,is_active','provider','lastHarvest')
+        $data = Credential::with('institution:id,name,is_active,local_id','provider','lastHarvest')
                           ->when(count($limit_to_insts) > 0, function ($qry) use ($limit_to_insts) {
                               return $qry->whereIn('inst_id',$limit_to_insts);
                           })->get();
@@ -104,6 +104,7 @@ class CredentialController extends Controller
             $rec['service_url'] = $cred->provider->service_url();
             $rec['connectors'] = array();
             $rec['institution'] = ($cred->institution) ? $cred->institution->name : '';
+            $rec['local_id'] = ($cred->institution) ? $cred->institution->local_id : '';
             $required = $cred->provider->connectors();
             foreach ($global_connectors as $gc) {
                 $cnx = $gc->toArray();
