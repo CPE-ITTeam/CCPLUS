@@ -159,21 +159,6 @@
     }
   }
 
-  async function regRefresh() {
-    dialog_error.value = '';
-    dialog_success.value = '';
-    var args = {ids: [ formValues['id'] ], dialog: true };
-    const response = await ccPost('/api/platforms/refresh', args);
-    if (response.result && typeof(response.affectedItems[0] != 'undefined')) {
-      Object.keys(formValues).forEach( (key) => {
-        if (typeof(response.affectedItems[0][key]) != 'undefined') {
-          formValues[key] = response.affectedItems[0][key];
-        }
-      });
-      dialog_success.value = "Selected platform successfully retrieved.";
-    }
-  }
-
   onMounted(() => {
     // Preset and/or limit specific select fields
     m_schema.fields.forEach( (fld) => {
@@ -267,14 +252,6 @@
             <v-text-field v-else-if="field.type!='passconf'" v-model="formValues[field.name]" :label="field.label"
                           variant="outlined":prepend-icon="field.icon" :hint="field.helperText"
                           persistent-hint density="compact"/>
-          </v-col>
-        </v-row>
-        <v-row v-if="props.schema.dataset=='platforms' && formValues['refreshable']=='Active'" class="d-flex ma-0" no-gutters>
-          <v-col cols="9" class="d-flex ma-0 pa-0">
-            <v-text-field v-model="formValues['registry_id']" label="COUNTER Registry ID" outlined dense></v-text-field>
-          </v-col>
-          <v-col cols="3" class="d-flex ma-0 pa-0">
-            <v-btn color="primary" @click="regRefresh">Registry Refresh</v-btn>
           </v-col>
         </v-row>
         <v-row class="d-flex mt-2" no-gutters>
