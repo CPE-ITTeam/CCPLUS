@@ -63,11 +63,17 @@ class CredentialController extends Controller
                                  ->orderBy('name','ASC')->get();
 
         // Setup filtering options for the datatable
+        $global_connectors = ConnectionField::get();
         $filter_options = array();
         $filter_options['results'] = array();
         $filter_options['statuses'] = $data->unique('status')->pluck('status')->toArray();
-        $filter_options['platforms'] = $globals->map(function ($plat) {
-            return [ 'id' => $plat->id, 'name' => $plat->name ];
+        $filter_options['platforms'] = $globals->map(function ($plat) use ($global_connectors) {
+            $_connectors = array();
+            $required = $plat->connectors();
+            foreach ($global_connectors as $gc) {
+                $_connectors[$gc->name] = in_array($gc->id, $required);
+            }
+            return [ 'id' => $plat->id, 'name' => $plat->name, 'connectors' => $_connectors ];
         });
 
         // Set institution and group filter options, depending on role(s)
@@ -92,7 +98,6 @@ class CredentialController extends Controller
 
         // Add provider global connectors and can_edit flag to the credentials
         $credentials = array();
-        $global_connectors = ConnectionField::get();
         foreach ($data as $cred) {
             if (!$cred->provider) continue;
             // can_edit and can_delete true b/c $data limited above by adminInsts()
@@ -156,6 +161,7 @@ class CredentialController extends Controller
         if ($nh_count > 0) {
             $filter_options['results'][] = array('result' => 'No Harvests');
         }
+        $filter_options['all_connectors'] = $global_connectors;
 
         // Return the data array
         return response()->json(['records' => $credentials, 'options' => $filter_options, 'result' => true], 200);
@@ -433,6 +439,8 @@ class CredentialController extends Controller
     public function test(Request $request)
     {
 
+//NOTE:: U/I was testing to only allow 5.1 release targets to run service status tests.. 
+
       // Validate form inputs
       // Get and verify input or bail with error in json response
         try {
@@ -523,7 +531,7 @@ class CredentialController extends Controller
         }
 
        // return result
-        return response()->json(['result' => true, 'rows' => $rows, 'result' => $result]);
+        return response()->json(['result' => true, 'rows' => $rows, 'msg' => $result]);
     }
 
     /**
