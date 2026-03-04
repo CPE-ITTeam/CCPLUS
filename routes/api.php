@@ -31,6 +31,7 @@ Route::middleware('ccplusAuth')->group( function () {
         Route::delete('/delete/{credential}', 'App\Http\Controllers\CredentialController@destroy')->name('credentials.destroy');
         Route::post('/bulk', 'App\Http\Controllers\CredentialController@bulk')->name('credentials.bulk');
         Route::post('/unset', 'App\Http\Controllers\CredentialController@unset')->name('credentials.unset');
+        Route::post('/test', 'App\Http\Controllers\CredentialController@test')->name('credentials.test');
     });
     Route::prefix('audit')->group(function () {
         Route::get('/get', 'App\Http\Controllers\CredentialController@audit')->name('credentials.audit');
