@@ -8,6 +8,7 @@
   import DataTable from './DataTable.vue';
   import DataForm from './DataForm.vue';
   import PlatformDialog from '../dialogs/PlatformDialog.vue';
+  import CredentialsDialog from '../dialogs/CredentialsDialog.vue';
   import ReportToggle from '../dialogs/ReportToggle.vue';
   import * as XLSX from 'xlsx';
   import Swal from 'sweetalert2';
@@ -812,6 +813,10 @@ console.log('Handling for includeZeros toggle not written yet');
         </v-card-title>
         <v-card-text v-if="props.datasetKey=='platforms'">
           <PlatformDialog :schema="formSchema" :initialValues="editingItem"
+                          @submit="handleFormSubmit" @cancel="handleFormCancel" />
+        </v-card-text>
+        <v-card-text v-else-if="props.datasetKey=='credentials'">
+          <CredentialsDialog :schema="formSchema" :initialValues="editingItem"
                           @submit="handleFormSubmit" @cancel="handleFormCancel" />
         </v-card-text>
         <v-card-text v-else>
