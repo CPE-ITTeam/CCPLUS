@@ -56,8 +56,8 @@ Route::middleware('ccplusAuth')->group( function () {
         Route::post('/store', 'App\Http\Controllers\InstitutionTypeController@store')->name('types.store');
         Route::patch('/update/{type}', 'App\Http\Controllers\InstitutionTypeController@update')->name('types.update');
         Route::delete('/delete/{type}', 'App\Http\Controllers\InstitutionTypeController@destroy')->name('types.destroy');
-    });
         Route::post('/import', 'App\Http\Controllers\InstitutionTypeController@import')->name('types.import');
+    });
     Route::prefix('groups')->group(function () {
         Route::get('/get', 'App\Http\Controllers\InstitutionGroupController@index')->name('groups.index');
         Route::post('/store', 'App\Http\Controllers\InstitutionGroupController@store')->name('groups.store');
