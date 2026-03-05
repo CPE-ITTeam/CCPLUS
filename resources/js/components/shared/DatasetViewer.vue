@@ -377,6 +377,15 @@
     }
   }
 
+  // data was imported... reload the dataset and update the datatable
+  function handleImported(data) {
+    if (data.length>0) {
+      success.value = data;
+    }
+    loadDataset(props.datasetKey);
+    dtKey.value++;
+  }
+
   function handleEdit(item) {
     const config = datasetConfig[props.datasetKey];
     formDialogType.value = "Edit";
@@ -788,7 +797,7 @@ console.log('Handling for includeZeros toggle not written yet');
                  :bulkOptions="bulkOptions" :selectedRows="selectedRows" :hideExport="!exportable || filteredItems.length==0"
                  @updateConso="handleChangeConso" @export="handleExport" @setFilter="handleFilter" @bulkAction="handleBulk"
                  @add="handleAddItem" @update:search="search=$event" @update:showSelectedOnly="handleToggle"
-                 @refreshRecords="refreshData(props.datasetKey)"/>
+                 @refreshRecords="refreshData(props.datasetKey)" @imported="handleImported"/>
     <div v-if="success || failure" class="status-message">
       <span v-if="success"      class="good" v-text="success"></span>
       <span v-else-if="failure" class="fail" v-text="failure"></span>
