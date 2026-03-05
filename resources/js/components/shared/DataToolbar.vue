@@ -9,6 +9,7 @@
   import ToolbarFilters from './ToolbarFilters.vue';
   import BulkActions from './BulkActions.vue';
   import ExportAndImport from './ExportAndImport.vue';
+  import ImportDialog from '../dialogs/ImportDialog.vue';
   const filter_options = defineModel({type: Array, required: true});
   const props = defineProps({
     search: { type: String, required: true },
@@ -23,6 +24,7 @@
   const { consortia } = storeToRefs(useCCPlusStore());
   const is_serveradmin = authStore.is_serveradmin;
   var consoKey = ref(authStore.ccp_key);
+  const importDialog = ref(false);
 
   const consoOnly = computed(() => {
     return (consoKey.value == '' && is_serveradmin);
@@ -72,13 +74,18 @@
     if (updated) emit('setFilter', filt);
   }
 
+  function handleImported(data) {
+    emit('imported', data);
+    importDialog.value = false;
+  }
+
   const emit = defineEmits([
     'updateConso',
     'update:search',
     'update:showSelectedOnly',
     'add',
     'export',
-    'import',
+    'imported',
     'setFilter',
     'bulkAction',
     'refreshRecords'
@@ -102,7 +109,7 @@
     <!-- Export, Import, & Add -->
     <ExportAndImport v-if="showExportImport" :showRefresh="props.dataset=='platforms'"
                      :exportOnly="(props.dataset=='audit')" :hideExport="props.hideExport"
-                     @export="$emit('export')" @import="$emit('import')" @add="$emit('add')"
+                     @export="$emit('export')" @import="importDialog=true" @add="$emit('add')"
                      @refresh="$emit('bulkAction', {action:'Full Refresh'})"/>
               
     <!-- Refresh Items button for harvest tables -->
@@ -126,4 +133,7 @@
     <v-col v-if="index>0" cols="3">&nbsp;</v-col>
     <ToolbarFilters v-if="index>0" :filters="filter_options[index]" @setFilter="handleFilter($event)" />
   </v-row>
+  <v-dialog v-model="importDialog">
+    <ImportDialog :dataset="props.dataset" @close="importDialog=false" @imported="handleImported" />
+  </v-dialog>
 </template>
