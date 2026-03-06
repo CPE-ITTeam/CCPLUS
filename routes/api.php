@@ -63,6 +63,7 @@ Route::middleware('ccplusAuth')->group( function () {
         Route::post('/store', 'App\Http\Controllers\InstitutionGroupController@store')->name('groups.store');
         Route::patch('/update/{group}', 'App\Http\Controllers\InstitutionGroupController@update')->name('groups.update');
         Route::delete('/delete/{group}', 'App\Http\Controllers\InstitutionGroupController@destroy')->name('groups.destroy');
+        Route::post('/import', 'App\Http\Controllers\InstitutionGroupController@import')->name('groups.import');
     });
     Route::prefix('platforms')->group(function () {
         Route::get('/get/{role}', 'App\Http\Controllers\GlobalProviderController@index')->name('platforms.index');
