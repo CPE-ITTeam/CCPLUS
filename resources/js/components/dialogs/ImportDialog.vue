@@ -32,16 +32,16 @@
           "Detailed import instructions are embedded in the 'How To Import' tab within Export files. The recommended approach is to generate an Institution Types export FIRST as a backup, and then build an import CSV from the exported data.",
           "Use this operation carefully! Imports carry the potential to degrade the CC-Plus configuration, harvesting and reporting functionality."
       ],
-      'import_types': ['Full Replacement', 'New Additions'],
+      'import_types': ['Full Replacement', 'Additions & Updates'],
     },
     'groups' : {
       'title': "Import Institution Groups",
-      'intro': "Institution Group imports function exclusively as Updates. No existing records will be deleted.",
+      'intro': "Institution Group imports can fully replace existing group definitions or supply additions/updates.",
       'rows': [
           "Detailed import instructions are embedded in the 'How To Import' tab within Export files. The recommended approach is to generate an Institution Groups export FIRST as a backup, and then build an import CSV from the exported data.",
           "Use this operation carefully! Imports carry the potential to degrade the CC-Plus configuration, harvesting and reporting functionality."
       ],
-      'import_types': [],
+      'import_types': ['Full Replacement', 'Additions & Updates'],
     },
     'users' : {
       'title': "Import Users",
