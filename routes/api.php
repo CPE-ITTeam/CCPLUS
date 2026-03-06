@@ -79,6 +79,7 @@ Route::middleware('ccplusAuth')->group( function () {
         Route::patch('/update/{user}', 'App\Http\Controllers\UserController@update')->name('users.update');
         Route::delete('/delete/{user}', 'App\Http\Controllers\UserController@destroy')->name('users.destroy');
         Route::post('/bulk', 'App\Http\Controllers\UserController@bulk')->name('users.bulk');
+        Route::post('/import', 'App\Http\Controllers\UserController@import')->name('users.import');
     });
     Route::prefix('roles')->group(function () {
         Route::get('/get', 'App\Http\Controllers\RoleController@index')->name('roles.index');
