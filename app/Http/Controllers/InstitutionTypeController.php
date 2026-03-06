@@ -188,7 +188,7 @@ class InstitutionTypeController extends Controller
             // Okay, toss the types
             $num_deleted = InstitutionType::count() - 1;
             InstitutionType::where('id', '<>', 1)->delete();
-        } elseif ($request->input('type') != 'New Additions') {
+        } elseif ($request->input('type') != 'Additions & Updates') {
             return response()->json(['result' => false, 'msg' => 'Error - unrecognized import type.']);
         }
         $current_types = InstitutionType::get();
@@ -200,7 +200,7 @@ class InstitutionTypeController extends Controller
                 if ($row[0] != "" && is_numeric($row[0]) && $row[0] > 1) {
                     $_tid = intval($row[0]);
                     // If we're adding and the name already exists, skip it
-                    if ($request->input('type') == 'New Additions') {
+                    if ($request->input('type') == 'Additions & Updates') {
                         $existing_name = $current_types->where("name", "=", $row[1])->first();
                         if (!is_null($existing_name)) {
                             $num_skipped++;
@@ -253,6 +253,6 @@ class InstitutionTypeController extends Controller
         if ($num_skipped > 0) {
             $msg .= ($num_skipped > 0) ? " (" . $num_skipped . " existing names skipped)" : ".";
         }
-        return response()->json(['result' => true, 'msg' => $msg, 'types' => $types->toArray()]);
+        return response()->json(['result' => true, 'msg' => $msg]);
     }
 }
