@@ -189,9 +189,10 @@ class GlobalProvider extends Model
 
     // Build and return an array of by-report assignments
     //   $reports[
-    //            'PR' = ['available' => T/F, 'conso' => T/F,
-    //                    'insts' => [id,id,id,id...] || 'insts' = 'ALL' ,
-    //                    'groups' => [id,id,id,id,...] || 'groups' = 'ALL' ] ,
+    //            'PR' = ['available' => T/F,
+    //                    'conso' => T/F,
+    //                    'insts' => [id,id,id,id...],
+    //                    'groups' => [id,id,id,id,...],
     //            ... for 'DR','TR','IR'
     //           ]
     public function enabledReports($inst = null)
