@@ -46,6 +46,8 @@
   const reptDialog = ref(false);
   const editableFields = ref([]);
   const urlRoot = ref('');
+  const emptyFlags = { 'available': true, 'conso': false, 'groups': [], 'insts': [],
+                       'requested': false, 'sortval': 1 };
   var dtLoading = ref(false);
   var truncated = ref(false);
   var success = ref('');
@@ -405,6 +407,10 @@
 
   function handleAddItem() {
     const config = datasetConfig[props.datasetKey];
+    if (props.datasetKey == 'connections') {
+      addConnection();
+      return;
+    }
     formDialogType.value = "Add";
     formDialogTitle = "Add New "+config.title;
     editingItem.value = {};
@@ -438,6 +444,14 @@
       config.fields[idx]['visible'] = true;
     });
     formDialogOpen.value = true;
+  }
+
+  // Connections dataset uses the reportToggle component instead of DataForm
+  function addConnection(id, rept) {
+    // Initialize the reptItem prop - pass 'connections' holding allItems
+    reptItem = { 'type': 'Add', 'id': null, 'rept': '', 'flags': emptyFlags, 'connections': [...allItems] };
+    // Enable dialog
+    reptDialog.value = true;
   }
 
   async function handleBulk(data) {
@@ -650,8 +664,28 @@
     try {
       const response = await ccDestroy(destroyUrl);
       if (response.result) {
-        allItems.splice(allItems.findIndex( ii => ii.id == id),1);
-        filteredItems.splice(filteredItems.findIndex( ii => ii.id == id),1);
+        let a_idx = allItems.findIndex( ii => ii.id == id);
+        let f_idx = filteredItems.findIndex( ii => ii.id == id);
+        // Update connecton records, don't remove them
+        if (props.datasetKey == 'connections') {
+          let cnx = {...allItems[a_idx]};
+          cnx.can_delete = false;
+          allOptions['reports'].forEach( rpt =>{
+            let _key = rpt.name.toLowerCase()+'_insts';
+            cnx[_key] = [];
+            _key = rpt.name.toLowerCase()+'_groups';
+            cnx[_key] = [];
+            cnx[rpt.name]['conso'] = false;
+            cnx[rpt.name]['insts'] = [];
+            cnx[rpt.name]['groups'] = [];
+            cnx[rpt.name]['requested'] = false;
+          });
+          allItems.splice(a_idx,1,cnx);
+          filteredItems.splice(f_idx,1,cnx);
+        } else {
+          allItems.splice(a_idx,1);
+          filteredItems.splice(f_idx,1);
+        }
         success.value = response.msg
         dtKey.value++;
       } else {
@@ -724,13 +758,13 @@ console.log('Handling for includeZeros toggle not written yet');
   //    * Icon(s) launch the ReportToggle dialog to handle setting/updating
   // credentials:
   //    * Icon(s) launch DataForm component (same as the pencil icon) 
-  async function handleReportToggle(id, rept) {
+  function handleReportToggle(id, rept) {
     let _idx = allItems.findIndex(ii => ii.id == id);
     if (_idx >= 0) {
       var theItem = Object.assign({}, allItems[_idx]);
       // Connections emits launch the ReportToggle dialog
       if (props.datasetKey == 'connections') {
-        reptItem = { 'id': id, 'rept': rept, 'flags': {...theItem[rept]} };
+        reptItem = { 'type': 'Edit', 'id': id, 'rept': rept, 'flags': {...theItem[rept]} };
         // Enable dialog
         reptDialogSubtitle.value = (typeof(theItem.platform) != 'undefined') ? theItem.platform : "";
         reptDialog.value = true;
@@ -838,7 +872,8 @@ console.log('Handling for includeZeros toggle not written yet');
     <v-dialog v-model="reptDialog">
       <v-card>
         <v-card-title class="d-flex justify-space-between align-center">
-          <span>{{ reptItem.rept }} Report Connection(s)</span>
+          <span v-if="reptItem.type=='Add'">Add Report Connection(s)</span>
+          <span v-else>{{ reptItem.rept }} Report Connection(s)</span>
           <v-tooltip text="Cancel" location="bottom">
             <template #activator="{ props }">
               <v-btn icon variant="outlined" class="close-btn" v-bind="props" @click="handleFormCancel">
@@ -847,9 +882,9 @@ console.log('Handling for includeZeros toggle not written yet');
             </template>
           </v-tooltip>
         </v-card-title>
-        <v-card-subtitle v-if="reptDialogSubtitle.length>0" class="d-flex align-center">
+        <v-card-subtitle v-if="reptItem.type=='Edit' && reptDialogSubtitle.length>0" class="d-flex align-center">
           <v-col class="d-flex pa-0 ma-0" cols="10"><strong>{{ reptDialogSubtitle }}</strong></v-col>
-          <v-col class="d-flex ma-0 justify-end" cols="2">
+          <v-col v-if="reptItem.id!==null" class="d-flex ma-0 justify-end" cols="2">
             <v-icon title="Platform ID">mdi-crosshairs-gps</v-icon>&nbsp; {{ reptItem.id }}
           </v-col>
         </v-card-subtitle>
