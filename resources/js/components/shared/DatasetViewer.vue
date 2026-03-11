@@ -263,8 +263,12 @@
           inst_name = "_SomeInstitutions";
         }
       } else {
-        inst_name = (filterOptions.institutions['value']!='' && filterOptions.institutions['value']!=null)
-                    ? "_"+filterOptions.institutions['value'] : "_AllInstitutions";
+        if (filterOptions.institutions['value']=='' || filterOptions.institutions['value']==null) {
+          inst_name = "_AllInstitutions";
+        } else {
+          var _inst = filterOptions.institutions.items.find( g => g.id == filterOptions.institutions['value']);
+          inst_name = (typeof(_inst)!='undefined') ? "_"+_inst.name : "_"+filterOptions.institutions['value'];
+        }
       }
     }
     return inst_name;
@@ -332,8 +336,6 @@
     // Setup a workbook and pull in the HowTo sheet from the public folder
     if (props.datasetKey != 'audit') {
       let publicPath = '/exportTemplates/'+props.datasetKey+'.xlsx';
-
-      console.log('Public path: '+publicPath);
       // Setup filename
       let fileName = "CCplus_"+consoKey.value;
       fileName += (exportInstScope.value != '') ? exportInstScope.value : '';
