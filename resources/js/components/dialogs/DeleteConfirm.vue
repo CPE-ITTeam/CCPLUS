@@ -20,9 +20,10 @@
     </v-card-title>
     <v-card-text>
       <p>&nbsp;</p>
-      <p>
-        <strong>You are about to delete {{ item.name }} from {{ props.dataset }}</strong>
-      </p>
+      <span v-if="props.dataset=='connections'">
+        <strong>You are about to delete <font color="red">ALL CONNECTIONS</font> to {{  item.platform }}</strong>
+      </span>
+      <span v-else><strong>You are about to delete {{ item.name }} from {{ props.dataset }}</strong></span>
       <p>&nbsp;</p>
       <h3> Are you Sure?</h3>
       <p>&nbsp;</p>
