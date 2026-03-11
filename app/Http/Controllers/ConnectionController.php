@@ -176,33 +176,34 @@ class ConnectionController extends Controller
 
             $flags['insts'] = array(1); // force these to cause existing connections to be reset
             $flags['groups'] = array();
-        }
-        // Create new (inst) connections as needed, based on role(s)
-        $adminInsts = $thisUser->adminInsts();
-        foreach ($flags['insts'] as $inst) {
-            if ($consoAdmin || in_array($inst,$adminInsts)) {
-                $cnx = $gp->connections->where('inst_id',$inst)->first();
-                if (!$cnx) {
-                    $newCnx['inst_id'] = $inst;
-                    $cnx = Connection::create($newCnx);
-                }
-                if ( !in_array($report->id,$cnx->reports->pluck('id')->toArray()) ) {
-                    $cnx->reports()->attach($report->id);
+        } else {
+            // Create new (inst) connections as needed, based on role(s)
+            $adminInsts = $thisUser->adminInsts();
+            foreach ($flags['insts'] as $inst) {
+                if ($consoAdmin || in_array($inst,$adminInsts)) {
+                    $cnx = $gp->connections->where('inst_id',$inst)->first();
+                    if (!$cnx) {
+                        $newCnx['inst_id'] = $inst;
+                        $cnx = Connection::create($newCnx);
+                    }
+                    if ( !in_array($report->id,$cnx->reports->pluck('id')->toArray()) ) {
+                        $cnx->reports()->attach($report->id);
+                    }
                 }
             }
-        }
-        // Create new (group) connections as needed, based on role(s)
-        $newCnx['inst_id'] = null;
-        $adminGroups = $thisUser->adminGroups();
-        foreach ($flags['groups'] as $group) {
-            if (in_array($group,$adminGroups)) {
-                $cnx = $gp->connections->where('group_id',$group)->first();
-                if (!$cnx) {
-                    $newCnx['group_id'] = $group;
-                    $cnx = Connection::create($newCnx);
-                }
-                if ( !in_array($report->id,$cnx->reports->pluck('id')->toArray()) ) {
-                    $cnx->reports()->attach($report->id);
+            // Create new (group) connections as needed, based on role(s)
+            $newCnx['inst_id'] = null;
+            $adminGroups = $thisUser->adminGroups();
+            foreach ($flags['groups'] as $group) {
+                if ($consoAdmin || in_array($group,$adminGroups)) {
+                    $cnx = $gp->connections->where('group_id',$group)->first();
+                    if (!$cnx) {
+                        $newCnx['group_id'] = $group;
+                        $cnx = Connection::create($newCnx);
+                    }
+                    if ( !in_array($report->id,$cnx->reports->pluck('id')->toArray()) ) {
+                        $cnx->reports()->attach($report->id);
+                    }
                 }
             }
         }
@@ -233,11 +234,10 @@ class ConnectionController extends Controller
                 }
             }
             // Delete connection record if it now has no reports
-            if ( $cnx->reports->count() == 0 ) {
+            if ( $cnx->reports()->count() == 0 ) {
                 $cnx->delete();
             }
         }
-
         // Return success with the flags
         return response()->json(['result' => true, 'msg' => 'Access updated successfully', 'record' => $flags]);
     }
