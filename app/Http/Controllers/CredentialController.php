@@ -51,7 +51,7 @@ class CredentialController extends Controller
         // Pull all connections $thisUser can admin to get a set of GlobalProvider ids
         $connections = Connection::where('inst_id',1)
                                  ->when(count($limit_to_insts) > 0, function ($qry) use ($limit_to_insts) {
-                                         return $qry->orwhereIn('inst_id',$limit_to_insts);
+                                         return $qry->orWhereIn('inst_id',$limit_to_insts);
                                  })
                                  ->when(count($limit_to_groups) > 0, function ($qry) use ($limit_to_groups) {
                                          return $qry->orWhereIn('group_id',$limit_to_groups);
