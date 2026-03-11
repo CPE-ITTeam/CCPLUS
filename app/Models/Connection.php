@@ -21,9 +21,8 @@ class Connection extends Model
    *
    * @var array
    */
-    protected $attributes = ['is_active' => 1, 'global_id' => null, 'inst_id' => 1, 'group_id' => null,
-                             'selected_release' => null];
-    protected $fillable = ['is_active', 'global_id', 'inst_id', 'group_id', 'selected_release' ];
+    protected $attributes = ['is_active' => 1, 'global_id' => null, 'inst_id' => 1, 'group_id' => null];
+    protected $fillable = ['is_active', 'global_id', 'inst_id', 'group_id'];
     protected $casts = ['id'=>'integer', 'is_active'=>'integer', 'inst_id'=>'integer', 'global_id' => 'integer',
                         'group_id' => 'integer'];
 
@@ -33,10 +32,9 @@ class Connection extends Model
    * @var array
    */
 
-  //NOTE:: needs to account for groupAdmin
     public function canManage()
     {
-        // ServerAdmin can manage any institution
+        // ServerAdmin can manage any institution or group
         if (auth()->user()->isServerAdmin()) {
             return true;
         }
