@@ -32,6 +32,7 @@ Route::middleware('ccplusAuth')->group( function () {
         Route::post('/bulk', 'App\Http\Controllers\CredentialController@bulk')->name('credentials.bulk');
         Route::post('/unset', 'App\Http\Controllers\CredentialController@unset')->name('credentials.unset');
         Route::post('/test', 'App\Http\Controllers\CredentialController@test')->name('credentials.test');
+        Route::post('/import', 'App\Http\Controllers\CredentialController@import')->name('credentials.import');
     });
     Route::prefix('audit')->group(function () {
         Route::get('/get', 'App\Http\Controllers\CredentialController@audit')->name('credentials.audit');
@@ -41,7 +42,8 @@ Route::middleware('ccplusAuth')->group( function () {
         Route::post('/store', 'App\Http\Controllers\ConnectionController@store')->name('connections.store');
         Route::patch('/update/{connection}', 'App\Http\Controllers\ConnectionController@update')->name('connections.update');
         Route::delete('/delete/{connection}', 'App\Http\Controllers\ConnectionController@destroy')->name('connections.destroy');
-        Route::post('/access', 'App\Http\Controllers\ConnectionController@access')->name('credentials.reportAccess');
+        Route::post('/import', 'App\Http\Controllers\ConnectionController@import')->name('connections.import');
+        Route::post('/access', 'App\Http\Controllers\ConnectionController@access')->name('connections.reportAccess');
     });
     Route::prefix('institutions')->group(function () {
         Route::get('/get/{role}', 'App\Http\Controllers\InstitutionController@index')->name('institutions.index');
