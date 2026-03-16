@@ -38,12 +38,10 @@ class GlobalProvider extends Model
    * @var array
    */
     protected $attributes = ['registry_id' => null, 'name' => '', 'abbrev' => null, 'is_active' => 1, 'refreshable' => 1,
-                             'refresh_result' => null, 'master_reports' => '{}', 'day_of_month' => 15, 'platform_parm' => null,
-                             'selected_release' => null];
+                             'refresh_result'=>null, 'day_of_month'=>15, 'platform_parm'=>null, 'selected_release'=>null];
     protected $fillable = ['id', 'registry_id', 'name', 'abbrev', 'is_active', 'refreshable', 'refresh_result', 'master_reports',
                            'day_of_month', 'platform_parm', 'selected_release'];
-    protected $casts = ['id'=>'integer', 'is_active'=>'integer', 'refreshable'=>'integer', 'master_reports' => 'array',
-                        'day_of_month' => 'integer'];
+    protected $casts = ['id'=>'integer', 'is_active'=>'integer', 'refreshable'=>'integer', 'day_of_month'=>'integer'];
 
     // Return the ConnectionField detail based on connectors array
     public function connectionFields()
@@ -187,6 +185,13 @@ class GlobalProvider extends Model
         return $this->connections->whereNotNull('group_id')->pluck('group_id')->toArray();
     }
 
+    // Return an array of reports IDs enabled for the current registry
+    public function master_reports()
+    {
+        $registry = $this->default_registry();
+        return ($registry) ? $registry->master_reports : [];
+    }
+
     // Build and return an array of by-report assignments
     //   $reports[
     //            'PR' = ['available' => T/F,
@@ -201,7 +206,7 @@ class GlobalProvider extends Model
 
         // Setup array for each master report
         $reports = array();
-        $available = $this->master_reports;
+        $available = $this->master_reports();
         if (is_null($available)) $available = [];
 
         $limitInsts  = ($consoAdmin) ? [] : auth()->user()->adminInsts();
@@ -288,13 +293,12 @@ class GlobalProvider extends Model
     */
     public function applyToInstances()
     {
-        $global_reports = $this->master_reports;
-
         // Setup connector lookups
         $registry = $this->default_registry();
         $fields = ($registry) ? $this->all_connectors->whereIn('id',$registry->connectors)->pluck('name')->toArray() : array();
         $unused_fields = ($registry) ? $this->all_connectors->whereNotIn('id',$registry->connectors)->pluck('name')->toArray()
                                      : array();
+        $global_reports = ($registry) ? $registry->master_reports : [];
 
         // Get active consortium instances and loop on them
         $instances = Consortium::where('is_active',1)->get();

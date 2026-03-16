@@ -24,7 +24,6 @@ class CreateGlobalProvidersTable extends Migration
           $table->boolean('refreshable')->default(1);
           // expected result values: 'success', 'failed', 'new', 'partial', 'orphan', or null
           $table->string('refresh_result',7)->nullable();
-          $table->json('master_reports')->default("[1]");
           $table->unsignedInteger('day_of_month')->default(15);
           $table->string('platform_parm')->nullable();
           $table->string('selected_release',6)->nullable();
