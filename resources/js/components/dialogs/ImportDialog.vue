@@ -71,6 +71,15 @@
       ],
       'import_types': [],
     },
+    'platforms' : {
+      'title': "Import Platforms",
+      'intro': "Platform imports operate exclusively as Updates. No existing records will be deleted.",
+      'rows': [
+          "Detailed import instructions are embedded in the 'How To Import' tab within Export files. The recommended approach is to generate a Platforms export FIRST as a backup, and then build an import CSV from the exported data.",
+          "Use this operation carefully! Imports carry the potential to degrade the CC-Plus configuration, harvesting and reporting functionality."
+      ],
+      'import_types': [],
+    },
   };
 
   async function runImport() {
