@@ -8,6 +8,7 @@ use App\Models\Consortium;
 use App\Models\CounterRegistry;
 use App\Models\Report;
 use App\Models\Credential;
+use App\Models\DataHost;
 use Illuminate\Http\Request;
 use GuzzleHttp\Client;
 
@@ -97,6 +98,7 @@ class CounterRegistryController extends Controller
         // Pull master reports and connection fields regardless of JSON flag
         $this->getMasterReports();
         $this->getConnectionFields();
+        $datahosts = DataHost::get();
 
         // Setup a static array to conect what the COUNTER API sends back to conbnection_fields
         $api_connectors = array('customer_id_info'      => array('field' => 'customer_id', 'id' => null),
@@ -143,7 +145,7 @@ class CounterRegistryController extends Controller
             // Scan through the sushi_services to be sure at least one has a url defined
             $hasUrl = false;
             foreach ($platform->sushi_services as $service) {
-                $svc = ($is_dialog) ? $service : self::requestURI($service->url);
+                $svc = (isset($service->id)) ? $service : $this->requestURI($service->url);
                 if (strlen(trim($svc->url)) > 0) {
                     $hasUrl = true;
                     break;
@@ -196,7 +198,7 @@ class CounterRegistryController extends Controller
                 $releases = array();
                 $service_details = array();
                 foreach ($platform->sushi_services as $service) {
-                    $svc = ($is_dialog) ? $service : self::requestURI($service->url);
+                    $svc = (isset($service->id)) ? $service : $this->requestURI($service->url);
                     $cr = $svc->counter_release;
                     $releases[] = $cr;
                     if (is_object($svc)) {
@@ -238,7 +240,7 @@ class CounterRegistryController extends Controller
                 }
                 
                 // Clean up (CC+) registry records
-                $global_provider->load('registries');
+                $global_provider->load('registries','registries.dataHost');
                 foreach ($global_provider->registries as $reg) {
                     $len = (isset($reg->service_url)) ? strlen(trim($reg->service_url)) : 0;
                     // delete (CC+) registries for releases no longer in the (COUNTER) registry
@@ -265,16 +267,23 @@ class CounterRegistryController extends Controller
                     $global_provider->save();   
                 }
             } else {
-                // Get available platform reports
-                $reportIds = $masterReports->whereIn('name',array_column($platform->reports,'report_id'))
-                                        ->pluck('id')->toArray();
-    
+                // Get platform reports and tack on release-values
+                $platformReports = $masterReports->map( function ($rec) use ($platform) {
+                    $releases = array();
+                    foreach ($platform->reports as $pRep) {
+                        if ( $rec->name == $pRep->report_id ) {
+                            $releases[] = $pRep->counter_release;
+                        }
+                    }
+                    $rec->releases = $releases;
+                    return $rec;
+                })->toArray();
+
                 // Set and save the global_provider
                 $global_provider->registry_id = $platform->id;
                 $global_provider->name = $platform->name;
                 $global_provider->content_provider = $platform->content_provider_name;
                 $global_provider->abbrev = $platform->abbrev;
-                $global_provider->master_reports = $reportIds;
                 $global_provider->refresh_result = ($newProvider) ? "new" : "success";
                 $global_provider->updated_at = now();
                 if (!$is_dialog) {
@@ -293,6 +302,38 @@ class CounterRegistryController extends Controller
                             $zero_reg = $global_provider->registries->where('release',"0")->first();
                             if ($zero_reg) {
                                 $zero_reg->delete();
+                            }
+                        }
+                        // Set available reports for this release
+                        $_reports = array();
+                        foreach ($platformReports as $pRep) {
+                            if (in_array($release,$pRep['releases'])) {
+                                $_reports[] = $pRep['id']; 
+                            }
+                        }
+                        $registry->master_reports = $_reports;
+                        // Set datahost
+                        $registry->datahost_id = null;
+                        if (isset($details->data_host)) {
+                            $datahost_url = $details->data_host;
+                            $parts = explode('/', $datahost_url);
+                            $host_id = trim($parts[count($parts) - 2]);
+                            $dataHost = $datahosts->where('id',$host_id)->first();
+                            if ($dataHost) {
+                                $registry->datahost_id = $host_id;
+                            } else {
+                                $host = $this->requestURI($datahost_url);
+                                if (is_object($host)) {
+                                    try {
+                                        $dataHost = DataHost::create(['id' => $host->id, 'name' => $host->name]);
+                                        $registry->datahost_id = $dataHost->id;
+                                        $datahosts->push($dataHost);
+                                    } catch (\Exception $e) {
+                                        $registry->datahost_id = null;
+                                    }
+                                } else {
+                                    $registry->datahost_id = null;
+                                }
                             }
                         }
                         $registry->service_url = trim($details->url);
@@ -340,16 +381,20 @@ class CounterRegistryController extends Controller
             // Setup return data
             $return_rec = $global_provider->toArray();
             $return_rec['registries'] = array();
+            $return_rec['release'] = $global_provider->default_release();
             foreach ($global_provider->registries->sortBy('release') as $reg) {
                 $data = $reg->toArray();
                 $data['connector_state'] = $this->connectorState($reg->connectors);
+                $data['report_state'] = $this->reportState($reg->master_reports);
+                if ($reg->release == $return_rec['release']) {
+                    $return_rec['data_host'] = ($reg->dataHost) ? $reg->dataHost->name : "-missing-";
+                }
                 $return_rec['registries'][] = $data;
             }
             $return_rec['release'] = $global_provider->default_release();
             $return_rec['service_url'] = $global_provider->service_url();
             $return_rec['status'] = ($global_provider->is_active) ? "Active" : "Inactive";
             $return_rec['refreshable'] = ($global_provider->refreshable) ? "Active" : "Inactive";
-            $return_rec['report_state'] = $this->reportState($reportIds);
             $return_rec['updated'] = date("Y-m-d H:i", strtotime($global_provider->updated_at));
             $updated_ids[] = $global_provider->id;
             $return_rec['error'] = 0;
