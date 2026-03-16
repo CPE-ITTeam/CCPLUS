@@ -18,13 +18,20 @@ class CounterRegistry extends Model
  *
  * @var array
  */
-  protected $attributes = ['global_id' => null, 'release' => null, 'connectors' => '{}', 'service_url' => null,
-                           'notifications_url' => null];
-  protected $fillable = ['id', 'global_id', 'release', 'connectors', 'service_url', 'notifications_url'];
-  protected $casts = ['id'=>'integer', 'global_id'=>'integer', 'connectors' => 'array'];
+  protected $attributes = ['global_id' => null, 'release' => null, 'datahost_id' => null, 'master_reports' => '{}',
+                           'connectors' => '{}', 'service_url' => null, 'notifications_url' => null];
+  protected $fillable = ['id', 'global_id', 'release', 'datahost_id', 'master_reports', 'connectors', 'service_url',
+                         'notifications_url'];
+  protected $casts = ['id'=>'integer', 'global_id'=>'integer', 'datahost_id'=>'integer', 'connectors'=>'array',
+                      'master_reports'=>'array'];
 
   public function globalProv()
   {
       return $this->belongsTo('App\Models\GlobalProvider', 'global_id');
+  }
+
+  public function dataHost()
+  {
+      return $this->belongsTo('App\Models\DataHost', 'datahost_id');
   }
 }

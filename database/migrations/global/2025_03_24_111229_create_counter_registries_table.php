@@ -18,6 +18,7 @@ class CreateCounterRegistriesTable extends Migration
             $table->unsignedInteger('global_id')->nullable();
             $table->string('release',6)->nullable();
             $table->json('connectors')->default("[1]");
+            $table->json('master_reports')->default("[1]");
             $table->string('service_url')->nullable();
             $table->string('notifications_url')->nullable();
             $table->timestamps();
