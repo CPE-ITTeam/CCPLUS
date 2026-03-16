@@ -72,6 +72,8 @@ Route::middleware('ccplusAuth')->group( function () {
         Route::post('/store', 'App\Http\Controllers\GlobalProviderController@store')->name('platforms.store');
         Route::patch('/update/{platform}', 'App\Http\Controllers\GlobalProviderController@update')->name('platforms.update');
         Route::delete('/delete/{platform}', 'App\Http\Controllers\GlobalProviderController@destroy')->name('platforms.destroy');
+        Route::get('/exportData', 'App\Http\Controllers\GlobalProviderController@export')->name('platforms.exportData');
+        Route::post('/import', 'App\Http\Controllers\GlobalProviderController@import')->name('platforms.import');
         Route::post('/refresh', 'App\Http\Controllers\CounterRegistryController@refresh')->name('platforms.refresh');
     });
     Route::prefix('users')->group(function () {
