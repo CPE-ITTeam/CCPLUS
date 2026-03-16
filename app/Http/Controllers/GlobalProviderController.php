@@ -34,14 +34,14 @@ class GlobalProviderController extends Controller
     {
         global $masterReports, $allConnectors;
 
-        // Set and confirm the role returning data for
+        // Set and confirm the user's role(s)
         $thisUser = auth()->user();
         abort_unless($thisUser->isServerAdmin(), 403);
 
         // Get all provider records
-        $gp_data = GlobalProvider::orderBy('name', 'ASC')->get();
+        $gp_data = GlobalProvider::with('registries','registries.dataHost')->orderBy('name', 'ASC')->get();
 
-        // Pull master reports and connection fields regardless of JSON flag
+        // Pull master reports and connection fields
         $this->getMasterReports();
         $this->getConnectionFields();
         $all_connectors = $allConnectors->toArray();
@@ -70,10 +70,14 @@ class GlobalProviderController extends Controller
                 if (!in_array($registry->release,$all_releases)) $all_releases[] = $registry->release;
                 $reg = $registry->toArray();
                 $reg['connector_state'] = $this->connectorState($registry->connectors);
+                $reg['report_state'] = $this->reportState($registry->master_reports);
                 $reg['is_selected'] = ($registry->release == $provider['cur_release']) ? 'Active' : 'Inactive';
+                $reg['data_host'] = ($registry->dataHost) ? $registry->dataHost->name : "-missing-";
                 if ( $reg['is_selected'] == 'Active' ) {
                     $provider['is_selected'] = 'Active';
                     $provider['connector_state'] = $reg['connector_state'];
+                    $provider['report_state'] = $reg['report_state'];
+                    $provider['data_host'] = $reg['data_host'];
                     // Set array of booleans for connectors (so they show as Y/N in exports - not shown in U/I)
                     foreach ($provider['connector_state'] as $con => $val) {
                         $provider[$con] = ($val) ? 'Y' : 'N';
@@ -81,12 +85,6 @@ class GlobalProviderController extends Controller
                 }
                 $provider['registries'][] = $reg;
                 $provider['reg_releases'][] = trim($registry->release);
-            }
-
-            // Set array of booleans for reports (so they show as Y/N in exports - not shown in U/I)
-            $provider['report_state'] = $this->reportState($gp->master_reports);
-            foreach ($provider['report_state'] as $rpt => $val) {
-                $provider[$rpt] = ($val) ? 'Y' : 'N';
             }
 
             // Walk all instances scan for harvests connected to this provider
@@ -107,8 +105,6 @@ class GlobalProviderController extends Controller
                 }
             }
             $provider['can_edit'] = true;
-            $parsedUrl = parse_url($service_url);
-            $provider['host_domain'] = (isset($parsedUrl['host'])) ? $parsedUrl['host'] : "-missing-";
             $provider['connections'] = $connections;
             $provider['updated'] = (is_null($gp->updated_at)) ? "" : date("Y-m-d H:i", strtotime($gp->updated_at));
             $providers[] = $provider;
@@ -145,21 +141,8 @@ class GlobalProviderController extends Controller
       $provider->is_active = ($input['status'] == 'Active') ? 1 : 0;
       $provider->refreshable = ($input['refreshable'] == 'Active') ? 1 : 0;
       $provider->refresh_result = null;
-      $provider->day_of_month = (isset($input['day_of_month'])) ? $input['day_of_month'] : 15;
+      $provider->day_of_month = (isset($input['day_of_month'])) ? min(max($input['day_of_month'],1),28) : 15;
       $provider->platform_parm = $input['platform_parm'];
-
-      // Turn array of report checkboxes into an array of IDs
-      $master_reports = array();
-      if (isset($input['report_state'])) {
-          $this->getMasterReports();
-          foreach ($masterReports as $rpt) {
-            if (!isset($input['report_state'][$rpt->name])) continue;
-            if ($input['report_state'][$rpt->name]) {
-                $master_reports[] = $rpt->id;
-            }
-          }
-      }
-      $provider->master_reports = $master_reports;
       $provider->save();
 
       // Create a CounterRegistry record
@@ -179,6 +162,18 @@ class GlobalProviderController extends Controller
           }
       }
       $registry->connectors = $connectors;
+      // Turn array of report checkboxes into an array of IDs amd save in registry
+      $master_reports = array();
+      if (isset($input['report_state'])) {
+          $this->getMasterReports();
+          foreach ($masterReports as $rpt) {
+            if (!isset($input['report_state'][$rpt->name])) continue;
+            if ($input['report_state'][$rpt->name]) {
+                $master_reports[] = $rpt->id;
+            }
+          }
+      }
+      $registry->master_reports = $master_reports;
       $registry->save();
       $provider->load('registries');
 
@@ -192,13 +187,12 @@ class GlobalProviderController extends Controller
       $record['refreshable'] = ($provider->refreshable) ? "Active" : "Inactive";
       $record['connector_state'] = (isset($input['connector_state'])) ? $input['connector_state'] : array();
       $record['report_state'] = (isset($input['report_state'])) ? $input['report_state'] : array();
+      $record['data_host'] = $provider->name;
       $record['registries'] = $provider->registries->toArray();
       $record['cur_release'] = $provider->default_release();
       $record['reg_releases'] = array($input_release);
       $record['is_selected'] = 'Active';
       $record['service_url'] = $provider->service_url();
-      $parsedUrl = parse_url($record['service_url']);
-      $record['host_domain'] = (isset($parsedUrl['host'])) ? $parsedUrl['host'] : "-missing-";    
       $record['connections'] = array();
       $record['instance_count'] = 0;
       $record['updated'] = (is_null($provider->updated_at)) ? "" : date("Y-m-d H:i", strtotime($provider->updated_at));
@@ -217,7 +211,7 @@ class GlobalProviderController extends Controller
     {
       global $masterReports, $allConnectors;
 
-      $provider = GlobalProvider::with('registries')->findOrFail($id);
+      $provider = GlobalProvider::with('registries','regsitries.dataHost')->findOrFail($id);
       $orig_name = $provider->name;
       $orig_refreshable = $provider->refreshable;
 
@@ -286,6 +280,17 @@ class GlobalProviderController extends Controller
           }
           $registry->connectors = $new_connectors;
       }
+      // Turn array of report checkboxes into an array of IDs
+      $master_reports = array();
+      if (array_key_exists('report_state', $input)) {
+          foreach ($masterReports as $rpt) {
+              if (!isset($input['report_state'][$rpt->name])) continue;
+              if ($input['report_state'][$rpt->name]) {
+                  $master_reports[] = $rpt->id;
+              }
+          }
+      }
+      $registry->master_reports = $master_reports;
       $registry->save();
 
       // Set Provider's selected_release if the input flag is on
@@ -295,33 +300,22 @@ class GlobalProviderController extends Controller
       }
 
       // Handle other provider values
-      $provider->day_of_month = (isset($input['day_of_month'])) ? $input['day_of_month'] : 15;
+      $provider->day_of_month = (isset($input['day_of_month'])) ? min(max($input['day_of_month'],1),28) : 15;
       $args = array('platform_parm','content_provider','registry_id');
       foreach ($args as $key) {
           if (array_key_exists($key, $input)) {
               $provider->{$key} = ($input[$key]) ? trim($input[$key]) : null;
           }
       }
-
-      // Turn array of report checkboxes into an array of IDs
-      if (array_key_exists('report_state', $input)) {
-          $master_reports = array();
-          foreach ($masterReports as $rpt) {
-              if (!isset($input['report_state'][$rpt->name])) continue;
-              if ($input['report_state'][$rpt->name]) {
-                  $master_reports[] = $rpt->id;
-              }
-          }
-          $provider->master_reports = $master_reports;
-      }
       $provider->updated_at = now();
       $provider->save();
-      $provider->load('registries');
+      $provider->load('registries','registries.dataHost');
 
       // Set connector_state by-release
       $reg_releases = array();
       foreach ($provider->registries as $registry) {
           $registry->connector_state = $this->connectorState($registry->connectors);
+          $registry->report_state = $this->reportState($registry->master_reports);
           $registry->is_selected = ($registry->release == $provider->selected_release);
           $reg_releases[] = $registry->release;
       }
@@ -330,19 +324,22 @@ class GlobalProviderController extends Controller
       $provider->applyToInstances();
 
       // Setup Return record
+      $defaultRegistry = $provider->default_registry();
       $record = array('id'=>$provider->id, 'name'=>$provider->name, 'abbrev'=>$provider->abbrev,
                       'day_of_month'=>$provider->day_of_month, 'platform_parm' => $provider->platform_parm);
       $record['status'] = ($provider->is_active) ? "Active" : "Inactive";
       $record['refreshable'] = ($provider->refreshable) ? "Active" : "Inactive";
-      $record['registry_id'] = (is_null($provider->registry_id) || $provider->registry_id=="") ? null : $provider->registry_id;
       // Set release-related fields
       $record['registries'] = $provider->registries->toArray();
+      $record['registry_id'] = ($defaultRegistry) ? $defaultRegistry->id : null;
       $record['cur_release'] = $provider->default_release();
       $record['is_selected'] = ($record['cur_release'] == $release) ? 'Active' : 'Inactive';
       $record['reg_releases'][] = $reg_releases;
-      $record['service_url'] = ($registry) ? $registry->service_url : $provider->service_url();
-      $parsedUrl = parse_url($record['service_url']);
-      $record['host_domain'] = (isset($parsedUrl['host'])) ? $parsedUrl['host'] : "-missing-";
+      $record['service_url'] = ($defaultRegistry) ? $defaultRegistry->service_url : $provider->service_url();
+      $record['data_host'] = "-missing-";
+      if ($defaultRegistry) {
+          $record['data_host'] = ($defaultRegistry->dataHost) ? $defaultRegistry->dataHost->name : "-missing-";
+      }
       $record['report_state'] = (isset($input['report_state'])) ? $input['report_state'] : array();
       $record['connector_state'] = (isset($input['connector_state'])) ? $input['connector_state'] : array();
 
@@ -474,7 +471,7 @@ class GlobalProviderController extends Controller
     }
 
     /**
-     * Export provider records from the database.
+     * GET route to pull platform data for exporting
      *
      * @param  \Illuminate\Http\Request  $request
      * @return \Illuminate\Http\Response
@@ -483,304 +480,48 @@ class GlobalProviderController extends Controller
     {
         global $masterReports, $allConnectors;
 
-        // Handle and validate inputs
-        $filters = null;
-        if ($request->filters) {
-            $filters = json_decode($request->filters, true);
-        } else {
-            $filters = array('stat' => '', 'refresh' => '');
-        }
+        // Set and confirm the user's role(s)
+        $thisUser = auth()->user();
+        abort_unless($thisUser->isServerAdmin(), 403);
 
-        // Prep variables for use in querying
-        $filter_stat = null;
-        if ($filters['stat'] != 'ALL' && $filters['stat'] != '') {
-            $filter_stat = ($filters['stat'] == 'Active') ? 1 : 0;
-        }
-        $filter_refresh = null;
-        $filter_no_registryID = null;
-        $filter_not_refreshable = null;
-        if ($filters['refresh'] == 'Refresh Disabled') {
-            $filter_not_refreshable = true;
-        } else if ($filters['refresh'] == 'No Registry ID') {
-            $filter_no_registryID = true;
-        } else if ($filters['refresh'] == 'Deprecated') {
-            $filter_refresh = 'orphan';
-        } else if ($filters['refresh'] != 'ALL') {
-            $filter_refresh = strtolower($filters['refresh']);
-        }
+        // Get all provider records
+        $gp_data = GlobalProvider::with('registries')->orderBy('name', 'ASC')->get();
 
-        // Admins get all providers
-        $global_providers = GlobalProvider::with('registries')
-                                          ->when($filter_stat!=null, function ($query, $filter_stat) {
-                                            return $query->where('is_active', $filter_stat);
-                                          })
-                                          ->when($filter_refresh, function ($qry) use ($filter_refresh) {
-                                            return $qry->where('refresh_result',$filter_refresh);
-                                          })
-                                          ->when($filter_not_refreshable, function ($qry) {
-                                            return $qry->where('refreshable',0);
-                                          })
-                                          ->when($filter_no_registryID, function ($qry) {
-                                            return $qry->whereNull('registry_id')->orWhere('registry_id',"");
-                                          })
-                                          ->orderBy('name', 'ASC')->get();
-  
-        // get connection fields and master reports
+        // Pull master reports and connection fields
         $this->getMasterReports();
         $this->getConnectionFields();
+        $all_connectors = $allConnectors->toArray();
 
-        // Setup some styles arrays
-        $head_style = [
-            'font' => ['bold' => true,],
-            'alignment' => ['horizontal' => \PhpOffice\PhpSpreadsheet\Style\Alignment::HORIZONTAL_LEFT,],
-        ];
-        $info_style = [
-            'alignment' => ['vertical' => \PhpOffice\PhpSpreadsheet\Style\Alignment::VERTICAL_TOP,
-                            'horizontal' => \PhpOffice\PhpSpreadsheet\Style\Alignment::HORIZONTAL_LEFT,
-                           ],
-        ];
-        $bold_style = [
-            'font' => ['bold' => true,],
-            'alignment' => ['horizontal' => \PhpOffice\PhpSpreadsheet\Style\Alignment::HORIZONTAL_CENTER,],
-        ];
-        $centered_style = [
-            'alignment' => ['horizontal' => \PhpOffice\PhpSpreadsheet\Style\Alignment::HORIZONTAL_CENTER,],
-        ];
-        $outline_style = [
-            'borders' => [ 'outline' => [ 'borderStyle' => \PhpOffice\PhpSpreadsheet\Style\Border::BORDER_THICK,],],
-        ];
+        // get all the consortium instances
+        $instances = Consortium::get();
 
-        // Setup the spreadsheet and build the static ReadMe sheet
-        $spreadsheet = new Spreadsheet();
-        $info_sheet = $spreadsheet->getActiveSheet();
-        $info_sheet->setTitle('HowTo Import');
-        for ($row=1; $row<7; $row++) {
-            $info_sheet->mergeCells("A" . $row . ":H" . $row);
-        }
-        $info_sheet->setCellValue('A2',"  * The Platforms tab represents a starting place for updating or importing settings.");
-
-        $richText = new \PhpOffice\PhpSpreadsheet\RichText\RichText();
-        $approach = $richText->createTextRun("  * The recommended approach is to add to, or modify, a previously run full export.");
-        $approach->getFont()
-                 ->setColor( new \PhpOffice\PhpSpreadsheet\Style\Color( \PhpOffice\PhpSpreadsheet\Style\Color::COLOR_RED ) );
-        $info_sheet->setCellValue('A3', $richText);
-        $_txt = "  * Only additions and updates are supported. Imports will not remove existing platforms.";
-        $info_sheet->setCellValue('A4', $_txt);
-        $richText = new \PhpOffice\PhpSpreadsheet\RichText\RichText();
-        $richText->createText("  * Once updates to the Platforms tab are complete, save the sheet as a ");
-        $saving = $richText->createTextRun("CSV UTF-8");
-        $saving->getFont()->setBold(true);
-        $richText->createText(" file and import it into CC-Plus.");
-        $info_sheet->setCellValue('A5', $richText);
-        $info_sheet->getStyle('A1:H6')->applyFromArray($outline_style);
-        for ($row=7; $row<13; $row++) {
-            $info_sheet->mergeCells("A" . $row . ":H" . $row);
-        }
-        $info_sheet->setCellValue( 'A8',"  * The table below describes the data type and order that the import expects. Any rows");
-        $info_sheet->setCellValue( 'A9',"  * without an ID value in column A or a name in column B are ignored; columns C-D (Release");
-        $info_sheet->setCellValue('A10',"  * and Service URL) are also required. If values are missing or invalid for columns D-N,");
-        $info_sheet->setCellValue('A11',"  * they will be set to the default. Any header row or columns beyond N will be ignored.");
-        $info_sheet->getStyle('A7:H12')->applyFromArray($outline_style);
-        $info_sheet->getStyle('A14:H14')->applyFromArray($head_style);
-        $info_sheet->setCellValue('A14', 'COL');
-        $info_sheet->setCellValue('B14', 'Column Name');
-        $info_sheet->setCellValue('C14', 'Required');
-        $info_sheet->setCellValue('D14', 'Data Type');
-        $info_sheet->setCellValue('E14', 'Valid Values');
-        $info_sheet->setCellValue('F14', 'Description');
-        $info_sheet->setCellValue('G14', 'Default if empty');
-        $info_sheet->setCellValue('H14', 'Notes');
-        $info_sheet->getStyle('A15:A28')->applyFromArray($centered_style);
-        $info_sheet->getStyle('C15:C18')->applyFromArray($bold_style);
-        $info_sheet->getStyle('E15:E28')->applyFromArray($centered_style);
-        $info_sheet->getStyle('F15:F18')->applyFromArray($head_style);
-        $info_sheet->getStyle('G15:G28')->applyFromArray($centered_style);
-        $info_sheet->setCellValue('A15', 'A');
-        $info_sheet->setCellValue('B15', 'Id');
-        $info_sheet->setCellValue('C15', 'No');
-        $info_sheet->setCellValue('D15', 'Integer');
-        $info_sheet->setCellValue('E15', '');
-        $info_sheet->setCellValue('F15', 'COUNTER Registry ID');
-        $info_sheet->setCellValue('G15', 'Null');
-        $info_sheet->setCellValue('H15', 'If omitted, Platform name used for matching');
-        $info_sheet->setCellValue('A16', 'B');
-        $info_sheet->setCellValue('B16', 'Name');
-        $info_sheet->setCellValue('C16', 'Yes');
-        $info_sheet->setCellValue('D16', 'String');
-        $info_sheet->setCellValue('E16', '');
-        $info_sheet->setCellValue('F16', 'Platform name');
-        $info_sheet->setCellValue('G16', '');
-        $info_sheet->setCellValue('H16', '');
-        $info_sheet->setCellValue('A17', 'C');
-        $info_sheet->setCellValue('B17', 'Release');
-        $info_sheet->setCellValue('C17', 'Yes');
-        $info_sheet->setCellValue('D17', 'String');
-        $info_sheet->setCellValue('E17', '5 , 5.1, etc.');
-        $info_sheet->setCellValue('F17', 'COUNTER release');
-        $info_sheet->setCellValue('G17', '');
-        $info_sheet->setCellValue('H17', '');
-        $info_sheet->setCellValue('A18', 'D');
-        $info_sheet->setCellValue('B18', 'Server URL');
-        $info_sheet->setCellValue('C18', 'Yes');
-        $info_sheet->setCellValue('D18', 'String');
-        $info_sheet->setCellValue('E18', 'Valid URL');
-        $info_sheet->setCellValue('F18', 'URL for Platform COUNTER service');
-        $info_sheet->setCellValue('G18', '');
-        $info_sheet->setCellValue('H18', '');
-        $info_sheet->setCellValue('A19', 'E');
-        $info_sheet->setCellValue('B19', 'Active');
-        $info_sheet->setCellValue('C19', '');
-        $info_sheet->setCellValue('D19', 'String');
-        $info_sheet->setCellValue('E19', 'Y or N');
-        $info_sheet->setCellValue('F19', 'Make the platform active?');
-        $info_sheet->setCellValue('G19', 'Y');
-        $info_sheet->setCellValue('H19', '');
-        $info_sheet->setCellValue('A20', 'F');
-        $info_sheet->setCellValue('B20', 'Harvest Day');
-        $info_sheet->setCellValue('C20', '');
-        $info_sheet->setCellValue('D20', 'Integer');
-        $info_sheet->setCellValue('E20', '1-28');
-        $info_sheet->setCellValue('F20', 'Day of the month to harvest reports ');
-        $info_sheet->setCellValue('G20', '15');
-        $info_sheet->setCellValue('H20', '');
-        $info_sheet->setCellValue('A21', 'G');
-        $info_sheet->setCellValue('B21', 'PR');
-        $info_sheet->setCellValue('C21', '');
-        $info_sheet->setCellValue('D21', 'String');
-        $info_sheet->setCellValue('E21', 'Y or N');
-        $info_sheet->setCellValue('F21', 'Platform supplies PR reports?');
-        $info_sheet->setCellValue('G21', 'Y');
-        $info_sheet->setCellValue('H21', '');
-        $info_sheet->setCellValue('A22', 'H');
-        $info_sheet->setCellValue('B22', 'DR');
-        $info_sheet->setCellValue('C22', '');
-        $info_sheet->setCellValue('D22', 'String');
-        $info_sheet->setCellValue('E22', 'Y or N');
-        $info_sheet->setCellValue('F22', 'Platform supplies DR reports?');
-        $info_sheet->setCellValue('G22', 'N');
-        $info_sheet->setCellValue('H22', '');
-        $info_sheet->setCellValue('A23', 'I');
-        $info_sheet->setCellValue('B23', 'TR');
-        $info_sheet->setCellValue('C23', '');
-        $info_sheet->setCellValue('D23', 'String');
-        $info_sheet->setCellValue('E23', 'Y or N');
-        $info_sheet->setCellValue('F23', 'Platform supplies TR reports?');
-        $info_sheet->setCellValue('G23', 'N');
-        $info_sheet->setCellValue('H23', '');
-        $info_sheet->setCellValue('A24', 'J');
-        $info_sheet->setCellValue('B24', 'IR');
-        $info_sheet->setCellValue('C24', '');
-        $info_sheet->setCellValue('D24', 'String');
-        $info_sheet->setCellValue('E24', 'Y or N');
-        $info_sheet->setCellValue('F24', 'Platform supplies IR reports?');
-        $info_sheet->setCellValue('G24', 'N');
-        $info_sheet->setCellValue('H24', '');
-        $info_sheet->setCellValue('A25', 'K');
-        $info_sheet->setCellValue('B25', 'Customer ID');
-        $info_sheet->setCellValue('C25', '');
-        $info_sheet->setCellValue('D25', 'String');
-        $info_sheet->setCellValue('E25', 'Y or N');
-        $info_sheet->setCellValue('F25', 'Customer ID is required for COUNTER API connections');
-        $info_sheet->setCellValue('G25', 'Y');
-        $info_sheet->setCellValue('H25', '');
-        $info_sheet->setCellValue('A26', 'L');
-        $info_sheet->setCellValue('B26', 'Requestor ID');
-        $info_sheet->setCellValue('C26', '');
-        $info_sheet->setCellValue('D26', 'String');
-        $info_sheet->setCellValue('E26', 'Y or N');
-        $info_sheet->setCellValue('F26', 'Requestor ID is required for COUNTER API connections');
-        $info_sheet->setCellValue('G26', 'N');
-        $info_sheet->setCellValue('H26', '');
-        $info_sheet->setCellValue('A27', 'M');
-        $info_sheet->setCellValue('B27', 'API Key');
-        $info_sheet->setCellValue('C27', '');
-        $info_sheet->setCellValue('D27', 'String');
-        $info_sheet->setCellValue('E27', 'Y or N');
-        $info_sheet->setCellValue('F27', 'API Key is required for COUNTER API connections');
-        $info_sheet->setCellValue('G27', 'N');
-        $info_sheet->setCellValue('H27', '');
-        $info_sheet->setCellValue('A28', 'N');
-        $info_sheet->setCellValue('B28', 'Platform Parameter');
-        $info_sheet->setCellValue('C28', '');
-        $info_sheet->setCellValue('D28', 'String');
-        $info_sheet->setCellValue('E28', '');
-        $info_sheet->setCellValue('F28', 'Provider-specific Platform Name');
-        $info_sheet->setCellValue('G28', 'NULL');
-        $info_sheet->setCellValue('H28', '');
-
-        // Set row height and auto-width columns for the sheet
-        for ($r = 1; $r < 29; $r++) {
-            $info_sheet->getRowDimension($r)->setRowHeight(15);
-        }
-        $info_columns = array('A','B','C','D','E','F','G','H');
-        foreach ($info_columns as $col) {
-            $info_sheet->getColumnDimension($col)->setAutoSize(true);
-        }
-        // setup arrays with the report and connectors mapped to their column ids
-        $rpt_col = array('PR' => 'G', 'DR' => 'H', 'TR' => 'I', 'IR' => 'J');
-        $cnx_col = array('customer_id' => 'K', 'requestor_id' => 'L', 'api_key' => 'M');
-
-        // Load the provider data into a new sheet
-        $providers_sheet = $spreadsheet->createSheet();
-        $providers_sheet->setTitle('Platforms');
-        $providers_sheet->setCellValue('A1', 'Registry-ID');
-        $providers_sheet->setCellValue('B1', 'Platform Name');
-        $providers_sheet->setCellValue('C1', 'Release');
-        $providers_sheet->setCellValue('D1', 'Active');
-        $providers_sheet->setCellValue('E1', 'Server URL');
-        $providers_sheet->setCellValue('F1', 'Day-Of-Month');
-        $providers_sheet->setCellValue('G1', 'PR-Reports');
-        $providers_sheet->setCellValue('H1', 'DR-Reports');
-        $providers_sheet->setCellValue('I1', 'TR-Reports');
-        $providers_sheet->setCellValue('J1', 'IR-Reports');
-        $providers_sheet->setCellValue('K1', 'Customer-ID');
-        $providers_sheet->setCellValue('L1', 'Requestor-ID');
-        $providers_sheet->setCellValue('M1', 'API-Key');
-        $providers_sheet->setCellValue('N1', 'Platform');
-        $row = 2;
-        foreach ($global_providers as $provider) {
-            $registries = array();
-            if ($provider->registries->count() > 0) {
-                $registries = $provider->registries->sortBy('release')->toArray();
-            } else {
-                $reg = array('release' => $provider->selected_release, 'service_url' => '');
-                $registries[] = $reg;
-            }
-            foreach ($registries as $reg) {
-                $providers_sheet->getRowDimension($row)->setRowHeight(15);
-                $providers_sheet->setCellValue('A' . $row, $provider->registry_id);
-                $providers_sheet->setCellValue('B' . $row, $provider->name);
-                $_stat = ($provider->is_active) ? "Y" : "N";
-                $providers_sheet->setCellValue('C' . $row, $reg['release']);
-                $providers_sheet->setCellValue('D' . $row, $_stat);
-                $providers_sheet->setCellValue('E' . $row, $reg['service_url']);
-                $providers_sheet->setCellValue('F' . $row, $provider->day_of_month);
-                foreach ($masterReports as $master) {
-                    $value = (in_array($master->id, $provider->master_reports)) ? 'Y' : 'N';
-                    $providers_sheet->setCellValue($rpt_col[$master->name] . $row, $value);
+        // Build the providers array to pass back to the datatable
+        $all_releases = array();
+        $providers = array();
+        foreach ($gp_data as $gp) {
+            $provider = array('registry_id'=>null, 'name'=>$gp->name, 'day_of_month'=>$gp->day_of_month,
+                              'platform_parm' => $gp->platform_parm);
+            $provider['registry_id'] = (is_null($gp->registry_id) || $gp->registry_id=="") ? null : $gp->registry_id;
+            $provider['status'] = ($gp->is_active) ? "Active" : "Inactive";
+            $provider['refreshable'] = ($gp->refreshable) ? "Active" : "Inactive";
+            foreach ($gp->registries->sortBy('release') as $registry) {
+                $provider['release'] = trim($registry->release);
+                $provider['service_url'] = $registry->service_url;
+                // Set Y/N flags for connectors
+                $connector_state = $this->connectorState($registry->connectors);
+                foreach ($connector_state as $con => $val) {
+                    $provider[$con] = ($val) ? 'Y' : 'N';
                 }
-                foreach ($allConnectors as $field) {
-                    if ($field->name == 'extra_args') continue;
-                    $value = (in_array($field->id, $provider->connectors())) ? 'Y' : 'N';
-                    $providers_sheet->setCellValue($cnx_col[$field->name] . $row, $value);
+                // Set Y/N flags for reports
+                $report_state = $this->reportState($registry->master_reports);
+                foreach ($report_state as $rpt => $val) {
+                    $provider[$rpt] = ($val) ? 'Y' : 'N';
                 }
-                $providers_sheet->setCellValue('N' . $row, $provider->platform_parm);
-                $row++;
+                $providers[] = $provider;
             }
         }
-        // Auto-size the columns
-        $columns = array('A','B','C','D','E','F','G','H','I','J','K','L','M','N');
-        foreach ($columns as $col) {
-            $providers_sheet->getColumnDimension($col)->setAutoSize(true);
-        }
-
-        // redirect output to client browser
-        $fileName = "CCplus_Global_Platforms.xlsx";
-        $writer = new \PhpOffice\PhpSpreadsheet\Writer\Xlsx($spreadsheet);
-        header('Content-Type: application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
-        header('Content-Disposition: attachment;filename=' . $fileName);
-        header('Cache-Control: max-age=0');
-        $writer->save('php://output');
+        // Return the data array
+        return response()->json(['records' => $providers], 200);
     }
 
     /**
@@ -803,7 +544,7 @@ class GlobalProviderController extends Controller
         $file = $request->file("csvfile")->getRealPath();
         $csvData = file_get_contents($file);
         $rows = array_map("str_getcsv", explode("\n", $csvData));
-        if (sizeof($rows) < 1) {
+        if (count($rows) < 1) {
             return response()->json(['result' => false, 'msg' => 'Import file is empty, no changes applied.']);
         }
 
@@ -812,155 +553,133 @@ class GlobalProviderController extends Controller
         $this->getMasterReports();
         $this->getConnectionFields();
 
-        // Setup Mapping for report-COLUMN indeces to master_report ID's (ID => COL)
-        $rpt_columns = array( 3=>6, 2=>7, 1=>8, 4=>9);
-        $col_defaults = array( 3=>'N', 4=>'', 5=>15, 6=>'N', 7=>'Y', 8=>'N', 9=>'Y', 10=>'N', 11=>'N', 12=>'N', 13=>'N');
+        // Set defaults for any columns with unset/missing values
+        //  0 : Registry ID  ,  1 : Platform Name  ,  2 : COUNTER Release  ,  3 : Status  ,  4 : Service URL
+        //  5 : Refreshable  ,  6 : Harvest Day    ,  7 : PR  ,  8 : DR  ,  9 : TR  ,  10 : IR
+        // 11 : Customer ID  , 12 : Requestor ID   , 13 : API Key  ,  14 : Platform Parameter        
+        $col_defaults = array( 3=>'Active', 4=>'', 5=>'Y', 6=>15, 7=>'Y', 8=>'N', 9=>'N', 10=>'N',
+                              11=>'Y', 12=>'N', 13=>'N', 14=>null );
+        // Map of report-COLUMN indeces to master_report ID's (reportID => COL) and defaults
+        $rpt_columns = array(3=>7, 2=>8, 1=>9, 4=>10);
+        // Map of connector-COLUMN indeces to connection_field IDs (fieldID => COL)
+        $cnx_columns = array(1=>11, 2=>12, 3=>13, 4=>15);
 
         // Process the input rows
         $prov_skipped = 0;
         $prov_updated = 0;
         $prov_created = 0;
         foreach ($rows as $row) {
-            // Ignore header row and records with no registryID and no name 
-            if ($row[0] == 'Registry-ID' || (!isset($row[0]) && !isset($row[1]))) {
-                continue;
-            }
-            // RegistryID-or-Name up-to-URL required
-            if (trim($row[0]) == "" && (trim($row[1]) == "" || sizeof($row) < 5)) {
+
+            // At least first 5 columns required (skip not-counted)
+            if (count($row) < 5)  continue;
+            // Ignore header row (skip not-counted)
+            if ($row[0] == 'Registry ID' || $row[1] == 'Platform Name') continue;
+
+            // Set RegistryID, Name, Release, and service_url in variables
+            $_regid = trim($row[0]);
+            $_name = trim($row[1]);
+            $_release = trim($row[2]);
+            $_service_url = trim($row[4]);
+
+            // RegistryID -or Name, Release, and service_url are required
+            if ( ($_regid == "" && $_name == "") || $_release == "" || $_service_url == "") {
+                $prov_skipped++;
                 continue;
             }
 
             // Update/Add the provider data/settings
             // Check Registry-ID and name columns for silliness or errors
-            $_regid = trim($row[0]);
-            $_name = trim($row[1]);
-            $current_prov = null;
+            $platform = null;
             if ( strlen($_regid) > 0 ) {
-                $current_prov = $global_providers->where("registry_id", $_regid)->first();  // Look for match on ID
+                $platform = $global_providers->where("registry_id", $_regid)->first();  // Look for match on ID
             }
-            if ($current_prov) {      // found matching Registry-ID
+            if ($platform) {      // found matching Registry-ID
                 if (strlen($_name) < 1) {       // If import-name empty, use current value
-                    $_name = trim($current_prov->name);
+                    $_name = trim($platform->name);
                 } else {                        // trap changing a name to a name that already exists
                     $existing_prov = $global_providers->where("name", $_name)->first();
                     if ($existing_prov) {
-                        $_name = trim($current_prov->name);     // override, use current - no change
+                        $_name = trim($platform->name);     // override, use current - no change
                     }
                 }
             } else {        // Registry-ID not found, try to find by name
-                $current_prov = $global_providers->where("name", $_name)->first();
-                if ($current_prov) {
-                    $_name = trim($current_prov->name);
+                $platform = $global_providers->where("name", $_name)->first();
+                if ($platform) {
+                    $_name = trim($platform->name);
                 }
             }
 
-            // Name and URL both required - skip if either is empty
-            if (strlen($_name) < 1 || strlen(trim($row[4])) < 1) {
+            // If no name or (no registry and no service_url), skip the row
+            if (strlen($_name)<1 || (strlen($_regid)==0 && strlen($_service_url)==0)) {
                 $prov_skipped++;
                 continue;
             }
 
-            // Enforce defaults
+            // Enforce defaults and set any missing values
             foreach ($col_defaults as $_col => $_val) {
-                if (strlen(trim($row[$_col])) < 1) {
+                if (!isset($row[$_col])) {
+                    $row[$_col] = $_val;
+                } else if (strlen(trim($row[$_col])) < 1) {
                     $row[$_col] = $_val;
                 }
             }
-            $_active = ($row[3] == 'N') ? 0 : 1;
-            $_day = ( is_null($row[5]) || strlen(trim($row[5]))<1 ) ? 15 : trim($row[5]);
+            $_active = ($row[3] == 'Active') ? 1 : 0;
+            $_day = (strlen(trim($row[5])) == 0) ? 15 : trim($row[5]);
+            // Keep $_day sane; >28 means *some* harvests will never be started
+            if ($_day<0 || $_day>28) $_day = 15;
 
-            // Setup provider data as an array
+            // Setup provider update data as an array
             $_prov = array('name' => $_name, 'is_active' => $_active, 'day_of_month' => $_day);
 
-            // Add reports to the array ($rpt_columns defined above)
+            // Set platform_parm
+            if (isset($row[14])) {
+                $_prov['platform_parm'] = trim($row[14]);
+            }
+
+            // Update or create the GlobalProvider record and Registry record
+            if ($platform) {      // Update
+                $_prov['id'] = $platform->id;
+                $platform->update($_prov);
+                $prov_updated++;
+            } else {                 // Create
+                // Set as not-refreshable if no Registry-ID given
+                if ( strlen($_regid) == 0 ) {
+                    $_prov['refreshable'] = 0;
+                }
+                $platform = GlobalProvider::create($_prov);
+                $global_providers->push($platform);
+                $prov_created++;
+            }
+
+            // Setup reports for the registry record
             $reports = array();
             foreach ($rpt_columns as $id => $col) {
                 if ($row[$col] == 'Y') $reports[] = $id;
             }
-            $_prov['master_reports'] = $reports;
 
-            // Set platform_parm
-            if ($row[11] == 'Y') {
-                $_prov['platform_parm'] = $row[13];
-            }
-
-            // Update or create the GlobalProvider record and Registry record
-            if ($current_prov) {      // Update
-                $_prov['id'] = $current_prov->id;
-                $current_prov->update($_prov);
-                $prov_updated++;
-            } else {                 // Create
-                // Set as not-refreshable if no Registry-ID given
-                if ( is_null($row[0]) || strlen(trim($row[0]))<1 ) {
-                    $_prov['refreshable'] = 0;
-                }
-                $current_prov = GlobalProvider::create($_prov);
-                $current_prov->load('registries');
-                $global_providers->push($current_prov);
-                $prov_created++;
-            }
-
-            // Setup connectors for the registry record (columns 10-12 have the connector fields)
+            // Setup connectors for the registry record
             $connectors = array();
-            for ($cnx=1; $cnx<4; $cnx++) {
-                if ($row[$cnx+9] == 'Y') $connectors[] = $cnx;
+            foreach ($cnx_columns as $id => $col) {
+                if (!isset($row[$col])) continue;   // extra_args is pointing at 15... for now
+                if ($row[$col] == 'Y') $connectors[] = $id;
             }
 
             // Find/Update/Create the counter_registry record based on "release" value
-            $_release = trim($row[2]);
-            $registry = $current_prov->registries->where('release',$_release)->first();
+            $registry = $platform->registries->where('release',$_release)->first();
+
             // Update existing entry
             if ($registry) {
-                $registry->service_url = $row[4];
+                $registry->service_url = $_service_url;
+                $registry->master_reports = $reports;
                 $registry->connectors = $connectors;
                 $registry->save();
 
-            // Create an entry
-            } else if (strlen($_release)>0) {
-                $_rel = (strlen($_release)>0) ? $_release : '5';
-                $_reg = array('global_id' => $current_prov->id, 'release' => $_rel,
-                              'service_url' => $row[4], 'connectors' => $connectors);
+            // Create a registry entry (this is either a new platform or new registry entry for an existing platform)
+            } else {
+                $_reg = array('global_id' => $platform->id, 'release' => $_release, 'service_url' => $_service_url,
+                              'master_reports' => $reports, 'connectors' => $connectors);
                 $registry = CounterRegistry::create($_reg);
             }
-            $current_prov->load('registries');
-        }
-
-        // get all the consortium instances and preserve the current instance database setting
-        $instances = Consortium::get();
-
-        // Rebuild full array of global providers to update (needs to match what index() does)
-        $updated_providers = array();
-        $gp_data = GlobalProvider::with('registries')->orderBy('name', 'ASC')->get();
-        foreach ($gp_data as $gp) {
-            $provider = $gp->toArray();
-            $provider['status'] = ($gp->is_active) ? "Active" : "Inactive";
-            $provider['registries'] = array();
-            $provider['releases'] = array();
-            $provider['release'] = $gp->default_release();
-            $provider['service_url'] = $gp->service_url();
-            foreach ($gp->registries->sortBy('release') as $registry) {
-                $reg = $registry->toArray();
-                $reg['connector_state'] = $this->connectorState($registry->connectors);
-                $reg['is_selected'] = ($registry->release == $provider['release']);
-                $provider['registries'][] = $reg;
-                $provider['releases'][] = trim($registry->release);
-            }
-            if (is_null($gp->selected_release)) {
-                $provider['selected_release'] = $provider['release'];
-            }
-            $provider['report_state'] = $this->reportState($gp->master_reports);
-            $provider['can_delete'] = true;
-            $provider['instance_count'] = 0;
-            $provider['updated'] = (is_null($gp->updated_at)) ? "" : date("Y-m-d H:i", strtotime($gp->updated_at));
-            // Collect details from the instance for this provider
-            foreach ($instances as $instance) {
-                $details = $this->instanceDetails($instance->ccp_key, $gp);
-                if ($details['harvest_count'] > 0) {
-                    $provider['can_delete'] = false;
-                }
-                $provider['instance_count'] += 1;
-            }
-            $updated_providers[] = $provider;
         }
 
         // return the current full list of providers with a success message
@@ -974,7 +693,7 @@ class GlobalProviderController extends Controller
         }
         $msg  = 'Import successful, Platforms : ' . $detail;
 
-        return response()->json(['result' => true, 'msg' => $msg, 'platforms' => $updated_providers]);
+        return response()->json(['result' => true, 'msg' => $msg]);
     }
 
     /**
