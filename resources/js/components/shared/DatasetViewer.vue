@@ -33,6 +33,7 @@
   var allItems = reactive([]);
   var filteredItems = reactive([]);
   var reptItem = reactive({});
+  var platformExportItems = reactive([]);
   var allOptions = {};
   var bulkOptions = ref([]);
   const filterOptions = reactive({});
@@ -283,8 +284,9 @@
       } else if (filterOptions.platforms['value'].length==1) {
         var _plat = filterOptions.platforms.items.find( g => g.id == filterOptions.platforms['value'][0]);
         if (typeof(_plat)!='undefined') plat_name = _plat.name
+      } else {
+        plat_name = "_SomePlatforms";
       }
-      plat_name = "_SomePlatforms";
     } else {
       plat_name = (filterOptions.platforms['value']!='' && filterOptions.platforms['value']!=null)
                   ? "_"+filterOptions.platforms['value'] : "_AllPlatforms";
@@ -312,9 +314,10 @@
   const exportDataRows = computed(() => {
     const config = datasetConfig[props.datasetKey];
     if (config.exportFields.length==0) return [];
+    let exportItems = (config.title == 'Platform') ? [...platformExportItems] : [...filteredItems];
 
     // Filter out static and isFilter columns from filteredItems
-    return filteredItems.map( row => {
+    return exportItems.map( row => {
       // Use reduce to build a new object with only the desired keys
       return config.exportFields.reduce( (newRow, col) => {
         let fld = config.fields.find( f => f.name==col);
@@ -333,15 +336,20 @@
 
   async function handleExport() {
     const config = datasetConfig[props.datasetKey];
-    // Setup a workbook and pull in the HowTo sheet from the public folder
-    if (props.datasetKey != 'audit') {
+    // Setup base filename, default (data) sheet name, and workbook
+    let fileName = "CCplus_"+consoKey.value;
+    fileName += (exportInstScope.value != '') ? exportInstScope.value : '';
+    fileName += (exportPlatScope.value != '') ? exportPlatScope.value : '';
+    fileName += (exportStatus.value != '') ? exportStatus.value : '';
+    let sheet_name = (config.title=='Credentials') ? 'Credentials' : config.title+'s';
+    const workbook = XLSX.utils.book_new();
+    // Audit doesn't need/provide a HowTo tab
+    if (props.datasetKey == 'audit') {
+      fileName += "_COUNTERAudit.xlsx";
+      sheet_name = 'Credentials Audit';
+    // Pull HowTo sheet from template in the the public folder and add to the workbook
+    } else {
       let publicPath = '/exportTemplates/'+props.datasetKey+'.xlsx';
-      // Setup filename
-      let fileName = "CCplus_"+consoKey.value;
-      fileName += (exportInstScope.value != '') ? exportInstScope.value : '';
-      fileName += (exportPlatScope.value != '') ? exportPlatScope.value : '';
-      fileName += (exportStatus.value != '') ? exportStatus.value : '';
-      fileName += "_"+capDataset.value+".xlsx";
       try {
         // Fetch template file from the public directory as an ArrayBuffer
         const response = await fetch(publicPath);
@@ -349,36 +357,27 @@
           throw new Error('Network response was not ok');
         }
         const arrayBuffer = await response.arrayBuffer();
-        // Get the workbook from the buffer and extract the HowToImport sheet
+        // Get the template workbook from the buffer and extract the HowToImport sheet
         const templateBook = XLSX.read(arrayBuffer, { type: 'array' });
         const howToSheet = templateBook.Sheets['HowToImport'];
         if (!howToSheet) {
           throw new Error(`HowToImport Sheet not found in the template for : `+props.datasetKey);
         }
-        // Setup new workbook and add the HowToImport
-        const newWorkbook = XLSX.utils.book_new();
-        XLSX.utils.book_append_sheet(newWorkbook, howToSheet, 'How to Import');
-        // Add items to a new tab in the workbook and send it
-        const itemsSheet = XLSX.utils.json_to_sheet(exportDataRows.value);
-        let sheet_name = (config.title=='Credentials') ? 'Credentials' : config.title+'s';
-        XLSX.utils.book_append_sheet(newWorkbook, itemsSheet, sheet_name);
-        XLSX.writeFile(newWorkbook, fileName);
+        // Add the HowToImport tab to the workbook
+        XLSX.utils.book_append_sheet(workbook, howToSheet, 'How to Import');
       } catch (error) {
         console.error("Error during file processing or download: ", error);
       }
-    // audit doesn't need/provide a HowTo tab
-    } else {
-      const worksheet = XLSX.utils.json_to_sheet(exportDataRows.value);
-      // Setup filename and include status if we're filtering it
-      let fileName = "CCplus_"+consoKey.value+exportInstScope.value+exportPlatScope.value;
-      fileName += (exportStatus.value != '') ? exportStatus.value : '';
-      fileName += "_COUNTERAudit.xlsx";
-      /* Create a new workbook and append the worksheet */
-      const workbook = XLSX.utils.book_new();
-      XLSX.utils.book_append_sheet(workbook, worksheet, 'Credentials Audit');
-      /* Export and trigger the download */
-      XLSX.writeFile(workbook, fileName);
+      fileName += "_"+capDataset.value+".xlsx";
     }
+    // Add items to a new tab in the workbook and send it
+    if (config.title == 'Platform') {
+        const { data } = await ccGet('/api/platforms/exportData');
+        platformExportItems = [...data.records];
+    }
+    const itemsSheet = XLSX.utils.json_to_sheet(exportDataRows.value);
+    XLSX.utils.book_append_sheet(workbook, itemsSheet, sheet_name);
+    XLSX.writeFile(workbook, fileName);
   }
 
   // data was imported... reload the dataset and update the datatable
