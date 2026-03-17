@@ -83,7 +83,7 @@
     }
     let ret_string = "";
     if (form.value.plat.length>0) {
-      let plat = institutions.value.find(p => p.id == form.value.plat[0]);
+      let plat = platforms.value.find(p => p.id == form.value.plat[0]);
       if (typeof(plat) != 'undefined') {
         ret_string = plat.name;
         if (form.value.plat.length > 1) {
