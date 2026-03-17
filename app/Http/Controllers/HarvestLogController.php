@@ -105,12 +105,19 @@ class HarvestLogController extends Controller
         abort_unless($thisUser->isAdmin(), 403);
         $consoAdmin = $thisUser->isConsoAdmin();
 
+        $input = $request->all();
+        $type = (isset($input['type'])) ? $input['type'] : 'harvests';
+        if ($type!='harvests' && $type!='jobs') {
+            return response()->json(['result' => false, 'msg' => 'Invalid request type for getItems']);
+        }
+
         // Setup for known filters
         $filters = array('institutions' => [], 'groups' => [], 'platforms' => [], 'yymms' => [], 'reports' => [],
-                          'codes' => [], 'statuses' => ['Success','Fail','BadCreds']);
+                          'codes' => [], 'statuses' => []);
+        $harvest_statuses = array('Success','Fail','BadCreds');
+        $jobs_statuses = array('Queued', 'Harvesting', 'Pending', 'Paused', 'ReQueued', 'Waiting','Processing');
 
         // Validate/handle input filters
-        $input = $request->all();
         if ($input['filters']) {
             foreach ($input['filters'] as $key => $val) {
                 $filters[$key] = (is_null($val)) ? [] : $val;
@@ -150,9 +157,10 @@ class HarvestLogController extends Controller
             $idx = array_search('No Error', $filters['codes']);
             if ($idx !== false) $filters["codes"][$idx] = 0;
         }
+
         // Touch up status filter for BadCreds
         if (count($filters['statuses']) == 0) {     // Limit status if not set
-            $filters["statuses"] = array('Success','Fail','BadCreds');
+            $filters["statuses"] = ($type=='harvests') ? $harvest_statuses : $jobs_statuses;
         } else {
             $idx = array_search('Bad Credentials', $filters['statuses']);
             if ($idx !== false) $filters["statuses"][$idx] = 'BadCreds';
@@ -742,62 +750,15 @@ class HarvestLogController extends Controller
                              return $qry->whereIn('credential.inst_id', $limit_insts);
                          })
                          ->whereIn('status',$limit_status)
-                         ->orderBy("updated_at", "DESC")->get();
+                         ->orderBy("updated_at", "DESC")->limit(501)->get();
 
-       // Build an output array of no more than 500 harvests
-       $output_count = 0;
-       $truncated = false;
-       $harvests = array();
-       foreach ($data as $rec) {
-          if (!$rec->credential || !$rec->report) continue;
-          $rec->prov_id = $rec->credential->prov_id;
-          $rec->inst_id = $rec->credential->inst_id;
-          $rec->prov_name = $rec->credential->provider->name;
-          $rec->inst_name = $rec->credential->institution->name;
-          $rec->report_name = $rec->report->name;
-          $rec->created = date("Y-m-d H:i", strtotime($rec->updated_at));
-          $rec->d_status = $this->xlStatus[$rec->status];
-
-          // Include last error details if they exist
-          $_error = [];
-          $lastFailed = null;
-          if ($rec->failedHarvests) {
-              $lastFailed = $rec->failedHarvests->sortByDesc('created_at')->first();
-          }
-          if ($rec->lastError) {
-              $_error = $rec->lastError->toArray();
-              $_error['detail'] = '';
-              $_error['help_url'] = '';
-              $_error['process_step'] = '';
-          } else if ($lastFailed && $rec->error_id > 0) {
-              $rec->error_id = $lastFailed->error_id;
-              $_error = $lastFailed->ccplusError->toArray();
-              $_error['detail'] = (is_null($lastFailed->detail)) ? '' : $lastFailed->detail;
-              $_error['help_url'] = (is_null($lastFailed->help_url)) ? '' : $lastFailed->help_url;
-              $_error['process_step'] = (is_null($lastFailed->process_step)) ? '' : $lastFailed->process_step;
-          }
-          $_error['known_error'] = in_array($rec['error_id'],$this->all_error_codes);
-          $_error['counter_url'] = ($rec->release == '5.1')
-              ? "https://cop5.countermetrics.org/en/5.1/appendices/d-handling-errors-and-exceptions.html"
-              : "https://cop5.projectcounter.org/en/5.0.3/appendices/f-handling-errors-and-exceptions.html";
-          $rec->error = $_error;
-
-          // Add a test+confirm URL
-          $beg = $rec->yearmon . '-01';
-          $end = $rec->yearmon . '-' . date('t', strtotime($beg));
-          $capi = new CounterApi($beg, $end);
-          // set url for manual retry/confirm icon using buildUri
-          $rec->retryUrl = $capi->buildUri($rec->credential, 'reports', $rec->report, $rec->release);
-          // add record to the outbound array
-          $harvests[] = $rec->toArray();
-
-          // Limit to 500 rows of output
-          $output_count++;
-          if ($output_count == 500) {
-              $truncated = true;
-              break;
-          }
-       }
+        // Format records for display , limit to 500 output records
+        $truncated = ($data->count()>500);
+        if ($truncated) $data->pop();
+        $harvests = array();
+        foreach ($data as $key => $harvest) {
+            $harvests[] = $this->formatRecord($harvest);
+        }
 
        // Setup options for the U/I - it will limit options further based on what's there
        $filter_options = array();
