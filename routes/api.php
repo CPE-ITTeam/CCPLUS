@@ -108,6 +108,7 @@ Route::middleware('ccplusAuth')->group( function () {
     });
     Route::prefix('jobs')->group(function () {
         Route::get('/get', 'App\Http\Controllers\HarvestLogController@harvestQueue')->name('jobs.index');
+        Route::post('/getItems', 'App\Http\Controllers\HarvestLogController@getItems')->name('jobs.items');
         Route::patch('/update/{harvest}', 'App\Http\Controllers\HarvestLogController@update')->name('jobs.update');
         Route::delete('/delete/{harvest}', 'App\Http\Controllers\HarvestLogController@destroy')->name('jobs.destroy');
         Route::post('/bulk', 'App\Http\Controllers\HarvestLogController@bulk')->name('jobs.bulk');
