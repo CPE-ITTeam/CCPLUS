@@ -95,7 +95,7 @@
     try {
       if (consoKey.value=='') return;
       let itemsUrl = config.urlRoot+'/getItems';
-      const response = await ccPost(itemsUrl, { filters: _filters });
+      const response = await ccPost(itemsUrl, { filters: _filters, type: datasetKey });
       if (response.result) {
         truncated = response.truncated;
         allItems = [ ...response.records ];
