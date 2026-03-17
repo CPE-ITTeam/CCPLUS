@@ -218,10 +218,10 @@
             if (available_reports.value.some(r => r.name == rpt.name) ||
                 typeof(cur_plat.reports[rpt.name]) == 'undefined') return;
             let add = false;
-            if (cur_plat.reports[rpt.name]=="ALL") {
+            if (cur_plat.reports[rpt.name].conso) {
               add = true;
-            } else if (cur_plat.reports[rpt.name].length > 0) {
-              cur_plat.reports[rpt.name].forEach( inst => {
+            } else if (cur_plat.reports[rpt.name].insts.length > 0) {
+              cur_plat.reports[rpt.name].insts.forEach( inst => {
                 if (form.value.inst.includes(inst)) add = true;
               });
             }
@@ -243,7 +243,11 @@
     if (form.value.fromYM == '' && form.value.toYM != '') form.value.fromYM = form.value.toYM;
     working.value = ' ... Creating and updating harvest records ...';
     try {
-        const response = await ccPost("/api/storeHarvests", { settings: form.value });
+        let args = {};
+        Object.keys(form.value).forEach( key => {
+          args[key] = form.value[key];
+        });
+        const response = await ccPost("/api/harvests/store", args);
         if (response.result) {
             working.value = '';
             failure.value = '';
@@ -346,8 +350,8 @@
       <div v-if="institution_options.length>1">
         <v-row class="d-flex align-mid ma-2" no-gutters>
           <v-col v-if="form.inst_group_id==0" class="d-flex px-2" cols="4" sm="4">
-            <v-autocomplete :items="institution_options" v-model="form.inst" @change="onInstChange" multiple label="Institution(s)"
-                            item-title="name" item-value="id" hint="Institution(s) to Harvest">
+            <v-autocomplete :items="institution_options" v-model="form.inst" multiple label="Institution(s)" item-value="id"
+                            item-title="name" hint="Institution(s) to Harvest" @update:modelValue="onInstChange">
               <template v-slot:prepend-item>
                 <v-list-item @click="updateAllInsts">
                    <span v-if="allInsts">Clear Selections</span>
@@ -364,8 +368,8 @@
             <strong>OR</strong>
           </v-col>
           <v-col v-if="form.inst.length==0" class="d-flex px-2" cols="4" sm="4">
-            <v-autocomplete :items="inst_groups" v-model="group_id" @change="onGroupChange" label="Institution Group"
-                            item-title="name" item-value="id" hint="Institution group to harvest"
+            <v-autocomplete :items="inst_groups" v-model="group_id" label="Institution Group" item-title="name" item-value="id"
+                            hint="Institution group to harvest" @update:modelValue="onGroupChange"
             ></v-autocomplete>
           </v-col>
         </v-row>
@@ -379,8 +383,8 @@
       </div>
       <v-row v-if="available_platforms.length>0" class="d-flex ma-2" no-gutters>
         <v-col class="d-flex px-2" cols="3" sm="3">
-          <v-autocomplete :items="available_platforms" v-model="form.plat" @change="onPlatChange" label="Platform(s)"
-                          multiple item-title="name" item-value="id" hint="Platform(s) to Harvest">
+          <v-autocomplete :items="available_platforms" v-model="form.plat" label="Platform(s)" multiple item-value="id"
+                          item-title="name" hint="Platform(s) to Harvest" @update:modelValue="onPlatChange">
             <template v-slot:prepend-item>
               <v-list-item v-if="allConsoPlats || allPlats" @click="updateAllPlats('Clear')">
                  <span>Clear Selections</span>
