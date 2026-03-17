@@ -58,11 +58,6 @@
 
   const emit = defineEmits(['update:selectedRows', 'update:toggle', 'update:report', 'edit', 'delete']);
 
-  // Emit edit event
-  function emitEdit(item) {
-    emit('edit', item);
-  }
-
   // reportSort compares 'sortval' values in items
   const reportSort = (a, b) => {
     return a.sortval - b.sortval;
