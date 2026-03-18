@@ -222,9 +222,7 @@ class GlobalProvider extends Model
             // Set conso flag if the report is enabled conso-wide
             $consoWide = $this->connections->where('inst_id',1)->first();
             if ($consoWide) {
-                foreach ($consoWide->reports as $rpt) {
-                    $rec['conso'] = true;
-                }
+                $rec['conso'] = !is_null($consoWide->reports->where('id',$mr->id)->first());
             }
             // Build role-sensitive, scoped report assignments from all connection that are either
             // not conso-wide or for a specific $inst (used for credentials)
