@@ -862,6 +862,7 @@ class CredentialController extends Controller
         // records to return via JSON to the U/I
         $records = array();
         foreach ($credentials as $credential) {
+            if (is_null($credential->provider) || is_null($credential->institution)) continue;
             $record = array('plat_id' => $credential->prov_id, 'plat_name'=>$credential->provider->name,
                             'inst_id' => $credential->inst_id, 'inst_name'=>$credential->institution->name,
                             'cred_status' => $credential->status);
