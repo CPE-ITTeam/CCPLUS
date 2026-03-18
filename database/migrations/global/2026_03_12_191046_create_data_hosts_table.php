@@ -12,7 +12,8 @@ return new class extends Migration
     public function up(): void
     {
         Schema::create('data_hosts', function (Blueprint $table) {
-            $table->string('id')->primary();
+            $table->Increments('id');
+            $table->string('datahost_key');
             $table->string('name');
         });
     }
