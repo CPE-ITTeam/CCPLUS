@@ -13,17 +13,15 @@ class DataHost extends Model
      */
     protected $connection = 'globaldb';
     protected $table = 'data_hosts';
-    // Turn off timestampt and auto-incrementing
+    // Turn off timestamps
     public $timestamps = false;
-    public $incrementing = false; 
-    // Primary key is a string
-    protected $keyType = 'string'; 
 
     /**
       * The attributes that are mass assignable.
       * @var array
       */
-    protected $fillable = ['id', 'name'];
+    protected $fillable = ['id', 'datahost_key', 'name'];
+    protected $casts = ['id'=>'integer'];
 
     public function registry()
     {
