@@ -325,7 +325,7 @@ class CounterRegistryController extends Controller
                                 $host = $this->requestURI($datahost_url);
                                 if (is_object($host)) {
                                     try {
-                                        $dataHost = DataHost::create(['id' => $host->id, 'name' => $host->name]);
+                                        $dataHost = DataHost::create(['datahost_key' => $host->id, 'name' => $host->name]);
                                         $registry->datahost_id = $dataHost->id;
                                         $datahosts->push($dataHost);
                                     } catch (\Exception $e) {
