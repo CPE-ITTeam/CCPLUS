@@ -9,7 +9,7 @@
     <link href="https://fonts.googleapis.com/css?family=Nunito" rel="stylesheet">
     <link href="https://fonts.googleapis.com/css?family=Roboto:100,300,400,500,700,900" rel="stylesheet">
     <link href="https://cdn.jsdelivr.net/npm/@mdi/font@latest/css/materialdesignicons.min.css" rel="stylesheet">
-    @vite(['resources/js/app.js'])
+    {{ Vite::useBuildDirectory('')->withEntryPoints(['resources/js/app.js']) }}
 </head>
 <body>
     <div id="app"></div>
