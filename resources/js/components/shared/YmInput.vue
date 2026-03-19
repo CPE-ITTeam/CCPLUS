@@ -29,15 +29,12 @@
       }
     }
   }
-  const emitValue = (event) => {
-    emit('update:modelValue', event.target.value);
-  };
   onBeforeMount(() => {
     initializeOptions();
   });
 </script>
 <template>
   <v-col class="d-flex px-2" :cols="cols">
-    <v-select v-model="modelValue" :items='options' :label="label" @update:modelValue="emitValue"></v-select>
+    <v-select v-model="modelValue" :items='options' :label="label"></v-select>
   </v-col>
 </template>
