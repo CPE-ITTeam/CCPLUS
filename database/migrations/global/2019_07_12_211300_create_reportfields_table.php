@@ -1,4 +1,4 @@
-qry<?php
+<?php
 
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Database\Schema\Blueprint;
@@ -25,7 +25,7 @@ class CreateReportFieldsTable extends Migration
             $table->unsignedInteger('report_filter_id')->nullable();
             $table->boolean('active')->default(0);
             $table->boolean('is_metric')->default(0);
-            $table->boolean('metric_type')->string(8)->nullable();
+            $table->string('metric_type',8)->nullable();
 
             $table->foreign('report_id')->references('id')->on('reports')->onDelete('cascade');
             $table->foreign('report_filter_id')->references('id')->on('reportfilters');
