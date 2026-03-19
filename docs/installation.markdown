@@ -129,13 +129,14 @@ And then install npm:
 ```bash
   npm install
 ```
-You also need to generate an encryption key for the application. This key will be used to encrypt the raw JSON report and application data, **not** passwords. This only needs to be done during installation. Resetting this key later will make any existing saved data unrecoverable unless you maintain a record of all previous key value(s). This command will update the `.env` with a unique value for APP_KEY.
+You also need to generate an encryption key for the application and initialze the configuration cache. The key will be used to encrypt the raw JSON report and application data, **not** passwords. This only needs to be done during installation. Resetting this key later will make any existing saved data unrecoverable unless you maintain a record of all previous key value(s). This command will update the `.env` with a unique value for APP_KEY.
 ```bash
   php artisan key:generate
+  php artisan config:cache
 ```
 Next run npm to build the application and the publicly-accessible files for the webserver
 ```bash
-  npm run prod
+  npm run build
 ```
 The webserver will need write access to some folders within the application folder. Assuming the webserver executes with group-membership `www-data` :
 ```bash
@@ -147,16 +148,16 @@ The webserver will need write access to some folders within the application fold
 ```
 
 ### Step 5: Update the Webserver Directory
-(*Optional*) If you are installing the application to a location other than `/usr/local/CCPLUS`, then you'll need to change the value of the `_CCPHOME_` variable to match your installation path. Modify `public/index.php` to reflect the installation path for the application:
+Ensure that value of the `_CCPHOME_` variable in the public webserver index.php matches your installation path. Modify `public/index.php` to reflect the installation path for the application; the default/preset is /usr/local/CCPLUS :
 ```bash
   cd /usr/local/CCPLUS/public/;
   mv index.php.example ./index.php
 ```
-> Open index.php with your favorite editor and modify this line as necessary; include a trailing slash
+> If you're installing the application to a location other than /usr/local/CCPLUS, open index.php with your favorite editor and
+> modify this line as necessary (include a trailing slash) ;
 >
-> define('_CCPHOME_','/usr/local/CCPLUS/');
+> define('_CCPHOME_','/Your/application/installation/path/');
 
-(**NOT Optional**)
 Copy the publicly accessible files to the public webserver folder:
 ```bash
   cp -r /usr/local/CCPLUS/public/. /var/www/ccplus/;
