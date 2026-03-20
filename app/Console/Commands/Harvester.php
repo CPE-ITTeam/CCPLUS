@@ -248,7 +248,7 @@ class Harvester extends Command
             $capi->raw_datafile = $unprocessed_path . $rawfile;
 
             // Construct URI for the request
-            $request_uri = $capi->buildUri($credential, 'reports', $report, $harvest->release);
+            $request_uri = $capi->buildUri($credential, $report, 'reports', $harvest->release);
 
             // Make the request
             $request_status = $capi->request($request_uri);
