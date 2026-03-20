@@ -6,6 +6,9 @@ use Illuminate\Console\Command;
 use Illuminate\Support\Facades\Artisan;
 use App\Models\Consortium;
 use App\Models\GlobalSetting;
+use App\Models\Role;
+use App\Models\User;
+use App\Models\UserRole;
 use DB;
 use Hash;
 use Route;
@@ -107,8 +110,8 @@ class ResetAdminPW extends Command
         // Updating the template now if requested, ensure server admin user is properly defined
         if ($update_con_template) {
             config(['database.connections.consodb.database' => 'ccplus_con_template']);
-            $serverAdminRole = \App\Role::where('name','ServerAdmin')->first();
-            $user = \App\User::where('email', $server_admin)->where('id',1)->first();
+            $serverAdminRole = Role::where('name','ServerAdmin')->first();
+            $user = User::with('roles')->where('email', $server_admin)->where('id',1)->first();
             // If server admin user not found, zap users and reset things
             if ($user) {
                 $pw_qry  = "UPDATE ccplus_con_template.users SET password = '" . $hashed_password;
@@ -123,12 +126,18 @@ class ResetAdminPW extends Command
                      'email' => $server_admin, 'inst_id' => 1, 'is_active' => 1]
                     ]);
                 DB::statement('SET FOREIGN_KEY_CHECKS=1;');
-                    $user = \App\User::where('id',1)->first();
+                $user = User::with('roles')->where('id',1)->first();
             }
             // make sure server admin role properly defined
             if ($serverAdminRole && $user) {
-                $user->roles()->detach();
-                $user->roles()->attach($serverAdminRole->id);
+                // Clear all existing roles
+                foreach ($user->roles as $role) {
+                    $role->delete();
+                }
+                // Set just serverAdmin role
+                UserRole::create(
+                            ['user_id'=>$user->id, 'role_id'=>$serverAdminRole->id, 'inst_id'=>1]
+                        );
             }
             $this->line('<fg=cyan>ccplus_con_template Successfully Updated.');
         }
