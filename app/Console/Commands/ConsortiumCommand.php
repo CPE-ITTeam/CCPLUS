@@ -40,13 +40,6 @@ class ConsortiumCommand extends Command
      */
     public function handle()
     {
-      // The email (username) and password for the server admin account have to be set in .env
-        $server_admin = config('ccplus.server_admin');
-        $server_admin_pass = config('ccplus.server_admin_pass');
-        if (strlen($server_admin) == 0 || strlen($server_admin_pass) == 0) {
-            $this->error('Server Admin credential in .env is undefined!');
-            return 0;
-        }
       // Get basic info for the new consortium
         $conso_data['name'] = $this->ask('New consortium name?');
         $conso_data['email'] = $this->ask('Primary email for the consortium?');
@@ -72,7 +65,6 @@ class ConsortiumCommand extends Command
       // ----------------------------------------------------------------
       // New database uses template host, charset, and collation settings
         $global_db   = \Config::get('database.connections.globaldb.database');
-        $template_db = \Config::get('database.connections.con_template.database');
         $_host = \Config::get('database.connections.con_template.host');
         $_cset = \Config::get('database.connections.con_template.charset');
         $_coll = \Config::get('database.connections.con_template.collation');
@@ -135,15 +127,6 @@ class ConsortiumCommand extends Command
         DB::table($global_db . '.consortia')->insert($conso_data);
         $this->line('<fg=cyan>Consortium added to global database.');
 
-      // Create the ServerAdmin account in the users table using values from the .env file
-        DB::table($conso_db . ".users")->insert([
-        ['name' => 'Server Administrator',
-         'password' => $server_admin_pass,
-         'email' => $server_admin,
-         'inst_id' => 1,
-         'is_active' => 1]
-        ]);
-
       // Create the Administrator account in the users table
         $this->info('The initial Administrator account for a new consortium is always created with');
         $this->info('an email address set to "Administrator".');
@@ -157,9 +140,8 @@ class ConsortiumCommand extends Command
          'is_active' => 1]
         ]);
 
-      // Set roles for ServerAdmin and 'Administrator'
-        DB::table($conso_db . ".role_user")->insert(['role_id' =>  999, 'user_id' => 1]);
-        DB::table($conso_db . ".role_user")->insert(['role_id' =>  99, 'user_id' => 2]);
+      // Set roles for 'Administrator' (ServerAdmin should be handled by seeding, above)
+        DB::table($conso_db . ".user_roles")->insert(['role_id' =>  9, 'user_id' => 2, 'inst_id' => 1]);
 
         $this->line('<fg=cyan>New consortium : ' . $conso_data['name'] . ' Successfully Created.');
 
