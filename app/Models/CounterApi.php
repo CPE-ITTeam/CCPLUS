@@ -152,12 +152,12 @@ class CounterApi extends Model
     * Build and return a COUNTER API request URI based on a cred and report
     *
     * @param Credential $cred
-    * @param String $method
     * @param Report $report
+    * @param String $method
     * @param String $release
     * @return string $request_uri
     */
-    public function buildUri($cred, $method = "reports", $report, $release="")
+    public function buildUri($cred, $report, $method = "reports", $release="")
     {
        // Set URL based on release from the provider registr(ies); default to max if not found or release not set
         $registry = $cred->provider->registries->where('release',$release)->first();
