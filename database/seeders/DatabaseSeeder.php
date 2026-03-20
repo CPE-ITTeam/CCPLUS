@@ -22,6 +22,8 @@ class DatabaseSeeder extends Seeder
           PlatformsTableSeeder::class,
           PublishersTableSeeder::class,
           RolesTableSeeder::class,
+          UsersTableSeeder::class,
+          UserRolesTableSeeder::class,
           AccessMethodsTableSeeder::class,
           AccessTypesTableSeeder::class,
           DataTypesTableSeeder::class,
