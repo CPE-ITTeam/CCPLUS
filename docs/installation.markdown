@@ -109,8 +109,7 @@ Next, the local `.env` needs to be modified to match the current host environmen
     * DB_USERNAME, DB_PASSWORD, DB_USERNAME2, DB_PASSWORD2
 * Update settings for connecting to email and SMTP services (will vary depending on server environment). These settings are necessary for the system to generate forgotten-password reset links.
     * MAIL_MAILER, MAIL_HOST, MAIL_PORT, MAIL_USERNAME, MAIL_PASSWORD, MAIL_ENCRYPTION, MAIL_FROM_ADDRESS, MAIL_FROM_NAME
-* Note:: The template database is used to create and propagate new instances to the system. There is no access to the data and tables
-in this database. Any changes to this database must be made directly using mysql at the system level.
+* Note:: The template database is used to create and propagate new instances to the system. There is no application interface access to the data and tables in this database. Any changes to this database must be made directly using mysql at the system level.
 
 ### Step 4: Install the application
 First we will setup the application Kernel file:
@@ -131,7 +130,7 @@ And then install npm:
 ```
 You also need to generate an encryption key for the application and initialze the configuration cache. The key will be used to encrypt the raw JSON report and application data, **not** passwords. This only needs to be done during installation. Resetting this key later will make any existing saved data unrecoverable unless you maintain a record of all previous key value(s). This command will update the `.env` with a unique value for APP_KEY.
 ```bash
-  php artisan key:generate
+  php artisan key:generate;
   php artisan config:cache
 ```
 Next run npm to build the application and the publicly-accessible files for the webserver
@@ -257,7 +256,7 @@ The `ccplus:add_consortium` command script prompts for inputs and creates the ne
 You should now be able to connect and login to the application using the Administrator credential for your initial consortium! You can now create users, institutions, and providers through the [web interface](overview.markdown).
 
 ### Step 10: Reset Server administrator
-The `ccplus:resetadminpw` command script prompts for and resets the credential for the ServerAdmin user. The CC-Plus distribution is seeded with an initial password for this user (ChangeMeNow!), but it really should be changed. The ServerAdmin user is able to create new consortial instances in the system, modify all existing consortia and global CC-Plus settings. The *resetadminpw* script can be run any time from the system command line to reset this credential.
+The `ccplus:resetadminpw` command script prompts for and resets the credential for the ServerAdmin user. The CC-Plus distribution, and ANY consortium created with *artisan ccplus:addconsortium* (as above) is seeded with an initial password for this user (ChangeMeNow!), and it should be changed. The ServerAdmin user can create new consortial instances in the system, modify all existing consortia and global CC-Plus settings via the application interface. The *artisan ccplus:resetadminpw* script can be run any time from the system command line to reset the password across all consortium instances.
 ```bash
 php artisan ccplus:resetadminpw
 ```
