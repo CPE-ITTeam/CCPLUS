@@ -859,7 +859,7 @@ class HarvestLogController extends Controller
        // setup required connectors for buildUri
        $prov_connectors = $harvest->credential->provider->connectors();
        $connectors = $this->connection_fields->whereIn('id',$prov_connectors)->pluck('name')->toArray();
-       $rec['retryUrl'] = $capi->buildUri($harvest->credential, 'reports', $harvest->report, $harvest->release);
+       $rec['retryUrl'] = $capi->buildUri($harvest->credential, $harvest->report, 'reports', $harvest->release);
        return $rec;
    }
 
