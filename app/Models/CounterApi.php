@@ -6,7 +6,7 @@ use Illuminate\Database\Eloquent\Model;
 use GuzzleHttp\Exception\GuzzleException;
 use GuzzleHttp\Client;
 use App\Models\CcplusError;
-use \ubfr\c5tools\JsonR5Report;
+use \ubfr\c5tools\JsonReport;
 use \ubfr\c5tools\CheckResult;
 use \ubfr\c5tools\ParseException;
 use Illuminate\Support\Facades\File;
@@ -260,7 +260,7 @@ class CounterApi extends Model
 
        // Make sure there are Report_Items to process
         try {
-            $report = new JsonR5Report($this->json);
+            $report = new JsonReport($this->json);
             $checkResult = $report->getCheckResult();
         } catch (\Exception $e) {
             throw new \Exception("COUNTER error: c5tools CheckResult threw a validation error.");
