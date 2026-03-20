@@ -184,7 +184,7 @@ class HarvestBatch extends Command
 
                    // Create a new CounterApi object
                     $capi = new CounterApi($begin, $end);
-                    $request_uri = $capi->buildUri($credential, 'reports', $report, $release);
+                    $request_uri = $capi->buildUri($credential, $report, 'reports', $release);
 
                    // Set output filename for raw data. Create the folder path, if necessary
                     if (!is_null(config('ccplus.reports_path'))) {
