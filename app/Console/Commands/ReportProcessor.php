@@ -6,9 +6,7 @@ use Illuminate\Console\Command;
 use DB;
 use App\Models\Consortium;
 use App\Models\Report;
-use App\Models\Sushi;
-use App\Models\SushiSetting;
-use App\Models\SushiQueueJob;
+use App\Models\Credential;
 use App\Models\Counter5Processor;
 use App\Models\FailedHarvest;
 use App\Models\HarvestLog;
@@ -17,7 +15,6 @@ use App\Models\Severity;
 use App\Models\Alert;
 use App\Models\GlobalProvider;
 use App\Models\ConnectionField;
-
 use Illuminate\Support\Facades\File;
 use Illuminate\Support\Facades\Crypt;
 
@@ -35,7 +32,7 @@ use Illuminate\Support\Facades\Crypt;
 class ReportProcessor extends Command
 {
     /**
-     * The name and signature for the single-report Sushi processing console command.
+     * The name and signature for the report processing console command.
      * @var string
      */
     protected $signature = 'ccplus:reportprocessor {consortium : Consortium ID or key-string}
@@ -98,7 +95,6 @@ class ReportProcessor extends Command
             return 0;
         }
         if (!$consortium->is_active) {
-            // $this->line($ts . $ident . 'Consortium: ' . $conarg . " is NOT ACTIVE ... quitting.");
             return 0;
         }
 
@@ -116,7 +112,7 @@ class ReportProcessor extends Command
 
        // Get records for all "Retrieved" Harvestlogs
         $skip_statuses = array('Success', 'Fail', 'New', 'NoRetries', 'BadCreds');
-        $all_harvests = HarvestLog::with('sushiSetting','sushiSetting.provider','sushiSetting.institution')
+        $all_harvests = HarvestLog::with('credential','credential.provider','credential.institution')
                                   ->whereNotIn('status', $skip_statuses)->get();
 
        // Set paths for where the files are, will be stored
@@ -158,8 +154,8 @@ class ReportProcessor extends Command
                 if (!$harvest) continue;
                 $report = $master_reports->where('name', $parts[1])->first();
                 if (!$report) continue;
-                $prov_id = $harvest->sushiSetting->prov_id;
-                $inst_id = $harvest->sushiSetting->inst_id;
+                $prov_id = $harvest->credential->prov_id;
+                $inst_id = $harvest->credential->inst_id;
 
                 // Mark the harvest status as "Processing"
                 $harvest->status = 'Processing';
@@ -182,16 +178,16 @@ class ReportProcessor extends Command
                         $harvest->error_id = 0;
                         $harvest->status = 'Success';
                     }
-               // If processor failed, signal 9900
+               // If processor failed, signal 9100
                 } catch (\Exception $e) {
-                    $error9900 = CcplusError::where('id',9900)->first();
+                    $error9100 = CcplusError::where('id',9100)->first();
                     FailedHarvest::insert(['harvest_id' => $harvest->id, 'process_step' => 'COUNTER',
-                                           'error_id' => 9900, 'detail' => 'Processing error: ' . $e->getMessage(),
+                                           'error_id' => 9100, 'detail' => 'Processing error: ' . $e->getMessage(),
                                            'help_url' => null, 'created_at' => $ts]);
                     $this->line($ts . " " . $ident . ":: ".$harvest->id." :: Error processing JSON : " . $e->getMessage());
-                    $harvest->error_id = 9900;
+                    $harvest->error_id = 9100;
                     $harvest->attempts++;
-                    $harvest->status = ($error9900) ? $error9900->new_status : 'ReQueued';
+                    $harvest->status = ($error9100) ? $error9100->new_status : 'ReQueued';
                 }
 
                // Make sure the path for the output file exists
@@ -215,8 +211,8 @@ class ReportProcessor extends Command
                 $harvest->save();
 
                // Print confirmation line
-                $this->line($ts . " " . $ident . $harvest->sushiSetting->provider->name . " : " . $harvest->yearmon . " : " .
-                                  $report->name . " processed for " . $harvest->sushiSetting->institution->name);
+                $this->line($ts . " " . $ident . $harvest->credential->provider->name . " : " . $harvest->yearmon . " : " .
+                                  $report->name . " processed for " . $harvest->credential->institution->name);
                 unset($C5processor);
 
             }
