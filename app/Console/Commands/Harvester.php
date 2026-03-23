@@ -6,15 +6,21 @@ use Illuminate\Console\Command;
 use DB;
 use App\Models\Consortium;
 use App\Models\Report;
-use App\Models\CounterApi;
 use App\Models\GlobalQueueJob;
 use App\Models\FailedHarvest;
 use App\Models\HarvestLog;
 use App\Models\CcplusError;
 use App\Models\Severity;
-// use App\Alert;
+use App\Models\CounterApi;
 use App\Models\GlobalProvider;
 use App\Models\ConnectionField;
+use \ubfr\c5tools\CounterApiRequest;
+use \ubfr\c5tools\JsonReport;
+use \ubfr\c5tools\exceptions\CounterApiException;
+use \ubfr\c5tools\exceptions\CounterApiRequestException;
+use \ubfr\c5tools\exceptions\InvalidCounterApiResponseException;
+use Illuminate\Support\Facades\File;
+use Illuminate\Support\Facades\Crypt;
  //
  // CC Plus Queue Harvesting Script
  // Examines the global Jobs queue and processes everything.
@@ -239,170 +245,141 @@ class Harvester extends Command
                 continue;
             }
 
-
-            // Create a new CounterApi object
-            $capi = new CounterApi($begin, $end);
-
             // Set output filename for raw data. Create the folder path, if necessary
             $rawfile = $harvest->id . '_' . $report->name . '_' . $harvest->yearmon . '.json';
-            $capi->raw_datafile = $unprocessed_path . $rawfile;
+            $raw_datafile = $unprocessed_path . $rawfile;
 
             // Construct URI for the request
-            $request_uri = $capi->buildUri($credential, $report, 'reports', $harvest->release);
+            $message = "";
+            $detail = "";
+            $help_url = "";
+            $severity = "";
+            $error_code = 0;
+            $request_status = "Success";
+            $request_uri = CounterApi::buildUri($begin, $end, $credential, $report, 'reports', $harvest->release);
 
             // Make the request
-            $request_status = $capi->request($request_uri);
+            try {
+                $request = CounterApiRequest::fromUrl($request_uri);
+                $response = $request->doRequest();
+                if ($response->isException() || $response->isReportWithException()) {
+                    $request_status = "Fail";
+                    throw new CounterApiException($response, $request);
+                } elseif ($response->isReport()) {
+                    $response = new JsonReport($response, $request);
+                } else {
+                    $request_status = "Fail";
+                    throw new InvalidCounterApiResponseException(
+                        'response is unusuable',
+                        $request->getRequestUrl(),
+                        $response->getHttpResponse()
+                    );
+                }
+            } catch (CounterApiRequestException $e) {
+                $error_code = 9000;
+                $severity = "ERROR";
+                $message = $e->getMessage();
+                $detail = (property_exists($e, 'Data')) ? $e->Data : "";
+                $help_url = (property_exists($e, 'Help_URL')) ? $e->Help_URL : "";
+                $request_status = "Fail";
+            } catch (InvalidCounterApiResponseException $e) {
+                $error_code = 9010;
+                $severity = "ERROR";
+                $message = $e->getMessage();
+                $detail = (property_exists($e, 'Data')) ? $e->Data : "";
+                $help_url = (property_exists($e, 'Help_URL')) ? $e->Help_URL : "";
+            } catch (CounterApiException $e) {
+                $error_code = $e->getCode();
+                $severity = "ERROR";
+                $message = $e->getMessage();
+                $detail = (property_exists($e, 'Data')) ? $e->Data : "";
+                $help_url = (property_exists($e, 'Help_URL')) ? $e->Help_URL : "";
+            }
 
-            // Examine the response
-            $error = null;
-            $valid_report = false;
-            $new_code = $capi->error_code;
+            // Save raw data
+            if ($error_code != 9000 && $error_code != 9010) {
+                if (File::put($raw_datafile, Crypt::encrypt(bzcompress($response->getJsonString(), 9), false)) === false) {
+                    echo "Failed to save raw data in: " . $raw_datafile;
+                    $raw_datafile = "";
+                }
+            }
+
+            // All other error codes will set the harvestlog and exit
+            // IF success, data will be in $response
+            $new_status = $request_status;
             $new_attempts = $harvest->attempts;
 
+           // Check for "queued" state response
+            if ($error_code == 1011 || $error_code == 1020) {
+                $new_status = 'Pending';
+                $this->line($ts . " QueueHarvester: harvest ID: " . $harvest->id . ' set Pending, will be retried');
+            // If no data (3030) record a single failedHarvest record, and continue
+            } else if ($error_code == 3030 || $error_code == 9030) {
+                // Get error data from CC+ errors table
+                $this->line($ts . " QueueHarvester: No data in Report Items for harvest ID: " . $harvest->id);
+                $error = CcplusError::where('id',$error_code)->first();
+
+                // Clear all existing failed records
+                $deleted = DB::table($failedharvests[$cid])->where('harvest_id', $harvest->id)->delete();
+
+                // Add a single failed record to record the "no records received" exception
+                $result = DB::table($failedharvests[$cid])
+                            ->insert(['harvest_id' => $harvest->id, 'process_step' => 'API',
+                                        'error_id' => $error_code, 'detail' => $message . ', ' . $detail,
+                                        'help_url' => $help_url, 'created_at' => $ts]);
+
+                // Update attempts, record error_id and set Success
+                $new_attempts++;
+                $new_status = "Success";
+            }
+
             // If request failed, set a FailedHarvest record and update the harvest record
-            if ($request_status == "Fail") {
+            if ($new_status == "Fail") {
                 $error_msg = '';
                 // Turn severity string into an ID
-                $severity_id = $all_severities->where('name', 'LIKE', $capi->severity . '%')->pluck('id');
+                $severity_id = $all_severities->where('name', 'LIKE', $severity . '%')->pluck('id');
                 if ($severity_id === null) {  // if not found, set to 'Error' and prepend it to the message
                     $severity_id = $all_severities->where('name', 'Error')->pluck('id');
-                    $error_msg .= $capi->severity . " : ";
+                    $error_msg .= $severity . " : ";
                 }
 
                 // Clean up the message in case this is a new code for the errors table
-                $error_msg .= substr(preg_replace('/(.*)(https?:\/\/.*)$/', '$1', $capi->message), 0, 60);
+                $error_msg .= substr(preg_replace('/(.*)(https?:\/\/.*)$/', '$1', $message), 0, 60);
 
                 // Get/Create entry from the CC+ errors table
-                if ($capi->error_code == 0) {  // 0 is reserved for "No Error", reset to "unknown" code:9400
-                    $capi->error_code = 9400;
-                    $new_code = 9400;
+                if ($error_code == 0) {  // 0 is reserved for "No Error", reset to "unknown" code:9000
+                    $error_code = 9000;
                 }
                 $error = CcplusError::firstOrCreate(
-                        ['id' => $capi->error_code],
-                        ['id' => $capi->error_code, 'message' => $error_msg, 'severity' => $severity_id]
+                        ['id' => $error_code],
+                        ['id' => $error_code, 'message' => $error_msg, 'severity' => $severity_id, 'new_status' => 'Fail']
                 );
+                $detail .= " (URL: " . $request_uri . ")";
                 $result = DB::table($failedharvests[$cid])
-                            ->insert(['harvest_id' => $harvest->id, 'process_step' => $capi->step, 'error_id' => $error->id,
-                                      'detail' => $capi->detail, 'help_url' => $capi->help_url, 'created_at' => $ts]);
-                if ($capi->error_code != 9200) {
-                    $capi->detail .= " (URL: " . $request_uri . ")";
-                }
-                $this->line($ts . " QueueHarvester: COUNTER API Exception (" . $capi->error_code . ") : " .
-                                    " (Harvest: " . $harvest->id . ") " . $capi->message . ", " . $capi->detail);
+                            ->insert(['harvest_id' => $harvest->id, 'process_step' => 'Request', 'error_id' => $error->id,
+                                      'detail' => $detail, 'help_url' => $help_url, 'created_at' => $ts]);
 
-                DB::table($harvests[$cid])->where('id', $harvest->id)->update(['status' => 'Fail', 'error_id' => $error->id]);
-                $job->delete();
-            }
-
-            // CounterApi said "Success"?
-            if ($request_status == "Success") {
-                $new_status = 'Success';
-                // Skip validation for 3030 (no data)
-                if ($new_code != 3030) {
-                    // Print out any non-fatal message from request
-                    if ($capi->message != "") {
-                        $this->line($ts . " QueueHarvester: Non-Fatal COUNTER API Exception (" . $harvest->id . "): (" .
-                                            $new_code . ") : " . $capi->message . ', ' . $capi->detail);
-                        $error = CcplusError::where('id',$new_code)->first();
-                    }
-                    // Validate the report
-                    try {
-                        $valid_report = $capi->validateJson();
-                    } catch (\Exception $e) {
-                        // if no Report Items, set $capi with 9030
-                        if ($e->getCode() == 9030) {
-                            $new_code = 9030;
-                            $capi->message = "No Data For Reported for Requested Dates";
-                        // Any other error, set and record it
-                        } else {
-                            if ($error) {
-                                $result = DB::table($failedharvests[$cid])
-                                            ->insert(['harvest_id' => $harvest->id, 'process_step' => 'API',
-                                                      'error_id' => $new_code, 'detail' => $capi->message.', '.$capi->detail,
-                                                      'help_url' => $capi->help_url, 'created_at' => $ts]);
-                            // Otherwise, signal 9400) - failed COUNTER validation
-                            } else {
-                                $result = DB::table($failedharvests[$cid])
-                                            ->insert(['harvest_id' => $harvest->id, 'process_step' => 'COUNTER',
-                                                      'error_id' => 9400, 'detail' => 'Validation error: ' . $e->getMessage(),
-                                                      'help_url' => $capi->help_url, 'created_at' => $ts]);
-                                $this->line($ts . " QueueHarvester: Report failed COUNTER validation :: ".$harvest->id.
-                                                    " :: " . $e->getMessage());
-                                $new_code = 9400;
-                                $error = CcplusError::where('id',9400)->first();
-                            }
-                        }
-                    }
+                // Set new status for the harvest update
+                $new_status = 'ReQueued'; // ReQueue by default
+                $keep_statuses = array('NoRetries','Waiting','ReQueued','Pending');
+                if (!in_array($error->new_status, $keep_statuses)) {
+                    $new_status = $error->new_status;
                 }
 
-                // If no data (3030) record a single failedHarvest record, and continue
-                if ($new_code == 3030 || $new_code == 9030) {
-                    // Get error data from CC+ errors table
-                    $this->line($ts . " QueueHarvester: No data in Report Items for harvest ID: " . $harvest->id);
-                    $error = CcplusError::where('id',$new_code)->first();
-
-                    // Clear all existing failed records
-                    $deleted = DB::table($failedharvests[$cid])->where('harvest_id', $harvest->id)->delete();
-
-                    // Add a single failed record to record the "no records received" exception
-                    $result = DB::table($failedharvests[$cid])
-                                ->insert(['harvest_id' => $harvest->id, 'process_step' => 'API',
-                                          'error_id' => $new_code, 'detail' => $capi->message . ', ' . $capi->detail,
-                                          'help_url' => $capi->help_url, 'created_at' => $ts]);
-
-                    // Update attempts, record error_id and set Success
-                    $new_attempts++;
-                }
-                // Track last successful (last_harvest_id) and most-current harvest (last_harvest) for this credential
-                $c_args = array('last_harvest_id' => $harvest->id);
-                if ($yearmon > $credential->last_harvest) {
-                    $c_args['last_harvest'] = $yearmon;
-                }
-                DB::table($creds[$cid])->where('id', $harvest->credentials_id)->update($c_args);
-
-            // If request is pending (in a provider queue, not a CC+ queue), just set harvest status
-            // the record updates when we fall out of the remaining if-else blocks
-            } else if ($request_status == "Pending") {
-                // $valid_report remains false....
-                $new_status = "Pending";
-            }
-
-            // If we have a validated report, mark the harvestlog
-            if ($valid_report) {
-                $this->line($ts . " QueueHarvester: " . $credential->prov_name . " : " . $yearmon . " : " .
-                                    $report->name . " saved for " . $credential->inst_name);
-                $new_code = 0;
-                $new_attempts++;
-                $new_status = "Waiting";
-
-                // Successfully processed the report - clear out any existing "failed" records
-                $deleted = DB::table($failedharvests[$cid])->where('harvest_id', $harvest->id)->delete();
-
-            // No valid report data saved. If we failed, update harvest record
-            // (ignore Pending, 3030, and 9030)
-            } else if ($request_status != "Pending" && $new_code != 3030 && $new_code != 9030) {
-                // Increment harvest attempts
+                // Increment harvest attempts; if we're out of retries keep error code and set status only
                 $new_attempts++;
                 $max_retries = intval(config('ccplus.max_harvest_retries'));
-
-                // If we're out of retries, the harvest failed already - leave code alone and set status only
                 if ($new_attempts >= $max_retries) {
                     $new_status = 'NoRetries';
-                    // Alert::insert(['yearmon' => $yearmon, 'prov_id' => $credential->prov_id,
-                    //                'harvest_id' => $job->harvest->id, 'status' => 'Active', 'created_at' => $ts]);
-                } else {
-                    $new_status = 'ReQueued'; // ReQueue by default
                 }
-            }
+                // Alert::insert(['yearmon' => $yearmon, 'prov_id' => $credential->prov_id,
+                //                'harvest_id' => $job->harvest->id, 'status' => 'Active', 'created_at' => $ts]);
 
-            // If there's an error code, clean up raw data file and or database pointer to it. The
-            // processor script will move the valid+successful JSON data once it is parsed and stored
-            if ($new_code > 0) {
+                // If there's an error code, clean up raw data file and or database pointer to it.
+                // 9000 and 9010 errors clear the rawfile field for the harvest. Nothing was saved/kept
+                if (in_array($new_code,[9000,9010])) $rawfile = null;
 
-                // 9100, 9200, and 9300 should all clear the rawfile field for the harvest. Nothing was saved/kept
-                if (in_array($new_code,[9100,9200,9300])) $rawfile = null;
-
-                // Set target path
+                // Set target path; create folder if not there
                 $savePath = $report_path . '/' . $credential->inst_id . '/' . $credential->prov_id;
                 if ($credential->inst_id>0 && $credential->prov_id>0 && !is_dir($savePath)) {
                     mkdir($savePath, 0755, true);
@@ -410,49 +387,75 @@ class Harvester extends Command
                 if (is_dir($savePath)) {
                     // If the harvest has a rawfile value set and this attempt returned invalid/no JSON,
                     // clear out the saved data file, if possible.
-                    if (in_array($new_code,[9100,9200,9300]) && !is_null($harvest->rawfile)) {
+                    if (in_array($error->id,[9000,9010]) && !is_null($harvest->rawfile)) {
                         $oldFile = $savePath . '/' . $harvest->rawfile;
                         try {
                             unlink($oldFile);
                         } catch (\Exception $e2) { }
                     }
                     // If a rawfile exists from this attempt, try to move JSON to the processed folder.
-                    if ($capi->raw_datafile != "") {
+                    if ($raw_datafile != "") {
                         $newName = $savePath . '/' . $rawfile;
                         try {
-                            rename($capi->raw_datafile, $newName);
+                            rename($raw_datafile, $newName);
                         } catch (\Exception $e) { // rename failed. Try to cleanup the unprocessed folder (silently)
                             try {
-                                unlink($capi->raw_datafile);
+                                unlink($raw_datafile);
                             } catch (\Exception $e2) { }
                             $rawfile = null;
                         }
                     }
                 }
+                DB::table($harvests[$cid])->where('id', $harvest->id)
+                  ->update(['status'=>$new_status, 'error_id'=>$error->id, 'rawfile'=>$rawfile]);
+                $job->delete();
+
+                $this->line($ts . " QueueHarvester: COUNTER API Exception (" . $error->id . ") : " .
+                                    " (Harvest: " . $harvest->id . ") " . $message . ", " . $detail);
             }
 
-            // Force harvest status to the value from any Error, but leave some as-is (set above already)
-            if ($error) {
-                $keep_statuses = array('NoRetries','Waiting','ReQueued','Pending');
-                if (!in_array($error->new_status, $keep_statuses)) {
-                    $new_status = $error->new_status;
+            // Request returned Success - No Exceptions (could include no-records)
+            if ($new_status == "Success" || $new_status == "Pending") {
+                // Print out any non-fatal message from request
+                if ($message != "") {
+                    $this->line($ts . " QueueHarvester: Non-Fatal COUNTER API Exception (" . $harvest->id . "): (" .
+                                        $error_code . ") : " . $message . ', ' . $detail);
+                    $error = CcplusError::where('id',$error_code)->first();
+                }
+
+                // Skip if error_code holds Pending, too-many requests, or no usage
+                if (!in_array($error_code,[1011,1020,3030,9030])) {
+                    $error_code = 0;
+                    // Track last successful (last_harvest_id) and most-current harvest (last_harvest) for this credential
+                    $c_args = array('last_harvest_id' => $harvest->id);
+                    if ($yearmon > $credential->last_harvest) {
+                        $c_args['last_harvest'] = $yearmon;
+                    }
+                    DB::table($creds[$cid])->where('id', $harvest->credentials_id)->update($c_args);
+
+                    $new_attempts++;
+                    $new_status = "Waiting";
+
+                    // Successfully harvested - clear out any existing "failed" records
+                    $deleted = DB::table($failedharvests[$cid])->where('harvest_id', $harvest->id)->delete();
+
+                    $this->line($ts . " QueueHarvester: " . $credential->prov_name . " : " . $yearmon . " : " .
+                                        $report->name . " saved for " . $credential->inst_name);
+                }
+                // Update the harvest 
+                DB::table($harvests[$cid])->where('id', $harvest->id)
+                  ->update(['status' => $new_status, 'error_id' => $error_code, 'attempts' => $new_attempts,
+                            'rawfile' => $rawfile]);
+
+                // Remove the job record unless the harvest is Pending
+                if ($new_status != "Pending") {
+                    $job->delete();
                 }
             }
 
             // Sleep 2 seconds *before* saving the harvest record (keeping it technically "Active"),
             // to avoid having the provider block too-rapid requesting.
             sleep(2);
-
-            // Update the harvest 
-            DB::table($harvests[$cid])->where('id', $harvest->id)
-              ->update(['status' => $new_status, 'error_id' => $new_code, 'attempts' => $new_attempts,
-                        'rawfile' => $rawfile]);
-
-            // All done, remove the job record unless the harvest is Pending
-            unset($capi);
-            if ($new_status != "Pending") {
-                $job->delete();
-            }
 
         }   // foreach job
         return 1;
