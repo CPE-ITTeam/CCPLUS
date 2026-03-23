@@ -1,6 +1,7 @@
 <!-- components/shared/DataTable.vue -->
 <script setup>
   import { ref, computed } from 'vue';
+  import { useAuthStore } from '@/plugins/authStore.js';
   import ToggleIcon from './ToggleIcon.vue';
   import DeleteConfirm from '../dialogs/DeleteConfirm.vue';
   import ErrorDetails from '../dialogs/ErrorDetails.vue';
@@ -57,6 +58,7 @@
   var current_error = ref({id:null, message:'', explanation:'', detail:'', process_step:'', help_url:''});
 
   const emit = defineEmits(['update:selectedRows', 'update:toggle', 'update:report', 'edit', 'delete']);
+  const { ccRawJson } = useAuthStore();
 
   // reportSort compares 'sortval' values in items
   const reportSort = (a, b) => {
@@ -88,7 +90,10 @@
     current_error.value = {id:null, message:'', explanation:'', detail:'', process_step:'', help_url:''};
     errorDialog.value = false;
   }
-  </script>
+  function openUrl(url) {
+    window.open(url, "_blank");
+  }
+</script>
 
 <template #top>
   <div>
@@ -177,6 +182,15 @@
         <span >
           <v-icon :title="item.d_status" :color="item.error.color">mdi-record</v-icon>
         </span>
+      </template>
+
+      <!-- Harvest ID/barley icon -->
+      <template v-slot:item.harvest_id="{ item }">
+        <span v-if="item.rawfile!=null">
+          {<a title="Downloaded JSON" href="#" @click="ccRawJson(item.harvest_id)">{{ item.harvest_id }}</a>}
+        </span>
+        <span v-else>{{ item.harvest_id }}</span>
+        <v-icon title="Manual Retry/Confirm Link" @click="openUrl(item.retryUrl)" color="#3686B4">mdi-barley</v-icon>
       </template>
 
       <!-- Error Key -->
