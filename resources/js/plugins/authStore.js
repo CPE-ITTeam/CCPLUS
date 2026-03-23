@@ -196,5 +196,42 @@ export const useAuthStore = defineStore('useAuthStore', {
                                   });
       return response.data;
     },
+    async ccRawJson(id) {
+      try {
+          const response = await axios.get(`/api/harvests/raw/${id}`, {
+              responseType: 'blob',
+              headers: {
+                Authorization: 'Bearer ' + this.token,
+                Accept: "application/json",
+              }
+          });
+
+          // Create a blob from the response data
+          const blob = new Blob([response.data], { 
+              type: response.headers['content-type'] 
+          });
+          
+          // Create a URL for the blob
+          const url = window.URL.createObjectURL(blob);
+          const link = document.createElement('a');
+          link.href = url;
+          
+          // Set filename from header or set default
+          const fileName = response.headers['content-disposition']
+              ? response.headers['content-disposition'].split('filename=')[1].replace(/"/g, '')
+              : 'Harvest_'+id+'_JSON';
+          link.setAttribute('download', fileName);
+          document.body.appendChild(link);
+          
+          // Trigger download
+          link.click();
+          
+          // Cleanup
+          document.body.removeChild(link);
+          window.URL.revokeObjectURL(url);
+      } catch (error) {
+          console.error('Download failed', error);
+      }
+    },
   }
 });
