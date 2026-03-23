@@ -358,8 +358,6 @@ class HarvestLogController extends Controller
         foreach ($year_mons as $yearmon) {
             // Loop for all global providers
             foreach ($global_platforms as $global_platform) {
-
-               
                 // Set the COUNTER release to be harvested 
                 $release = $global_platform->default_release();
                 if ($input_release == 'System Default' && !is_null($firstYM)) {
@@ -683,8 +681,11 @@ class HarvestLogController extends Controller
            // Confirm the file exists and is readable before trying to decrypt and return it
            if (is_readable($filename)) {
                return response()->streamDownload(function () use ($filename) {
-                   echo bzdecompress(Crypt::decrypt(File::get($filename), false));
-               }, $return_name);
+                       echo bzdecompress(Crypt::decrypt(File::get($filename), false));
+                   }, $return_name,
+                    [ 'Content-Type' => 'application/json',
+                      'Content-Disposition' => 'attachment; filename="' . $return_name . '"']
+               );
            } else {
                $msg = 'Raw datafile is not accessible.';
            }
@@ -811,11 +812,12 @@ class HarvestLogController extends Controller
    // Build a consistent output record using an input harvest record
    // input should include Report, Credential with institution+provider and failedHarvests with ccplusError
    private function formatRecord($harvest) {
-       $rec = array('id' => $harvest->id, 'inst_id' => $harvest->credential->inst_id, 'prov_id' => $harvest->credential->prov_id,
-                    'release' => $harvest->release, 'yearmon' => $harvest->yearmon, 'attempts' => $harvest->attempts,
-                    'inst_name' => $harvest->credential->institution->name, 'prov_name' => $harvest->credential->provider->name,
-                    'report_id' => $harvest->report->id, 'report_name' => $harvest->report->name, 'status' => $harvest->status,
-                    'rawfile' => $harvest->rawfile, 'error_id' => 0, 'error' => []
+       $rec = array('harvest_id' => $harvest->id, 'inst_id' => $harvest->credential->inst_id,
+                    'prov_id' => $harvest->credential->prov_id, 'release' => $harvest->release, 'yearmon' => $harvest->yearmon,
+                    'attempts' => $harvest->attempts, 'inst_name' => $harvest->credential->institution->name,
+                    'prov_name' => $harvest->credential->provider->name, 'report_id' => $harvest->report->id,
+                    'report_name' => $harvest->report->name, 'status' => $harvest->status, 'rawfile' => $harvest->rawfile,
+                    'error_id' => 0, 'error' => []
                    );
        $rec['updated'] = ($harvest->updated_at) ? date("Y-m-d H:i", strtotime($harvest->updated_at)) : " ";
        $rec['created'] = ($rec['updated'] != " ") ? date("Y-m-d H:i", strtotime($harvest->updated_at)) : " ";
@@ -854,12 +856,11 @@ class HarvestLogController extends Controller
        // Build a URL to test+confirm the error(s); let CounterApi class do the work
        $beg = $harvest->yearmon . '-01';
        $end = $harvest->yearmon . '-' . date('t', strtotime($beg));
-       $capi = new CounterApi($beg, $end);
+       $rec['retryUrl'] = CounterApi::buildUri($beg,$end,$harvest->credential, $harvest->report, 'reports', $harvest->release);
  
-       // setup required connectors for buildUri
+       // Set required connectors
        $prov_connectors = $harvest->credential->provider->connectors();
        $connectors = $this->connection_fields->whereIn('id',$prov_connectors)->pluck('name')->toArray();
-       $rec['retryUrl'] = $capi->buildUri($harvest->credential, $harvest->report, 'reports', $harvest->release);
        return $rec;
    }
 
