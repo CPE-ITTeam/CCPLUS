@@ -211,7 +211,21 @@
 
       <!-- Actions column -->
       <template #item.actions="{ item }">
-        <div v-if="item.can_edit || item.can_delete" class="d-flex ga-2 justify-end">
+        <div v-if="item.can_edit || item.can_delete || props.dataset=='platforms'" class="d-flex ga-2 justify-end">
+          <!-- Platform refresh icons -->
+          <v-tooltip v-if="props.dataset=='platforms' && (item.refresh_result=='orphan' || item.refresh_result==null)"
+                     :text="item.refresh_text" location="top">
+            <template v-slot:activator="{ props }">
+              <v-icon :icon="item.refresh_icon" :color="item.refresh_color" v-bind="props" />
+            </template>
+          </v-tooltip>
+          <v-tooltip v-else-if="item.refresh_result!=null" :text="item.refresh_text" location="top">
+            <template v-slot:activator="{ props }">
+              <v-icon icon="mdi-web-check" :color="item.refresh_color" v-bind="props"
+                      @click="openUrl('https://registry.countermetrics.org/platform/'+item.registry_id)" />
+            </template>
+          </v-tooltip>
+          <!-- Edit / Delete icons -->
           <v-tooltip v-if="item.can_edit" text="Edit" location="top">
             <template v-slot:activator="{ props }">
               <v-icon icon="mdi-pencil" color="medium-emphasis" v-bind="props"
