@@ -49,6 +49,19 @@ class GlobalProviderController extends Controller
         // get all the consortium instances
         $instances = Consortium::get();
 
+        // setup resultMap with static values for the U/I
+        $resultMap = array(
+            'success' => array('refresh_text'=>'Open Registry Details', 'refresh_icon'=>'mdi-web-check', 'refresh_color'=>'blue'),
+            'new'     => array('refresh_text'=>'New Platform Entry', 'refresh_icon'=>'mdi-web-plus', 'refresh_color'=>'green'),
+            'orphan'  => array('refresh_text'=>'Deprecated', 'refresh_icon'=>'mdi-web-remove', 'refresh_color'=>'red'),
+            'partial' => array('refresh_text'=>'Incomplete Result', 'refresh_icon'=>'mdi-web-remove', 'refresh_color'=>'orange'),
+            'failed'  => array('refresh_text'=>'Last Refresh Failed', 'refresh_icon'=>'mdi-web-remove', 'refresh_color'=>'red'),
+            'norefresh' => array('refresh_text'=>'Registry Refresh Disabled', 'refresh_icon'=>'mdi-web-cancel',
+                                 'refresh_color'=>'black'),
+            'noregistry' => array('refresh_text'=>'Registry Refresh Disabled', 'refresh_icon'=>'mdi-web-cancel',
+                                  'refresh_color'=>'black'),
+        );
+
         // Build the providers array to pass back to the datatable
         $all_releases = array();
         $providers = array();
@@ -58,6 +71,21 @@ class GlobalProviderController extends Controller
             $provider['status'] = ($gp->is_active) ? "Active" : "Inactive";
             $provider['refreshable'] = ($gp->refreshable) ? "Active" : "Inactive";
             $provider['registry_id'] = (is_null($gp->registry_id) || $gp->registry_id=="") ? null : $gp->registry_id;
+            // Handle refresh_result and set the meta-values for the U/I
+            // result value will match a key in $resultMap, 'noregistry', 'norefresh', or null
+            $resultKey = "";
+            if ( is_null($provider['registry_id']) ) $resultKey = 'noregistry';
+            if ( !$gp->refreshable ) $resultKey = 'norefresh';
+            if (in_array($gp->refresh_result, array_keys($resultMap))) {
+                if ($resultKey=="") $resultKey = $gp->refresh_result;
+                $provider['refresh_result'] = $resultKey;
+            } else {
+                $resultKey = 'norefresh';
+                $provider['refresh_result'] = null;
+            }
+            $provider['refresh_text']  = $resultMap[$resultKey]['refresh_text'];
+            $provider['refresh_icon']  = $resultMap[$resultKey]['refresh_icon'];
+            $provider['refresh_color'] = $resultMap[$resultKey]['refresh_color'];
             // Set release-related fields
             $provider['cur_release'] = $gp->default_release();
             $service_url = $gp->service_url();
@@ -109,13 +137,17 @@ class GlobalProviderController extends Controller
             $provider['updated'] = (is_null($gp->updated_at)) ? "" : date("Y-m-d H:i", strtotime($gp->updated_at));
             $providers[] = $provider;
         }
-
         // Pass master_reports and all_connectors with releases filter options for the edit form
         $filter_options = array();
         $filter_options['releases'] = $all_releases;
         $filter_options['all_connectors'] = $all_connectors;
         $filter_options['master_reports'] = $masterReports; 
-
+        $filter_options['statuses'] = array('Active','Inactive');
+        // Set refresh_result filter options to key->value pairs so they make better sense in the U/I
+        $filter_options['results'] = array( array('key'=>'success','value' =>'Success'), array('key'=>'new','value' =>'New'),
+            array('key'=>'orphan','value' =>'Deprecated'), array('key'=>'partial','value' =>'Incomplete'),
+            array('key'=>'failed','value' =>'Failed'), array('key'=>'norefresh','value' =>'Refresh Disabled'),
+            array('key'=>'noregistry','value' =>'No Registry ID'));
         // Return the data array
         return response()->json(['records' => $providers, 'options' => $filter_options], 200);
     }
