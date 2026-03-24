@@ -6,7 +6,6 @@ use Illuminate\Console\Command;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Database\QueryException;
 use DB;
-use App\Models\CounterApi;
 use App\Models\Report;
 use App\Models\Consortium;
 use App\Models\Connection;
@@ -16,6 +15,12 @@ use App\Models\Counter5Processor;
 use App\Models\FailedHarvest;
 use App\Models\HarvestLog;
 use App\Models\ConnectionField;
+use App\Models\CounterApi;
+use \ubfr\c5tools\CounterApiRequest;
+use \ubfr\c5tools\JsonReport;
+use \ubfr\c5tools\exceptions\CounterApiException;
+use \ubfr\c5tools\exceptions\CounterApiRequestException;
+use \ubfr\c5tools\exceptions\InvalidCounterApiResponseException;
 
 /*
  * NOTE:
@@ -183,17 +188,16 @@ class HarvestBatch extends Command
                     }
 
                    // Create a new CounterApi object
-                    $capi = new CounterApi($begin, $end);
-                    $request_uri = $capi->buildUri($credential, $report, 'reports', $release);
+                    $request_uri = CounterApi::buildUri($begin, $end, $credential, $report, 'reports', $release);
 
                    // Set output filename for raw data. Create the folder path, if necessary
                     if (!is_null(config('ccplus.reports_path'))) {
-                        $full_path = $report_path . '/' . $credential->institution->name . '/' . $$cnx->GlobalProv->name . '/';
+                        $full_path = $report_path . '/' . $credential->institution->name . '/' . $cnx->GlobalProv->name . '/';
                         if (!is_dir($full_path)) {
                             mkdir($full_path, 0755, true);
                         }
                         $raw_filename = $report->name . '_' . $begin . '_' . $end . '.json';
-                        $capi->raw_datafile = $full_path . $raw_filename;
+                        $raw_datafile = $full_path . $raw_filename;
                     }
                     $source = ($cnx->inst_id == 1) ? "C" : "I";
 
@@ -225,16 +229,60 @@ class HarvestBatch extends Command
                     $sleep_time = 30;   // 30 seconds between retries
                     $retry_limit = 20;  // max 20 retries
                     $retries = 0;
-                    $req_state = "Pending";
+                    $request_status = "Pending";
                     $ts = date("Y-m-d H:i:s");
 
                    // Sleeps and retries if request is queued.
-                    while ($retries <= $retry_limit  && $req_state == "Pending") {
-                       // Make the request
-                        $req_state = $capi->request($request_uri);
+                    while ($retries <= $retry_limit && $request_status == "Pending") {
 
-                       // Check status of request
-                        if ($req_state == "Pending") {
+                        // Make the request
+                        $message = "";
+                        $detail = "";
+                        $help_url = "";
+                        $severity = "";
+                        $error_code = 0;
+                        try {
+                            $request = CounterApiRequest::fromUrl($request_uri);
+                            $response = $request->doRequest();
+                            if ($response->isException() || $response->isReportWithException()) {
+                                $request_status = "Fail";
+                                throw new CounterApiException($response, $request);
+                            } elseif ($response->isReport()) {
+                                $response = new JsonReport($response, $request);
+                                $request_status = "Success";
+                            } else {
+                                $request_status = "Fail";
+                                throw new InvalidCounterApiResponseException(
+                                    'response is unusuable',
+                                    $request->getRequestUrl(),
+                                    $response->getHttpResponse()
+                                );
+                            }
+                        } catch (CounterApiRequestException $e) {
+                            $error_code = 9000;
+                            $severity = "ERROR";
+                            $message = $e->getMessage();
+                            $detail = (property_exists($e, 'Data')) ? $e->Data : "";
+                            $help_url = (property_exists($e, 'Help_URL')) ? $e->Help_URL : "";
+                            $request_status = "Fail";
+                        } catch (InvalidCounterApiResponseException $e) {
+                            $error_code = 9010;
+                            $severity = "ERROR";
+                            $message = $e->getMessage();
+                            $detail = (property_exists($e, 'Data')) ? $e->Data : "";
+                            $help_url = (property_exists($e, 'Help_URL')) ? $e->Help_URL : "";
+                        } catch (CounterApiException $e) {
+                            $error_code = $e->getCode();
+                            $severity = "ERROR";
+                            $message = $e->getMessage();
+                            $detail = (property_exists($e, 'Data')) ? $e->Data : "";
+                            $help_url = (property_exists($e, 'Help_URL')) ? $e->Help_URL : "";
+                        }
+                        $new_status = $request_status;
+
+                        // Check for "queued" state response
+                        if ($error_code == 1011 || $error_code == 1020) {
+                            $new_status = 'Pending';
                             $retries++;
                             $this->line('Report pending .... sleeping (' . $retries . ')');
                             sleep($sleep_time);
@@ -242,41 +290,25 @@ class HarvestBatch extends Command
                         }
 
                        // If request failed, insert a FailedHarvest record
-                        if ($req_state == "Fail") {
-                            FailedHarvest::insert(['harvest_id' => $harvest->id, 'process_step' => $capi->step,
-                                                  'error_id' => $capi->error_code, 'detail' => $capi->detail,
-                                                  'created_at' => $ts]);
-                            $this->line($capi->message . $capi->detail);
-                            $harvest->error_id = $capi->error_code;
+                        if ($new_status == "Fail") {
+                            FailedHarvest::insert(['harvest_id' => $harvest->id, 'error_id' => $error_code,
+                                                   'detail' => $detail, 'created_at' => $ts]);
+                            $this->line($message . $detail);
+                            $harvest->error_id = $error_code;
                             $harvest->status = 'Fail';
                             $harvest->update();
                             continue 2;
                         }
 
                        // Print out non-fatal message from sushi request
-                        if ($capi->message != "") {
-                            $this->line($capi->message . $capi->detail);
+                        if ($message != "") {
+                            $this->line($message . $detail);
                         }
                     } // while Pending with retries remaining
 
-                   // Validate report
-                    try {
-                        $valid_report = $capi->validateJson();
-                    } catch (\Exception $e) {
-                       // Update logs
-                        FailedHarvest::insert(['harvest_id' => $harvest->id, 'process_step' => 'COUNTER',
-                                               'error_id' => 9100, 'detail' => 'Validation error: ' . $e->getMessage(),
-                                               'created_at' => $ts]);
-                        $this->line("COUNTER report failed validation : " . $e->getMessage());
-                        $harvest->error_id = 9100;
-                        $harvest->status = 'Fail';
-                        $harvest->update();
-                        continue;
-                    }
-
                    // Process the report and save in the database
-                    if ($valid_report) {
-                        $_status = $C5processor->{$report->name}($capi->json);
+                    if ($new_status == "Success") {
+                        $_status = $C5processor->{$report->name}($response->getJson());
                         if ($_status = 'Success') {
                             $this->line($report->name . " report data saved for " . $credential->institution->name);
                             $harvest->status = 'Success';
@@ -293,7 +325,6 @@ class HarvestBatch extends Command
                             $deleted = FailedHarvest::where('harvest_id', $harvest->id)->delete();
                         }
                     }
-                    unset($capi);
                     unset($harvest);
                 } // foreach reports
             }     // foreach (conso-reports)
@@ -301,7 +332,7 @@ class HarvestBatch extends Command
             unset($C5processor);
         }  // foreach credentials
 
-        $this->line("Harvest ends at : " . date("Y-m-d H:i:s"));
+        $this->line("Batch Harvesting ends at : " . date("Y-m-d H:i:s"));
         return 1;
     }
 }
