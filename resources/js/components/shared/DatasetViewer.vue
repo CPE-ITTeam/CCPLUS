@@ -338,9 +338,18 @@
     const config = datasetConfig[props.datasetKey];
     // Setup base filename, default (data) sheet name, and workbook
     let fileName = "CCplus_"+consoKey.value;
-    fileName += (exportInstScope.value != '') ? exportInstScope.value : '';
-    fileName += (exportPlatScope.value != '') ? exportPlatScope.value : '';
-    fileName += (exportStatus.value != '') ? exportStatus.value : '';
+    if (props.datasetKey == 'connections') {
+      if (filterOptions.results['value'].length <= 1) {
+        let _val = (filterOptions.results['value'].length==1) ? "_"+filterOptions.results['value'][0] : ""; 
+        fileName += _val.replaceAll(' ', '');
+      } else {
+        fileName += "_SomeResults";
+      }
+    } else {
+      fileName += (exportInstScope.value != '') ? exportInstScope.value : '';
+      fileName += (exportPlatScope.value != '') ? exportPlatScope.value : '';
+      fileName += (exportStatus.value != '') ? exportStatus.value : '';
+    }
     let sheet_name = (config.title=='Credentials') ? 'Credentials' : config.title+'s';
     const workbook = XLSX.utils.book_new();
     // Audit doesn't need/provide a HowTo tab
