@@ -162,7 +162,7 @@
       sortby: 'email',
     },
     connections: {
-      urlRoot: '/api/connections', title: 'Platform',
+      urlRoot: '/api/connections', title: 'Connection',
       fields: [
         { name: 'id',        type: 'number',  header: null,     editable: false, searchable: false, label: 'ID',
           icon: '', helperText: '' },
