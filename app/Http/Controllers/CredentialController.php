@@ -208,7 +208,7 @@ class CredentialController extends Controller
             $new_conn = Connection::create($conn_data);
 
             // Attach report definitions to new provider
-            $global_report_ids = $gp->master_reports;
+            $global_report_ids = $gp->master_reports();
             $this->getMasterReports();
             $masters = $masterReports->whereIn('id',$global_report_ids);
             foreach ($masters as $rpt) {
