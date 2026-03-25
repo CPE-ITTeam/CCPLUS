@@ -18,6 +18,7 @@
   var institutions = ref([]);
   var institution_options = ref([]);
   var inst_groups = ref([]);
+  var selectedInstitutions = ref([]);
   var platforms = ref([]);
   var available_platforms = ref([]);
   var master_reports = ref([]);
@@ -37,10 +38,6 @@
   });
   const minYM = ref('');
   const toKey = ref(0);
-  // // Pinia DataStore
-  // const authStore = useAuthStore();
-  // const is_admin = authStore.is_admin;
-  // const is_serveradmin = authStore.is_serveradmin;
   // Get UI options
   const initializeOptions = async () => {
     try {
@@ -53,11 +50,6 @@
       master_reports.value = [...data.records.master_reports];
       fields.value = [...data.records.fields];
       fyMo.value = data.records.fyMo;
-      // if ( !is_admin ) {
-      //     form.value.inst = [institutions.value[0].id];
-      //     inst_name.value = institutions.value[0].name;
-      //     onInstChange();
-      // }
     } catch (error) {
       console.log('Error loading options: '+error.message);
     }
@@ -95,11 +87,10 @@
     return ret_string;
   });
   const selections_made = computed(() => {
-    return (form.value.inst.length>0 || form.value.plat.length>0 || form.value.inst_group_id!=0);
+    return (selectedInstitutions.value.length>0 || form.value.plat.length>0);
   });
   const submit_enabled = computed(() => {
-    return (form.value.plat.length>0 && form.value.reports.length>0 &&
-            (form.value.inst.length>0 || form.value.inst_group_id>0) &&
+    return (form.value.plat.length>0 && form.value.reports.length>0 && selectedInstitutions.value.length>0 &&
             form.value.fromYM!='' && form.value.toYM!='');
   });
   //Functions
@@ -117,35 +108,21 @@
     allPlats.value = false;
     allConsoPlats.value = false;
     available_platforms.value = [ ...platforms.value];
-    // if (props.presets['prov_id']) verifyPlatPreset();
+    selectedInstitutions.value = [];
   }
-  // // Verify provider preset value
-  // function verifyPlatPreset() {
-  //   let preset_id = Number(props.presets['prov_id']);
-  //   let plat = available_platforms.value.find(p => p.id == preset_id);
-  //   if (plat) {
-  //       form.value.plat = [preset_id];
-  //       onPlatChange();
-  //   } else {
-  //       failure.value = 'The preset platform is not available - verify COUNTER API credentials';
-  //       form.value.plat = [];
-  //       props.presets['prov_id'] = null;
-  //   }
-  // }
   // Update available platforms when inst-group changes
   function onGroupChange() {
     form.value.inst_group_id = group_id.value;
-    if (group_id.value == null ) {
+    form.value.inst = [];
+    if (group_id.value == null ) {  // value was cleared?
         available_platforms.value = [ ...platforms.value];
-        form.value.inst = [];
-    } else {
+    } else {  // value was set
         let group = inst_groups.value.find(g => g.id == group_id.value);
         if (typeof(group) != 'undefined') {
-            group.institutions.forEach(inst => { form.value.inst.push(inst.id); });
+            group.institutions.forEach(inst => { selectedInstitutions.value.push(inst.id); });
         }
         updatePlatforms();
     }
-    // if (props.presets['prov_id']) verifyPlatPreset();
   }
   // Update available platforms when inst changes
   function onInstChange() {
@@ -161,25 +138,15 @@
     } else {
         updatePlatforms();
     }
-    // if (props.presets['prov_id']) verifyPlatPreset();
+    selectedInstitutions.value = [...form.value.inst];
   }
-
-  // // External axios call to return available platforms
-  // function updatePlatforms () {
-  //   let inst_ids = (allInsts.value) ? JSON.stringify([0]) : JSON.stringify(form.value.inst);
-  //   axios.get('/available-providers?inst_ids='+inst_ids+'&group_id='+form.value.inst_group_id)
-  //         .then((response) => {
-  //             available_platforms.value = [ ...response.data.providers];
-  //         })
-  //         .catch(error => {});
-  // }
   // Filter available platforms based on other selections
   function updatePlatforms () {
-    if (form.value.inst.length == 0 ) {
-      available_platforms.value = [ ...response.data.providers];
+    if (selectedInstitutions.value.length == 0 ) {
+      available_platforms.value = [ ...platforms.value];
     } else {
       available_platforms.value = platforms.value.filter( plat =>
-        plat.institutions.some( id => (id==1 || form.value.inst.includes(id)) )
+        plat.institutions.some( id => (id==1 || selectedInstitutions.value.includes(id)) )
       );
     }
   }
@@ -199,9 +166,11 @@
     } else {
         plat_list = [ ...form.value.plat];
     }
+    // Clear any currently selected reports
+    form.value.reports = [];
     // If no platforms, set reports to all
     if (plat_list.length == 0) {
-        available_reports.value = [ ...master_reports.value];
+        available_reports.value = [];
         return;
     }
     // Update available reports when platforms changes
@@ -222,7 +191,7 @@
               add = true;
             } else if (cur_plat.reports[rpt.name].insts.length > 0) {
               cur_plat.reports[rpt.name].insts.forEach( inst => {
-                if (form.value.inst.includes(inst)) add = true;
+                if (selectedInstitutions.value.includes(inst)) add = true;
               });
             }
             if (add) available_reports.value.push(rpt);
@@ -300,10 +269,10 @@
       form.value.inst = [];
     // All Insts is OFF... turn it ON and reset selected
     } else {
-    // } else if (is_admin || is_viewer.value) {
       allInsts.value = true;
       form.value.inst = institutions.value.map(ii => ii.id);
     }
+    selectedInstitutions.value = [...form.value.inst];
   }
   watch( () => form.value.fromYM, (yearmon) => {
       toKey.value++;
@@ -319,19 +288,8 @@
     }
   });
   onMounted(() => {
-    // if ( !is_admin.value ) {
-    //     form.value.inst = [institutions.value[0].id];
-    //     inst_name.value = institutions.value[0].name;
-    //     onInstChange();
-    // }
     let dt = new Date();
     maxYM.value = dt.getFullYear() + '-' + ('0' + (dt.getMonth()+1)).slice(-2);
-    // // Apply inbound institution preset (provider handled in the InstChange function)
-    // if (props.presets['inst_id']) {
-    //     let instid = Number(props.presets['inst_id']);
-    //     form.value.inst = [instid];
-    //     onInstChange();
-    // }
     console.log('ManualHarvest Component mounted.');
   });
 </script>
