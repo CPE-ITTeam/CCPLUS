@@ -209,7 +209,7 @@ class HarvestLogController extends Controller
         $consoAdmin = $thisUser->isConsoAdmin();
 
         // Limit institutions by user role(s)
-        $limit_by_inst = ($consoAdmin) ? array() : $thisUser->viewerInsts();
+        $limit_by_inst = ($consoAdmin) ? array() : $thisUser->adminInsts();
 
         // Pull globalProvider IDs based on the connections defined for institutions
         // in $limit_by_inst ; everyone gets consortium-wide connections (where inst_id=1)
@@ -225,8 +225,15 @@ class HarvestLogController extends Controller
         // Admins see groups they admin - that have members
         $groups = array();
         $group_ids = $thisUser->adminGroups();
-        if (count($group_ids) > 0) {
-            $data = InstitutionGroup::whereIn('id',$group_ids)->with('institutions:id,name')->orderBy('name', 'ASC')->get();
+        if (count($group_ids) > 0 || $consoAdmin) {
+            $data = InstitutionGroup::with('institutions:id,name')
+                                    ->when($consoAdmin, function ($qry) {
+                                        return $qry->whereNull('user_id');
+                                    })
+                                    ->when(!$consoAdmin, function ($qry) use ($group_ids) {
+                                        return $qry->whereIn('id',$group_ids);
+                                    })
+                                    ->orderBy('name', 'ASC')->get();
             foreach ($data as $group) {
                 if ( $group->institutions->count() > 0 ) {
                     $groups[] = array('id' => $group->id, 'name' => $group->name, 'institutions' => $group->institutions);
@@ -292,7 +299,7 @@ class HarvestLogController extends Controller
         if (!isset($input["inst"]) || !isset($input["inst_group_id"])) {
             return response()->json(['result' => false, 'msg' => 'Error: Missing input arguments!']);
         }
-        if (sizeof($input["inst"]) == 0 && $input["inst_group_id"] <= 0) {
+        if (count($input["inst"]) == 0 && $input["inst_group_id"] <= 0) {
             return response()->json(['result' => false, 'msg' => 'Error: Institution/Group invalid in request']);
         }
         $input_release = (isset($input["release"])) ? $input["release"] : "";
@@ -305,31 +312,27 @@ class HarvestLogController extends Controller
             $skip_harvested = $input["skip_harvested"];
         }
 
-        // Admins can harvest multiple insts
-        $inst_ids = $thisUser->adminInsts();
+        // Setup an array of inst IDs to be processed
+        $limit_insts = array();
+        if (count($input["inst"]) > 0) {
+            $limit_insts = (!$consoAdmin) ? array_intersect($thisUser->adminInsts(), $input["inst"]) : $input["inst"];
+        } else {    // group_id should be set (we checked above)
+            $group = InstitutionGroup::where('id',$input["inst_group_id"])->first();
+            if (!$group) {
+                return response()->json(['result' => false, 'msg' => 'Error: InstitutionGroup is invalid or corrupt']);
+            }
+            $limit_insts = $group->institutions->pluck('id')->toArray();
+        }
+        // Make sure limit_insts include id:1 (so that we pick up conso-platforms from the connections below)
+        if (!in_array(1,$limit_insts)) $limit_insts[] = 1;
 
         // Get detail on (master) reports requested
         $master_reports = Report::where('parent_id',0)->orderBy('dorder','ASC')->get(['id','name']);
 
         // Get Global Platforms
-        if (in_array(0,$input["plat"])) {    // Get all consortium-enabled global platforms?
-            $global_ids = Connection::where('is_active',true)->where('inst_id',1)->pluck('global_id')->toArray();
-        } else {
-            $plat_ids = $input["plat"];
-            $global_ids = array();
-            // plat_ids with  -1  means ALL, set global_ids based whose asking
-            if (in_array(-1, $plat_ids) || count($plat_ids) == 0) {
-                $global_ids = Connection::where('is_active',true)
-                                        ->when( !$consoAdmin,  function ($qry) use ($inst_ids) {
-                                            $qry->where('inst_id',1)->orWhereIn('instid',$inst_ids);
-                                        })->select('global_id')->distinct()->pluck('global_id')->toArray();
-            } else {
-                $global_ids = Connection::where('is_active',true)->whereIn('global_id',$plat_ids)
-                                        ->when( !$consoAdmin,  function ($qry) use ($inst_ids) {
-                                            $qry->where('inst_id',1)->orWhereIn('instid',$inst_ids);
-                                        })->select('global_id')->distinct()->pluck('global_id')->toArray();
-            }
-        }
+        $plat_ids = $input["plat"];
+        $global_ids = Connection::where('is_active',true)->whereIn('global_id',$plat_ids)->whereIn('inst_id',$limit_insts)
+                                ->select('global_id')->distinct()->pluck('global_id')->toArray();
         $global_platforms = GlobalProvider::with('credentials','credentials.institution:id,is_active','connections',
                                                  'connections.reports','registries')
                                           ->where('is_active',true)->whereIn('id',$global_ids)->get();
@@ -381,9 +384,9 @@ class HarvestLogController extends Controller
 
                 // Loop through all credentials
                 foreach ($global_platform->credentials as $cred) {
-                    // If institution is inactive or this inst_id is not in the $inst_ids array, skip it
+                    // If institution is inactive or this inst_id is not in the $limit_insts array, skip it
                     if ($cred->status != "Enabled" || !$cred->institution->is_active ||
-                       (!$consoAdmin && !in_array($cred->inst_id,$inst_ids))) {
+                       (!$consoAdmin && !in_array($cred->inst_id,$limit_insts))) {
                         continue;
                     }
 
