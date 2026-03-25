@@ -42,8 +42,7 @@ class ConnectionController extends Controller
         $connections = array();
         foreach ($globals as $global) {
             $rec = array('id' => $global->id, 'platform' => $global->name, 'can_edit' => false, 'can_delete' => false,
-                         'reports' => $global->master_reports, 'result' => null);
-
+                         'reports' => $global->master_reports(), 'result' => null);
             // Get last_harvest data if one exists
             $lastHarvest = $global->lastHarvest();
             if ($lastHarvest) {
@@ -356,7 +355,7 @@ class ConnectionController extends Controller
                 })->toArray();
 
                 // Ignore columns for master reports the platform does not provide
-                if (!in_array($master_id,$platform->master_reports)) {
+                if (!in_array($master_id,$platform->master_reports())) {
                     continue;
                 }
                 $insts = preg_split('/,/', preg_replace('/, /', ',',$row[$col]));
