@@ -3,33 +3,40 @@
 use Illuminate\Support\Facades\Schedule;
 use App\Models\Consortium;
 
-/*----------------------------------------------------------------------------------
+/*
+ *-------------------------------
  * CC-Plus schedule configuration
- * A single harvesting process starts every 10 minutes to harvest all jobs in the
- * ccplus_global.jobs table (which holds jobs across all defined instances.)
- * 
- * Two consortium-specific processes are also scheduled.
- *   - QueueLoader runs once/day and loads jobs based on platform day_of_month.
- *   - ReportProcessor runs every 10 minutes and looks for JSON report data files
- *     in the consortium's 0_unprocessed folder (by ID) to be processed and loaded
- *     into the XX_report_data tables.
- *----------------------------------------------------------------------------------
+ *-------------------------------
  */
 
-/* Schedule the server-wide harvester */
+/* Harvester runs every 10 minutes to harvest all jobs in the ccplus_global.jobs table (which holds
+ * jobs across all defined instances.) Schedule is 10 minutes since jobs can be added manually via
+ * the U/I as well overnight. Can be set to everyHour, everyFiveMinutes, etc.
+ * (see Laravel Artisan command scheduling docs)
+ */
 Schedule::command('ccplus:harvester')->runInBackground()->everyTenMinutes()->withoutOverlapping()
                                      ->appendOutputTo('/var/log/ccplus/harvests.log');
 
 /*
- * Schedule a queue loader and report processor for each active instance on the server
- * (dorder applies to reportprocessor as it walks downloaded JSON files)
+ * Loop across all active consortium instances
  */
 $consortia = Consortium::where('is_active',1)->get(['id','ccp_key']);
 if ($consortia) {
-    /* set dorder to " d" for display order (from Report class), or "" for FIFO */
-    $dorder = " d";
+    $dorder = " d"; // used by reportprocessor (set to "" for FIFO)
     foreach ($consortia as $con) {
+        /*
+         * QueueLoader runs once/day for each active consortium instance to automatically create harvest
+         * jobs (in the ccplus_global::jobs table) based on day_of_month settings for all active/complete
+         * credentials set for the platform(s) to run that day.
+         */
         Schedule::command('ccplus:queueloader ', [$con->id])->daily();
+        /*
+         * ReportProcessor runs every 10-minutes for each active consortium instance to automatically scan
+         * the 'unprocessed' folder (/usr/local/stats_reports/<conso-ID>/0_unprocessed/) for harvested JSON
+         * to be processed and stored in consortium XX_report_data tables.
+         * (dorder set to " d" uses display order (from Report class) to cause processor to process based
+         * on report (PR > DR > TR > IR).
+         */
         Schedule::command('ccplus:reportprocessor',[$con->id, $dorder, "RP_".$con->ccp_key])->runInBackground()
                 ->everyTenMinutes()->withoutOverlapping()->appendOutputTo('/var/log/ccplus/harvests.log');
     }
