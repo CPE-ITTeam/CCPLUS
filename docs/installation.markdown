@@ -6,7 +6,7 @@ nav_order: 2
 
 # CC-PLUS Installation Instructions
 
-CC-Plus is currently designed to run as a standalone web-based Laravel application connected to a MySQL database and a web server.  It allows for multiple, or just a single, consortia to be managed within a host system.  The report harvesting system uses the SUSHI protocol, and expects to receive valid and conformant COUNTER-5 usage reports. The code repository and the documentation for the original (and deprecated) version of CC-Plus can be downloaded at: [http://github.com/palcilibraries/CC-PLUS](http://github.com/palcilibraries/CC-PLUS).
+CC-Plus is designed to run as a standalone, single page (SPA) Laravel application connected to a MySQL database and a web server.  It allows for multiple, or just a single, consortia to be managed within a host system.  The report harvesting system COUNTER request and protocols, and expects to receive valid and conformant COUNTER-5 usage reports. The code repository and the documentation for the original (and deprecated) version of CC-Plus can be downloaded at: [http://github.com/palcilibraries/CC-PLUS](http://github.com/palcilibraries/CC-PLUS).
 
 **Be Aware : This code is still under development. Care, feeding, customizing, and bug-fixing may be necessary for the system to work well for your specific environment - *use at your own risk*.**
 
@@ -90,11 +90,11 @@ Enable mod_rewrite for Apache:
  Firewalls, SSL/HTTPS, or other organizational requirements are not addressed in this document.
 
 ### Step 2: Download the application
-The Laravel application itself, including encryption keys, output, logs, etc. will (should) exist outside the served Apache folder. We will download the repository for the application to `/usr/local` and allow `git` to create the folder: `CCPLUS`.
+The Laravel application itself, including encryption keys, output, logs, etc. will (should) exist outside the served Apache folder. We will download the repository for the application to `/usr/local` and allow `git` to create the folder: `CCPlus`.
 ```bash
   cd /usr/local;
   git clone https://github.com/CPE-ITTeam/CCPlus.git;
-  cd CCPLUS
+  cd CCPlus
 ```
 
 ### Step 3: Setup the Environment
@@ -105,6 +105,7 @@ Next, the local `.env` needs to be modified to match the current host environmen
   vi .env
 ```
 * Assign APP_URL to the URL that your webserver uses to connect to your public documents folder (step-1, above)
+* Update the application time zone APP_TIMEZONE and APP_LOCALE to match your host system (default to 'America/New_York' and 'en')
 * Assign database credentials (a user with rights to create databases and grant privileges) for BOTH the globaldb and con_template "DB_CONNECTION" groups:
     * DB_USERNAME, DB_PASSWORD, DB_USERNAME2, DB_PASSWORD2
 * Update settings for connecting to email and SMTP services (will vary depending on server environment). These settings are necessary for the system to generate forgotten-password reset links.
@@ -112,15 +113,7 @@ Next, the local `.env` needs to be modified to match the current host environmen
 * Note:: The template database is used to create and propagate new instances to the system. There is no application interface access to the data and tables in this database. Any changes to this database must be made directly using mysql at the system level.
 
 ### Step 4: Install the application
-First we will setup the application Kernel file:
-For simplicity sake, we'll configure our initial installation a single consortium.
-You can edit the Kernel.php file to match your operational needs, especially as they relate to [automating report harvesting](#step-10-define-harvesting-schedule-optional). You don't need to define the schedule at this point, but doing so now won't hurt anything.
-```bash
-  cd /usr/local/CCPLUS/app/Console;
-  cp Kernel.php.example-single ./Kernel.php;
-  cd ../..
-```
-Now run the composer install:
+Begin by running the composer install:
 ```bash
   composer install
 ```
@@ -139,7 +132,7 @@ Next run npm to build the application and the publicly-accessible files for the 
 ```
 The webserver will need write access to some folders within the application folder. Assuming the webserver executes with group-membership `www-data` :
 ```bash
-  cd /usr/local/CCPLUS/;
+  cd /usr/local/CCPlus/;
   chown -R root:www-data storage;
   chmod -R 775 storage;
   chown root:www-data bootstrap/cache;
@@ -147,19 +140,19 @@ The webserver will need write access to some folders within the application fold
 ```
 
 ### Step 5: Update the Webserver Directory
-Ensure that value of the `_CCPHOME_` variable in the public webserver index.php matches your installation path. Modify `public/index.php` to reflect the installation path for the application; the default/preset is /usr/local/CCPLUS :
+Ensure that value of the `_CCPHOME_` variable in the public webserver index.php matches your installation path. Modify `public/index.php` to reflect the installation path for the application; the default/preset is /usr/local/CCPlus :
 ```bash
-  cd /usr/local/CCPLUS/public/;
+  cd /usr/local/CCPlus/public/;
   mv index.php.example ./index.php
 ```
-> If you're installing the application to a location other than /usr/local/CCPLUS, open index.php with your favorite editor and
+> If you're installing the application to a location other than /usr/local/CCPlus, open index.php with your favorite editor and
 > modify this line as necessary (include a trailing slash) ;
 >
 > define('_CCPHOME_','/Your/application/installation/path/');
 
 Copy the publicly accessible files to the public webserver folder:
 ```bash
-  cp -r /usr/local/CCPLUS/public/. /var/www/ccplus/;
+  cp -r /usr/local/CCPlus/public/. /var/www/ccplus/;
   chown -R root:www-data /var/www/ccplus
 ```
 
@@ -177,7 +170,7 @@ Create the two initial CC-Plus databases (using the same user defined in step-3 
 ### Step 7: Migrate Initial Database Tables
 The tables in the ccplus_global database will be shared by all consortia within the host system
 ```bash
-  cd /usr/local/CCPLUS;
+  cd /usr/local/CCPlus;
   php artisan migrate:fresh --database=globaldb --path=database/migrations/global
 ```
 ```
@@ -249,7 +242,6 @@ The `ccplus:add_consortium` command script prompts for inputs and creates the ne
     MyAdminPass
 
   New consortium: MyConsortium Successfully Created.
-  NOTE: app/Console/Kernel.php needs updating in order to automate harvesting!
 ```
 
 ** Congratulations **
@@ -270,51 +262,53 @@ php artisan ccplus:resetadminpw
 ```
 
 ### Step 11: Update Global Providers
-The `ccplus:global-provider-update` command script downloads the current set of report provider settings and definitions from the COUNTER API. The definitions are downloaded, parsed and loaded into the CC-Plus global database. This script can be run anytime post-installation to update/overwrite the global providers. Global providers can also be updated individually from the Global Administrator dashboard (accessible using the ServerAdmin credential).
+The `ccplus:global-provider-update` command script downloads the current set of report provider settings and definitions from the COUNTER API. The definitions are downloaded, parsed and loaded into the CC-Plus global database. This script can be run anytime post-installation to update/overwrite the global providers. Global providers can also be updated individually from 'Platforms' in the 'Server' tab of the user-interface (accessible for the ServerAdmin role).
 ```bash
 php artisan ccplus:global-provider-update
 ```
-### Step 12: Define Harvesting Schedule (Optional)
-Automated harvesting for CC-Plus is defined using the schedule defined in `app/Console/Kernel.php` (which we created in [Step 4, above](#step-4-install-the-application)). The initial file is configured to automate harvesting for a single consortium using two queue handler processes (workers) which are scheduled to run every ten minutes. This means that at least one of the workers will wake and check for recently queued jobs every 10-minutes. An example file for a two-consortium configuration is also included, named: `Kernel.php.example-multiple`.
+### Step 12: Update Harvesting Schedule (Optional)
+Automated harvesting for CC-Plus is defined using the schedule defined in `app/routes/console.php`. The default setup file is configured to automate harvesting for all active consortium instances using a single, common harvester. A pair of dedicated processes are scheduled for each (active) consortium to create harvests on the nightly schedule (queueloader) and to regularly scan (every 10-minutes) for downloaed reports to be processed (reportprocessor).
 
-More details on scheduling tasks in Laravel applications can be found [here: https://laravel.com/docs/8.x/scheduling](https://laravel.com/docs/8.x/scheduling)
+More details on scheduling tasks in Laravel applications can be found [here: https://laravel.com/docs/12.x/scheduling](https://laravel.com/docs/12.x/scheduling)
 
 ### Step 13: Add Scheduler to System Cron
-The default Kernel.php Scheduler configuration expects to be launched on a regular interval (for example, every 10 minutes). If nothing needs to be processed, the scheduler will exit until the next cycle. These lines (or a close approximation) need to be added to the system cron processing to enable unattended harvesting:
+The default Scheduler configuration expects to be launched on a regular interval (by default, every 10 minutes). If nothing needs to be processed, the scheduler will exit until the next cycle. These lines (or a close approximation) need to be added to the system cron processing to enable unattended harvesting:
 ```
 # Run CC+ Laravel scheduler every 10 minutes
-*/10 * * * * root cd /usr/local/CCPLUS && /usr/bin/php /usr/local/CCPLUS/artisan schedule:run >> /dev/null 2>&1
+*/10 * * * * root cd /usr/local/CCPlus && /usr/bin/php /usr/local/CCPlus/artisan schedule:run >> /dev/null 2>&1
 ```
 ## CC-Plus Artisan Commands
 The Laravel environment for CC-Plus includes a set of Console Commands for use at the system-level to manage or operate certain parts of the application. A list of the commands themselves can be displayed via:
 ```bash
-  cd /usr/local/CCPLUS;
-  php artisan | grep ccplus
+  cd /usr/local/CCPlus;
+  php artisan ccplus help
 ```
 Help for the individual commands is also available, for example:
 ```bash
-  cd /usr/local/CCPLUS;
+  cd /usr/local/CCPlus;
   php artisan help ccplus:addconsortium
 ```
 A brief description for each command is below. See the help screen for each command for complete details on arguments and options.
-* ccplus:addconsortium  
-	Adds a database and administrator credential to a CC-Plus host system
+* ccplus:addconsortium
+	Creates a consortium instance including database definitions and administrator credentials to a CC-Plus host system
 * ccplus:resetadminpw
   Resets the password for ServerAdmin in one or all consortium instances
 * ccplus:global-provider-update
   Updates the CC-Plus Global Provider definitions to match settings from the Project COUNTER API
-* ccplus:data-archive  
-	Exports stored CC-Plus report data, institution/provider configuration, and, optionally, global table data to an importable .SQL file.  
-* ccplus:data-purge  
+* ccplus:data-archive
+	Exports stored CC-Plus report data, institution/provider configuration, and, optionally, global table data to an importable .SQL file.
+* ccplus:data-purge
 	Removes stored CC-Plus report data from the database.
-* ccplus:sushibatch  
-	Command-line submission to batch-process the submission of report harvests
-* ccplus:sushiloader  
-	Intended to run nightly by the Kernel.php scheduler, this command scans the SUSHI settings for all institutions and providers within a consortium and loads requests into the gloabl jobs queue (globaldb:jobs table).
-* ccplus:sushiqw  
-	Intended to run by the Kernel.php scheduler (by default every 10 minutes), this command scans the jobs queue, issues SUSHI requests to report providers, and stores/logs the results.
+* ccplus:harvestbatch
+	Command-line submission to batch-process the submission of report harvests.
+* ccplus:harvester
+	Intended to run via the Laravel scheduler (by default every 10 minutes), this command scans the jobs queue, issues harvest requests to report providers, and stores/logs the results.
+* ccplus:queueloader
+	Intended to run nightly via the Laravel scheduler, this command scans the settings and credentials for all institutions and providers within a consortium and loads requests into the gloabl jobs queue (globaldb:jobs table) based on day_of_month defined for the platforms.
+* ccplus:reportprocessor
+	Intended to run nightly via Laravel scheduler, this command scans /usr/local/stats_reports/*/0_unprocessed for all active consortia and processes the raw harvested JSON data into the store report-data consortium-specific database tables.
 * ccplus:C5test  
-	This is a command for testing raw report data. Accepts COUNTER-5 JSON report data from a file and attempts to validate and store it in the running system
+	This is a command for testing raw report data. Accepts COUNTER-5 JSON report data from a file and attempts to validate and store it in the running system.
 
 ## License
 Apache 2.0 License. See [License File](LICENSE) for more information.
