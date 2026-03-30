@@ -8,12 +8,11 @@
   import FlexCol from '../shared/FlexCol.vue'
   import YmInput from '../shared/YmInput.vue';
   // Pinia DataStores
-  const { ccGet, ccPost } = useAuthStore();
+  const { ccGet, ccPost, setConso } = useAuthStore();
   const authStore = useAuthStore();
+  var selectedConso = ref(authStore.ccp_key);  
   const { consortia } = storeToRefs(useCCPlusStore());
   const is_serveradmin = authStore.is_serveradmin;
-  //
-  var selectedConso = ref([]);
   var platformItems = ref([]);
   var institutionItems = ref([]);
   var institutionTypeItems = ref([]);
@@ -26,8 +25,6 @@
   var dataTypeItems = ref([]);
   var reports = ref([]);
   var all_fields = ref([]);
-  // var otherItems = ref([]);
-  // var excludedItems = ref([]);
   var fyMo = ref([]);
   const minYM = ref('');
   const toKey = ref(0);
@@ -68,28 +65,17 @@
       console.log('Error loading options: '+error.message);
     }
   }
+  const emit = defineEmits(['updateConso']);
   const selectedReportId = computed(() => {
     return ( typeof(selectedReport.value.id)!='undefined' ) ? selectedReport.value.id : -1;
   });
-
   const filteredOtherElements = ref([]);
-  // const filteredOtherElements = computed(() => {
-  //   const r = selectedReportId - 1
-  //   if (r < 0 || r >= otherItems.value.length) return []
-  //   return (excludedItems.value.length>0)
-  //       ? otherItems.value[r].filter(i => !excludedItems.value[r].includes(i))
-  //       : otherItems.value[r];
-  // });
 
-  // 🔄 Sync filtered institutions to store
-  // watch(institutionItems, () => {
-  //   store.filteredInstitutions = institutionItems.value
-  // })
-
-  // 🔄 Reset downstream filters when upstream filters change
-  watch(selectedConso, () => {
+  async function handleChangeConso(conso) {
+    const response = await setConso(conso.id,conso.ccp_key);
     initializeOptions(selectedConso.value);
-  })
+    emit('updateConso', conso);
+  }
   watch( () => customStartDate.value, (yearmon) => {
       toKey.value++;
       minYM.value = yearmon;
@@ -104,19 +90,19 @@
     selectedInstitutions.value = []
   })
   onBeforeMount(() => {
-    if (!is_serveradmin) {
-      initializeOptions('conso');
+    if (selectedConso.value.length>0) {
+      initializeOptions(selectedConso.value);
     }
   });
 </script>
 <template>
-  <v-row>
+  <v-row v-if="selectedConso!=''" >
     <!-- Institution Filters -->
     <FlexCol>
       <div v-if="consortia.length>1 && is_serveradmin">
         <v-label class="colLabel">Choose a Consortium Instance</v-label>
-        <v-select v-model="selectedConso" label="Consortium" :items="consortia"
-                  itemTitle="name" itemValue="ccp_key" />
+        <v-autocomplete v-model="selectedConso" label="Consortium" :items="consortia" item-title="name" item-value="ccp_key"
+                        density="compact" return-object @update:modelValue="handleChangeConso" />
       </div>
 
       <v-label class="colLabel">Select Institutions</v-label>
@@ -165,17 +151,17 @@
   <v-divider></v-divider>
 
   <!-- COUNTER Filters -->
-  <v-row>
+  <v-row v-if="selectedConso!=''" >
     <FlexCol>
       <v-label class="colLabel">Usage Metrics</v-label>
       <MultiSelectCombobox v-model="selectedUsageMetrics" label="Investigations & Requests" :items="usageMetricItems"
-                           dataName="Usage Metrics" itemTitle="name" itemValue="id" />
+                           dataName="Usage Metrics" itemTitle="legend" itemValue="id" />
 
       <MultiSelectCombobox v-model="selectedSearchMetrics" label="Metric Type: Searches" :items="searchMetricItems"
-                           dataName="Search Metrics" itemTitle="name" itemValue="id" />
+                           dataName="Search Metrics" itemTitle="legend" itemValue="id" />
 
       <MultiSelectCombobox v-model="selectedTurnaways" label="Turnaways" :items="turnawayItems"
-                           itemTitle="name" itemValue="id" />
+                           itemTitle="legend" itemValue="id" />
     </FlexCol>
 
     <FlexCol>
