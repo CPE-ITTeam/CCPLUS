@@ -96,15 +96,20 @@
   });
 </script>
 <template>
-  <v-row v-if="selectedConso!=''" >
+  <v-row v-if="consortia.length>1 && is_serveradmin">
+    <FlexCol>
+      <v-label class="colLabel">Choose a Consortium Instance</v-label>
+      <v-autocomplete v-model="selectedConso" label="Consortium" :items="consortia" item-title="name" item-value="ccp_key"
+                      density="compact" return-object @update:modelValue="handleChangeConso" />
+    </FlexCol>
+  </v-row>
+  <v-row v-else-if="selectedConso==''" >
+    <h3>Current Consortium not Properly Defined!</h3>
+    <p>Check system installation; logging out and back in <strong>might</strong> fix the issue.</p>
+  </v-row>
+  <v-row v-if="selectedConso!=''">
     <!-- Institution Filters -->
     <FlexCol>
-      <div v-if="consortia.length>1 && is_serveradmin">
-        <v-label class="colLabel">Choose a Consortium Instance</v-label>
-        <v-autocomplete v-model="selectedConso" label="Consortium" :items="consortia" item-title="name" item-value="ccp_key"
-                        density="compact" return-object @update:modelValue="handleChangeConso" />
-      </div>
-
       <v-label class="colLabel">Select Institutions</v-label>
       <MultiSelectCombobox v-model="selectedInstitutionTypes" label="Institution Types"
                            itemTitle="name" itemValue="id" :items="institutionTypeItems" />
@@ -112,9 +117,8 @@
                            itemTitle="name" itemValue="id" :items="institutionGroupItems" />
       <MultiSelectCombobox v-model="selectedInstitutions" label="Institutions"
                            itemTitle="name" itemValue="id" :items="institutionItems" />
-                    
-                           
     </FlexCol>
+
     <!-- Platform Filters -->
     <FlexCol>
       <v-label class="colLabel">Select Platforms</v-label>
