@@ -233,5 +233,38 @@ export const useAuthStore = defineStore('useAuthStore', {
           console.error('Download failed', error);
       }
     },
+    fromToDates(range) {
+      var startDate = '';
+      var endDate = '';
+      const today = new Date();
+      const currentMonth = today.getMonth();
+      const currentYear = today.getFullYear();
+      const lastMonth = currentMonth === 0 ? 11 : currentMonth - 1;
+      const lastMonthYear = currentMonth === 0 ? currentYear - 1 : currentYear;
+      const lastMonthFormatted = `${lastMonthYear}-${String(lastMonth + 1).padStart(2, '0')}`;
+      const fiscalStartMonth = this.user_FYmm || 1;
+
+      if (range === 'fYTD') {
+        const fyStartYear = lastMonth + 1 < fiscalStartMonth ? currentYear - 1 : currentYear;
+        const fyStart = `${fyStartYear}-${String(fiscalStartMonth).padStart(2, '0')}`;
+        startDate = fyStart;
+        endDate = lastMonthFormatted;
+      } else if (range === 'priorFy') {
+        const fyStart = `${currentYear - 1}-${String(fiscalStartMonth).padStart(2, '0')}`;
+        const fyEndMonth = fiscalStartMonth === 1 ? 12 : fiscalStartMonth - 1;
+        const fyEndYear = fiscalStartMonth === 1 ? currentYear - 1 : currentYear;
+        const fyEnd = `${fyEndYear}-${String(fyEndMonth).padStart(2, '0')}`;
+        startDate = fyStart;
+        endDate = fyEnd;
+      } else if (range === 'cYTD') {
+        const cyStart = `${currentYear}-01`;
+        startDate = cyStart;
+        endDate = lastMonthFormatted;
+      } else if (range === 'Custom') {
+        startDate = '';
+        endDate = '';
+      }
+      return {from: startDate, to: endDate};
+    },
   }
 });
