@@ -117,10 +117,11 @@ Route::middleware('ccplusAuth')->group( function () {
     Route::prefix('savedreports')->group(function () {
         Route::get('/get', 'App\Http\Controllers\SavedReportController@index')->name('savedreports.index');
         Route::post('/store', 'App\Http\Controllers\SavedReportController@store')->name('savedreports.store');
-        Route::patch('/update/{savedreport}', 'App\Http\Controllers\SavedReportController@update')->name('savedreports.update');
         Route::delete('/delete/{savedreport}', 'App\Http\Controllers\SavedReportController@destroy')->name('savedreports.destroy');
     });
     Route::prefix('reports')->group(function () {
-        Route::get('/options/{type}', 'App\Http\Controllers\ReportController@create')->name('reports.options');
+        Route::get('/options', 'App\Http\Controllers\ReportController@create')->name('reports.options');
+        Route::post('/usageData', 'App\Http\Controllers\ReportController@usageData')->name('reports.usageData');
+        Route::post('/updateColumns', 'App\Http\Controllers\ReportController@updateColumns')->name('reports.updateColumns');
     });
 });
