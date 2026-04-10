@@ -552,6 +552,10 @@ button.v-expansion-panel-title--active {
 /* Misc Components               */
 /* ----------------------------- */
 
+.centered-text {
+  text-align: center;
+}
+
 .idbox {
   padding: var(--space-md);
   border: var(--border-light);
