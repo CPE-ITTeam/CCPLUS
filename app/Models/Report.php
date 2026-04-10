@@ -27,10 +27,20 @@ class Report extends Model
     ];
     protected $casts =['id'=>'integer', 'parent_id'=>'integer', 'dorder'=>'integer'];
 
-    // Return the reportField relationship
+    // Return reportFields
     public function reportFields()
     {
-        return $this->hasMany('App\Models\ReportField');
+        if ( $this->parent_id == 0 ) { // IS a master, return it's fields
+            return $this->hasMany('App\Models\ReportField');
+        } else {                       // Return only inherited parent fields w/ preset value(s)
+            $parent = $this->parent()->with('reportFields')->first();
+            $inherited = $this->parsedInherited();
+            $fields = $parent->reportfields->whereIn('id',array_keys($inherited));
+            return $fields->map(function ($fld) use ($inherited) {
+                $fld->preset = $inherited[$fld->id];
+                return $fld;
+            })->values();
+        }
     }
 
     public function harvests()
