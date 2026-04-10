@@ -58,6 +58,10 @@
     const config = datasetConfig[props.datasetKey];
     return (editingItem.value && config && editableFields.value.length>0);
   });
+  const selectableRows = computed( () => {
+    if (typeof(bulkOptions.value.items) == 'undefined') return false;
+    return (bulkOptions.value.items.length>0);
+  })
 
   // toolbarFilters holds pre-chunks rows of at-most 4 filters per-row
   const toolbarFilters = computed(() => {
@@ -848,9 +852,9 @@ console.log('Handling for includeZeros toggle not written yet');
     </div>
     <DataTable v-if="consoKey!=''" :items="filteredItems" :key="dtKey" :search="search" :headers="headers" :isLoading="dtLoading"
                :dataset="props.datasetKey" :showSelectedOnly="showSelectedOnly" :editableFields="editableFields"
-               :truncated="truncated" :searchFields="searchFields" :selectedRows="selectedRows" @edit="handleEdit"
-               @delete="handleDelete" @update:selectedRows="selectedRows = $event" @update:toggle="handleToggleUpdate"
-               @update:report="handleReportToggle"/>
+               :truncated="truncated" :searchFields="searchFields" :selectedRows="selectedRows" :selectableRows="selectableRows"
+               @edit="handleEdit" @delete="handleDelete" @update:selectedRows="selectedRows = $event"
+               @update:toggle="handleToggleUpdate" @update:report="handleReportToggle"/>
 
     <v-dialog v-if="editingItem && isEditable" v-model="formDialogOpen">
       <v-card>
