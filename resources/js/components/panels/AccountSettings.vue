@@ -2,14 +2,12 @@
 <script setup>
   import { ref, watch, onMounted } from 'vue'
   import { useAuthStore } from '@/plugins/authStore.js';
-  import { useValidationRules } from '@/composables/useValidationRules.js'
+  import { useValidationRules } from '@/composables/useValidationRules.js';
   import { fyMonths } from '@/plugins/CCPlusStore.js';
-  import FlexCol from '../shared/FlexCol.vue'
-  import LockTip from '../shared/LockTip.vue'
+  import DatasetViewer from '../shared/DatasetViewer.vue';
   const { ccGet, ccPatch, user } = useAuthStore();
   const authStore = useAuthStore();
   const is_serveradmin = authStore.is_serveradmin;
-
   const { required, numberRule, booleanRule, yearmon } = useValidationRules()
   const success = ref('');
   const failure = ref('');
@@ -28,22 +26,17 @@
       console.log('Error fetching settings: '+error.message);
     }
   }
-  async function otherSubmit() {
-  }
   async function userSubmit() {
     if (formRef.value?.validate()) {
+      success.value = '';
+      failure.value = '';
       try {
         let url = urlRoot.value+'api/users/update/'+user.id;
         const response = await ccPatch(url, acctSettings);
         if (response.result) {
-// TODO::
-// --->>> Still needs to update datastore with new user data (name,etc.)
-// --->>> Also needs to emit updatedUser data to be caught by UsersDataTable
-// --->>> ... something like  ... emit('submit', formValues);
-// --->>> Panel also needs a success/failure div to show submit results
-// --->>> Decide if there IS anything to be added below the <hr> ("Other Info")
+          success.value = response.msg;
         } else {
-          failure.value = response.msg
+          failure.value = response.msg;
         }
       } catch (error) {
         console.error('Error updating:', error);
@@ -62,9 +55,13 @@
 </script>
 <template>
   <v-container class="account-container">
-    <h2><center>Account Settings :: {{ acctSettings.email }}</center></h2>
+    <h2 class="centered-text">{{ authStore.user.name }} Account Settings</h2>
     <p>&nbsp;</p>
     <v-form @submit.prevent="userSubmit" ref="formRef">
+      <v-row v-if="success || failure" class="status-message" no-gutters>
+        <span v-if="success"      class="good" v-text="success"></span>
+        <span v-else-if="failure" class="fail" v-text="failure"></span>
+      </v-row>   
       <v-row no-gutters>
         <v-col cols="4" class="d-flex px-2 align-middle">
           <v-text-field v-model="acctSettings.name" label="Name" outlined></v-text-field>
@@ -90,7 +87,7 @@
         </v-col>
       </v-row>   
       <v-row v-if="!is_serveradmin" no-gutters>
-        <v-col cols="4" class="d-flex px-2">
+        <v-col cols="4" class="d-flex px-2">AccountSettings
           Home Institution: {{ acctSettings.inst_name }}
         </v-col>
         <v-col cols="8" class="d-flex px-2">
@@ -120,9 +117,8 @@
     <p>&nbsp;</p>
     <hr>
     <p>&nbsp;</p>
-    <h2><center>Other Info (maybe saved reports?)</center></h2>
-    <v-form @submit.prevent="otherSubmit" ref="formRef">
-    </v-form>
+    <h2 class="centered-text">{{ acctSettings.email }} : Saved Reports</h2>
+    <DatasetViewer datasetKey="savedreports" />
   </v-container>
 </template>
 <style scoped>
