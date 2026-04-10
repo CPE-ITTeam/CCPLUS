@@ -16,7 +16,8 @@
     selectedRows: { type: Array, required: true },
     editableFields: { type: Array, required: true },
     isLoading: { type: Boolean, required:true },
-    truncated: { type: Boolean, required:true }
+    truncated: { type: Boolean, required:true },
+    selectableRows: { type: Boolean, required:true }
   });
 
   const computedHeaders = computed(() => {
@@ -101,13 +102,13 @@
       <v-row v-if="truncated" class="text-red font-weight-bold" no-gutters>
         <span>Available records truncated to 500 items</span>
       </v-row>
-      <div class="font-weight-bold" style="margin-bottom: 8px; font-weight: bold">
+      <div v-if="props.selectableRows" class="font-weight-bold" style="margin-bottom: 8px; font-weight: bold">
         ✅ {{ selectedRows.length }} item{{ selectedRows.length=== 1 ? '' : 's' }} selected
       </div>
     </div>
     <v-data-table v-model="internalSelectedRows" :headers="computedHeaders" :items="filteredItems"
-                  item-key="id" item-value="id" show-select return-object :loading="props.isLoading"
-                  :custom-key-sort="customKeySort">
+                  item-key="id" item-value="id" :show-select="props.selectableRows" return-object
+                  :loading="props.isLoading" :custom-key-sort="customKeySort">
 
       <!-- Dynamic editable fields -->
       <!-- <template v-for="field in props.editableFields" #[`item.${field}`]="{ item }">
