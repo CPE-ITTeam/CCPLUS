@@ -18,16 +18,14 @@ import ServerSettings from '@/components/panels/ServerSettings.vue';
 import MailSettings from '@/components/panels/MailSettings.vue';
 import HarvestQueue from '@/components/tables/HarvestQueue.vue';
 import HarvestLog from '@/components/tables/HarvestLog.vue';
-import SavedReports from '@/components/tables/SavedReports.vue';
 import ManualHarvest from '@/components/panels/ManualHarvest.vue';
-import CreateReport from '@/components/panels/CreateReport.vue';
+import Reporting from '@/components/panels/Reporting.vue';
 import RolesTable from '@/components/tables/RolesTable.vue';
 import CredentialsTable from '@/components/tables/CredentialsTable.vue';
 import ConnectionsTable from '@/components/tables/ConnectionsTable.vue';
 import PlaceHolder from '@/pages/PlaceHolder.vue';
 import AccountSettings from '@/components/panels/AccountSettings.vue';
 import CredentialsAudit from '@/components/tables/CredentialsAudit.vue';
-// import ReportPreview from '@/components/panels/ReportPreview.vue';
 // Pinia datastore
 import { createPinia } from 'pinia';
 import piniaPluginPersistedState from "pinia-plugin-persistedstate"
@@ -129,21 +127,8 @@ export const router = createRouter({
     },
     {
       path: '/reports', name: 'Reports',
-      meta: { title: 'Reports', layout: AuthenticatedLayout, role: 'Viewer', level:1 },
-      children: [
-        { path: '/reports/create', name: 'CreateReport', show:1,
-          meta: { title: 'Create a Report', layout: AuthenticatedLayout, role: 'Viewer', key:0, level:2 }, 
-          component: markRaw(CreateReport),
-        },
-        { path: '/reports/saved', name: 'SavedReports', show:1,
-          meta: { title: 'Saved Reports', layout: AuthenticatedLayout, role: 'Viewer', key:0, level:2 }, 
-          component: markRaw(SavedReports),
-        },
-        { path: '/reports/preview', name: 'ReportPreview', show:1,
-          meta: { title: 'Preview and Export', layout: AuthenticatedLayout, role: 'Viewer', key:0, level:2 }, 
-          component: markRaw(PlaceHolder),
-        },
-      ]
+      meta: { title: 'Reports', layout: AuthenticatedLayout, role: 'Viewer', key:0, level:1 },
+      children: [], component: markRaw(Reporting),
     },
     { path: '/admin/serveradmin', name: 'Server',
       meta: { title: 'Server', layout: AuthenticatedLayout, role: 'ServerAdmin', level:1 }, 
