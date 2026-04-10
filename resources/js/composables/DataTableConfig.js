@@ -389,7 +389,7 @@
           icon: '', helperText: '' },
         { name: 'title',         type: 'text',   header: 'start',  editable: true,  searchable: true, label: 'Report Title',
           icon: '', helperText: ''},
-        { name: 'master_name',   type: 'text',   header: 'start',  editable: false, searchable: true, label: 'Report',
+        { name: 'report_name',   type: 'text',   header: 'start',  editable: false, searchable: true, label: 'Report',
           options: 'fromURL', icon: '', helperText: '' },
         { name: 'date_range',    type: 'select', header: 'start',  editable: true,  searchable: true, label: 'Date Range',
           options: [ { title: 'Fiscal YTD', value: 'fYTD' },
