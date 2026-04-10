@@ -158,35 +158,36 @@ class ReportController extends Controller
     }
 
     /**
-     * Return options for Report Creator component
+     * Return options for Reporting component
      *
-     * @param  String $type    // 'conso' -OR- valid CCP_KEY for a named consortium
      * @return JSON (array of options)
      */
-    public function create($type)
+    public function create()
     {
         $thisUser = auth()->user();
-        $serverAdmin = $thisUser->isServerAdmin();
-
-        // Only serverAdmin gets to request via ccp_key. If key is valid,
-        // set the consodb database
-        $original_conso_db = config('database.connections.consodb.database');
-        if ($thisUser->isServerAdmin() && $type != 'conso') {
-            $con = Consortium::where("ccp_key", $type)->first();
-            if ($con) {
-                config(['database.connections.consodb.database' => "ccplus_" . $type]);
-                DB::reconnect('consodb');
-            }
-        }
+        $consoAdmin = $thisUser->isConsoAdmin();
         $return_data = array();
 
         // Get an array of platforms and institutions with successful harvests (to limit choices below)
         $provs_with_data = $this->harvestService->hasHarvests('prov_id');
         $insts_with_data = $this->harvestService->hasHarvests('inst_id');
 
-        // limit institutions by user rols(s)
-        $_insts = $thisUser->viewerInsts(); // returns [1] for conso or serverAdmin
-        $limit_by_inst = ($_insts === [1]) ? array() : $_insts;
+
+        // Set institution and group options, depending on role(s)
+        $limit_by_inst = ($consoAdmin) ? array() : $thisUser->viewerInsts();
+        $return_data['institutions'] =
+            Institution::whereIn('id', $insts_with_data)->orderBy('name', 'ASC')->where('id', '<>', 1)
+                        ->when(count($limit_by_inst)>0, function ($qry) use ($limit_by_inst) {
+                            return $qry->whereIn('id', $limit_by_inst);
+                        })->get(['id','name'])->toArray();
+
+        $limit_groups = ($consoAdmin) ? array() : $thisUser->viewerGroups();
+        $return_data['groups'] = InstitutionGroup::when($consoAdmin, function ($qry) {
+                                                     return $qry->whereNull('user_id');
+                                                 })
+                                                 ->when(count($limit_groups)>0, function ($qry) use ($limit_groups) {
+                                                     return $qry->whereIn('id', $limit_groups);
+                                                 })->orderBy('name','ASC')->get(['id','name']);
 
         // Pull globalProvider IDs based on the consortium connections defined for institutions
         // in $limit_by_inst ; everyone gets consortium-wide providers (where inst_id=1)
@@ -194,31 +195,9 @@ class ReportController extends Controller
                                     return $qry->where('inst_id',1)->orWhereIn('inst_id',$limit_by_inst);
                                 })->select('global_id')->distinct()->pluck('global_id')->toArray();
 
-        // Get allowed/visible institutions
-        $return_data['institutions'] =
-            Institution::whereIn('id', $insts_with_data)->orderBy('name', 'ASC')->where('id', '<>', 1)
-                        ->when(count($limit_by_inst)>0, function ($qry) use ($limit_by_inst) {
-                            return $qry->whereIn('id', $limit_by_inst);
-                        })->get(['id','name'])->toArray();
-
-        // Admins see groups, but only ones that have members
-        $return_data['groups'] = array();
-        if ($thisUser->isAdmin()) {
-            $data = InstitutionGroup::with('institutions:id,name')->orderBy('name', 'ASC')->get();
-            foreach ($data as $group) {
-                if ( $group->institutions->count() > 0 ) {
-                    $return_data['groups'][] =
-                        array('id' => $group->id, 'name' => $group->name, 'institutions' => $group->institutions);
-                }
-            }
-        }
-
         // Pull global platforms that have data
         $limit_by_prov = array_intersect($global_ids, $provs_with_data);
         $globals = GlobalProvider::with('connections','connections.reports')->whereIn('id',$limit_by_prov)
-                                ->orderBy('name','ASC')->get(['id','name']);
-
-        $globals = GlobalProvider::with('connections','connections.reports')->whereIn('id',$global_ids)
                                 ->orderBy('name','ASC')->get(['id','name']);
 
         // Build platforms from globals connected to insts in limit_by_inst and add report assignments
@@ -232,33 +211,47 @@ class ReportController extends Controller
             }
         }
 
-        // Get report fields w/ filter column (for those that have one)
-        $field_data = ReportField::orderBy('id', 'asc')->with('reportFilter')->get();
-        $return_data['all_fields'] = array();
-        foreach ($field_data as $rec) {
-            $column = ($rec->reportFilter) ? $rec->reportFilter->report_column : null;
-            $return_data['all_fields'][] =
-                ['id'=>$rec->id, 'qry'=>$rec->qry_as, 'report_id'=>$rec->report_id, 'column'=>$column];
-        }
+        // Get `databases`, bound by has-data and inst/prov limits set above
+        $conso_db = config('database.connections.consodb.database');
+        $return_data['databases'] = DB::table($conso_db.'.dr_report_data as DR')->selectRaw("DISTINCT(DB.name),DB.id")
+                                      ->join('ccplus_global.databases as DB', 'DR.db_id', 'DB.id')
+                                      ->when(count($limit_by_inst) > 0, function ($qry) use ($limit_by_inst) {
+                                          return $qry->whereIn('inst_id',$limit_by_inst);
+                                      })
+                                      ->whereIn('DR.prov_id',$limit_by_prov)
+                                      ->orderBy('DB.name', 'ASC')->get()->toArray();
 
         // Get institution_types
         $return_data['institution_types'] = InstitutionType::get();
 
-        // Reset the consodb setting if it was changed
-        if ($thisUser->isServerAdmin() && $type != 'conso') {
-            config(['database.connections.consodb.database' => $original_conso_db]);
-            DB::reconnect('consodb');
-        }
-
         // Get options from the global tables
         $return_data['access_methods'] = AccessMethod::get();
-        $return_data['usage_metrics'] = ReportField::usageMetrics()->get();
-        $return_data['search_metrics'] = ReportField::searchMetrics()->get();
-        $return_data['turnaway_metrics'] = ReportField::turnawayMetrics()->get();
         $return_data['access_types'] = AccessType::get();
         $return_data['data_types'] = DataType::get();
-        // Return reports ordered by ID (not dorder) including children (standard COUNTER views)
-        $return_data['reports'] = Report::with('children')->where('parent_id',0)->orderBy('id', 'asc')->get();
+        $return_data['section_types'] = SectionType::get();
+
+        // Set 'reports' ordered by ID (not dorder) including children (standard COUNTER views)
+        $all_reports = Report::with('children','parent','parent.reportFields','reportFields')
+                             ->orderBy('id','asc')->get();
+        $return_data['master_reports'] = $all_reports->where('parent_id',0);
+
+        // Set 'all_reports' keyed by ID to hold field-mappings
+        $return_data['report_views'] = array();
+        foreach ($all_reports as $rpt) {
+            if ($rpt->parent_id == 0) continue;
+            $rec = array('id' => $rpt->id, 'name' => $rpt->name, 'legend' => $rpt->legend, 'master_id' => $rpt->parent_id,
+                         'report_fields' => []);
+            $fields = $rpt->reportFields();
+            foreach ($fields as $fld) {
+                $preset = (isset($fld->preset)) ? $fld->preset : null;
+                $rec['report_fields'][] = array('id' => $fld->id, 'preset' => $preset, 'is_metric' => $fld->is_metric,
+                                                'metric_type' => $fld->metric_type, 'qry_as' => $fld->qry_as);
+            }
+            $return_data['report_views'][] = $rec;
+        }
+
+        // Get saved reports for the current user
+        $return_data['saved_reports'] = SavedReport::formattedReports();
 
         // set FiscalYr for the user, default to Jan if missing
         $return_data['fyMo'] = 1;
@@ -300,18 +293,18 @@ class ReportController extends Controller
         $title = "";
         $model = null;
         if (isset($request->saved_id)) {
-            $saved_report = SavedReport::with('master', 'master.reportFields')->findOrFail($request->saved_id);
+            $saved_report = SavedReport::findOrFail($request->saved_id);
             if (!$saved_report->canManage()) {
                 return response()->json(['result' => false, 'msg' => 'Access Forbidden (403)']);
             }
             $title = $saved_report->title;
             $preset_filters = $saved_report->filterBy();
-            $inherited = preg_split('/,/', $saved_report->inherited_fields);
+            $inherited = preg_split('/,/', $saved_report->fields);
             $rangetype = $saved_report->date_range;
 
             // update the private global filters and get available data bounds
             self::$input_filters = $preset_filters;
-            $model = $saved_report->master->name;
+            $model = $saved_report->master()->name;
             $data = self::queryAvailable($model);
 
             // update preset_filters date values based on data available
@@ -707,7 +700,6 @@ class ReportController extends Controller
             foreach ($fields as $field) {
                 if ($field->reportFilter) {
                     $filters[$field->qry_as] = array('legend' => $field->legend, 'name' => 'All');
-                    ;
                 }
             }
 
@@ -808,30 +800,25 @@ class ReportController extends Controller
      * @param  \Illuminate\Http\Request  $request
      * @return JSON array
      */
-    public function getReportData(Request $request)
+    public function usageData(Request $request)
     {
-         global $joins, $raw_fields, $raw_where, $subq_fields, $subq_where, $group_by, $global_db, $conso_db,
-                $format, $rpt_only, $all_models;
+        global $joins, $raw_fields, $raw_where, $subq_fields, $subq_where, $group_by, $global_db, $conso_db,
+               $format, $rpt_only, $all_models;
          $thisUser = auth()->user();
 
-         // Validate and deal w/ inputs
-         $this->validate($request, ['report_id' => 'required', 'fields' => 'required', 'filters' => 'required']);
-         $report_id = $request->report_id;
-         $selected_fields = json_decode($request->fields, true);
-         $_filters = json_decode($request->filters, true);
-         $runtype = (isset($request->runtype)) ? $request->runtype : 'preview';
-         $preview = (isset($request->preview) && $runtype == 'preview') ? $request->preview : 0;
-         $format = (isset($request->format)) ? $request->format : 'COUNTER';
-         $ignore_zeros = json_decode($request->zeros, true);
-         $rpt_only = (isset($request->RPTonly)) ? json_decode($request->RPTonly, true) : false;
-
-         // Get/set global things
-         self::$input_filters = $_filters;
-         $global_db = config('database.connections.globaldb.database');
-         $conso_db = config('database.connections.consodb.database');
+        // Validate and deal w/ inputs
+        $this->validate($request, ['report_id'=>'required', 'fields'=>'required', 'from'=>'required', 'to'=>'required']);
+        $report_id = $request->report_id;
+        $selected_fields = $request->fields;
+        $runtype = (isset($request->runtype)) ? $request->runtype : 'preview';
+        $preview = (isset($request->preview) && $runtype == 'preview') ? $request->preview : 0;
+        $format = (isset($request->format)) ? $request->format : 'COUNTER';
+        $ignore_zeros = $request->zeros;
+        $rpt_only = (isset($request->RPTonly)) ? $request->RPTonly : false;
 
         // Get Report model, set report table target
-        $report = Report::where('id', $report_id)->first();
+        $report = Report::with('parent','reportFields','reportFields.reportFilter')
+                        ->where('id', $report_id)->first();
         if (!$report) {
             return response()->json(['result' => false, 'msg' => 'Report ID: ' . $report_id . ' is undefined']);
         }
@@ -845,6 +832,25 @@ class ReportController extends Controller
             $master_name = $report->parent->name;
             $report_fields = $report->parent->reportFields;
         }
+        // Loop through selected_fields and set filters from 'limit' arrays there
+        $_filters = array('fromYM' => $request->from, 'toYM' => $request->to);
+        $_filters['yop'] = null;
+        foreach ($selected_fields as $field) {
+            if (isset($field['limit'])) {
+                $reportField = $report_fields->where('id',$field['id'])->first();
+                if ($reportField) {
+                    if ($reportField->reportFilter) {
+                        $_filters[$reportField->reportFilter->report_column] = $field['limit'];
+                    }
+                }
+            }
+        }
+        // Get/set global filters and master/report fields
+        self::$input_filters = $_filters;
+        $global_db = config('database.connections.globaldb.database');
+        $conso_db = config('database.connections.consodb.database');
+        $master_id = ($report->parent_id == 0) ? $report_id : $report->parent_id;
+        $master_name = ($report->parent_id == 0) ? $report->name : $report->parent->name;
         $report_table = $conso_db . '.' . strtolower($master_name) . '_report_data as ' . $master_name;
 
         // If we're running an export
@@ -852,8 +858,8 @@ class ReportController extends Controller
             // Build an organized field list and separate the "basic" fields from the "metric" ones
             $basic_fields = array();
             $metric_fields = array();
-            foreach ($selected_fields as $key => $data) {
-                if (!$data['active']) {
+            foreach ($selected_fields as $key => $fdata) {
+                if (!$fdata['active']) {
                     continue;
                 }
                 $data = $report_fields->where('qry_as', '=', $key)->first();
@@ -1108,11 +1114,14 @@ class ReportController extends Controller
         // If not exporting, return the records as JSON
         if ($runtype != 'export') {
             if ($master_name == "DR") {
-                return response()->json(['usage'=>$records, 'pf_options'=>$pf_options, 'db_options'=>$db_options],200);
+                return response()->json(['result' => true, 'usage'=>$records, 'pf_options'=>$pf_options,
+                                         'db_options'=>$db_options],200);
             } else {
-                return response()->json(['usage' => $records, 'pf_options'=>$pf_options], 200);
+                return response()->json(['result' => true, 'usage' => $records, 'pf_options'=>$pf_options], 200);
             }
         }
+
+//NOTE: This may need changing to work properly with the SPA...??
 
         // Export the records
         foreach ($records as $rec) {
@@ -1136,54 +1145,18 @@ class ReportController extends Controller
      *         Expects $request to be a JSON object holding the Vue state.filter_by object and report_id
      * @return \Illuminate\Http\Response
      */
-    public function updateReportColumns(Request $request)
+    public function updateColumns(Request $request)
     {
         // Get and verify input or bail with error in json response
-        try {
-            $input = json_decode($request->getContent(), true);
-        } catch (\Exception $e) {
-            return response()->json(['result' => false, 'msg' => 'Error decoding input']);
-        }
-        if (!isset($input['filters']) || !isset($input['fields'])) {
-            return response()->json(['result' => false, 'msg' => 'One or more inputs are missing!']);
-        }
-        $_format = (isset($input['format'])) ? $input['format'] : 'Compact';
+        $this->validate($request, ['fields'=>'required', 'format'=>'required']);
+        $_format = (isset($request->format)) ? $request->format : 'Compact';
 
-        // Put the input filters into a temporary array and get Report model
-        $_filters = $input['filters'];
-        $report_id = $_filters['report_id'];
-        $report = Report::where('id', $report_id)->first();
-        if (!$report) {
-            return response()->json(['result' => false, 'msg' => 'Report ID: ' . $report_id . ' is undefined']);
-        }
+        // set filters to just the dates; it's all we need for making columns
+        self::$input_filters = array('fromYM' => $request->from, 'toYM' => $request->to);
 
-        // Get all reportFields
-        if ($report->parent_id == 0) {
-            $master_name = $report->name;
-            $report_fields = $report->reportFields;
-        } else {
-            $master_name = $report->parent->name;
-            $report_fields = $report->parent->reportFields;
-        }
-
-        // Assign global filter values with the filters that apply to this report
-        $all_filters = ReportFilter::all();
-        $active_ids = $report_fields->where('report_filter_id', '<>', null)->pluck('report_filter_id')->toArray();
-        $active_filters =  $all_filters->whereIn('id', $active_ids)->pluck('report_column')->toArray();
-        foreach ($_filters as $key => $value) {
-            if (
-                array_key_exists($key, self::$input_filters) ||
-                in_array($key, $active_filters) ||
-                $key == 'fromYM' ||
-                $key == 'toYM'
-            ) {
-                self::$input_filters[$key] = $value;
-            }
-        }
-
-        // Build columns array based on fields and date-range
+        // Build columns array based on fields and date-range 
         $columns = array();
-        $input_fields = $input['fields'];
+        $input_fields = $request->fields;
         $year_mons = self::createYMarray();
 
         // Build columns for COUNTER format
@@ -1193,17 +1166,17 @@ class ReportController extends Controller
                 if ($fld['is_metric']) {
                     $metric_count++;
                 } else {
-                    $columns[] = array('active' => $fld['active'], 'field' => $fld['id'], 'value' => $fld['id'],
-                                       'text' => $fld['text'], 'is_metric' => 0);
+                    $columns[] = array('active' => $fld['active'], 'field' => $fld['id'], 'key' => $fld['qry_as'],
+                                       'title' => $fld['legend'], 'is_metric' => 0);
                 }
             }
-            $columns[] = array('active' => 1, 'field' => 'Metric_Type', 'value' => 'Metric_Type',
-                               'text' => 'Metric_Type');
+            $columns[] = array('active' => 1, 'field' => 'Metric_Type', 'key' => $fld['metric_type'],
+                               'title' => 'Metric_Type');
             if ($metric_count > 0) {
-                $columns[] = array('active' => 1, 'field' => 'Reporting_Period_Total', 'value' => 'Reporting_Period_Total',
-                                   'text' => 'Reporting_Period_Total', 'is_metric' => 1);
+                $columns[] = array('active' => 1, 'field' => 'Reporting_Period_Total', 'key' => 'Reporting_Period_Total',
+                                   'title' => 'Reporting_Period_Total', 'is_metric' => 1);
                 foreach ($year_mons as $ym) {
-                    $columns[] = array('active' => 1, 'field' => $ym, 'value' => $ym, 'text' => $ym, 'is_metric' => 1);
+                    $columns[] = array('active' => 1, 'field' => $ym, 'key' => $ym, 'title' => $ym, 'is_metric' => 1);
                 }
             }
 
@@ -1213,27 +1186,28 @@ class ReportController extends Controller
                 $metrics = array();
             }
             foreach ($input_fields as $fld) {
-                $col = array('active' => $fld['active'], 'field' => $fld['id'], 'is_metric' => $fld['is_metric']);
-
+                if (!$fld['active']) {
+                    continue;
+                }
                 // If this is a summing-metric field, add a column for each month
-                if (preg_match('/^(searches_|total_|unique_|limit_|no_lic)/', $fld['id'])) {
+                if (preg_match('/^(searches_|total_|unique_|limit_|no_lic)/', $fld['qry_as'])) {
                     foreach ($year_mons as $ym) {
-                        $col['value'] = $fld['id'] . '_' . self::prettydate($ym);
-                        $col['text'] = $fld['text'] . ' - ' . self::prettydate($ym);
+                        $col['key'] = $fld['qry_as'] . '_' . self::prettydate($ym);
+                        $col['title'] = $fld['legend'] . ' - ' . self::prettydate($ym);
                         $columns[] = $col;
                     }
 
                     // If we're spanning multiple months, put the totals column into a separate array
                     if (sizeof($year_mons) > 1) {
-                        $col['value'] = "RP_" . $fld['id'];
-                        $col['text'] = $fld['text'] . " - " . "Reporting Period Total";
+                        $col['key'] = "RP_" . $fld['qry_as'];
+                        $col['title'] = $fld['legend'] . " - " . "Reporting Period Total";
                         $metrics[] = $col;
                     }
 
                 // Otherwise add a single column to the map
                 } else {
-                    $col['value'] = $fld['id'];
-                    $col['text'] = $fld['text'];
+                    $col['key'] = $fld['qry_as'];
+                    $col['title'] = $fld['legend'];
                     $columns[] = $col;
                 }
             }
