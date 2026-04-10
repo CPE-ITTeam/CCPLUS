@@ -100,7 +100,7 @@
         <!-- Add user profile icon as a right-aligned tab using spacer -->
         <v-spacer></v-spacer> 
         <v-tab key="999" value="999">
-          <v-icon :title="profileRoute.meta.title">mdi-account</v-icon>
+          <v-icon :title="authStore.user.name+' '+profileRoute.meta.title">mdi-account</v-icon>
         </v-tab>
       </v-tabs>
       <v-main v-if="activePage==999">
@@ -112,9 +112,14 @@
       </v-main>
       <v-main v-else>
         <v-card-title class="page-title">
-          {{ pages[activePage].meta.title }} — {{pages[activePage].children[activeTab].meta.title }}
+          <span v-if="pages[activePage].children.length==0">{{ pages[activePage].meta.title }}</span>
+          <span v-else>{{ pages[activePage].meta.title }} — {{pages[activePage].children[activeTab].meta.title }}</span>
         </v-card-title>
-        <v-card-text class="justify-center px-4">
+        <v-card-text v-if="pages[activePage].children.length==0" class="justify-center px-4">
+          <component :is="pages[activePage].component" :key="pages[activePage].meta.key"
+                     @updateConso="handleChangeConso(pages[activePage].name)"/>
+        </v-card-text>
+        <v-card-text v-else class="justify-center px-4">
           <v-tabs-window v-model="activePage">
             <v-tabs-window-item v-for="(page, pageIndex) in pages" :key="pageIndex" :value="pageIndex"
                               transition="false" reverse-transition="false">
