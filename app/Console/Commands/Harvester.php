@@ -377,7 +377,7 @@ class Harvester extends Command
 
                 // If there's an error code, clean up raw data file and or database pointer to it.
                 // 9000 and 9010 errors clear the rawfile field for the harvest. Nothing was saved/kept
-                if (in_array($new_code,[9000,9010])) $rawfile = null;
+                if (in_array($error_code,[9000,9010])) $rawfile = null;
 
                 // Set target path; create folder if not there
                 $savePath = $report_path . '/' . $credential->inst_id . '/' . $credential->prov_id;
