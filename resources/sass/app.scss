@@ -590,6 +590,10 @@ button.v-expansion-panel-title--active {
   cursor: pointer;
 }
 
+.colLabel {
+  margin-bottom: 16px;
+}
+
 /* Users + details layout (converted from float → flex) */
 .users,
 .details {
