@@ -243,7 +243,7 @@ class GlobalProviderController extends Controller
     {
       global $masterReports, $allConnectors;
 
-      $provider = GlobalProvider::with('registries','regsitries.dataHost')->findOrFail($id);
+      $provider = GlobalProvider::with('registries','registries.dataHost')->findOrFail($id);
       $orig_name = $provider->name;
       $orig_refreshable = $provider->refreshable;
 
