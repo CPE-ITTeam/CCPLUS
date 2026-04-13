@@ -289,11 +289,6 @@ class GlobalProviderController extends Controller
           $registry = $provider->registries->where('release',$release)->first();
       }
 
-      // Allow input form to modify service_url when refreshable is off
-      if (isset($input['service_url']) && !$provider->refreshable) {
-          $registry->service_url = $input['service_url'];
-      }
-
       if (!$registry) {
           // Create a CounterRegistry record
           $registry = new CounterRegistry;
@@ -301,6 +296,12 @@ class GlobalProviderController extends Controller
           $registry->service_url = (isset($input['service_url'])) ? $input['service_url'] : null;
           $registry->release = $release;
       }
+
+      // Allow input form to modify service_url when refreshable is off
+      if (isset($input['service_url']) && !$provider->refreshable) {
+          $registry->service_url = $input['service_url'];
+      }
+
       // Turn array of connection checkboxes into an array of IDs
       $new_connectors = array();
       if (array_key_exists('connector_state', $input)) {
