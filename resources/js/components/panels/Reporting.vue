@@ -8,7 +8,8 @@
   import ToggleIcon from '../shared/ToggleIcon.vue';
   import FlexCol from '../shared/FlexCol.vue'
   import YmInput from '../shared/YmInput.vue';
-import { all } from 'axios';
+  import * as XLSX from 'xlsx';
+
   // Pinia DataStores
   const { ccGet, ccPost, setConso, fromToDates } = useAuthStore();
   const authStore = useAuthStore();
@@ -24,7 +25,6 @@ import { all } from 'axios';
   var reportFormat = ref('Compact');
   var zeroRecs = ref('Active');
   var RPTonly = ref('Inactive');
-  var runType = ref('preview');
   var previewTitle = ref('');
   var loading = ref(false);
   var success = ref('');
@@ -279,11 +279,11 @@ import { all } from 'axios';
       }
       saveDialog.value = false;
   }
-  async function getReportData () {
+  async function getReportData (runType) {
     let args = { from: reportDates.fromYM, to: reportDates.toYM, report_id: masterReportId.value,
                  format: reportFormat.value, fields: all_fields.value };
     // update displayed columns before pulling records
-    if (runType.value != 'export') {
+    if (runType != 'export') {
       loading.value = true;
       const resp = await ccPost('/api/reports/updateColumns', args);
       if (resp.result) {
@@ -291,18 +291,16 @@ import { all } from 'axios';
       }
     }
     // Add args for the data pull
-    args['preview'] = 100;
-    args['runtype'] = runType.value;
+    args['runtype'] = runType;
     args['rpt_only'] = (RPTonly.value=='Active') ? 1 : 0;
     args['zeros'] = (zeroRecs.value=='Active') ? 1 : 0;
-// console.log('Getting data for this...');
-// console.log(args);
-// return;
-    if (runType.value == 'preview') {
-      // make a tite for the Preview panel
-      previewTitle.value = (savedTitle.value != '') ? savedTitle.value
-                                                    : selectedConso.name + " : "+masterReport.value.name;
-      previewTitle.value += " - From: "+reportDates.fromYM+" To: "+reportDates.toYM;
+
+    // make a tite for the report
+    previewTitle.value = (savedTitle.value != '') ? savedTitle.value
+                                                  : selectedConso.name + " : "+masterReport.value.name;
+    previewTitle.value += " - From: "+reportDates.fromYM+" To: "+reportDates.toYM;
+    if (runType == 'preview') {
+      args['preview'] = 100;
       try {
         const response = await ccPost('/api/reports/usageData', args);
         if (response.result) {
@@ -310,27 +308,32 @@ import { all } from 'axios';
           if (typeof(response.db_options)!='undefined') {
             optionItems['Dbase'] = [...response.db_options];
           }
-//NOTE::
-//  This is where We change focus to the preview panel... and(?) close the config panel....
-//
           panels.value = ['preview'];
           dtKey.value++;
         } else {
           failure.value = response.msg
         }
       } catch (error) {
-        console.log('Error adding:', error);
+        console.log('Error getting preview data:', error);
       }
       loading.value = false;
-//
-//NOTE:: TODO :: probably needs to work like the DatsetViewer export operation does... instead of get(),
-//    :: ( the usage-report-data path doesn't exist ... /api/reports/usageData is now a POST
-//
-    } else if (runType.value == 'export') {
-        let a = document.createElement('a');
-        a.target = 'blank';
-        a.href = "/usage-report-data?"+Object.keys(params).map(key => key+'='+params[key]).join('&');
-        a.click();
+    } else if (runType == 'export') {
+      try {
+        const response = await ccPost('/api/reports/usageData', args);
+        // Handle returned records and pass to browser as a xls-sheet-attachment
+        if (response.result) {
+          const workbook = XLSX.utils.book_new();
+          const worksheet = XLSX.utils.aoa_to_sheet([...response.headers]);
+          // Add usage records after headers
+          XLSX.utils.sheet_add_json(worksheet, response.usage, { origin: -1, skipHeader: true });
+          XLSX.utils.book_append_sheet(workbook, worksheet, 'CCPlus_Usage');
+          XLSX.writeFile(workbook, response.filename);
+        } else {
+          failure.value = response.msg
+        }
+      } catch (error) {
+        console.log('Error exporting data:', error);
+      }
     }
   }
   // update fromYM and toYM when dateRange choice changes
@@ -338,11 +341,6 @@ import { all } from 'axios';
     let dates = fromToDates(dateRange.value);
     reportDates.fromYM = dates.from;
     reportDates.toYM = dates.to;
-  }
-  function goExport() {
-    runType = 'export';
-    getReportData();
-    runType = '';
   }
   watch( () => reportDates.fromYM, (yearmon) => {
       toKey.value++;
@@ -376,11 +374,14 @@ import { all } from 'axios';
                 item-title="title" item-value="id" density="compact"
                 @update:modelValue="loadPreset('saved')" />
           </FlexCol>
-          <FlexCol v-if="previewButtonEnabled">
-            <v-btn color="primary" @click="getReportData">Load Preview</v-btn>
+          <FlexCol v-if="previewButtonEnabled" :lg="2">
+            <v-btn color="primary" @click="getReportData('preview')">Load Preview</v-btn>
           </FlexCol>
-          <FlexCol v-if="previewButtonEnabled">
+          <FlexCol v-if="previewButtonEnabled" :lg="2">
             <v-btn color="primary" @click="saveDialog=true">Save Configuration</v-btn>
+          </FlexCol>
+          <FlexCol v-if="previewButtonEnabled" :lg="2">
+            <v-btn color="green" @click="getReportData('export')">Export</v-btn>
           </FlexCol>
         </v-row>
         <v-row v-if="selectedConso==''">
@@ -506,9 +507,6 @@ import { all } from 'axios';
         <v-row class="d-flex mb-1 align-end" no-gutters>
           <v-col class="d-flex px-4">
             <h3>{{ previewTitle }}</h3>
-          </v-col>
-          <v-col class="d-flex px-4">
-            <v-btn color="green" @click="goExport">Export</v-btn>
           </v-col>
         </v-row>
         <v-data-table :headers="reportColumns" :items="report_items" :loading="loading"
