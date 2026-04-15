@@ -778,8 +778,14 @@ class HarvestLogController extends Controller
        $filter_options['codes'] = $data->where('error_id','>',0)->unique('error_id')->sortBy('error_id')
                                        ->pluck('error_id')->toArray();
        array_unshift($filter_options['codes'], 'No Error');
-       $filter_options['statuses'] = array_intersect_key($this->xlStatus, array_flip($limit_status));
 
+       // Set available status options
+       $filter_options['statuses'] = array();
+       foreach ($this->xlStatus as $key => $text) {
+           if (in_array($key,$limit_status)) {
+               $filter_options['statuses'][] = array('value'=>$key, 'text'=>$text);
+           }
+       }
        return response()->json(['records' => $harvests, 'options' => $filter_options], 200);
 
    }
