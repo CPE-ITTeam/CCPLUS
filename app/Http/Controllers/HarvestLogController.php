@@ -819,9 +819,10 @@ class HarvestLogController extends Controller
    }
 
    // Build a consistent output record using an input harvest record
-   // input should include Report, Credential with institution+provider and failedHarvests with ccplusError
+   // input should include Report, Credential with institution+provider and failedHarvests with ccplusError.
+   // Set keys for id (for bulk operations) and harvest_id (for barley icons) w/ same value 
    private function formatRecord($harvest) {
-       $rec = array('harvest_id' => $harvest->id, 'inst_id' => $harvest->credential->inst_id,
+       $rec = array('id' => $harvest->id, 'harvest_id' => $harvest->id, 'inst_id' => $harvest->credential->inst_id,
                     'prov_id' => $harvest->credential->prov_id, 'release' => $harvest->release, 'yearmon' => $harvest->yearmon,
                     'attempts' => $harvest->attempts, 'inst_name' => $harvest->credential->institution->name,
                     'prov_name' => $harvest->credential->provider->name, 'report_id' => $harvest->report->id,
