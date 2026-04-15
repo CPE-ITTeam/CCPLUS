@@ -296,14 +296,6 @@ class Harvester extends Command
                 $help_url = (property_exists($e, 'Help_URL')) ? $e->Help_URL : "";
             }
 
-            // Save raw data
-            if ($error_code != 9000 && $error_code != 9010) {
-                if (File::put($raw_datafile, Crypt::encrypt(bzcompress($response->getJsonString(), 9), false)) === false) {
-                    echo "Failed to save raw data in: " . $raw_datafile;
-                    $raw_datafile = "";
-                }
-            }
-
             // All other error codes will set the harvestlog and exit
             // IF success, data will be in $response
             $new_status = $request_status;
@@ -331,6 +323,16 @@ class Harvester extends Command
                 // Update attempts, record error_id and set Success
                 $new_attempts++;
                 $new_status = "Success";
+            }
+
+            // Save raw data
+            if (method_exists($response,'getJsonString') && $new_status!='Pending' && $error_code!=9000 && $error_code!=9010) {
+                $data = (method_exists($response,'getJsonString')) ? $response->getJsonString() : $response->getHttpResponse();
+                // if (File::put($raw_datafile, Crypt::encrypt(bzcompress($response->getJsonString(), 9), false)) === false) {
+                if (File::put($raw_datafile, Crypt::encrypt(bzcompress($data, 9), false)) === false) {
+                    echo "Failed to save raw data in: " . $raw_datafile;
+                    $raw_datafile = "";
+                }
             }
 
             // If request failed, set a FailedHarvest record and update the harvest record
@@ -417,7 +419,9 @@ class Harvester extends Command
             // Request returned Success - No Exceptions (could include no-records)
             if ($new_status == "Success" || $new_status == "Pending") {
                 // Print out any non-fatal message from request
-                if ($message != "") {
+                if ($new_status == "Pending") {
+                    $rawfile = null;
+                } else if ($message != "") {
                     $this->line($ts . " QueueHarvester: Non-Fatal COUNTER API Exception (" . $harvest->id . "): (" .
                                         $error_code . ") : " . $message . ', ' . $detail);
                     $error = CcplusError::where('id',$error_code)->first();
