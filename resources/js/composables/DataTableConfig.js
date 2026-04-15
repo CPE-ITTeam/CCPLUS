@@ -326,7 +326,7 @@
         { name: 'codes',        type: 'mtext', header: null,    editable: true,  searchable: false, label: 'Error Code(s)',
           options: 'fromURL', optVal: 'id', optTxt: 'name', icon: '', helperText: '', isFilter: true, filterCol: 'error_id' },
         { name: 'statuses',     type: 'mselect',   header: null,    editable: true,  searchable: false, label: 'Status(es)',
-          options: 'fromURL', optVal: 'value', optTxt: 'text', icon: '', helperText: '', isFilter: true, filterCol: 'd_status' },
+          options: 'fromURL', optVal: 'value', optTxt: 'text', icon: '', helperText: '', isFilter: true, filterCol: 'status' },
       ],
       required: [],
       static: ['id','rawfile','retryUrl'],
