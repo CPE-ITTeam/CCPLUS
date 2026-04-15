@@ -495,7 +495,8 @@ class ReportController extends Controller
      * Setup export file: name, headers and info and return an active handle for writing data records
      *
      * @param Array $fields
-     * @return League\Csv\Writer $writer
+     * @return Array $headerRows
+     * @return String $filename
      */
     public function prepareExport($report, $fields)
     {
@@ -508,15 +509,11 @@ class ReportController extends Controller
         $con_name = Consortium::where('ccp_key', '=', $con_key)->value('name');
         $all_filters = ReportFilter::all();
 
-        // Setup the output stream for sending info and header records
-        $writer = Writer::createFromFileObject(new SplTempFileObject());
-
         // Setup Report Header rows
         $multiple_insts = false;
         $group_name = '';
         $header_rows = array(["Report_Name",$report->legend]);
         $header_rows[] = array("Report_ID",$report->name);
-        $header_rows[] = array("Release","5");
         if (isset(self::$input_filters['institutiongroup_id'])) {
             if (self::$input_filters['institutiongroup_id'] > 0) {
                 $multiple_insts = true;
@@ -581,7 +578,7 @@ class ReportController extends Controller
                         }
                     }
                 // YOP is in the filters... make the header row data for it here
-                } elseif ($key == "yop") {
+                } elseif ($key == "yop" && is_array($value)) {
                     if (sizeof($value) == 2) {
                         $yops = "YOP:" . $value[0] . ' - ' . $value[1];
                     }
@@ -589,11 +586,10 @@ class ReportController extends Controller
                 } elseif ($key == 'institutiongroup_id' && $group_name != '') {
                     $out_file .= "_" . $group_name;
                 } elseif ($key == 'inst_id' || $key == 'prov_id' || $key == 'plat_id') {
-                    $col = ($key == 'prov_id') ? 'global_id' : 'id';
                     if (sizeof($value) > 1) {
                         $out_file .= "_Multiple_" . $filt->table_name;
                     } elseif (sizeof($value) == 1) {
-                        $out_file .= "_" . preg_replace('/ /', '', $filt->model::where($col, $value[0])->value('name'));
+                        $out_file .= "_" . preg_replace('/ /', '', $filt->model::where('id', $value[0])->value('name'));
                     }
                 }
             }
@@ -670,14 +666,9 @@ class ReportController extends Controller
             }
         }
 
-        // Send info and header records to the stream
-        foreach ($header_rows as $hdr) {
-            $writer->insertOne($hdr);
-        }
-        $writer->insertOne(array_merge($left_head, $right_head));
-
-        // Return the handle
-        return array('writer' => $writer, 'filename' => $out_file);
+        // Return the headers and data
+        $header_rows[] = array_merge($left_head, $right_head);
+        return array('headerRows' => $header_rows, 'filename' => $out_file);
     }
 
     /**
@@ -852,36 +843,6 @@ class ReportController extends Controller
         $master_id = ($report->parent_id == 0) ? $report_id : $report->parent_id;
         $master_name = ($report->parent_id == 0) ? $report->name : $report->parent->name;
         $report_table = $conso_db . '.' . strtolower($master_name) . '_report_data as ' . $master_name;
-
-        // If we're running an export
-        if ($runtype == 'export') {
-            // Build an organized field list and separate the "basic" fields from the "metric" ones
-            $basic_fields = array();
-            $metric_fields = array();
-            foreach ($selected_fields as $key => $fdata) {
-                if (!$fdata['active']) {
-                    continue;
-                }
-                $data = $report_fields->where('qry_as', '=', $key)->first();
-                $legend = ($data) ? $data->legend : $key;
-
-                // If metric field...
-                if (preg_match('/^(searches_|total_|unique_|limit_|no_lic)/', $key)) {
-                    $metric_fields[$key] = $data;
-                    $metric_fields[$key]['legend'] = $legend;
-                    $metric_fields[$key]['is_metric'] = true;
-                    // treat as basic
-                } else {
-                    $basic_fields[$key] = $data;
-                    $basic_fields[$key]['legend'] = $legend;
-                    $basic_fields[$key]['is_metric'] = false;
-                }
-            }
-            // Call prepareExport to setup the output stream with headers
-            $export_settings = self::prepareExport($report, array_merge($basic_fields, $metric_fields));
-            $csv_file = $export_settings['filename'];
-            $writer = $export_settings['writer'];
-        }
 
         // Setup joins, fields to select, raw_where, and group_by based on active columns and formattting
         self::setupQueryFields($report_fields, $selected_fields);
@@ -1111,8 +1072,42 @@ class ReportController extends Controller
                           return $query->get();
                       });
         }
+
+        // If we're exporting,
+        if ($runtype == 'export') {
+            // Build an organized field list and separate the "basic" fields from the "metric" ones
+            $basic_fields = array();
+            $metric_fields = array();
+            foreach ($selected_fields as $key => $fdata) {
+                if (!$fdata['active']) {
+                    continue;
+                }
+                $data = $report_fields->where('qry_as', '=', $key)->first();
+                $legend = ($data) ? $data->legend : $key;
+
+                // If metric field...
+                if (preg_match('/^(searches_|total_|unique_|limit_|no_lic)/', $key)) {
+                    $metric_fields[$key] = $data;
+                    $metric_fields[$key]['legend'] = $legend;
+                    $metric_fields[$key]['is_metric'] = true;
+                    // treat as basic
+                } else {
+                    $basic_fields[$key] = $data;
+                    $basic_fields[$key]['legend'] = $legend;
+                    $basic_fields[$key]['is_metric'] = false;
+                }
+            }
+            // Call prepareExport to setup the headers and filename
+            $export_settings = self::prepareExport($report, array_merge($basic_fields, $metric_fields));
+            // Drop a log record for the report-generation
+            $logrec = date("Y-m-d H:m") . " : " . $thisUser->email . " : " . $export_settings['filename'];
+            Storage::append('exports.log', $logrec);
+            // Return the records, headers, and filename
+            return response()->json(['result' => true, 'usage'=>$records, 'headers'=>$export_settings['headerRows'],
+                                     'filename'=>$export_settings['filename']],200);
+
         // If not exporting, return the records as JSON
-        if ($runtype != 'export') {
+        } else {
             if ($master_name == "DR") {
                 return response()->json(['result' => true, 'usage'=>$records, 'pf_options'=>$pf_options,
                                          'db_options'=>$db_options],200);
@@ -1121,19 +1116,6 @@ class ReportController extends Controller
             }
         }
 
-//NOTE: This may need changing to work properly with the SPA...??
-
-        // Export the records
-        foreach ($records as $rec) {
-            $values = array_values((array) $rec);
-            $writer->insertOne($values);
-        }
-        $writer->output($csv_file);
-        if ($thisUser->email == 'Administrator') {
-            $_user =  session('con_key', '') . "_" . "Administrator";
-        } else {
-            $_user = $thisUser->email;
-        }
         $logrec = date("Y-m-d H:m") . " : " . $_user . " : " . $export_settings['filename'];
         Storage::append('exports.log', $logrec);
     }
