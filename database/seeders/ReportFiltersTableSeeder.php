@@ -21,7 +21,7 @@ class ReportFiltersTableSeeder extends Seeder
 
       if (DB::table($table)->get()->count() == 0) {
           DB::table($table)->insert([
-          ['id' => 1, 'attrib' => 'Provider', 'model' => '\App\Models\Provider', 'table_name' => 'providers',
+          ['id' => 1, 'attrib' => 'Provider', 'model' => '\App\Models\GlobalProvider', 'table_name' => 'providers',
                       'report_column' => 'prov_id'],
           ['id' => 2, 'attrib' => 'Platform', 'model' => '\App\Models\Platform', 'table_name' => 'platforms',
                       'report_column' => 'plat_id'],
