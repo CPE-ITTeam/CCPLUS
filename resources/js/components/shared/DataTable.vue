@@ -20,12 +20,17 @@
     selectableRows: { type: Boolean, required:true }
   });
 
+  const showActions = computed( () => {
+    if (props.items.length > 0) {
+      return ( props.items.some( (itm) => ( typeof(itm.can_edit)!='undefined' ||
+                                            typeof(itm.can_delete)!='undefined') ) );
+    }
+    return false;
+  });
   const computedHeaders = computed(() => {
     const hdrs = [...props.headers];
-    if (props.items.length > 0) {
-      if (props.items.some( (itm) => (itm.can_edit || itm.can_delete))) {
+    if (showActions) {
         hdrs.push({ title: 'Actions', key: 'actions', align: 'end' });
-      }
     }
     return hdrs;
   });
@@ -212,7 +217,7 @@
 
       <!-- Actions column -->
       <template #item.actions="{ item }">
-        <div v-if="item.can_edit || item.can_delete || props.dataset=='platforms'" class="d-flex ga-2 justify-end">
+        <div v-if="showActions || props.dataset=='platforms'" class="d-flex ga-2 justify-end">
           <!-- Platform refresh icons -->
           <v-tooltip v-if="props.dataset=='platforms' && (item.refresh_result=='orphan' || item.refresh_result==null)"
                      :text="item.refresh_text" location="top">
@@ -233,10 +238,9 @@
                       @click="$emit('edit', item)" />
             </template>
           </v-tooltip>
-          <v-tooltip v-if="item.can_delete" text="Delete" location="top">
+          <v-tooltip :text="(item.can_delete) ? 'Delete' : 'Disabled'" location="top">
             <template v-slot:activator="{ props }">
-              <v-icon icon="mdi-delete" color="medium-emphasis" v-bind="props"
-                      @click="enableDeleteDialog(item)"/>
+              <v-icon icon="mdi-delete" :disabled="!item.can_delete" v-bind="props" @click="enableDeleteDialog(item)"/>
             </template>
           </v-tooltip>
         </div>
