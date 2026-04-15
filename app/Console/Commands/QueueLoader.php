@@ -219,7 +219,7 @@ class QueueLoader extends Command
                     }
                 } // for each report
                 // Add inst_id to the doneInsts array
-                if (!in_array($credential->inst_id)) $doneInsts[] = $credential->inst_id;
+                if (!in_array($credential->inst_id, $doneInsts)) $doneInsts[] = $credential->inst_id;
             } // for each connection
         } // for each credential
 
