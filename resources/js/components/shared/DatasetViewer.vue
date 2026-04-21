@@ -564,6 +564,7 @@
         success.value = response.msg
         // Records changed above, update the datatable and filteredItems
         updateItems();
+        dtKey.value++;
       } else {
         failure.value = response.msg
       }
@@ -611,6 +612,7 @@
         }
       }
       updateItems();
+      dtKey.value++;
     // Otherwise, update a specific filter key
     } else if (typeof(filterOptions[filt.key]['value']) != 'undefined') {
       filterOptions[filt.key]['value'] = filt.value;
@@ -632,6 +634,7 @@
         }
       }
       updateItems();
+      dtKey.value++;
     }
   }
 
@@ -670,7 +673,6 @@
       }
     }
     filteredItems = [...filterResult];
-    dtKey.value++;
   }
 
   async function handleDelete(id) {
