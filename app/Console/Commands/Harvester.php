@@ -274,6 +274,7 @@ class Harvester extends Command
             }
 
             // Make the request
+            $response = null;
             try {
                 $request = CounterApiRequest::fromUrl($request_uri);
                 $response = $request->doRequest();
@@ -291,24 +292,26 @@ class Harvester extends Command
                     );
                 }
             } catch (CounterApiRequestException $e) {
-                $error_code = 9000;
+                $error_code = 9200;
                 $severity = "ERROR";
                 $message = $e->getMessage();
                 $detail = (property_exists($e, 'Data')) ? $e->Data : "";
                 $help_url = (property_exists($e, 'Help_URL')) ? $e->Help_URL : "";
                 $request_status = "Fail";
             } catch (InvalidCounterApiResponseException $e) {
-                $error_code = 9010;
+                $error_code = 9300;
                 $severity = "ERROR";
                 $message = $e->getMessage();
                 $detail = (property_exists($e, 'Data')) ? $e->Data : "";
                 $help_url = (property_exists($e, 'Help_URL')) ? $e->Help_URL : "";
+                $request_status = "Fail";
             } catch (CounterApiException $e) {
                 $error_code = $e->getCode();
                 $severity = "ERROR";
                 $message = $e->getMessage();
                 $detail = (property_exists($e, 'Data')) ? $e->Data : "";
                 $help_url = (property_exists($e, 'Help_URL')) ? $e->Help_URL : "";
+                $request_status = "Fail";
             }
 
             // All other error codes will set the harvestlog and exit
@@ -316,7 +319,9 @@ class Harvester extends Command
             $new_status = $request_status;
             $new_attempts = $harvest->attempts;
 
-           // Check for "queued" state response
+//NOTE:: Still needs a way to trap/detect no records in the report_items.. so it can set 9030
+
+            // Check for "queued" state response
             if ($error_code == 1011 || $error_code == 1020) {
                 $new_status = 'Pending';
                 $this->line($ts . " QueueHarvester: harvest ID: " . $harvest->id . ' set Pending, will be retried');
@@ -341,7 +346,7 @@ class Harvester extends Command
             }
 
             // Save raw data
-            if (method_exists($response,'getJsonString') && $new_status!='Pending' && $error_code!=9000 && $error_code!=9010) {
+            if (method_exists($response,'getJsonString') && $new_status!='Pending' && !in_array($error_code, [9200,9300,9400])) {
                 $data = (method_exists($response,'getJsonString')) ? $response->getJsonString() : $response->getHttpResponse();
                 // if (File::put($raw_datafile, Crypt::encrypt(bzcompress($response->getJsonString(), 9), false)) === false) {
                 if (File::put($raw_datafile, Crypt::encrypt(bzcompress($data, 9), false)) === false) {
@@ -364,8 +369,8 @@ class Harvester extends Command
                 $error_msg .= substr(preg_replace('/(.*)(https?:\/\/.*)$/', '$1', $message), 0, 60);
 
                 // Get/Create entry from the CC+ errors table
-                if ($error_code == 0) {  // 0 is reserved for "No Error", reset to "unknown" code:9000
-                    $error_code = 9000;
+                if ($error_code == 0) {  // 0 is reserved for "No Error", reset to "unknown" code:9400
+                    $error_code = 9400;
                 }
                 $error = CcplusError::firstOrCreate(
                         ['id' => $error_code],
@@ -393,8 +398,8 @@ class Harvester extends Command
                 //                'harvest_id' => $job->harvest->id, 'status' => 'Active', 'created_at' => $ts]);
 
                 // If there's an error code, clean up raw data file and or database pointer to it.
-                // 9000 and 9010 errors clear the rawfile field for the harvest. Nothing was saved/kept
-                if (in_array($error_code,[9000,9010])) $rawfile = null;
+                // 9200, 9300 and 9400 errors clear the rawfile field for the harvest. Nothing was saved/kept
+                if (in_array($error_code,[9200,9300,9400])) $rawfile = null;
 
                 // Set target path; create folder if not there
                 $savePath = $report_path . '/' . $credential->inst_id . '/' . $credential->prov_id;
@@ -404,7 +409,7 @@ class Harvester extends Command
                 if (is_dir($savePath)) {
                     // If the harvest has a rawfile value set and this attempt returned invalid/no JSON,
                     // clear out the saved data file, if possible.
-                    if (in_array($error->id,[9000,9010]) && !is_null($harvest->rawfile)) {
+                    if (in_array($error->id,[9200,9300,9400]) && !is_null($harvest->rawfile)) {
                         $oldFile = $savePath . '/' . $harvest->rawfile;
                         try {
                             unlink($oldFile);
