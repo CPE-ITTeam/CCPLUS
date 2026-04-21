@@ -21,6 +21,9 @@ class CounterApi extends Model
        // Set URL based on release from the provider registr(ies); default to max if not found or release not set
         $registry = $cred->provider->registries->where('release',$release)->first();
         $service_url = ($registry) ? $registry->service_url : $cred->provider->service_url();
+        if (is_null($service_url) || strlen($service_url)==0) {
+            return null;
+        }
        // Begin setting up the URI by cleaning/standardizing the service_url string in the cred
         $_url = rtrim($service_url);                          // remove trailing whitespace
         $_url = preg_replace('/\/reports\/?$/i', '', $_url);  // take off any methods with any leading slashes
@@ -68,7 +71,7 @@ class CounterApi extends Model
             $uri_atts  = "&attributes_to_show=Access_Method";
             $uri_atts .= ($release == "5") ? "%7CData_Type" : "";
         } elseif ($report->name == "IR") {
-            $uri_atts  = "&Include_Parent_Details=True&attributes_to_show=Access_Method%7CAccess_Type%7CYOP";
+            $uri_atts  = "&include_parent_details=True&attributes_to_show=Access_Method%7CAccess_Type%7CYOP";
             $uri_atts .= "%7CAuthors%7CPublication_Date%7CArticle_Version";
             $uri_atts .= ($release == "5") ? "%7CData_Type" : "";
         }
