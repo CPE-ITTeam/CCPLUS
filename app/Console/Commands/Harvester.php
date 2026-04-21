@@ -274,7 +274,7 @@ class Harvester extends Command
             }
 
             // Make the request
-            $response = null;
+            $response = '';
             try {
                 $request = CounterApiRequest::fromUrl($request_uri);
                 $response = $request->doRequest();
