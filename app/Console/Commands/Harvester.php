@@ -181,7 +181,7 @@ class Harvester extends Command
                     // Attach global provider to the credential for use in the CounterApi class (buildUri)
                     $credential->provider = $all_providers->where('id',$credential->prov_id)->first();
                     if (!$credential->provider) {
-                        $this->line($ts . " QueueHarvester: Global Provider ID in credentials: " . $credential->prov_id .
+                        $this->line($ts . " QueueHarvester: Undefined Provider ID in credentials: " . $credential->prov_id .
                                         " , queue entry removed.");
                         $keepJob = false;
                     } else {
@@ -257,6 +257,21 @@ class Harvester extends Command
             $error_code = 0;
             $request_status = "Success";
             $request_uri = CounterApi::buildUri($begin, $end, $credential, $report, 'reports', $harvest->release);
+            if (is_null($request_uri)) {
+                $error = CcplusError::where('id',9200)->first();
+                if ($error) {
+                    $result = DB::table($failedharvests[$cid])
+                                ->insert(['harvest_id' => $harvest->id, 'process_step' => 'Initiation',
+                                        'error_id' => 9200, 'detail' => $error->explanation . ', ' . $error->suggestion,
+                                        'created_at' => $ts]);
+                } else {
+                    $this->line($ts . " QueueHarvester: Platform: " . $credential->prov_name .
+                                        " has invalid or missing service_url - check registries and settings.");
+                }
+                DB::table($harvests[$cid])->where('id', $harvest->id)->update(['status' => 'Fail', 'error_id' => 9200]);
+                $job->delete();
+                continue;
+            }
 
             // Make the request
             try {
