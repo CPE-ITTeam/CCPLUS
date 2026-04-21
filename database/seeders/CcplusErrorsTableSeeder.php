@@ -171,7 +171,7 @@ class CcplusErrorsTableSeeder extends Seeder
                  'suggestion' => 'Verify that the credentials related to this harvest are enabled.',
                  'new_status' => 'BadCreds', 'color' => '#FF9900'
              ],
-             ['id'=>9200, 'message' => 'Unable to reach harvest endpoint','severity_id' => 99,
+             ['id'=>9200, 'message' => 'Harvest endpoint undefined or inaccessible','severity_id' => 99,
                  'explanation' => 'The request to the COUNTER service failed to connect.',
                  'suggestion' => 'Confirm that the URL in the platform settings is correct and retry.',
                  'new_status' => 'Fail', 'color' => '#999999'
