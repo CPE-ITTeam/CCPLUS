@@ -83,6 +83,7 @@ class HarvestLogController extends Controller
         $filter_options['platforms'] = GlobalProvider::get(['id','name'])->toArray();
 
         // Setup the rest of the filtering options
+        $filter_options['updates'] = array('Last Hour','Last 24 Hours','Last Week');
         $filter_options['yymms'] = HarvestLog::select('yearmon')->distinct()->pluck('yearmon')->toArray();
         $filter_options['statuses'] = array('Success','Fail','Bad Credentials');
         $filter_options['reports'] = Report::where('parent_id',0)->orderBy('dorder','ASC')
@@ -113,7 +114,7 @@ class HarvestLogController extends Controller
 
         // Setup for known filters
         $filters = array('institutions' => [], 'groups' => [], 'platforms' => [], 'yymms' => [], 'reports' => [],
-                          'codes' => [], 'statuses' => []);
+                          'codes' => [], 'statuses' => [], 'updates' => []);
         $harvest_statuses = array('Success','Fail','BadCreds');
         $jobs_statuses = array('Queued', 'Harvesting', 'Pending', 'Paused', 'ReQueued', 'Waiting','Processing');
 
@@ -183,6 +184,17 @@ class HarvestLogController extends Controller
             })
             ->when(count($filters['yymms']) > 0, function ($qry) use ($filters) {
                 return $qry->whereIn('yearmon', $filters['yymms']);
+            })
+            ->when($filters['updates'], function ($qry) use ($filters) {
+                if ($filters['updates'] == "Last 24 Hours") {
+                    return $qry->whereRaw("updated_at >= (now() - INTERVAL 24 HOUR)");
+                } else if ($filters['updates'] == "Last Hour") {
+                    return $qry->whereRaw("updated_at >= (now() - INTERVAL 1 HOUR)"); 
+                } else if ($filters['updates'] == "Last Week") {
+                    return $qry->whereRaw("updated_at >= (now() - INTERVAL 168 HOUR)");
+                } else {
+                    return $qry->where('updated_at', 'like', '%' . $filters['updates'] . '%');
+                }
             })
             ->limit(501)->get();
 
@@ -868,6 +880,17 @@ class HarvestLogController extends Controller
        $end = $harvest->yearmon . '-' . date('t', strtotime($beg));
        $rec['retryUrl'] = CounterApi::buildUri($beg,$end,$harvest->credential, $harvest->report, 'reports', $harvest->release);
  
+       // Set timeframes to assist filter-by-update time-ranges
+       $rec['timeframes'] = array();
+       $current_dt = new \DateTime();
+       $updated_dt = new \DateTime($harvest->updated_at);
+       $interval = $updated_dt->diff($current_dt);
+       if ($interval->days < 7) $rec['timeframes'][] = 'Last Week';
+       if ($interval->days < 1) {
+           $rec['timeframes'][] = 'Last 24 Hours';
+           if ($interval->h < 1) $rec['timeframes'][] = 'Last Hour';
+       }
+
        // Set required connectors
        $prov_connectors = $harvest->credential->provider->connectors();
        $connectors = $this->connection_fields->whereIn('id',$prov_connectors)->pluck('name')->toArray();
