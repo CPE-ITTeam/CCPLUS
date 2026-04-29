@@ -102,7 +102,7 @@
                          @update:showSelectedOnly="$emit('update:showSelectedOnly', $event)"/>
       </v-row>
     </FlexCol>
-    <v-col v-if="is_serveradmin && consortia.length>1 && !harvestDataset" class="flex px-4" cols="3">
+    <v-col v-if="is_serveradmin && consortia.length>1" class="flex px-4" cols="3">
       <v-autocomplete v-model="consoKey" label="Consortium" :items="consortia" item-title="name" density="compact"
                       return-object item-value="ccp_key" @update:modelValue="$emit('updateConso', $event)" />
     </v-col>
@@ -113,7 +113,7 @@
                      @refresh="$emit('bulkAction', {action:'Full Refresh'})"/>
               
     <!-- Refresh Items button for harvest tables -->
-    <v-col v-if="harvestDataset" class="d-flex justify-center">
+    <v-col v-if="harvestDataset && consoKey!=''" class="d-flex justify-center">
       <v-btn color="primary" @click="$emit('refreshRecords')">Refresh Records</v-btn>
     </v-col>
   </v-row>
