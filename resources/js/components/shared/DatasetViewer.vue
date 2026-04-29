@@ -658,7 +658,13 @@
 
       // Filter items by a single value
       if (filter.type == 'select' || filter.type == 'text') {
-        filterResult = filterResult.filter( item => item[filter.col]==filter.value );
+        // Filter value against an item column holding an array of values
+        if ( Array.isArray(allItems[0][filter.col]) ) {
+          filterResult = filterResult.filter( item => item[filter.col].some(f => f==filter.value) );
+        // Filter value against single item column values
+        } else {
+          filterResult = filterResult.filter( item => item[filter.col]==filter.value );
+        }
       // Filter items with a multi-select array
       } else if (filter.type == 'mselect' || filter.type == 'mtext') {
         // If item column is an array (like groups, roles, etc.)
