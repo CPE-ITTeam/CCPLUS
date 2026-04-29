@@ -100,7 +100,8 @@
         <!-- Add user profile icon as a right-aligned tab using spacer -->
         <v-spacer></v-spacer> 
         <v-tab key="999" value="999">
-          <v-icon :title="authStore.user.name+' '+profileRoute.meta.title">mdi-account</v-icon>
+          <v-icon :title="(authStore.user!=null) ? authStore.user.name+' '+profileRoute.meta.title
+                                                 : profileRoute.meta.title">mdi-account</v-icon>
         </v-tab>
       </v-tabs>
       <v-main v-if="activePage==999">
