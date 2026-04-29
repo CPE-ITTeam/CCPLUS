@@ -134,7 +134,8 @@ export const useAuthStore = defineStore('useAuthStore', {
         this.user = null;
         this.roles = null;
         this.isAuthenticated = false;
-        this.router.push('/api/login');
+        this.router.push('/');
+        console.log('CCPlus Logout successful');
       } catch (error) {
         console.error('Logout attempt failed:', error);
       }
