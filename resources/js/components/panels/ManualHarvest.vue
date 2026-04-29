@@ -1,11 +1,16 @@
 <script setup> 
   import { ref, watch, computed, onBeforeMount, onMounted } from 'vue';
+  import { storeToRefs } from 'pinia';
   import { useAuthStore } from '@/plugins/authStore.js';
-  import { formToJSON } from 'axios';
+  import { useCCPlusStore } from '@/plugins/CCPlusStore.js';
   import YmInput from '../shared/YmInput.vue';
-  const { ccGet, ccPost } = useAuthStore();
+  const { ccGet, ccPost, setConso } = useAuthStore();
+  const authStore = useAuthStore();
+  const { consortia } = storeToRefs(useCCPlusStore());
+  const is_serveradmin = authStore.is_serveradmin;
+  var consoKey = ref(authStore.ccp_key);
   defineOptions({ name: 'ManualHarvest', inheritAttrs: false });
-  const emit = defineEmits(['newHarvests','updatedHarvests']);
+  const emit = defineEmits(['newHarvests','updatedHarvests', 'updateConso']);
   var success = ref('');
   var failure = ref('');
   var working = ref('');
@@ -14,7 +19,6 @@
   var allPlats = ref(false);
   var allConsoPlats = ref(false);
   var allInsts = ref(false);
-  // var selected_insts = ref([]);
   var institutions = ref([]);
   var institution_options = ref([]);
   var inst_groups = ref([]);
@@ -274,6 +278,13 @@
     }
     selectedInstitutions.value = [...form.value.inst];
   }
+  async function handleChangeConso(conso) {
+    consoKey.value = conso.ccp_key;
+    const response = await setConso(conso.id,conso.ccp_key);
+    initializeOptions();
+    emit('updateConso', conso);
+    consoKey.value = conso.ccp_key;
+  }
   watch( () => form.value.fromYM, (yearmon) => {
       toKey.value++;
       minYM.value = yearmon;
@@ -294,13 +305,19 @@
   });
 </script>
 <template>
-  <div v-if="institution_options.length == 0" class="d-flex pa-4">
+  <div v-if="is_serveradmin && consortia.length>1">
+    <v-col class="flex px-4" cols="3">
+      <v-autocomplete v-model="consoKey" label="Consortium" :items="consortia" item-title="name" density="compact"
+                      return-object item-value="ccp_key" onConsoChange @update:modelValue="handleChangeConso($event)" />
+    </v-col>
+  </div>
+  <div v-if="consoKey!='' && institution_options.length == 0" class="d-flex pa-4">
      <h3>Instititions must be configured in order to create harvests</h3>
   </div>
-  <div v-else-if="available_platforms.length == 0" class="d-flex pa-4">
+  <div v-else-if="consoKey!='' && available_platforms.length == 0" class="d-flex pa-4">
     <h3>Platforms must be connected in order to create harvests</h3>
   </div>
-  <div v-else>
+  <div v-else-if="consoKey!=''">
     <div v-if="selections_made">
       <v-btn color="gray" small @click="resetForm">Reset Selections</v-btn>
     </div>
