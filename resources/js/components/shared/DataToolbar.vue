@@ -124,7 +124,11 @@
     </v-col>
     <v-col v-else cols="2">&nbsp;</v-col>
     <v-col v-if="anyFilterSet" cols="1">
-      <v-btn icon="mdi-restore" color="#dd0000" @click="$emit('setFilter',{key: 'reset'})"></v-btn>
+      <v-tooltip text="Reset All Filters" location="bottom">
+        <template #activator="{ props }">
+          <v-btn icon="mdi-restore" color="#dd0000" v-bind="props" @click="$emit('setFilter',{key: 'reset'})"></v-btn>
+        </template>
+      </v-tooltip>
     </v-col>
     <v-col v-else cols="1">&nbsp;</v-col>
     <ToolbarFilters v-if="filter_options.length>0" :filters="filter_options[0]" @setFilter="handleFilter($event)" />
