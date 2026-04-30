@@ -447,9 +447,9 @@ class Harvester extends Command
                     $error = CcplusError::where('id',$error_code)->first();
                 }
 
-                // Skip if error_code holds Pending, too-many requests, or no usage
-                if (!in_array($error_code,[1011,1020,3030,9030])) {
-                    $error_code = 0;
+                // Skip if error_code holds Pending or too-many requests (will be re-tried)
+                if (!in_array($error_code,[1011,1020])) {
+                    if ( !in_array($error_code,[3030,9030]) ) $error_code = 0;
                     // Track last successful (last_harvest_id) and most-current harvest (last_harvest) for this credential
                     $c_args = array('last_harvest_id' => $harvest->id);
                     if ($yearmon > $credential->last_harvest) {
