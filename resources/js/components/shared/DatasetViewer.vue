@@ -319,7 +319,10 @@
     const config = datasetConfig[props.datasetKey];
     if (config.exportFields.length==0) return [];
     let exportItems = (config.title == 'Platform') ? [...platformExportItems] : [...filteredItems];
-
+    // Limit rows to selection, if set
+    if ( selectedRows.value.length>0 ) {
+      exportItems = exportItems.filter( itm => selectedRows.value.some( row => row.id == itm.id) );
+    }
     // Filter out static and isFilter columns from filteredItems
     return exportItems.map( row => {
       // Use reduce to build a new object with only the desired keys
