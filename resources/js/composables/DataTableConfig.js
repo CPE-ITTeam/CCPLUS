@@ -247,7 +247,7 @@
           icon: '', helperText: '' },
         { name: 'IR',               type: 'toggle', header: 'center',  editable: true, searchable: false, label: 'IR Report',
           icon: '', helperText: '' },
-        { name: 'statuses',         type: 'select', header: null, editable: false, searchable: false, label: 'Status',
+        { name: 'statuses',     type: 'mtext',   header: null,    editable: false, searchable: false, label: 'Status',
           options: 'fromURL', icon: '', helperText: '', isFilter: true, filterCol: 'status' },
         { name: 'result',   type: 'text',    header: 'start',  editable: false, searchable: true,  label: 'Last Harvest',
           icon: '', helperText: '' },
