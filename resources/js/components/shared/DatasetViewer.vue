@@ -33,6 +33,7 @@
   var allItems = reactive([]);
   var filteredItems = reactive([]);
   var reptItem = reactive({});
+  var newType = reactive({id:null, name:''});
   var platformExportItems = reactive([]);
   var allOptions = {};
   var bulkOptions = ref([]);
@@ -45,6 +46,7 @@
   const formDialogOpen = ref(false);
   const editingItem = ref(null);
   const reptDialog = ref(false);
+  const typeDialog = ref(false);
   const editableFields = ref([]);
   const urlRoot = ref('');
   const emptyFlags = { 'available': true, 'conso': false, 'groups': [], 'insts': [],
@@ -472,6 +474,12 @@
   }
 
   async function handleBulk(data) {
+    // Bulk institution type assign loads a dialog (comes back with different action to apply the value)
+    if (data.action == 'Assign Type') {
+      newType = { id: null, name: '' };
+      typeDialog.value = true;
+      return;
+    }
     var bulkUrl = urlRoot.value;
     bulkUrl += (data.action=='Refresh Registry' || data.action=='Full Refresh') ? '/refresh' : '/bulk';
     if (data.action != 'Full Refresh') {
@@ -555,13 +563,25 @@
               });
             }
           }
-        // Restart* and Pause actions (HarvestQueue and HarvestLogs) return arrays of full items
-        } else if (data.action.includes('ReStart') || data.action == 'Pause') {
-            response.affectedItems.forEach( newItem => {
-              allItems.splice(allItems.findIndex(ii => ii.id == newItem.id),1,newItem);
+        } else if (data.action == 'Set Institution Type') {
+          if (response.affectedIds.length>0 && newType.id != null) {
+            allItems.filter(aitm => response.affectedIds.includes(aitm.id)).forEach( itm => {
+              itm.type = newType.name;
+              itm.type_id = newType.id;
             });
-        } else if (data.action == 'Some other Action') {
+            typeDialog.value = false;
+          }
 
+        // } else if (data.action == 'Some other Action') {
+
+        // Otherwise do a full replace of the item(s) based on ID
+        // (Restart and Pause actions for HarvestQueue and HarvestLogs return arrays of full items),
+        // Any other/future actions that are added can be caught here also
+        } else {
+          response.affectedItems.forEach( newItem => {
+            allItems.splice(allItems.findIndex(ii => ii.id == newItem.id),1,newItem);
+          });
+          dtLoading.value = false;
         }
         dtLoading.value = false;
         success.value = response.msg
@@ -844,6 +864,7 @@ console.log('Handling for includeZeros toggle not written yet');
     formDialogOpen.value = false;
     editingItem.value = null;
     reptDialog.value = false;
+    typeDialog.value = false;
   }
   const emit = defineEmits(['updateConso','setFilter']);
   onBeforeMount(() => loadDataset(props.datasetKey));
@@ -917,6 +938,34 @@ console.log('Handling for includeZeros toggle not written yet');
           <ReportToggle :item=reptItem :options="allOptions"
                         @submit="reportToggleSubmit" @cancel="handleFormCancel" />
         </v-card-text>
+      </v-card>
+    </v-dialog>
+
+    <v-dialog v-model="typeDialog">
+      <v-card>
+        <v-card-title class="d-flex justify-space-between align-center">
+          <span>Update Institution Type</span>
+          <v-tooltip text="Cancel" location="bottom">
+            <template #activator="{ props }">
+              <v-btn icon variant="outlined" class="close-btn" v-bind="props" @click="$emit('close')">
+                <v-icon size="18">mdi-close</v-icon>
+              </v-btn>
+            </template>
+          </v-tooltip>
+        </v-card-title>
+        <v-card-subtitle class="d-flex align-center">
+          <v-col class="d-flex pa-0"><strong>Updating Type For {{ selectedRows.length }} Institutions</strong></v-col>
+        </v-card-subtitle>
+        <v-card-text>
+          <v-autocomplete v-model="newType" label="Type" :items="allOptions.type" item-title="name" item-value="id"
+                          density="compact" return-object/>
+        </v-card-text>
+        <v-row class="d-flex mt-2" no-gutters>
+          <v-col cols="12" class="text-left">
+            <v-btn color="primary" @click="handleBulk({action: 'Set Institution Type', type_id: newType.id})" >Save</v-btn>
+            <v-btn variant="text" class="ml-2" @click="handleFormCancel">Cancel</v-btn>
+          </v-col>
+        </v-row>
       </v-card>
     </v-dialog>
   </v-sheet>
