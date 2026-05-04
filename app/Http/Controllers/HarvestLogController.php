@@ -394,11 +394,10 @@ class HarvestLogController extends Controller
                 $consoCnx = $global_platform->connections->where('inst_id',1)->first();
                 $conso_reports = ($consoCnx) ? $consoCnx->reports->pluck('id')->toArray() : [];
 
-                // Loop through all credentials
-                foreach ($global_platform->credentials as $cred) {
-                    // If institution is inactive or this inst_id is not in the $limit_insts array, skip it
-                    if ($cred->status != "Enabled" || !$cred->institution->is_active ||
-                       (!$consoAdmin && !in_array($cred->inst_id,$limit_insts))) {
+                // Loop through platform credentials, limited by institution
+                foreach ($global_platform->credentials->whereIn('inst_id',$limit_insts) as $cred) {
+                    // If institution or credential is inactive, skip it
+                    if ($cred->status != "Enabled" || !$cred->institution->is_active) {
                         continue;
                     }
 
