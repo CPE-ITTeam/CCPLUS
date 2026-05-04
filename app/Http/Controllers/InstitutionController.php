@@ -389,6 +389,16 @@ class InstitutionController extends Controller
             }
             return response()->json(['result' => true, 'msg' => '', 'affectedIds' => $instIDs, 'group' => $group], 200);
 
+        } else if ($input['action'] == 'Set Institution Type') {
+            // Get matching institutions that need to change
+            $institutions = Institution::whereIn('id',$instIDs)->get();
+            $args = array('type_id' => $input['type_id']);
+            foreach ($institutions as $inst) {
+                $inst->update($args);
+            }
+            $affectedIds  = $institutions->pluck('id')->toArray();
+            return response()->json(['result'=>true,'msg'=>'Type Assignment Successful','affectedIds'=>$affectedIds],200);
+
         // Unrecognized action
         } else {
             return response()->json(['result' => false, 'msg' => 'Unrecognized bulk action requested'], 200);
