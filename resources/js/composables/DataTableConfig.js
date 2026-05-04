@@ -66,7 +66,7 @@
           icon: '', helperText: '' },
         { name: 'name',         type: 'text',    header: 'start',  editable: true,  searchable: true,  label: 'Group',
           icon: '', helperText: '' },
-        { name: 'institutions', type: 'mselect', header: null, editable: false, searchable: false, label: 'Member Institutions',
+        { name: 'institutions', type: 'mselect', header: null,     editable: true, searchable: false,  label: 'Member Institutions',
           options: 'fromURL', optVal: 'id', optTxt: 'name', icon: '', helperText: '', isFilter: false },
         { name: 'count',        type: 'text',    header: 'center', editable: false, searchable: true,  label: 'Member Count',
           icon: '', helperText: '' },
