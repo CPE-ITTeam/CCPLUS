@@ -41,7 +41,7 @@
       ],
       required: ['status', 'name', 'local_id', 'fte', 'type', 'creds'],
       static: ['id','group_string','group_ids','type_id'],
-      bulkOptions: ['Set Active', 'Set Inactive', 'Create New Group', 'Add to Existing Group'],
+      bulkOptions: ['Set Active', 'Set Inactive', 'Assign Type', 'Create New Group', 'Add to Existing Group'],
       exportFields: ['id','local_id','name','status','fte','group_ids','notes'],
       sortby: 'name',
     },
