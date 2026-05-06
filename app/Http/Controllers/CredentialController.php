@@ -329,6 +329,9 @@ class CredentialController extends Controller
             }
         }
 
+        // Updating a credential record means the validated_at value gets reset
+        $cred->validated_at = null;
+
         // If user wants to disable, just save the record
         if ($cred->status == 'Disabled') {
             $cred->save();
