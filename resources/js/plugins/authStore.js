@@ -127,7 +127,6 @@ export const useAuthStore = defineStore('useAuthStore', {
       this.roles = null;
       this.isAuthenticated = false;
     },
-
     async logout() {
       try {
         await axios.get('/api/logout');
@@ -165,35 +164,40 @@ export const useAuthStore = defineStore('useAuthStore', {
     ccGet(url) {
       return axios({ method: 'get', url: url,
                      headers: {
-                       Authorization: 'Bearer ' + this.token,
-                       Accept: "application/json",
-                     }
-                   });
+                       'Authorization': 'Bearer ' + this.token,
+                       'Accept': "application/json",
+                       'X-Tenant': this.ccp_key
+                     },
+      });
     },
     async ccPost(url, content) {
       const response = await axios({ method: 'post', url: url, data: content,
-                                    headers: {
-                                      Authorization: 'Bearer ' + this.token,
-                                      Accept: "application/json",
-                                    }
+                                     headers: {
+                                       'Authorization': 'Bearer ' + this.token,
+                                       'Accept': "application/json",
+                                       'X-Tenant': this.ccp_key
+
+                                     }
                                   });
       return response.data;
     },
     async ccPatch(url, content) {
       const response = await axios({ method: 'patch', url: url, data: content,
-                                    headers: {
-                                      Authorization: 'Bearer ' + this.token,
-                                      Accept: "application/json",
-                                    }
+                                     headers: {
+                                       'Authorization': 'Bearer ' + this.token,
+                                       'Accept': "application/json",
+                                       'X-Tenant': this.ccp_key
+                                     }
                                   });
       return response.data;
     },
     async ccDestroy(url) {
       const response = await axios({ method: 'delete', url: url,
-                                    headers: {
-                                      Authorization: 'Bearer ' + this.token,
-                                      Accept: "application/json",
-                                    }
+                                     headers: {
+                                       'Authorization': 'Bearer ' + this.token,
+                                       'Accept': "application/json",
+                                       'X-Tenant': this.ccp_key
+                                     }
                                   });
       return response.data;
     },
@@ -202,8 +206,9 @@ export const useAuthStore = defineStore('useAuthStore', {
           const response = await axios.get(`/api/harvests/raw/${id}`, {
               responseType: 'blob',
               headers: {
-                Authorization: 'Bearer ' + this.token,
-                Accept: "application/json",
+                'Authorization': 'Bearer ' + this.token,
+                'Accept': "application/json",
+                'X-Tenant': this.ccp_key
               }
           });
 
