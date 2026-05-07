@@ -20,7 +20,7 @@ class AssignConsortiumDb
     public function handle(Request $request, Closure $next): Response
     {
         $key = $request->header('X-Tenant');
-        $sess_key = ($key == '') ? "con_template" : 'ccplus_' . $key;   
+        $sess_key = ($key == '') ? "ccplus_con_template" : 'ccplus_' . $key;   
         $orig_cnx = config('database.connections.consodb.database');
 
         // If connection needs resetting 
