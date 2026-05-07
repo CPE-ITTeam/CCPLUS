@@ -20,7 +20,7 @@ class ConsoDbSessionHandler extends DatabaseSessionHandler
     /**
      * Write the session data to the storage.
      *
-     * @param  string  $sessionId
+     * @param  string $sessionId
      * @param  array  $payload
      * @return bool
      */
@@ -32,7 +32,9 @@ class ConsoDbSessionHandler extends DatabaseSessionHandler
             $payload['user_id'] = $this->request->session()->get('user_id');
             $payload['conso_id'] = $this->request->session()->get('conso_id');
             $payload['ccp_key'] = $this->request->session()->get('ccp_key');
-            if ($this->exists) {
+            // Update or insert into the table
+            $exists = $this->getQuery()->where('id', $sessionId)->exists();
+            if ($exists) {
                 $this->getQuery()->where('id', $sessionId)->update($payload);
             } else {
                 $payload['id'] = $sessionId;
