@@ -6,6 +6,7 @@ use DB;
 use Closure;
 use Illuminate\Http\Request;
 use Symfony\Component\HttpFoundation\Response;
+use Illuminate\Support\Facades\Config;
 
 class AssignConsortiumDb
 {
@@ -18,17 +19,15 @@ class AssignConsortiumDb
      */
     public function handle(Request $request, Closure $next): Response
     {
-        $session_key = session('ccp_key');
-        $key = ($session_key=='') ? "con_template" : $session_key;
-
-        // If the session key-derived database setting is different than
-        // the current assignment, purge and reconnect 
+        $key = $request->header('X-Tenant');
+        $sess_key = ($key == '') ? "con_template" : 'ccplus_' . $key;   
         $orig_cnx = config('database.connections.consodb.database');
-        $sess_key = 'ccplus_' . $key;   
+
+        // If connection needs resetting 
         if ($sess_key != $orig_cnx) {
-            config(['database.connections.consodb.database' => $sess_key]);
+            Config::set('database.connections.consodb.database', $sess_key);
             DB::purge('consodb');
-            DB::reconnect('consodb');
+            DB::setDefaultConnection('consodb');
         }
 
         return $next($request);
