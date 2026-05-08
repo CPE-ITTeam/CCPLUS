@@ -29,7 +29,7 @@
   });
   const computedHeaders = computed(() => {
     const hdrs = [...props.headers];
-    if (showActions) {
+    if (showActions.value) {
         hdrs.push({ title: 'Actions', key: 'actions', align: 'end' });
     }
     return hdrs;
