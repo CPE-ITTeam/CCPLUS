@@ -571,17 +571,20 @@
             });
             typeDialog.value = false;
           }
-
-        // } else if (data.action == 'Some other Action') {
-
-        // Otherwise do a full replace of the item(s) based on ID
         // (Restart and Pause actions for HarvestQueue and HarvestLogs return arrays of full items),
-        // Any other/future actions that are added can be caught here also
-        } else {
+        } else if (data.action == 'Restart' || data.action == 'Pause') {
           response.affectedItems.forEach( newItem => {
             allItems.splice(allItems.findIndex(ii => ii.id == newItem.id),1,newItem);
           });
           dtLoading.value = false;
+        // Bulk Set/Clear validation status in credential audit
+        } else if (data.action == 'Set Validated' || data.action == 'Clear Validated') {
+            allItems.filter(aitm => response.affectedIds.includes(aitm.id)).forEach( itm => {
+              itm.status = (data.action == 'Set Validated') ? 'Active' :  'Inactive';
+              itm.validated = (data.action == 'Set Validated') ? 'Validated' :  'Not Validated';
+            });
+        // Any other/future actions that are added can be caught here also
+        // } else if (data.action == 'Some other Action') {
         }
         dtLoading.value = false;
         success.value = response.msg
