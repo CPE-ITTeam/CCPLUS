@@ -7,6 +7,12 @@ use Illuminate\Database\Eloquent\Model;
 class Consortium extends Model
 {
     /**
+     * The database table used by the model.
+     */
+    protected $connection = 'globaldb';
+    protected $table = 'consortia';
+
+    /**
      * The attributes that are mass assignable.
      *
      * @var array
