@@ -35,7 +35,9 @@ Route::middleware('ccplusAuth')->group( function () {
         Route::post('/import', 'App\Http\Controllers\CredentialController@import')->name('credentials.import');
     });
     Route::prefix('audit')->group(function () {
-        Route::get('/get', 'App\Http\Controllers\CredentialController@audit')->name('credentials.audit');
+        Route::get('/get', 'App\Http\Controllers\CredentialController@audit')->name('audit.index');
+        Route::patch('/update/{credential}', 'App\Http\Controllers\CredentialController@setvalidated')->name('audit.update');
+        Route::post('/bulk', 'App\Http\Controllers\CredentialController@bulk')->name('audit.bulk');
     });
     Route::prefix('connections')->group(function () {
         Route::get('/get', 'App\Http\Controllers\ConnectionController@index')->name('connections.index');
@@ -118,6 +120,9 @@ Route::middleware('ccplusAuth')->group( function () {
         Route::get('/get', 'App\Http\Controllers\SavedReportController@index')->name('savedreports.index');
         Route::post('/store', 'App\Http\Controllers\SavedReportController@store')->name('savedreports.store');
         Route::delete('/delete/{savedreport}', 'App\Http\Controllers\SavedReportController@destroy')->name('savedreports.destroy');
+// This is for new functionality to request a saved report, given ID and optional format
+// and get it back via an api call... bypassing the U/I (like from an another application)
+        Route::post('/execute/{savedreport}/{format}', 'App\Http\Controllers\SavedReportController@execute')->name('savedreports.execute');
     });
     Route::prefix('reports')->group(function () {
         Route::get('/options', 'App\Http\Controllers\ReportController@create')->name('reports.options');
