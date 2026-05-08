@@ -274,7 +274,7 @@ class CredentialController extends Controller
         $cred = Credential::with('institution','provider')->findOrFail($input['id']);
 
         // Setup fields for updating/creating
-        $fields = array('status' => 'Enaabled');    // default for new records
+        $fields = array('status' => 'Enabled');    // default for new records
         $fields['customer_id'] = isset($input['customer_id']) ? $input['customer_id'] : null;
         $fields['requestor_id'] = isset($input['requestor_id']) ? $input['requestor_id'] : null;
         $fields['api_key'] = isset($input['api_key']) ? $input['api_key'] : null;
@@ -618,6 +618,13 @@ class CredentialController extends Controller
             Credential::whereIn('id',$credIds)->delete();
             return response()->json(['result' => true, 'msg' => '', 'affectedIds' => $credIds], 200);
 
+        // Handle audit actions
+        } else if ($input['action'] == 'Set Validated' || $input['action'] == 'Clear Validated') {
+            $credIds = $credentials->pluck('id')->toArray();
+            $_ts = ($input['action'] == 'Set Validated') ? date('Y-m-d H:i:s') : null;
+            Credential::whereIn('id',$credIds)->update(['validated_at' => $_ts]);
+            return response()->json(['result' => true, 'msg' => '', 'affectedIds' => $credIds], 200);
+
         // Unrecognized action
         } else {
             return response()->json(['result' => false, 'msg' => 'Unrecognized bulk action requested'], 200);
@@ -825,7 +832,8 @@ class CredentialController extends Controller
 
         // Get current consortium and JSON report data file path
         $report_path = null;
-        $conso = Consortium::where('ccp_key',session('ccp_key'))->first();
+        $key = $request->header('X-Tenant');
+        $conso = Consortium::where('ccp_key',$key)->first();
         if (!$conso) {
             return response()->json(['result'=>false, 'msg'=>'Error getting current instance data']);
         }
@@ -866,9 +874,11 @@ class CredentialController extends Controller
         $records = array();
         foreach ($credentials as $credential) {
             if (is_null($credential->provider) || is_null($credential->institution)) continue;
-            $record = array('plat_id' => $credential->prov_id, 'plat_name'=>$credential->provider->name,
-                            'inst_id' => $credential->inst_id, 'inst_name'=>$credential->institution->name,
-                            'cred_status' => $credential->status);
+            $record = array('id' => $credential->id, 'cred_status' => $credential->status,
+                            'plat_id' => $credential->prov_id, 'plat_name'=>$credential->provider->name,
+                            'inst_id' => $credential->inst_id, 'inst_name'=>$credential->institution->name);
+            $record['status'] = (is_null($credential->validated_at)) ? 'Inactive' : 'Active';
+            $record['valid_state'] = (is_null($credential->validated_at)) ? 'Not Validated' : 'Validated';
             $json_plat = 'no-JSON-found'; // default to no-data-found
             $json_inst = 'no-JSON-found'; // default to no-data-found
             $json_item = 'no-Value-found'; // default to no-data-found
@@ -911,8 +921,7 @@ class CredentialController extends Controller
 
         // Setup filtering options for the datatable
         $filter_options = array();
-        // $filter_options['statuses'] = Credential::distinct('status')->pluck('status')->toArray();
-        $filter_options['statuses'] = $credentials->unique('status')->pluck('status')->toArray();
+        $filter_options['valid_types'] = array('Validated','Not Validated');
         $filter_options['platforms'] = GlobalProvider::whereIn('id',$limit_plats)->where('is_active',1)
                                                      ->orderBy('name','ASC')->get(['id','name']);
         // Set institutions and groups filter options
@@ -926,6 +935,32 @@ class CredentialController extends Controller
 
         // Return the data array
         return response()->json(['records' => $records, 'options' => $filter_options, 'result' => true], 200);
+    }
+
+    /**
+     * Update credential as audit-validated
+     *
+     * @param  \Illuminate\Http\Request  $request
+     * @param  \App\Models\Credential  $credential
+     * @return JSON
+     */
+    public function setvalidated(Request $request, Credential $credential)
+    {
+        // Validate form inputs
+        $thisUser = auth()->user();
+        $input = $request->all();
+
+        // Confirm user's access to change the credential
+        $limit_to_insts = $thisUser->adminInsts();
+        if (!$thisUser->isConsoAdmin() && !in_array($credential->id, $limit_to_insts)) {
+            return response()->json(['result' => false], 200);
+        }
+
+        // Set field & save record
+        $credential->validated_at = ($input['is_active'] == 1) ? date('Y-m-d H:i:s') : null;
+        $credential->save();
+
+        return response()->json(['result' => true], 200);
     }
 
     /**
