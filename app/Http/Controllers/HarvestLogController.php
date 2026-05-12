@@ -544,7 +544,8 @@ class HarvestLogController extends Controller
         $harvestIds = $harvests->pluck('id')->toArray();
 
         // Get consortium_id for updating the global jobs queue
-        $con = Consortium::where('ccp_key', session('ccp_key'))->first();
+        $key = $request->header('X-Tenant');
+        $con = Consortium::where('ccp_key', $key)->first();
         if (!$con) {
             return response()->json(['result' => false, 'msg' => 'Error: Corrupt session or consortium settings']);
         }
