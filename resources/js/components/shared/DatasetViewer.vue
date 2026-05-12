@@ -766,6 +766,25 @@
           console.log('Error updating status', error);
         }
       }
+      if (field == 'inst_valid' || field == 'plat_valid') {
+        let _arg = {};
+        _arg[field] = value;
+        try {
+          let url = urlRoot.value+'/update/'+id;
+          const response = await ccPatch(url, _arg);
+          if (response.result) {
+            _item[field] = value;
+            allItems.splice(_idx,1,_item);
+            _idx = filteredItems.findIndex(ii => ii.id == id);
+            if (_idx >= 0) filteredItems.splice(_idx,1,_item);
+            dtKey.value++;
+          } else {
+            failure.value = response.msg
+          }
+        } catch (error) {
+          console.log('Error updating status', error);
+        }
+      }
       if (field == 'includeZeros') {
 console.log('Handling for includeZeros toggle not written yet');
       }
