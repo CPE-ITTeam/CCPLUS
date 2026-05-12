@@ -43,6 +43,8 @@
   const hasStatusColumn = computed(() => props.headers.some(h => h.key === 'status'));
   const hasConnectedColumn = computed(() => props.headers.some(h => h.key === 'connected'));
   const hasIncludeZerosColumn = computed(() => props.headers.some(h => h.key === 'includeZeros'));
+  const hasInstValidColumn = computed(() => props.headers.some(h => h.key==='inst_valid'));
+  const hasPlatValidColumn = computed(() => props.headers.some(h => h.key==='plat_valid'));
   const filteredItems = computed(() => {
     const searchTerm = (props.search ?? '').trim().toLowerCase();
     if (props.showSelectedOnly) {
@@ -124,7 +126,7 @@
 
       <!-- Preserved custom slots -->
       <template v-if="hasStatusColumn" #item.status="{ item }">
-        <ToggleIcon v-model="item.status" :toggleable="true"
+        <ToggleIcon v-model="item.status" :toggleable="(props.dataset!='audit')"
                     @update:modelValue="$emit('update:toggle',item.id,'status',item.status)" />
       </template>
 
@@ -136,6 +138,16 @@
       <template v-if="hasIncludeZerosColumn" #item.includeZeros="{ item }">
         <ToggleIcon v-model="item.includeZeros" :toggleable="true"
                     @update:modelValue="$emit('update:toggle',item.id,'includeZeros',item.status)" />
+      </template>
+
+      <template v-if="hasInstValidColumn" #item.inst_valid="{ item }">
+        <ToggleIcon v-model="item.inst_valid" :toggleable="true"
+                    @update:modelValue="$emit('update:toggle',item.id,'inst_valid',item.inst_valid)" />
+      </template>
+
+      <template v-if="hasPlatValidColumn" #item.plat_valid="{ item }">
+        <ToggleIcon v-model="item.plat_valid" :toggleable="true"
+                    @update:modelValue="$emit('update:toggle',item.id,'plat_valid',item.plat_valid)" />
       </template>
 
       <!-- PR Slot -->
