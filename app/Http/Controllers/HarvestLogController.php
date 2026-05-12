@@ -353,7 +353,8 @@ class HarvestLogController extends Controller
         $state = "New";
         if ($input["when"] == 'now') {
             $state = "Queued";
-            $con = Consortium::where('ccp_key', '=', session('ccp_key'))->first();
+            $key = $request->header('X-Tenant');
+            $con = Consortium::where('ccp_key', $key)->first();
             if (!$con) {
                 return response()->json(['result' => false, 'msg' => 'Cannot create jobs with current consortium setting.']);
             }
@@ -661,10 +662,11 @@ class HarvestLogController extends Controller
    /**
     * Download raw data for a harvest
     *
+    * @param  \Illuminate\Http\Request  $request
     * @param  int  $id
     * @return \Illuminate\Http\Response
     */
-   public function downloadRaw($id)
+   public function downloadRaw(Request $request, $id)
    {
        $thisUser = auth()->user();
        $harvest = HarvestLog::findOrFail($id);
@@ -673,7 +675,8 @@ class HarvestLogController extends Controller
        }
 
        // Get consortium_id
-       $con = Consortium::where('ccp_key', session('ccp_key'))->first();
+       $key = $request->header('X-Tenant');
+       $con = Consortium::where('ccp_key', $key)->first();
        if (!$con) {
           return response()->json(['result'=>false, 'msg'=>'Error: Current consortium is undefined.']);
        }
