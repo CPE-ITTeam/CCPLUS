@@ -38,7 +38,6 @@ class InstitutionGroupController extends Controller
                 return response()->json(['records' => [], 'options' => $filter_options, 'result' => true], 200);
             }
         }
-        // $all_institutions = Institution::where('is_active',1)->get(['id','name','type_id']);
 
         // Limit by institutions array based on thisUsers' ability to Admin them
         // (array is used for add operation)
@@ -49,10 +48,9 @@ class InstitutionGroupController extends Controller
         }
 
         // Get institution records
-        $all_institutions = Institution::where('is_active',1)
-                                ->when(count($limit_insts) > 0 , function ($qry) use ($limit_insts) {
-                                    return $qry->whereIn('id', $limit_insts);
-                                })->orderBy('name', 'ASC')->get(['id','name','type_id']);
+        $all_institutions = Institution::when(count($limit_insts) > 0 , function ($qry) use ($limit_insts) {
+                                             return $qry->whereIn('id', $limit_insts);
+                                         })->orderBy('name', 'ASC')->get(['id','name','type_id']);
 
         $data = array();
         foreach ($groups as $group) {
