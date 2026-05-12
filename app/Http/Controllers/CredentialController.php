@@ -912,8 +912,8 @@ class CredentialController extends Controller
                 }
             }
             $record['json_plat'] = $json_plat;
-            $record['json_item'] = $json_inst;
-            $record['json_inst'] = $json_item;
+            $record['json_item'] = $json_item;
+            $record['json_inst'] = $json_inst;
             $_inst = $all_institutions->where('id',$credential->inst_id)->first();
             $record['group_ids'] = ($_inst) ? $_inst->institutionGroups()->pluck('institution_group_id')->all() : [];
             $records[] = $record;
