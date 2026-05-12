@@ -189,7 +189,7 @@ class InstitutionGroupController extends Controller
         // Update group if name or type was changed
         $args = array();
         if ($group->name != $input['name']) $args['name'] = $input['name']; 
-        if ($group->type_id != $input['type_id']) $args['type_id'] = $input['type_id']; 
+        if ($group->type_id != $input['types']) $args['type_id'] = $input['types']; 
         if (count($args)>0) {
             try {
                 $group->update($args);
