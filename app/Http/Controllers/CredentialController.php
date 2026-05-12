@@ -329,8 +329,9 @@ class CredentialController extends Controller
             }
         }
 
-        // Updating a credential record means the validated_at value gets reset
-        $cred->validated_at = null;
+        // Updating a credential record means the validation values get reset
+        $cred->plat_valid = null;
+        $cred->inst_valid = null;
 
         // If user wants to disable, just save the record
         if ($cred->status == 'Disabled') {
@@ -798,6 +799,16 @@ class CredentialController extends Controller
               $_args['status'] = 'Suspended';
             }
 
+            // Clear validation if connection field values are being changed for an existing credential
+            $exists = Credential::where('inst_id',$institution->id)->where('prov_id',$platform->id)->first();
+            if ($exists) {
+                if ($exists->customer_id != $_args['customer_id']   || $exists->api_key != $_args['api_key'] || 
+                    $exists->requestor_id != $_args['requestor_id'] || $exists->extra_args != $_args['extra_args']) {
+                    $_args['plat_valid'] = null;
+                    $_args['inst_valid'] = null;
+                }
+            }
+
             // Update or create the credentials
             $current_credential = Credential::updateOrCreate(['inst_id'=>$institution->id, 'prov_id'=>$platform->id], $_args);
             $updated++;
@@ -874,15 +885,25 @@ class CredentialController extends Controller
         $records = array();
         foreach ($credentials as $credential) {
             if (is_null($credential->provider) || is_null($credential->institution)) continue;
-            $record = array('id' => $credential->id, 'cred_status' => $credential->status,
+            $record = array('id' => $credential->id, 'status' => $credential->status,
                             'plat_id' => $credential->prov_id, 'plat_name'=>$credential->provider->name,
                             'inst_id' => $credential->inst_id, 'inst_name'=>$credential->institution->name);
-            $record['status'] = (is_null($credential->validated_at)) ? 'Inactive' : 'Active';
-            $record['valid_state'] = (is_null($credential->validated_at)) ? 'Not Validated' : 'Validated';
-            $json_plat = 'no-JSON-found'; // default to no-data-found
+
+            // Set valid_state and status based on inst/plat validated
+            $record['inst_valid'] = (is_null($credential->inst_valid)) ? 'Inactive' : 'Active';
+            $record['plat_valid'] = (is_null($credential->plat_valid)) ? 'Inactive' : 'Active';
+            $record['valid_state'] = 'Not Validated';
+            if (!is_null($credential->inst_valid) && !is_null($credential->plat_valid)) {
+                $record['valid_state'] = 'Fully Validated';
+            } else if (!is_null($credential->inst_valid) || !is_null($credential->plat_valid)) {
+                $record['valid_state'] = !is_null($credential->inst_valid)
+                                         ? 'Institution Validated' : 'Platform Validated';
+            }
+
+            // Pull JSON data from the most-recent rawfile in the harvestlogs for this credential
+            $json_host = 'no-JSON-found'; // default to no-data-found
             $json_inst = 'no-JSON-found'; // default to no-data-found
             $json_item = 'no-Value-found'; // default to no-data-found
-            // Find the most-recent rawfile in the harvestlogs for this credential
             if ($credential->harvestLogs) {
                 foreach ($credential->harvestLogs as $harv) {
                     $jsonFile = $report_path . '/' . $credential->inst_id . '/' . $credential->prov_id . '/' . $harv->rawfile;
@@ -892,7 +913,11 @@ class CredentialController extends Controller
                         // get JSON fields
                         if (isset($json->Report_Header)) {
                            $header = $json->Report_Header;
-                           $json_plat = (isset($header->Created_By)) ? $header->Created_By : "no-Created_By";
+                           $json_host = (isset($header->Created_By)) ? $header->Created_By : "no-Created_By";
+                           // tack global_provider:platform_parm to datahost, if defined
+                           if (!is_null($credential->provider->platform_parm)) {
+                               $json_host .= "(" . $credential->provider->platform_parm . ")";
+                           }
                            $json_inst = (isset($header->Institution_Name)) ? $header->Institution_Name : "no-Institution_Name";
                            if (isset($json->Report_Items) && is_array($json->Report_Items)) {
                                 if (isset($json->Report_Items[0]->Platform)) {
@@ -900,18 +925,18 @@ class CredentialController extends Controller
                                 }
                            }
                         } else {
-                            $json_plat = 'no-Report_Header';
+                            $json_host = 'no-Report_Header';
                             $json_inst = 'no-Report_Header';
                         }
                     }
 
                     // if we got values, go on to the next credential (otherwise, try another harvest)
-                    if (substr($json_plat,0,3)!="no-" && substr($json_inst,0,3)!="no-") {
+                    if (substr($json_host,0,3)!="no-" && substr($json_inst,0,3)!="no-") {
                         break;
                     }
                 }
             }
-            $record['json_plat'] = $json_plat;
+            $record['json_host'] = $json_host;
             $record['json_item'] = $json_item;
             $record['json_inst'] = $json_inst;
             $_inst = $all_institutions->where('id',$credential->inst_id)->first();
@@ -921,7 +946,8 @@ class CredentialController extends Controller
 
         // Setup filtering options for the datatable
         $filter_options = array();
-        $filter_options['valid_types'] = array('Validated','Not Validated');
+        $filter_options['statuses'] = $credentials->unique('status')->pluck('status')->toArray();
+        $filter_options['valid_types'] = array('Fully Validated','Institution Validated','Platform Validated','Not Validated');
         $filter_options['platforms'] = GlobalProvider::whereIn('id',$limit_plats)->where('is_active',1)
                                                      ->orderBy('name','ASC')->get(['id','name']);
         // Set institutions and groups filter options
@@ -950,6 +976,12 @@ class CredentialController extends Controller
         $thisUser = auth()->user();
         $input = $request->all();
 
+        // Set column to update
+        if (!isset($input['inst_valid']) && !isset($input['plat_valid'])) {
+            return response()->json(['msg' => 'Invalid request - no such column', 'result' => false], 200);
+        }
+        $key = (isset($input['inst_valid'])) ? 'inst_valid' : 'plat_valid';
+
         // Confirm user's access to change the credential
         $limit_to_insts = $thisUser->adminInsts();
         if (!$thisUser->isConsoAdmin() && !in_array($credential->id, $limit_to_insts)) {
@@ -957,7 +989,7 @@ class CredentialController extends Controller
         }
 
         // Set field & save record
-        $credential->validated_at = ($input['is_active'] == 1) ? date('Y-m-d H:i:s') : null;
+        $credential->{$key} = ($input[$key] == 1) ? date('Y-m-d H:i:s') : null;
         $credential->save();
 
         return response()->json(['result' => true], 200);
