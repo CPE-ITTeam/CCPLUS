@@ -28,7 +28,8 @@ class CreateCredentialsTable extends Migration
             $table->string('last_harvest', 7)->nullable();          // YYYY-MM , most recent successful YearMon
             $table->unsignedInteger('last_harvest_id')->default(0); // harvest_id of last successful
             $table->string('status', 10);
-            $table->timestamp('validated_at')->nullable();
+            $table->timestamp('inst_valid')->nullable();
+            $table->timestamp('plat_valid')->nullable();
             $table->timestamps();
 
             $table->foreign('inst_id')->references('id')->on('institutions')->onDelete('cascade');

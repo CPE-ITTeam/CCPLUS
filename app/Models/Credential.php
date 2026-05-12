@@ -31,7 +31,7 @@ class Credential extends Model
    */
     protected $fillable = [
       'inst_id', 'prov_id', 'requestor_id', 'customer_id', 'api_key', 'extra_args', 'support_email', 'status',
-      'validated_at'
+      'inst_valid', 'plat_valid', 
     ];
     protected $casts =['id'=>'integer', 'inst_id'=>'integer', 'prov_id'=>'integer', 'last_harvest_id'=>'integer'];
 
