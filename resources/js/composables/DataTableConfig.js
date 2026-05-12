@@ -72,7 +72,7 @@
           icon: '', helperText: '' },
         { name: 'type_string', type: 'text', header: 'start', editable: false, searchable: true,
           label: 'Institution Type Restriction', icon: '', helperText: '' },
-        { name: 'types', type: 'select', header: null, editable: false, searchable: true, label: 'Institution Type Restriction',
+        { name: 'types', type: 'select', header: null, editable: true, searchable: true, label: 'Institution Type Restriction',
           options: 'fromURL', optVal: 'id', optTxt: 'name', icon: '', helperText: '', isFilter: true, filterCol: 'type_id' },
         { name: 'type_id',      type: 'number',  header: null,     editable: false, searchable: false, label: 'Type ID',
           icon: '', helperText: '', addValue: 1 },
