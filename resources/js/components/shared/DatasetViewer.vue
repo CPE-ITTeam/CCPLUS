@@ -418,6 +418,10 @@
         config.fields[idx]['visible'] = true;
       }
       // Set current values for specific fields
+      if (fld.type == 'select' && fld.name == 'types') {
+        item['types'] = item.type_id;
+        item['reset_type'] = false;
+      }
       if (fld.type == 'select' && fld.name == 'institutions') item['institutions'] = item.inst_id;
     });
     editingItem.value = {...item};
