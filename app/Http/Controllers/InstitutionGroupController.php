@@ -56,7 +56,7 @@ class InstitutionGroupController extends Controller
         foreach ($groups as $group) {
             $rec = array('id' => $group->id, 'name' => $group->name, 'type_id' => $group->type_id);
             $rec['type_string'] = ($group->typeRestriction) ? $group->typeRestriction->name : "";
-            $rec['institutions'] = $group->institutions->toArray();
+            $rec['institutions'] = $group->institutions->sortBy('name')->toArray();
             $memberIds = $group->institutions->pluck('id')->toArray();
             $rec['count'] = sizeof($memberIds);
             $rec['can_edit'] = true;
@@ -186,7 +186,10 @@ class InstitutionGroupController extends Controller
 
         // Update group if name or type was changed
         $args = array();
-        if ($group->name != $input['name']) $args['name'] = $input['name']; 
+        if ($group->name != $input['name']) $args['name'] = $input['name'];
+        if ( isset($input['reset_type']) ) {
+            if ($input['reset_type']) $input['types'] = null;
+        }
         if ($group->type_id != $input['types']) $args['type_id'] = $input['types']; 
         if (count($args)>0) {
             try {
@@ -196,19 +199,26 @@ class InstitutionGroupController extends Controller
             }
         }
 
-        // Reset membership assignments
-        if ($group->institutions()->count() > 0) {
-            $group->institutions()->detach();
-        }
         // Attach requested insts
         $type_skip = 0;
         if (count($request->institutions)>0) {
+            $existing_inst_ids = $group->institutions()->pluck('institutions.id')->toArray();
+            $input_ids = array_column($request->institutions,'id');
+            $detach_ids = array_diff($existing_inst_ids,$input_ids);
+            $attach_ids = array_diff($input_ids,$existing_inst_ids);
+            // Detach cleared insts
+            foreach ($detach_ids as $ii) {
+                $group->institutions()->detach($ii);
+            }
+            // Attach new institutions (confirm inst type if group is restricted)
             foreach ($request->institutions as $inst) {
-                if (!is_null($group->type_id) && $group->type_id != $inst['type_id']) {
-                    $type_skip++;
-                    continue;
+                if (in_array($inst['id'], $attach_ids)) {
+                    if (!is_null($group->type_id) && $group->type_id != $inst['type_id']) {
+                        $type_skip++;
+                        continue;
+                    }
+                    $group->institutions()->attach($inst['id']);
                 }
-                $group->institutions()->attach($inst['id']);
             }
         }
         $member_ids = $group->institutions->pluck('id')->toArray();
@@ -221,7 +231,7 @@ class InstitutionGroupController extends Controller
         $group->can_edit = true;
         $group->can_delete = true;
 
-        $msg = ($type_skip<0) ? "Group updated, but ".$type_skip." institutions skipped or removed due to type restriction"
+        $msg = ($type_skip>0) ? "Group updated, but ".$type_skip." institutions skipped or removed due to type restriction"
                               : "Group updated successfully";
         return response()->json(['result' => true, 'msg' => $msg, 'record' => $group]);
     }
