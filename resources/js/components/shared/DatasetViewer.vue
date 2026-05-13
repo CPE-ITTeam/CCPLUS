@@ -143,7 +143,14 @@
     // set datatable header, display, and editor options
     headers.value = [{ title: "", key: "" }];
     config.fields.forEach( (fld, idx) => {
-      if (fld.header != null) headers.value.push({title: fld.label, key: fld.name, align:fld.header});
+      if (fld.header != null) {
+        if (datasetKey == 'harvests' && fld.name == 'error') {
+          headers.value.push({title: fld.label, key: fld.name, align: fld.header,
+                              sort: (a,b) => { return Number(a.id) - Number(b.id); }});
+        } else {
+          headers.value.push({title: fld.label, key: fld.name, align:fld.header})
+        }
+      }
       if (fld.name == 'conso' && !is_conso_admin) return;
       config.fields[idx].static = config.static.includes(fld.name);
       // Set filterOptions for select(s) and toggle
