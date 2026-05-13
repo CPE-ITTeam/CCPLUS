@@ -298,7 +298,7 @@
       ],
       required: [],
       static: ['inst_id', 'plat_id', 'statuses', 'valid_types', 'group_ids'],
-      bulkOptions: ['Set Validated', 'Clear Validated'],
+      bulkOptions: ['Set Institution Validated', 'Set Platform Validated','Clear Validation'],
       exportFields: ['plat_name','inst_name','json_host','json_item','json_inst'],
       sortby: 'platform',
     },
