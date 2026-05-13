@@ -527,6 +527,8 @@
               }
             });
           }
+          updateItems(); // update the datatable and filteredItems
+          dtKey.value++;
         // Enable action (credentials dataset) should return affectedItems containing
         // [ {'id': <int>, 'status': <string>}, {}, ...]
         } else if (data.action == 'Enable') {
@@ -574,6 +576,8 @@
               });
             }
           }
+          updateItems(); // update the datatable and filteredItems
+          dtKey.value++;
         } else if (data.action == 'Set Institution Type') {
           if (response.affectedIds.length>0 && newType.id != null) {
             allItems.filter(aitm => response.affectedIds.includes(aitm.id)).forEach( itm => {
@@ -587,7 +591,8 @@
           response.affectedItems.forEach( newItem => {
             allItems.splice(allItems.findIndex(ii => ii.id == newItem.id),1,newItem);
           });
-          dtLoading.value = false;
+          updateItems(); // update the datatable and filteredItems
+          dtKey.value++;
         // Bulk Set/Clear validation status fields in credential audit
         } else if (data.action.includes(' Validat')) {
             allItems.filter(aitm => response.affectedIds.includes(aitm.id)).forEach( itm => {
@@ -600,9 +605,6 @@
         }
         dtLoading.value = false;
         success.value = response.msg
-        // Records changed above, update the datatable and filteredItems
-        updateItems();
-        dtKey.value++;
       } else {
         failure.value = response.msg
       }
