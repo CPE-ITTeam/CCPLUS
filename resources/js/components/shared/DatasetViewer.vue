@@ -588,11 +588,12 @@
             allItems.splice(allItems.findIndex(ii => ii.id == newItem.id),1,newItem);
           });
           dtLoading.value = false;
-        // Bulk Set/Clear validation status in credential audit
-        } else if (data.action == 'Set Validated' || data.action == 'Clear Validated') {
+        // Bulk Set/Clear validation status fields in credential audit
+        } else if (data.action.includes(' Validat')) {
             allItems.filter(aitm => response.affectedIds.includes(aitm.id)).forEach( itm => {
-              itm.status = (data.action == 'Set Validated') ? 'Active' :  'Inactive';
-              itm.validated = (data.action == 'Set Validated') ? 'Validated' :  'Not Validated';
+              Object.entries(response.data).forEach(([col, value]) => {
+                itm[col] = (value == null) ? 'Inactive' : 'Active';
+              });
             });
         // Any other/future actions that are added can be caught here also
         // } else if (data.action == 'Some other Action') {
