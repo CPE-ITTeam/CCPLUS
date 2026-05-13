@@ -179,6 +179,9 @@
           if (fld.name == 'platforms' && typeof(formValues['prov_id'])!='undefined') {
             formValues['prov_id'] = formValues['platforms'];
           }
+          if (fld.name == 'types' && typeof(formValues['type_id'])!='undefined') {
+            formValues['types'] = formValues['type_id'];
+          }
         }
       } 
     });
@@ -252,6 +255,10 @@
             <v-text-field v-else-if="field.type!='passconf'" v-model="formValues[field.name]" :label="field.label"
                           variant="outlined":prepend-icon="field.icon" :hint="field.helperText"
                           persistent-hint density="compact"/>
+          </v-col>
+          <v-col v-if="m_schema.dataset=='groups' && field.name=='count' && opType=='Edit' &&
+                       formValues['types'] != null" cols="12" class="d-flex ma-0 pa-0">
+            <v-switch v-model="formValues['reset_type']" label="Clear Restriction" color="primary" dense></v-switch>            
           </v-col>
         </v-row>
         <v-row class="d-flex mt-2" no-gutters>
