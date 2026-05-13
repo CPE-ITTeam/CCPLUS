@@ -620,11 +620,23 @@ class CredentialController extends Controller
             return response()->json(['result' => true, 'msg' => '', 'affectedIds' => $credIds], 200);
 
         // Handle audit actions
-        } else if ($input['action'] == 'Set Validated' || $input['action'] == 'Clear Validated') {
+        } else if (str_contains($input['action'], " Validat")) {
             $credIds = $credentials->pluck('id')->toArray();
-            $_ts = ($input['action'] == 'Set Validated') ? date('Y-m-d H:i:s') : null;
-            Credential::whereIn('id',$credIds)->update(['validated_at' => $_ts]);
-            return response()->json(['result' => true, 'msg' => '', 'affectedIds' => $credIds], 200);
+            $_ts = date('Y-m-d H:i:s');
+            $args = array();
+            if ($input['action'] == "Set Institution Validated") {
+                $args = array('inst_valid' => $_ts);
+            } else if ($input['action'] == "Set Platform Validated") {
+                $args = array('plat_valid' => $_ts);
+            } else if ($input['action'] == "Clear Validation") {
+                $args = array('inst_valid' => null, 'plat_valid' => null);
+            }
+            if ( count($args) > 0) {
+                Credential::whereIn('id',$credIds)->update($args);
+                return response()->json(['result' => true, 'msg' => '', 'affectedIds' => $credIds, 'data' => $args], 200);
+            } else {
+                return response()->json(['result' => false, 'msg' => 'Unrecognized bulk action requested'], 200);
+            }
 
         // Unrecognized action
         } else {
