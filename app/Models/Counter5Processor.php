@@ -618,7 +618,7 @@ class Counter5Processor extends Model
 
                 // Update or create the Item record in the global table
                 $flds = array('parent_id' => $parent_id, 'parent_datatype_id' => $parent_datatype_id);
-                if (strlen($authors)>0) $flds['authors'] = $authors;
+                if (strlen($authors)>0) $flds['authors'] = mb_substr($authors, 0, 256);
                 $_item = Item::updateOrCreate( ['title_id' => $title->id], $flds);
                 if (is_null($_item)) {
                     continue;
@@ -731,7 +731,7 @@ class Counter5Processor extends Model
                                                 
                        // Update or create the Item record in the global table
                         $flds = array('parent_id' => $parent_id, 'parent_datatype_id' => $parent_datatype_id);
-                        if (strlen($authors)>0) $flds['authors'] = $authors;
+                        if (strlen($authors)>0) $flds['authors'] = mb_substr($authors, 0, 256);
                         $theItem = Item::updateOrCreate( ['title_id' => $item_title->id], $flds);
                         if (is_null($theItem)) {
                             continue;
