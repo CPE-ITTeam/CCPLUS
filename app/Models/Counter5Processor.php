@@ -679,6 +679,7 @@ class Counter5Processor extends Model
                 $parent_datatype_id = (is_null($parent_datatype)) ? null : $parent_datatype->id;
 
                // Loop $reportitem->Items
+                if (!isset($reportitem->Items)) continue;
                 foreach ($reportitem->Items as $_item) {
                    // Get Title, Item_ID, and Data_Type fields
                     $Title = (isset($_item->Item)) ? mb_substr($_item->Item, 0, 256) : "";
