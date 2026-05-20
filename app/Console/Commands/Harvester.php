@@ -283,6 +283,18 @@ class Harvester extends Command
                     throw new CounterApiException($response, $request);
                 } elseif ($response->isReport()) {
                     $response = new JsonReport($response, $request);
+                    if (method_exists($response,'asJson')) {
+                        $_json = $response->asJson();
+                        // Set error 9030 if Report_Items missing or empty
+                        if ((isset($_json->Report_Items))) {
+                            if (count($_json->Report_Items) == 0) {
+                                $error_code = 9030;
+                            }
+                        } else {
+                            $error_code = 9030;
+                        }
+                        unset($_json);
+                    }
                 } else {
                     $request_status = "Fail";
                     throw new InvalidCounterApiResponseException(
@@ -319,8 +331,6 @@ class Harvester extends Command
             $new_status = $request_status;
             $new_attempts = $harvest->attempts;
 
-//NOTE:: Still needs a way to trap/detect no records in the report_items.. so it can set 9030
-
             // Check for "queued" state response
             if ($error_code == 1011 || $error_code == 1020) {
                 $new_status = 'Pending';
@@ -346,9 +356,9 @@ class Harvester extends Command
             }
 
             // Save raw data
-            if (method_exists($response,'getJsonString') && $new_status!='Pending' && !in_array($error_code, [9200,9300,9400])) {
+            if (method_exists($response,'getJsonString') && $new_status!='Pending' &&
+                !in_array($error_code, [3030,9030,9200,9300,9400])) {
                 $data = (method_exists($response,'getJsonString')) ? $response->getJsonString() : $response->getHttpResponse();
-                // if (File::put($raw_datafile, Crypt::encrypt(bzcompress($response->getJsonString(), 9), false)) === false) {
                 if (File::put($raw_datafile, Crypt::encrypt(bzcompress($data, 9), false)) === false) {
                     echo "Failed to save raw data in: " . $raw_datafile;
                     $raw_datafile = "";
@@ -458,13 +468,17 @@ class Harvester extends Command
                     DB::table($creds[$cid])->where('id', $harvest->credentials_id)->update($c_args);
 
                     $new_attempts++;
-                    $new_status = "Waiting";
+                    if ( in_array($error_code,[3030,9030]) ) {
+                        $rawfile = null;
+                    } else {
+                        $this->line($ts . " QueueHarvester: " . $credential->prov_name . " : " . $yearmon . " : " .
+                                            $report->name . " saved for " . $credential->inst_name);
+                        $new_status = "Waiting";
+                    }
 
                     // Successfully harvested - clear out any existing "failed" records
                     $deleted = DB::table($failedharvests[$cid])->where('harvest_id', $harvest->id)->delete();
 
-                    $this->line($ts . " QueueHarvester: " . $credential->prov_name . " : " . $yearmon . " : " .
-                                        $report->name . " saved for " . $credential->inst_name);
                 }
                 // Update the harvest 
                 DB::table($harvests[$cid])->where('id', $harvest->id)
