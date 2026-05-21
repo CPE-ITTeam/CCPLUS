@@ -88,7 +88,8 @@ class HarvestLogController extends Controller
         $filter_options['statuses'] = array('Success','Fail','Bad Credentials');
         $filter_options['reports'] = Report::where('parent_id',0)->orderBy('dorder','ASC')
                                            ->get(['id','name'])->toArray();
-        $filter_options['codes'] = CcplusError::where('new_status','<>','ReQueued')->pluck('id')->toArray();
+        $filter_options['codes'] = HarvestLog::where('error_id','>',0)->orderBy('error_id')->select('error_id')
+                                             ->distinct()->pluck('error_id')->toArray();
         array_unshift($filter_options['codes'], 'No Error');
 
         return response()->json(['records' => [], 'options' => $filter_options, ], 200);
@@ -769,18 +770,27 @@ class HarvestLogController extends Controller
                              return $qry->whereIn('credential.inst_id', $limit_insts);
                          })
                          ->whereIn('status',$limit_status)
-                         ->orderBy("updated_at", "DESC")->limit(501)->get();
-
-        // Format records for display , limit to 500 output records
-        $truncated = ($data->count()>500);
-        if ($truncated) $data->pop();
-        $harvests = array();
-        foreach ($data as $key => $harvest) {
-            $harvests[] = $this->formatRecord($harvest);
-        }
+                         ->orderBy("updated_at", "DESC")->get();
 
        // Setup options for the U/I - it will limit options further based on what's there
-       $filter_options = array();
+        $filter_options = array();
+        $filter_options['codes'] = $data->where('error_id','>',0)->unique('error_id')->sortBy('error_id')
+                                       ->pluck('error_id')->toArray();
+        array_unshift($filter_options['codes'], 'No Error');
+
+        // Format records for display , limit to 500 output records
+        $rcount = 0;
+        $truncated = false;
+        $harvests = array();
+        foreach ($data as $harvest) {
+            $harvests[] = $this->formatRecord($harvest);
+            $rcount++;
+            if ($rcount == 500) {
+                $truncated = true;
+                break;
+            }
+        }
+
        // Setup limit arrays for the instID's and provIDs we'll pull credentials for
        $filter_options['institutions'] = Institution::when(count($limit_insts) > 0, function ($qry) use ($limit_insts) {
                                            return $qry->where('inst_id',1)->orWhereIn('inst_id', $limit_insts);
@@ -790,9 +800,6 @@ class HarvestLogController extends Controller
        $filter_options['platforms'] = GlobalProvider::get(['id','name'])->toArray();
        $filter_options['reports'] = Report::where('parent_id',0)->orderBy('dorder','ASC')
                                           ->get(['id','name'])->toArray();
-       $filter_options['codes'] = $data->where('error_id','>',0)->unique('error_id')->sortBy('error_id')
-                                       ->pluck('error_id')->toArray();
-       array_unshift($filter_options['codes'], 'No Error');
 
        // Set available status options
        $filter_options['statuses'] = array();
