@@ -48,6 +48,7 @@ class RoleController extends Controller
             if ($r['name'] == 'Viewer' && $thisUser->isConsoAdmin()) $filter_options['role'][] = "Consortium Viewer";
             $filter_options['role'][] = $r['name'];
         }
+        $filter_options['user_role'] = array('Admin','Viewer');
 
         // Pull user records - exclude serverAdmin
         // (Note that the 'roles' relationship returns UserRole(s), NOT Roles)
@@ -106,7 +107,7 @@ class RoleController extends Controller
         $thisUser = auth()->user();
 
         // Get and verify input fields
-        $this->validate($request, ['user' => 'required', 'role' => 'required']);
+        $this->validate($request, ['user' => 'required', 'user_role' => 'required']);
         $input = $request->all();
 
         // An institution or group assignment is required
@@ -123,7 +124,7 @@ class RoleController extends Controller
         $role_group = ($group_id) ? InstitutionGroup::where('id',$group_id)->first() : null;
 
         // Confirm that Role, User and (Inst-or-Group) exist
-        $role = Role::where('name',$input['role'])->first();
+        $role = Role::where('name',$input['user_role'])->first();
         $user = User::where('id',$input['user'])->with('roles','institution:id,name')->first();
         if ( !$user || !$role || (!$role_inst && !$role_group) ) {
             return response()->json(['result' => false, 'msg' => 'Operation failed - invalid references']);
