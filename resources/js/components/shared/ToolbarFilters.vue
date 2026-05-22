@@ -1,5 +1,7 @@
 <!-- shared/ToolbarFilters -->
 <script setup>
+import MultiSelectCombobox from './MultiSelectCombobox.vue';
+
   const props = defineProps({
     filters: { type: Object, required: true },
   });
@@ -13,7 +15,7 @@
   <v-col v-for="(filter,idx) in props.filters" :key="idx" class="d-flex pl-2" cols="2">
 
     <!-- AutoComplete - multiple select -->
-    <v-autocomplete v-if="filter.show && filter.type=='mselect'" v-model="props.filters[filter.name].value" :label="filter.label"
+    <MultiSelectCombobox v-if="filter.show && filter.type=='mselect'" v-model="props.filters[filter.name].value" :label="filter.label"
         multiple :items="filter.items" :item-title="filter.txt" :item-value="filter.val" density="compact"
         @update:modelValue="handleFilter(filter)" />
 
@@ -28,7 +30,7 @@
     -->
 
     <!-- Return array of Scalar values -->
-    <v-select v-if="filter.show && filter.type=='mtext'" v-model="props.filters[filter.name].value" :label="filter.label"
+    <MultiSelectCombobox v-if="filter.show && filter.type=='mtext'" v-model="props.filters[filter.name].value" :label="filter.label"
         :items="filter.items" @update:modelValue="handleFilter(filter)" multiple density="compact" />
 
     <!-- Return a Single Scalar value -->
