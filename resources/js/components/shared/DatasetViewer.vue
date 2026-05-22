@@ -160,15 +160,17 @@
       var f_options = (typeof(allOptions[fld.name])!='undefined') ? allOptions[fld.name] : _options;
       if ( (fld.type == 'select' || fld.type == 'mselect' || fld.type == 'selectObj' || fld.type == 'toggle') &&
            fld.options == 'fromURL' && typeof(allOptions[fld.name]) != 'undefined' ) {
-        if (Array.isArray(allOptions[fld.name]) && ((props.datasetKey=='roles' && fld.name=='role') ||
-            typeof(fld.optTxt) == 'undefined' || typeof(fld.optVal) == 'undefined')) {
+        if (Array.isArray(allOptions[fld.name]) && typeof(fld.optTxt)!='undefined' && typeof(fld.optVal)!='undefined') {
           if (allItems.length>0) {
             f_options = allOptions[fld.name].filter(
               opt => allItems.flatMap( itm => itm[fld.filterCol] ).includes(opt[fld.optVal])
             );
+            if (f_options.length == 0) console.log('Filter for '+fld.name+' suppressed - no options');
           }
+          // Suppress the filter entirely if the list of options is now zero
+          let _showIt = (f_options.length == 0) ? false : fld.isFilter;
           filterOptions[fld.name] = {
-            'name': fld.name, 'label': fld.label, 'type': 'text', 'show': fld.isFilter, 'col': fld.filterCol,
+            'name': fld.name, 'label': fld.label, 'type': 'text', 'show': _showIt, 'col': fld.filterCol,
             'items': [...f_options], 'value': null
           };
         } else {
@@ -644,6 +646,8 @@
           if (typeof(filterOptions.institution) != 'undefined') filterOptions.institution.show = true;
           if (typeof(filterOptions.institutions) != 'undefined') filterOptions.institutions.show = true;
         }
+        // Keep filters w/ no options suppressed
+        if (filterOptions[key]['items'].length == 0) filterOptions[key]['show'] = false;
         if (!filterOptions[key]['show']) continue;
         if ( Array.isArray(filterOptions[key]['value']) ) {
           if (filterOptions[key]['value'].length > 0) filterOptions[key]['value'] = [];
@@ -788,6 +792,17 @@
           const response = await ccPatch(url, _arg);
           if (response.result) {
             _item[field] = value;
+            // update validation value(s)
+            if ( _item['inst_valid'] == 'Active' && _item['plat_valid'] == 'Active' ) {
+              _item['valid_state'] = ['Fully Validated'];
+            } else {
+              _item['valid_state'] = [];
+              if (_item['inst_valid'] == 'Inactive') _item['valid_state'].push('Institution Not Validated');
+              if (_item['plat_valid'] == 'Inactive') _item['valid_state'].push('Platform Not Validated');
+              if (_item['inst_valid'] == 'Inactive' && _item['plat_valid'] == 'Inactive') {
+                _item['valid_state'].push('Neither Validated');
+              }
+            }
             allItems.splice(_idx,1,_item);
             _idx = filteredItems.findIndex(ii => ii.id == id);
             if (_idx >= 0) filteredItems.splice(_idx,1,_item);
