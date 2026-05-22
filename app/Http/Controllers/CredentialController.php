@@ -904,12 +904,16 @@ class CredentialController extends Controller
             // Set valid_state and status based on inst/plat validated
             $record['inst_valid'] = (is_null($credential->inst_valid)) ? 'Inactive' : 'Active';
             $record['plat_valid'] = (is_null($credential->plat_valid)) ? 'Inactive' : 'Active';
-            $record['valid_state'] = 'Not Validated';
+            // Return valid_state as an array of values to match filter options
+            $record['valid_state'] = array();
             if (!is_null($credential->inst_valid) && !is_null($credential->plat_valid)) {
-                $record['valid_state'] = 'Fully Validated';
-            } else if (!is_null($credential->inst_valid) || !is_null($credential->plat_valid)) {
-                $record['valid_state'] = !is_null($credential->inst_valid)
-                                         ? 'Institution Validated' : 'Platform Validated';
+                $record['valid_state'][] = 'Fully Validated';
+            } else {
+                if (is_null($credential->inst_valid)) $record['valid_state'][] = 'Institution Not Validated';
+                if (is_null($credential->plat_valid)) $record['valid_state'][] = 'Platform Not Validated';
+                if (is_null($credential->inst_valid) && is_null($credential->plat_valid)) {
+                    $record['valid_state'][] = 'Neither Validated';
+                }
             }
 
             // Pull JSON data from the most-recent rawfile in the harvestlogs for this credential
@@ -959,7 +963,9 @@ class CredentialController extends Controller
         // Setup filtering options for the datatable
         $filter_options = array();
         $filter_options['statuses'] = $credentials->unique('status')->pluck('status')->toArray();
-        $filter_options['valid_types'] = array('Fully Validated','Institution Validated','Platform Validated','Not Validated');
+        $filter_options['valid_types'] = array(
+            'Fully Validated','Institution Not Validated','Platform Not Validated','Neither Validated'
+        );
         $filter_options['platforms'] = GlobalProvider::whereIn('id',$limit_plats)->where('is_active',1)
                                                      ->orderBy('name','ASC')->get(['id','name']);
         // Set institutions and groups filter options
@@ -987,7 +993,6 @@ class CredentialController extends Controller
         // Validate form inputs
         $thisUser = auth()->user();
         $input = $request->all();
-
         // Set column to update
         if (!isset($input['inst_valid']) && !isset($input['plat_valid'])) {
             return response()->json(['msg' => 'Invalid request - no such column', 'result' => false], 200);
@@ -1001,7 +1006,7 @@ class CredentialController extends Controller
         }
 
         // Set field & save record
-        $credential->{$key} = ($input[$key] == 1) ? date('Y-m-d H:i:s') : null;
+        $credential->{$key} = ($input[$key] == 'Active') ? date('Y-m-d H:i:s') : null;
         $credential->save();
 
         return response()->json(['result' => true], 200);
