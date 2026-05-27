@@ -21,7 +21,7 @@ import MultiSelectCombobox from './MultiSelectCombobox.vue';
 
     <!-- AutoComplete - single item select -->
     <v-autocomplete v-if="filter.show && filter.type=='select'" v-model="props.filters[filter.name].value" :label="filter.label"
-        :items="filter.items" :item-title="filter.txt" :item-value="filter.val" density="compact"
+        :items="filter.items" :item-title="filter.txt" :item-value="filter.val" density="compact" variant="outlined"
         @update:modelValue="handleFilter(filter)" />
 
     <!-- AutoComplete - return single object -- needed anywhere??
@@ -35,6 +35,6 @@ import MultiSelectCombobox from './MultiSelectCombobox.vue';
 
     <!-- Return a Single Scalar value -->
     <v-select v-if="filter.show && filter.type=='text'" v-model="props.filters[filter.name].value" :label="filter.label"
-        :items="filter.items" @update:modelValue="handleFilter(filter)" density="compact" />
+        :items="filter.items" @update:modelValue="handleFilter(filter)" density="compact" variant="outlined" />
   </v-col>
 </template>
