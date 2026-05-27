@@ -8,7 +8,6 @@
   // Data
   const activePage = ref(0);
   const activeTab = ref(0);
-  const panel = ref([0, 1]);
   var homeUrl = ref("/");
   var pages = ref([]);
   // Get vue router configuration
@@ -135,7 +134,7 @@
                 <template v-for="(child, tabIndex) in page.children" :key="tabIndex">
                   <v-tabs-window-item v-if="child.show" :value="tabIndex" transition="false" reverse-transition="false">
                     <div v-if="child.children">
-                      <v-expansion-panels multiple class="mt-6 rounded-lg" v-model="panel">
+                      <v-expansion-panels multiple class="mt-6 rounded-lg" v-model="child.panels">
                         <template v-for="(grandchild, gcidx) in child.children" :key="gcidx">
                           <v-expansion-panel v-if="grandchild.show" class="rounded-lg border">
                             <v-expansion-panel-title>

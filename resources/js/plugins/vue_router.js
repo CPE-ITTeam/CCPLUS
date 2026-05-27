@@ -76,7 +76,8 @@ export const router = createRouter({
             },
           ]
         },
-        { path: '/users', name: 'Users', show:1, meta: { title: 'Users', layout: AuthenticatedLayout, role: 'Admin', level:2 }, 
+        { path: '/users', name: 'Users', show:1, panels: [0],
+          meta: { title: 'Users', layout: AuthenticatedLayout, role: 'Admin', level:2 }, 
           children: [
             { path: '/admin/users', name: 'UserTable', show:1,
               meta: { title: 'Users', layout: AuthenticatedLayout, role: 'Admin', key:0, level:3 }, 
@@ -92,7 +93,7 @@ export const router = createRouter({
           meta: { title: 'Platform Connections', layout: AuthenticatedLayout, role: 'GroupAdmin', key:0, level:2 }, 
           component: markRaw(ConnectionsTable),
         },
-        { path: '/credentials', name: 'Credentials', show:1,
+        { path: '/credentials', name: 'Credentials', show:1, panels: [],
           meta: { title: 'Credentials', layout: AuthenticatedLayout, role: 'Admin', level:2 }, 
           children: [
             { path: '/admin/credentials', name: 'CredentialsTable', show:1,
@@ -141,7 +142,7 @@ export const router = createRouter({
           meta: { title: 'Platforms', layout: AuthenticatedLayout, role: 'Admin', key:0, level:2 }, 
           component: markRaw(PlatformsTable),
         },
-        { path: '/admin/serveradmin', name: 'ServerAdmin', show:1,
+        { path: '/admin/serveradmin', name: 'ServerAdmin', show:1, panels: [0],
           meta: { title: 'Settings', layout: AuthenticatedLayout, role: 'ServerAdmin', level:2 }, 
           children: [
             { path: '/admin/serversettings', name: 'ServerSettings', show:1,
