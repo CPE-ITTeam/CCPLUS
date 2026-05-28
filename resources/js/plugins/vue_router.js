@@ -59,7 +59,7 @@ export const router = createRouter({
     {
       path: '/admin', name: 'Admin', meta: { title: 'Admin', layout: AuthenticatedLayout, role: 'Admin', level:1 },
       children: [
-        { path: '/institutions', name: 'Institutions', show:1, 
+        { path: '/institutions', name: 'Institutions', show:1, panels: [0],
           meta: { title: 'Institutions', layout: AuthenticatedLayout, role: 'Admin', level:2 },
           children: [
             { path: '/admin/institutions', name: 'InstitutionsTable', show:1,
