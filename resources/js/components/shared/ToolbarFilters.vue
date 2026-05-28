@@ -1,6 +1,7 @@
 <!-- shared/ToolbarFilters -->
 <script setup>
 import MultiSelectCombobox from './MultiSelectCombobox.vue';
+import ToggleIcon from '../shared/ToggleIcon.vue';
 
   const props = defineProps({
     filters: { type: Object, required: true },
@@ -36,5 +37,9 @@ import MultiSelectCombobox from './MultiSelectCombobox.vue';
     <!-- Return a Single Scalar value -->
     <v-select v-if="filter.show && filter.type=='text'" v-model="props.filters[filter.name].value" :label="filter.label"
         :items="filter.items" @update:modelValue="handleFilter(filter)" density="compact" variant="outlined" />
+
+    <!-- Return Active/Inactive via toggle icon -->
+    <ToggleIcon v-if="filter.show && filter.type=='toggle'" v-model="props.filters[filter.name].value" :label="filter.label"
+        toggleable :size="36" @update:modelValue="handleFilter(filter)" />
   </v-col>
 </template>
