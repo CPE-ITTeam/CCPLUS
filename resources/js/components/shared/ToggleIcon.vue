@@ -14,6 +14,7 @@
         return isString || isObject;
       }
     },
+    label: { type: String, default:'' },
     toggleable: { type: Boolean },
     size: { type: Number, default: 32 }
   });
@@ -114,6 +115,9 @@
 </script>
 
 <template>
-  <v-icon :icon="meta.icon" :color="meta.color" :size="size" class="cursor-pointer"
-          @click="handleClick" :title="tooltip" />
+  <v-icon v-if="(props.label=='')" :icon="meta.icon" :color="meta.color" :size="size" class="cursor-pointer"
+    @click="handleClick" :title="tooltip" />
+  <span   v-if="(props.label!='')">{{ props.label }} </span>
+  <v-icon v-if="(props.label!='')" :icon="meta.icon" :color="meta.color" :size="size" class="cursor-pointer"
+    @click="handleClick" title="" />
 </template>
