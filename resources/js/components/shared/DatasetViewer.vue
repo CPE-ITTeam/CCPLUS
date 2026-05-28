@@ -186,6 +186,11 @@
             'show': _showIt, 'col': fld.filterCol, 'items': [...f_options], 'value': initVal
           };
         }
+      } else if (fld.type == 'toggle' && fld.isFilter && f_options.length>0) {
+        filterOptions[fld.name] = {
+          'name': fld.name, 'label': fld.label, 'type': 'toggle', 'show': fld.isFilter, 'col': fld.filterCol,
+          'items': [...f_options], 'value': f_options[0]
+        };
       } else if (fld.isFilter && (fld.type == 'text' || fld.type == 'mtext')) {
           filterOptions[fld.name] = {
             'name': fld.name, 'label': fld.label, 'type': fld.type, 'show': true, 'col': fld.filterCol
@@ -653,7 +658,7 @@
         if ( Array.isArray(filterOptions[key]['value']) ) {
           if (filterOptions[key]['value'].length > 0) filterOptions[key]['value'] = [];
         } else if (filterOptions[key]['value']) {
-          filterOptions[key]['value'] = null;
+          filterOptions[key]['value'] = (filterOptions[key]['type'] == 'toggle') ? 'Inactive' : null;
         }
       }
       updateItems();
@@ -710,6 +715,9 @@
         } else {
           filterResult = filterResult.filter( item => item[filter.col]==filter.value );
         }
+      // Filter items via toggle switch (Inactive/off: no filter/clear, Active/on: filter for col=true)
+      } else if (filter.type == 'toggle' && filter.value=='Active') {
+        filterResult = filterResult.filter( item => (item[filter.col]) );
       // Filter items with a multi-select array
       } else if (filter.type == 'mselect' || filter.type == 'mtext') {
         // If item column is an array (like groups, roles, etc.)
