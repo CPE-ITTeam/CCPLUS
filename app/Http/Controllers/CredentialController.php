@@ -868,7 +868,9 @@ class CredentialController extends Controller
 
         // Set arrays for limiting institutions and platforms
         $limit_insts = ($consoAdmin) ? [] : $thisUser->adminInsts();
-        $limit_plats = Connection::whereNotNull('global_id')->pluck('global_id')->toArray();
+        $connections = Connection::whereNotNull('global_id')->get();
+        $limit_plats = $connections->pluck('global_id')->toArray();
+        $conso_plats = $connections->where('inst_id',1)->pluck('global_id')->toArray();
 
         // Get all credentials with successful harvestlogs that have a rawfile set
         $credentials = Credential::with(['provider','institution', 'harvestLogs' => function ($qry) {
@@ -904,6 +906,7 @@ class CredentialController extends Controller
             // Set valid_state and status based on inst/plat validated
             $record['inst_valid'] = (is_null($credential->inst_valid)) ? 'Inactive' : 'Active';
             $record['plat_valid'] = (is_null($credential->plat_valid)) ? 'Inactive' : 'Active';
+            $record['is_conso'] = (in_array($credential->prov_id,$conso_plats));
             // Return valid_state as an array of values to match filter options
             $record['valid_state'] = array();
             if (!is_null($credential->inst_valid) && !is_null($credential->plat_valid)) {
@@ -917,9 +920,9 @@ class CredentialController extends Controller
             }
 
             // Pull JSON data from the most-recent rawfile in the harvestlogs for this credential
-            $json_host = 'no-JSON-found'; // default to no-data-found
-            $json_inst = 'no-JSON-found'; // default to no-data-found
-            $json_item = 'no-Value-found'; // default to no-data-found
+            $json_host = 'No data host'; // default to no-data-found
+            $json_inst = 'No institution'; // default to no-data-found
+            $json_item = 'No platform'; // default to no-data-found
             if ($credential->harvestLogs) {
                 foreach ($credential->harvestLogs as $harv) {
                     $jsonFile = $report_path . '/' . $credential->inst_id . '/' . $credential->prov_id . '/' . $harv->rawfile;
@@ -955,6 +958,9 @@ class CredentialController extends Controller
             $record['json_host'] = $json_host;
             $record['json_item'] = $json_item;
             $record['json_inst'] = $json_inst;
+            $record['inst_set'] = ($json_inst == 'No institution') ? false : true;
+            $record['plat_set'] = ($json_item == 'No platform') ? false : true;
+            $record['host_set'] = ($json_host == 'No data host') ? false : true;
             $_inst = $all_institutions->where('id',$credential->inst_id)->first();
             $record['group_ids'] = ($_inst) ? $_inst->institutionGroups()->pluck('institution_group_id')->all() : [];
             $records[] = $record;
