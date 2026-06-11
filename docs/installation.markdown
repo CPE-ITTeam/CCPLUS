@@ -37,7 +37,7 @@ Once the application is installed, the application administrator will need to co
 	* Make sure `mod_rewrite` is enabled
 * MySQL (5.7.9+) or MariaDB (10.3+)
     (Note that MySQL 8.x may have installation issues relating to GRANT commands)
-* PHP: 7.3+ including
+* PHP: 8.3+ including
 	* php-gd
 	* php-xml
 	* php-zip
