@@ -42,7 +42,7 @@
           </v-col>
         </v-row>
         <v-row v-if="saveType=='Create' || saveTitle.length>0" class="d-flex pa-2" no-gutters>
-          <v-text-field v-model="saveTitle" label="Title" outlined></v-text-field>
+          <v-text-field v-model="saveTitle" label="Title" variant="outlined"></v-text-field>
         </v-row>
         <v-row v-if="props.saved_reports.length>0 && saveType=='Update'" class="d-flex pa-2" no-gutters>
           <v-col>

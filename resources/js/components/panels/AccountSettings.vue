@@ -64,10 +64,10 @@
       </v-row>   
       <v-row no-gutters>
         <v-col cols="4" class="d-flex px-2 align-middle">
-          <v-text-field v-model="acctSettings.name" label="Name" outlined></v-text-field>
+          <v-text-field v-model="acctSettings.name" label="Name" variant="outlined"></v-text-field>
         </v-col>
         <v-col cols="4" class="d-flex px-2 align-middle">
-          <v-text-field outlined required label="Email" v-model="acctSettings.email"></v-text-field>
+          <v-text-field v-model="acctSettings.email" label="Email" variant="outlined" required></v-text-field>
         </v-col>
         <v-col cols="2" class="d-flex px-2">
           <v-select label="Fiscal Year Start" :items="fyMonths" v-model="acctSettings.fiscalYr" variant="outlined"
@@ -106,7 +106,7 @@
         </v-col>
       </v-row>   
       <v-row class="d-flex justify-center mt-4" no-gutters>
-        <v-btn small color="primary" type="submit">Save Settings</v-btn>
+        <v-btn size="small" color="primary" type="submit">Save Settings</v-btn>
         <!-- <v-btn small type="button" @click="hideForm">Cancel</v-btn> -->
         <div class="status-message" v-if="success || failure">
           <span v-if="success" class="good" role="alert" v-text="success"></span>

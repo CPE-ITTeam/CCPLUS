@@ -123,12 +123,12 @@
         <v-col class="d-flex ma-0 pa-0">{{ row }}</v-col>
       </v-row>
       <v-file-input show-size label="CC+ Import File (CSV)" v-model="csv_upload" accept="text/csv"
-                    outlined :rules="[requiredRule]"
+                    variant="outlined" :rules="[requiredRule]"
       ></v-file-input>
       <v-row v-if="datasets[props.dataset]['import_types'].length>0" class="my-2 pa-0" no-gutters>
         <v-col class="d-flex ma-0 pa-0">
           <v-select :items="datasets[props.dataset]['import_types']" v-model="import_type" label="Import Type"
-                    outlined :rules="[requiredRule]"
+                    variant="outlined" :rules="[requiredRule]"
           ></v-select>
         </v-col>
       </v-row>

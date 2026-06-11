@@ -118,7 +118,7 @@
         <template v-for="cnx in props.schema.options['all_connectors']">
           <v-row class="my-1 pa-0" no-gutters>
             <v-col v-if="(requiredCnx[cnx.name] && typeof(formValues[cnx.name])!='undefined')" class="d-flex px-2" cols="10">
-              <v-text-field v-model="formValues[cnx.name]" :label='cnx.label' :id='cnx.name' outlined
+              <v-text-field v-model="formValues[cnx.name]" :label='cnx.label' :id='cnx.name' variant="outlined"
                             :rules="[requiredRule]" clearable></v-text-field>
             </v-col>
           </v-row>

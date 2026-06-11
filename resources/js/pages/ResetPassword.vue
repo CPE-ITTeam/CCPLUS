@@ -67,7 +67,7 @@ onMounted(() => {
       </v-row>
       <v-row class="d-flex mt-4 align-center" no-gutters>
         <v-col class="d-flex justify-center">
-          <v-btn small class="btn login-primary" type="submit">Reset Password</v-btn>
+          <v-btn size="small" class="btn login-primary" type="submit">Reset Password</v-btn>
         </v-col>
       </v-row>
     </form>

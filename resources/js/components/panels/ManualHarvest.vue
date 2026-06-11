@@ -319,7 +319,7 @@
   </div>
   <div v-else-if="consoKey!=''">
     <div v-if="selections_made">
-      <v-btn color="gray" small @click="resetForm">Reset Selections</v-btn>
+      <v-btn color="gray" size="small" @click="resetForm">Reset Selections</v-btn>
     </div>
   	<form method="POST" action="" @submit.prevent="formSubmit">
       <div v-if="institution_options.length>1">
@@ -410,8 +410,7 @@
         <span v-if="working" class="work" role="alert" v-text="working"></span>
       </div>
       <v-row v-if="submit_enabled" no-gutters>
-      <!-- <v-row v-if="form.reports.length>0 && (form.inst.length>0 || form.inst_group_id>0) && form.plat.length>0" no-gutters> -->
-        <v-btn small color="primary" type="submit">Submit</v-btn>
+        <v-btn size="small" color="primary" type="submit">Submit</v-btn>
       </v-row>
       <v-row v-else-if="(form.inst.length>0 || form.inst_group_id>0) && form.plat.length>0 && available_reports.length==0" no-gutters>
         <span class="form-fail" role="alert">No reports defined or available for selected Platform/Institution.</span>

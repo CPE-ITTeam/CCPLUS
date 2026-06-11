@@ -65,7 +65,7 @@
         <v-card-text>
           <v-container grid-list-md>
             <div v-if="groupingType=='Create'">
-                <v-text-field v-model="newGroupName" label="Name" outlined></v-text-field>
+                <v-text-field v-model="newGroupName" label="Name" variant="outlined"></v-text-field>
             </div>
             <div v-if="groupingType=='Add'">
               <v-select :items="bulkOptions.groups" v-model="addToGroupID" item-title="name" item-value="id"
@@ -77,10 +77,10 @@
         <v-card-actions>
           <v-spacer></v-spacer>
           <v-col class="d-flex">
-            <v-btn class='btn' x-small color="primary" type="submit">Submit</v-btn>
+            <v-btn class='btn' size="x-small" color="primary" type="submit">Submit</v-btn>
           </v-col>
           <v-col class="d-flex">
-            <v-btn class='btn' x-small type="button" color="primary" @click="cancelDialog">Cancel</v-btn>
+            <v-btn class='btn' size="x-small"  type="button" color="primary" @click="cancelDialog">Cancel</v-btn>
           </v-col>
         </v-card-actions>
       </v-form>

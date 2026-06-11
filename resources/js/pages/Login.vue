@@ -77,7 +77,7 @@ onMounted(() => {
         </template>
         <template v-else>
         <v-select v-model='consortium' :items='consortia' item-title="name" return-object label="Consortium" 
-                  variant="outlined" density="comfortable" clearable hide-details="auto" />
+                  variant="outlined" density="comfortable" hide-details="auto" />
         </template>
       </div>
       <!-- Email -->
