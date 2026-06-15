@@ -180,7 +180,6 @@
           }
           // Suppress the filter entirely if the list of options is now zero
           let _showIt = (f_options.length == 0) ? false : fld.isFilter;
-          if (f_options.length == 0) console.log('Filter for '+fld.name+' suppressed - no options');
           filterOptions[fld.name] = {
             'name': fld.name, 'label': fld.label, 'type': fld.type, 'val': fld.optVal, 'txt': fld.optTxt,
             'show': _showIt, 'col': fld.filterCol, 'items': [...f_options], 'value': initVal
@@ -640,8 +639,9 @@
 
   // Handle toolbar filter emits
   function handleFilter(filt) {
-    // if key=='reset', clear all set filter values
+    // if key=='reset', clear all set filter values and selected rows
     if (filt.key == 'reset') {
+      selectedRows.value = [];
       for (const key of Object.keys(filterOptions)) {
         // restore visibility of group(s)/institution(s) if they've been suppressed
         if (key.includes('institution')) {
@@ -716,8 +716,15 @@
           filterResult = filterResult.filter( item => item[filter.col]==filter.value );
         }
       // Filter items via toggle switch (Inactive/off: no filter/clear, Active/on: filter for col=true)
-      } else if (filter.type == 'toggle' && filter.value=='Active') {
-        filterResult = filterResult.filter( item => (item[filter.col]) );
+      } else if (filter.type == 'toggle') {
+        if (filter.value == 'Active') {
+          filterResult = filterResult.filter( item => (item[filter.col]) );
+        }
+        // Toggling "is_conso" also updates options for the "platforms" filter, if present
+        if (filter.col == 'is_conso' && typeof(filterOptions.platforms) != 'undefined') {
+          filterOptions.platforms.items = (filter.value=='Active')
+            ? filterOptions.platforms.items.filter(itm => itm.is_conso) : [...allOptions.platforms];
+        }
       // Filter items with a multi-select array
       } else if (filter.type == 'mselect' || filter.type == 'mtext') {
         // If item column is an array (like groups, roles, etc.)
@@ -727,8 +734,6 @@
         } else {
           filterResult = filterResult.filter( item => filter.value.includes(item[filter.col]) );
         }
-//       } else if (filter.type == 'selectObj') {
-// console.log('Filter by selectObj still needs work');
       }
     }
     filteredItems = [...filterResult];
