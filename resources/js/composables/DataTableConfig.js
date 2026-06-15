@@ -267,8 +267,6 @@
       fields: [
         { name: 'plat_id',      type: 'number',  header: null,    editable: false, searchable: false, label: 'Platform ID',
           icon: '', helperText: '' },
-        { name: 'status',       type: 'toggle',  header: 'start', editable: false, searchable: false, label: 'Credential Status',
-          icon: '', helperText: '' },
         { name: 'plat_valid',   type: 'toggle',  header: 'center', editable: true, searchable: false, label: 'Platform Valid',
           options: '', icon: '', helperText: '' },
         { name: 'plat_name',    type: 'text',    header: 'start', editable: false, searchable: true,  label: 'Platform',
@@ -277,8 +275,6 @@
           icon: '', helperText: '' },
         { name: 'json_host',    type: 'text',    header: 'start', editable: false, searchable: true,  label: 'Data Host',
           icon: '', helperText: '' },
-        // { name: 'statuses',     type: 'mtext',   header: null,    editable: false, searchable: false, label: 'Status',
-        //   options: 'fromURL', icon: '', helperText: '', isFilter: true, filterCol: 'status' },
         { name: 'valid_types',  type: 'text',    header: null,    editable: false, searchable: false, label: 'Validation',
           options: 'fromURL', icon: '', helperText: '', isFilter: true, filterCol: 'valid_state' },
         { name: 'platforms',    type: 'mselect', header: null,    editable: false, searchable: false, label: 'Platform(s)',
