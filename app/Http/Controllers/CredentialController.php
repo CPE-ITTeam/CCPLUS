@@ -899,7 +899,7 @@ class CredentialController extends Controller
         $records = array();
         foreach ($credentials as $credential) {
             if (is_null($credential->provider) || is_null($credential->institution)) continue;
-            $record = array('id' => $credential->id, 'status' => $credential->status,
+            $record = array('id' => $credential->id,
                             'plat_id' => $credential->prov_id, 'plat_name'=>$credential->provider->name,
                             'inst_id' => $credential->inst_id, 'inst_name'=>$credential->institution->name);
 
@@ -968,12 +968,15 @@ class CredentialController extends Controller
 
         // Setup filtering options for the datatable
         $filter_options = array();
-        $filter_options['statuses'] = $credentials->unique('status')->pluck('status')->toArray();
         $filter_options['valid_types'] = array(
             'Fully Validated','Institution Not Validated','Platform Not Validated','Neither Validated'
         );
-        $filter_options['platforms'] = GlobalProvider::whereIn('id',$limit_plats)->where('is_active',1)
-                                                     ->orderBy('name','ASC')->get(['id','name']);
+        $globals = GlobalProvider::with('connections')->whereIn('id',$limit_plats)->where('is_active',1)
+                                 ->orderBy('name','ASC')->get(['id','name']);
+        $filter_options['platforms'] = $globals->map(function ($plat) {
+            $is_conso = ($plat->connections()->where('inst_id',1)->count() > 0) ? true : false;
+            return [ 'id' => $plat->id, 'name' => $plat->name, 'is_conso' => $is_conso ];
+        });
         // Set institutions and groups filter options
         $adminGroups = ($consoAdmin) ? [] : $thisUser->adminGroups();
         $filter_options['groups'] = InstitutionGroup::when(!$consoAdmin, function ($query) use ($adminGroups) {
