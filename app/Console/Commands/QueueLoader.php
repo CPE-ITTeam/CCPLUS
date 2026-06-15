@@ -157,7 +157,7 @@ class QueueLoader extends Command
                     continue;
                 }
                // if credential inst_id not related to this connection, skip it
-                if (!in_array($credential->inst_id,$cnx->institutionIds())) {
+                if (!in_array(!$conso_connection && $credential->inst_id,$cnx->institutionIds())) {
                     continue;
                 }
 
