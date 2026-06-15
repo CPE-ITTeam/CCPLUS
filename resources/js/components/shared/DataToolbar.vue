@@ -49,12 +49,15 @@
   });
 
   const anyFilterSet = computed(() => {
+    if (props.selectedRows.length>0) return true;
     var is_set = false;
     for (const key of Object.keys(flat_filter_options.value)) {
       const filter = flat_filter_options.value[key];
       if (!filter.show) continue;
       if ( Array.isArray(filter.value) ) {
         if (filter.value.length > 0) is_set = true;
+      } else if (filter.type == 'toggle') {
+        is_set = (filter.value == 'Active');
       } else if (filter.value) {
         is_set = true;
       }
