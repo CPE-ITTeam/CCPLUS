@@ -692,6 +692,11 @@
   //
   function updateItems() {
     if (allItems.length==0) return;
+    // Harvests datasets need to reload records via "Refresh" when filters change
+    if (props.datasetKey == 'harvests' || props.datasetKey == 'jobs') {
+      filteredItems = [];
+      return;
+    }
     var filterResult = [...allItems];
     for (const key of Object.keys(filterOptions)) {
       const filter = filterOptions[key]; 
