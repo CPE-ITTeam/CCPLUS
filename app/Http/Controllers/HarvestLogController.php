@@ -138,8 +138,10 @@ class HarvestLogController extends Controller
                 $_inst_ids = $group->institutions->pluck('id')->toArray();
                 $group_insts = array_unique(array_merge($group_insts, $_inst_ids));
             }
+            $limit_insts = $group_insts;
         }
-        if (!$consoAdmin || count($filters['institutions']) > 0) {
+
+        if (count($filters['institutions']) > 0 || !$consoAdmin) {
             $limit_insts = (!$consoAdmin) ? array_intersect($thisUser->adminInsts(), $filters['institutions'])
                                           : $filters['institutions'];
         }
@@ -336,15 +338,17 @@ class HarvestLogController extends Controller
             }
             $limit_insts = $group->institutions->pluck('id')->toArray();
         }
-        // Make sure limit_insts include id:1 (so that we pick up conso-platforms from the connections below)
-        if (!in_array(1,$limit_insts)) $limit_insts[] = 1;
 
         // Get detail on (master) reports requested
         $master_reports = Report::where('parent_id',0)->orderBy('dorder','ASC')->get(['id','name']);
 
+        // Make to include id:1 when getting connections (so that we pick up conso-platforms)
+        $cnx_insts = $limit_insts;
+        if (!in_array(1,$cnx_insts)) $cnx_insts[] = 1;
+
         // Get Global Platforms
         $plat_ids = $input["plat"];
-        $global_ids = Connection::where('is_active',true)->whereIn('global_id',$plat_ids)->whereIn('inst_id',$limit_insts)
+        $global_ids = Connection::where('is_active',true)->whereIn('global_id',$plat_ids)->whereIn('inst_id',$cnx_insts)
                                 ->select('global_id')->distinct()->pluck('global_id')->toArray();
         $global_platforms = GlobalProvider::with('credentials','credentials.institution:id,is_active','connections',
                                                  'connections.reports','registries')
