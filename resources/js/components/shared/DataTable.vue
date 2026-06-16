@@ -116,7 +116,14 @@
     <v-data-table v-model="internalSelectedRows" :headers="computedHeaders" :items="filteredItems"
                   item-key="id" item-value="id" :show-select="props.selectableRows" return-object
                   :loading="props.isLoading" :custom-key-sort="customKeySort">
-
+      <template v-slot:no-data>
+        <v-list-item v-if="props.dataset=='jobs' || props.dataset=='harvests'">
+          <v-list-item-title>Click Refresh Records to Load Harvest Records</v-list-item-title>
+        </v-list-item>        
+        <v-list-item v-else>
+          <v-list-item-title>No data available</v-list-item-title>
+        </v-list-item>
+      </template>
       <!-- Dynamic editable fields -->
       <!-- <template v-for="field in props.editableFields" #[`item.${field}`]="{ item }">
         <component :is="getFieldComponent(field)" v-model="item[field]" :label="getFieldLabel(field)"
