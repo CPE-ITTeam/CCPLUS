@@ -19,17 +19,22 @@
              model.value.every(val => props.items.map(i => i.id).includes(val)) );
   });
   const selectAllLabel = computed(() => { return (allSelected.value) ? "Clear All" : "Select All"; });
-  const selectionString = computed(() => { 
+  const selectionString = computed(() => {
     if (allSelected.value) return "All "+data_label;
     if (model.value.length==0) return "";
-    let _item = props.items.find( ii => ii.id == model.value[0]);
-    if (typeof(_item) != 'undefined') {
-      let _string = _item[item_title];
-     _string += (model.value.length<=1) ? "" : " +"+(model.value.length-1).toString()+" more";
-      return _string;
-    } else { // Getting here means model.value[0] item not found... should not happen?
+    // Something isn't right... should not happen?
+    if (typeof(props.items[0]['id']) == 'undefined' &&
+        typeof(model.value)!='array' && typeof(model.value)!='object') {
       return 'Some '+data_label;
     }
+    let _string = model.value[0]; // default for when items have no 'id' field.
+    // If items have an 'id' field, use model.value to lookup first title based on id
+    if (typeof(props.items[0]['id']) != 'undefined') {
+      let _item = props.items.find( ii => ii.id == model.value[0]);
+      _string = _item[item_title];
+    }
+    _string += (model.value.length<=1) ? "" : " +"+(model.value.length-1).toString()+" more";
+    return _string;
   });
   function toggleSelectAll() {
     model.value = (allSelected.value) ? [] : props.items.map(item => item[item_value]);
