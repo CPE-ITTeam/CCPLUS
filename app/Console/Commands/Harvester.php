@@ -283,21 +283,17 @@ class Harvester extends Command
                     throw new CounterApiException($response, $request);
                 } elseif ($response->isReport()) {
                     $response = new JsonReport($response, $request);
-                    if (is_null($response)) {
-                        $error_code = 9400;
-                    } else {
-                        if (method_exists($response,'asJson')) {
-                            $_json = $response->asJson();
-                            // Set error 9030 if Report_Items missing or empty
-                            if ((isset($_json->Report_Items))) {
-                                if (count($_json->Report_Items) == 0) {
-                                    $error_code = 9030;
-                                }
-                            } else {
+                    if (method_exists($response,'getJson')) {
+                        $_json = $response->getJson();
+                        // Set error 9030 if Report_Items missing or empty
+                        if ((isset($_json->Report_Items))) {
+                            if (count($_json->Report_Items) == 0) {
                                 $error_code = 9030;
                             }
-                            unset($_json);
+                        } else {
+                            $error_code = 9030;
                         }
+                        unset($_json);
                     }
                 } else {
                     $request_status = "Fail";
