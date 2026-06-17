@@ -183,22 +183,36 @@
 
       <!-- Customer ID -->
       <template #item.customer_id="{ item }">
-        <span :class="{ 'required-field': item.customer_id === 'required' }">
+        <span :class="{ 'required-field': item.customer_id === '-required-' }">
           {{ item.customer_id }}
         </span>
       </template>
 
       <!-- Requestor ID -->
       <template #item.requestor_id="{ item }">
-        <span :class="{ 'required-field': item.requestor_id === 'required' }">
+        <span :class="{ 'required-field': item.requestor_id === '-required-' }">
           {{ item.requestor_id }}
         </span>
       </template>
 
       <!-- API Key -->
       <template #item.api_key="{ item }">
-        <span :class="{ 'required-field': item.api_key === 'required' }">
+        <span :class="{ 'required-field': item.api_key === '-required-' }">
           {{ item.api_key }}
+        </span>
+      </template>
+
+      <!-- Platform -->
+      <template #item.platform="{ item }">
+        <span :class="{ 'is_inactive': item.plat_active === 0 }">
+          {{ item.platform }}
+        </span>
+      </template>
+
+      <!-- Institution -->
+      <template #item.institution="{ item }">
+        <span :class="{ 'is_inactive': item.inst_active === 0 }">
+          {{ item.institution }}
         </span>
       </template>
 
@@ -276,4 +290,5 @@
 </template>
 <style scoped>
   .required-field { color: orange; font-style: italic; }
+  .is_inactive { font-style: italic; }
 </style>
