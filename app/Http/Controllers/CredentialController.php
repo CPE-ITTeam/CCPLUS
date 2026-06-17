@@ -104,7 +104,8 @@ class CredentialController extends Controller
             $rec = array('id' => $cred->id, 'status' => $cred->status, 'inst_id' => $cred->inst_id,
                          'prov_id' => $cred->prov_id, 'customer_id' => $cred->customer_id,
                          'requestor_id' => $cred->requestor_id, 'api_key' => $cred->api_key,
-                         'platform' => $cred->provider->name, 'can_edit' => true, 'can_delete' => true
+                         'platform' => $cred->provider->name, 'can_edit' => true, 'can_delete' => true,
+                         'inst_active' => $cred->institution->is_active, 'plat_active' => $cred->provider->is_active
                         );
             $rec['service_url'] = $cred->provider->service_url();
             $rec['connectors'] = array();
