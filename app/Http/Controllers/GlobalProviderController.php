@@ -250,6 +250,13 @@ class GlobalProviderController extends Controller
       // Validate form inputs
       $input = $request->all();
 
+      // If user hits toggle, it arrives as 'is_active' without a status value.
+      // If so, reset input array to hold just status value
+      if (!isset($input['status']) && isset($input['is_active'])) {
+          $value = ($input['is_active'] == 0) ? 'Inactive' : 'Active';
+          $input = array('status' => $value);
+      }
+
       // Going INactive or making the platform NO-Refresh means we also clear the refresh_result
       $isActive = ($input['status'] == 'Active') ? 1 : 0;
       $provider->is_active = $isActive;
