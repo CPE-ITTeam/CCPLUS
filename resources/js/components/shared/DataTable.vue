@@ -82,6 +82,10 @@
     IR: (a, b) => reportSort(a, b),
   };
 
+  const refreshDataset = computed(() => {
+    return (props.dataset=='harvests' || props.dataset=='jobs' || props.dataset=='audit');
+  });
+
   function enableDeleteDialog(item) {
     curItem.value = {...item};
     deleteDialog.value = true;
@@ -117,8 +121,8 @@
                   item-key="id" item-value="id" :show-select="props.selectableRows" return-object
                   :loading="props.isLoading" :custom-key-sort="customKeySort">
       <template v-slot:no-data>
-        <v-list-item v-if="props.dataset=='jobs' || props.dataset=='harvests'">
-          <v-list-item-title>Click Refresh Records to Load Harvest Records</v-list-item-title>
+        <v-list-item v-if="refreshDataset">
+          <v-list-item-title>Click Refresh Records to Load Records</v-list-item-title>
         </v-list-item>        
         <v-list-item v-else>
           <v-list-item-title>No data available</v-list-item-title>
