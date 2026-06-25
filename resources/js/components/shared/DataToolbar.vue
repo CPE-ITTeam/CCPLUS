@@ -30,12 +30,12 @@
     return (consoKey.value == '' && is_serveradmin);
   });
 
-  const harvestDataset = computed(() => {
-    return (props.dataset=='harvests' || props.dataset=='jobs');
+  const needsRefreshButton = computed(() => {
+    return (props.dataset=='harvests' || props.dataset=='jobs' || props.dataset=='audit');
   });
 
   const showExportImport = computed(() => {
-    return (!consoOnly.value && !harvestDataset.value);
+    return (!consoOnly.value && props.dataset!='harvests' && props.dataset!='jobs');
   });
 
   const flat_filter_options = computed(() => {
@@ -116,7 +116,7 @@
                      @refresh="$emit('bulkAction', {action:'Full Refresh'})"/>
               
     <!-- Refresh Items button for harvest tables -->
-    <v-col v-if="harvestDataset && consoKey!=''" class="d-flex justify-center">
+    <v-col v-if="needsRefreshButton && consoKey!=''" class="d-flex justify-center">
       <v-btn color="primary" @click="$emit('refreshRecords')">Refresh Records</v-btn>
     </v-col>
   </v-row>
