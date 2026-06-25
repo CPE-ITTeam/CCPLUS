@@ -36,6 +36,7 @@ Route::middleware('ccplusAuth')->group( function () {
     });
     Route::prefix('audit')->group(function () {
         Route::get('/get', 'App\Http\Controllers\CredentialController@audit')->name('audit.index');
+        Route::post('/getItems', 'App\Http\Controllers\CredentialController@auditItems')->name('audit.items');
         Route::patch('/update/{credential}', 'App\Http\Controllers\CredentialController@setvalidated')->name('audit.update');
         Route::post('/bulk', 'App\Http\Controllers\CredentialController@bulk')->name('audit.bulk');
     });
