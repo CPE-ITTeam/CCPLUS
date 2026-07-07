@@ -40,7 +40,13 @@ class LoginController extends BaseController
             $request->session()->regenerate();
             $user = Auth::user();
             $request->session()->put(['ccp_key'=>$key, 'conso_id'=>$request->conso_id, 'user_id'=>$user->id]);
-            $success['token'] =  $user->createToken('CCPlus')->plainTextToken; 
+            // Purge any existing login (web) tokens to keep them from piling up
+            $token_name = "Web_User_".$user->id;
+            $user->tokens()->where('name',$token_name)->delete();
+            $user->last_login = now();
+            $user->save();
+            // Setup return data including the access token, user info, roles, and admin institutions/groups
+            $success['token'] = $user->createToken($token_name)->accessToken;
             $success['user'] = $user;
             $success['roles'] = $user->allRoles();
             $success['adminInsts'] =$user->adminInsts();
@@ -53,12 +59,13 @@ class LoginController extends BaseController
     }
 
     public function logout(Request $request) {
-        // Set the consortium handle from the session
-        $key = ($request->consortium == '') ? "con_template" : $request->consortium;
-        config(['database.connections.consodb.database' => 'ccplus_' . $key]);    
-        Auth::logout();
+        $user = Auth::user();
+        if ($user) {
+            // Set the consortium handle from the session
+            $user->tokens()->where('name',"Web_User_".$user->id)->delete();
+            Auth::logout();
+        }
         $request->session()->invalidate();
-        $request->session()->regenerateToken();
         $request->session()->put(['ccp_key'=>'','conso_id'=>null,'user_id' =>null]);
         return redirect('/login');
     }
