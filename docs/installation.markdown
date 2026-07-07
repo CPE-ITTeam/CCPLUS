@@ -104,7 +104,7 @@ Next, the local `.env` needs to be modified to match the current host environmen
   chmod 670 .env;
   vi .env
 ```
-* Assign APP_URL to the URL that your webserver uses to connect to your public documents folder (step-1, above)
+* Assign VITE_APP_URL to the URL that your webserver uses to connect to your public documents folder (step-1, above)
 * Update the application time zone APP_TIMEZONE and APP_LOCALE to match your host system (default to 'America/New_York' and 'en')
 * Assign database credentials (a user with rights to create databases and grant privileges) for BOTH the globaldb and con_template "DB_CONNECTION" groups:
     * DB_USERNAME, DB_PASSWORD, DB_USERNAME2, DB_PASSWORD2
