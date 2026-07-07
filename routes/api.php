@@ -18,6 +18,13 @@ Route::middleware('ccplusAuth')->group( function () {
     Route::get('/user', function (Request $request) {
        return $request->user();
     });
+    // Token routes
+    Route::prefix('tokens')->group(function () {
+        Route::get('/get', 'App\Http\Controllers\Auth\TokenController@index')->name('tokens.index');
+        Route::post('/store', 'App\Http\Controllers\Auth\TokenController@store')->name('tokens.store');
+        Route::get('/show/{user}', 'App\Http\Controllers\Auth\TokenController@show')->name('tokens.show');
+        Route::delete('/destroy', 'App\Http\Controllers\Auth\TokenController@destroy')->name('tokens.destroy');
+    });
     // Routes grouped by prefix
     Route::prefix('consortia')->group(function () {
         Route::get('/get', 'App\Http\Controllers\ConsortiumController@index')->name('consortia.index');
@@ -71,7 +78,7 @@ Route::middleware('ccplusAuth')->group( function () {
         Route::post('/import', 'App\Http\Controllers\InstitutionGroupController@import')->name('groups.import');
     });
     Route::prefix('platforms')->group(function () {
-        Route::get('/get/{role}', 'App\Http\Controllers\GlobalProviderController@index')->name('platforms.index');
+        Route::get('/get', 'App\Http\Controllers\GlobalProviderController@index')->name('platforms.index');
         Route::post('/store', 'App\Http\Controllers\GlobalProviderController@store')->name('platforms.store');
         Route::patch('/update/{platform}', 'App\Http\Controllers\GlobalProviderController@update')->name('platforms.update');
         Route::delete('/delete/{platform}', 'App\Http\Controllers\GlobalProviderController@destroy')->name('platforms.destroy');
@@ -120,10 +127,8 @@ Route::middleware('ccplusAuth')->group( function () {
     Route::prefix('savedreports')->group(function () {
         Route::get('/get', 'App\Http\Controllers\SavedReportController@index')->name('savedreports.index');
         Route::post('/store', 'App\Http\Controllers\SavedReportController@store')->name('savedreports.store');
-        Route::delete('/delete/{savedreport}', 'App\Http\Controllers\SavedReportController@destroy')->name('savedreports.destroy');
-// This is for new functionality to request a saved report, given ID and optional format
-// and get it back via an api call... bypassing the U/I (like from an another application)
-        Route::post('/execute/{savedreport}/{format}', 'App\Http\Controllers\SavedReportController@execute')->name('savedreports.execute');
+        Route::delete('/delete/{id}', 'App\Http\Controllers\SavedReportController@destroy')->name('savedreports.destroy');
+        Route::get('/execute/{id}', 'App\Http\Controllers\SavedReportController@execute')->name('savedreports.execute');
     });
     Route::prefix('reports')->group(function () {
         Route::get('/options', 'App\Http\Controllers\ReportController@create')->name('reports.options');
