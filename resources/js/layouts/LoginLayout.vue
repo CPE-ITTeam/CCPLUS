@@ -26,11 +26,7 @@ const buildEbscoUrl = (ref) => {
     <v-app-bar class="ccplus-header" flat density="comfortable">
       <!-- Left: Logo -->
       <div class="header-left">
-        <img
-          src="/images/CC_Plus_Logo.png"
-          alt="CC-PLUS"
-          class="header-logo"
-        />
+        <img src="/images/CC_Plus_Logo.png" alt="CC-PLUS KYVL" class="header-logo" href="https://ccplus.kyvl.org" target="_blank" />
       </div>
       <!-- Right: Navigation Menus -->
       <div class="header-nav">
@@ -40,9 +36,11 @@ const buildEbscoUrl = (ref) => {
             <v-btn v-bind="props" variant="text">Documentation</v-btn>
           </template>
           <v-list>
-            <v-list-item href="https://kyvl.libwizard.com/f/ccplus-local" title="Institutional onboarding" />
-            <v-list-item href="https://kyvl.org/ccplus/about" title="KYVL LibGuide (needs work)" />
+            <v-list-item href="https://github.com/CPE-ITTeam/CCPLUS/blob/dev-vue3/docs/installation.markdown" 
+                         target="_blank" title="Installation instructions" />
             <v-divider />
+            <v-list-item href="https://kyvl.libwizard.com/f/ccplus-local" target="_blank" title="Institutional onboarding" />
+            <v-list-item href="https://kyvl.org/ccplus/about" target="_blank" title="KYVL LibGuide (needs work)" />
           </v-list>
         </v-menu>
         <!-- COUNTER Links -->
@@ -51,21 +49,15 @@ const buildEbscoUrl = (ref) => {
             <v-btn v-bind="props" variant="text">COUNTER Links</v-btn>
           </template>
           <v-list>
-            <v-list-item href="https://registry.countermetrics.org/" title="COUNTER Registry" />
+            <v-list-item href="https://cop5.countermetrics.org/" target="_blank" title="Code of Practice" />
             <v-divider />
-            <v-list-item href="https://cop5.countermetrics.org/" title="Code of Practice" />
-            <v-list-item href="https://cop5.projectcounter.org/en/5.1/appendices/d-handling-errors-and-exceptions.html" title="Errors & Exceptions (5.1)" />
-            <v-list-item href="https://cop5.projectcounter.org/en/5.0.3/appendices/f-handling-errors-and-exceptions.html" title="Errors & Exceptions (5.0)" />
+            <v-list-item href="https://countermetrics.stoplight.io/docs/counter-sushi-api/au9uaf0yg84mo-counter-api" target="_blank"title="COUNTER API" />
             <v-divider />
-            <v-list-item href="https://cop5.countermetrics.org/en/5.1/04-reports/02-database-reports.html#filters-and-attributes" title="Filters & Attributes DR (5.1)" />
-            <v-list-item href="https://cop5.projectcounter.org/en/5.0.3/04-reports/02-database-reports.html#filters-and-attributes" title="Filters & Attributes DR (5.0)" />
+            <v-list-item href="https://registry.countermetrics.org/" target="_blank" title="COUNTER Registry" />
+            <v-list-item href="https://registry.countermetrics.org/api/v1/" target="_blank" title="Registry API Root" />
             <v-divider />
-            <v-list-item href="https://countermetrics.stoplight.io/docs/counter-sushi-api/au9uaf0yg84mo-counter-api" title="COUNTER API" />
-            <v-list-item href="https://registry.countermetrics.org/api/v1/" title="Registry API Root" />
-            <v-divider />
-            <v-list-item href="https://www.countermetrics.org/" title="countermetrics.org" />
-            <v-list-item href="https://www.countermetrics.org/code-of-practice/tools/#:~:text=Harvester%20Tools" title="Harvester Tools" />
-            <v-list-item href="https://www.countermetrics.org/code-of-practice/tools/#:~:text=Validator" title="Validator" />
+            <v-list-item href="https://www.countermetrics.org/code-of-practice/tools/" target="_blank" title="Tools and Services" />
+            <v-list-item href="https://validator.countermetrics.org/" title="Validator" />
           </v-list>
         </v-menu>
         <!-- URL Finder -->
@@ -74,9 +66,8 @@ const buildEbscoUrl = (ref) => {
             <v-btn v-bind="props" variant="text">URL Finder</v-btn>
           </template>
           <v-list>
-            <v-list-item
+            <v-list-item title="EBSCO Master Platform List" target="_blank"
               href="https://connect.ebsco.com/s/article/EBSCO-Usage-Consolidation-Master-Platform-List-and-Recent-Updates?language=en_US"
-              title="EBSCO Master Platform List"
             />
             <!-- Dynamic reference list -->
             <v-list-item>
@@ -88,9 +79,9 @@ const buildEbscoUrl = (ref) => {
               </div>
             </v-list-item>
             <v-divider />
-            <v-list-item href="https://www.counter51.info/" title="counter51.info - Celus" />
-            <v-list-item href="https://knowledge.exlibrisgroup.com/Alma/Product_Documentation/010Alma_Online_Help_(English)/020Acquisitions/030Acquisitions_Infrastructure/010Managing_Vendors/SUSHI_Vendor_Lists" title="ExLibris SUSHI Vendor Lists" />
-            <v-list-item href="https://jusp.jisc.ac.uk/counter-5-1-faq/" title="JISC Counter 5. FAQ" />
+            <v-list-item href="https://www.counter51.info/" target="_blank" title="counter51.info - Celus" />
+            <v-list-item href="https://knowledge.exlibrisgroup.com/Alma/Product_Documentation/010Alma_Online_Help_(English)/020Acquisitions/030Acquisitions_Infrastructure/010Managing_Vendors/SUSHI_Vendor_Lists" target="_blank" title="ExLibris SUSHI Vendor Lists" />
+            <v-list-item href="https://jusp.jisc.ac.uk/counter-5-1-faq/" target="_blank" title="JISC Counter 5. FAQ" />
           </v-list>
         </v-menu>
         <!-- Demo / Dev -->
@@ -99,10 +90,10 @@ const buildEbscoUrl = (ref) => {
             <v-btn v-bind="props" variant="text">Demo / Dev</v-btn>
           </template>
           <v-list>
-            <v-list-item href="https://kyvl.libwizard.com/f/ccplus-trial" title="Trial request" />
+            <v-list-item href="https://kyvl.libwizard.com/f/ccplus-trial" target="_blank" title="Trial request" />
             <v-divider />
-            <v-list-item href="https://demo.ccplus.kyvl.org" title="Demo" />
-            <v-list-item href="https://dev.ccplus.kyvl.org" title="Dev" />
+            <v-list-item href="https://demo.ccplus.kyvl.org" target="_blank" title="Demo" />
+            <v-list-item href="https://dev.ccplus.kyvl.org" target="_blank" title="Dev" />
           </v-list>
         </v-menu>
       </div>
@@ -127,6 +118,9 @@ const buildEbscoUrl = (ref) => {
   </v-app>
 </template>
 <style scoped>
+body {
+  background-color: rgba(var(--cc-alt-blue), .4);
+}
 .ccplus-app {
   border: 2px solid var(--cc-blue);
   min-height: 100vh;
