@@ -25,6 +25,7 @@ use App\Models\AccessMethod;
 use App\Models\HarvestLog;
 use App\Models\Credential;
 use App\Services\HarvestService;
+use App\Services\ReportService;
 use League\Csv\Writer;
 use SplTempFileObject;
 
@@ -68,103 +69,14 @@ class ReportController extends Controller
     }
 
     /**
-     * Display a listing of the resource.
-     *
-     * @return Inertia::render
-     */
-    public function index()
-    {
-        $thisUser = auth()->user();
-
-        // Assign optional inputs to $filters array
-        $filters = array('reports' => []);
-
-        // Get and map the standard Counter reports
-        $master_reports = Report::with('reportFields', 'children', 'reportFields.reportFilter')
-                                ->where('parent_id',0)->orderBy('name', 'asc')->get();
-
-        // Setup array of counter reports; [0] holds intro info, [1]->[n] hold report-series-by-master
-        $counter_reports = array();
-        $intro = array('series' => " >>> ", 'text' => "Select a tab to view standard COUNTER-5 report definitions by type",
-                        'reports' => array());
-        $counter_reports[] = $intro;
-
-        // Get the current consortium
-        $con = Consortium::where("ccp_key", session("con_key"))->first();
-        // Only display consortium name for admins
-        $conso = ($con && $thisUser->hasRole('Admin')) ? $con->name : "";
-
-        // Procoess all master reports
-        foreach ($master_reports as $master) {
-            $title = preg_replace('/Master /','',$master->legend) . 's';
-            $series = array('series' => $title, 'text' => '', 'reports' => array());
-            $rpt = array('id' => $master->id, 'name' => $master->name, 'legend' => $master->legend, 'master' => "--Master--",
-                        'field_count' => $master->reportFields->count());
-
-            // Get report fields and filters for master
-            $fields = $master->reportFields->where('active', true)->values();
-
-            // Set any connected filters to 'All'
-            $field_data = array();
-            foreach ($fields as $field) {
-                $rec = array('name' => $field->legend);
-                $rec['filter'] =  ($field->reportFilter) ? "All" : '';
-                $field_data[] = $rec;
-            }
-            $rpt['fields'] = $field_data;
-            $series['reports'][] = $rpt;
-
-            // Build report records for children of this master, including fields and filters
-            foreach ($master->children as $child) {
-                $rpt = array('id' => $child->id, 'name' => $child->name, 'legend' => $child->legend,
-                            'master' => $master->name, 'field_count' => $child->fieldCount());
-                $field_data = array();
-                $inherited = $child->parsedInherited();
-                foreach ($inherited as $key => $value) {
-                    $field = $master->reportFields->find($key);
-                    if (!$field) continue;
-                    $rec = array('name' => $field->legend, 'filter' => '');
-
-                    // Get filter preset if present
-                    if ($field->reportFilter) {
-                        if ($value > 0) {
-                            if ($field->reportFilter->model) {
-                                $rec['filter'] = $field->reportFilter->model::where('id', $value)->value('name');
-                            }
-                        } else {
-                            $rec['filter'] = 'All';
-                        }
-                    }
-                    $field_data[] = $rec;
-                }
-                $rpt['fields'] = $field_data;
-                $series['reports'][] = $rpt;
-            }
-            $counter_reports[] = $series;
-        }
-
-        // Pass FiscalYr start month (default to Jan if not set)
-        $fy_month = 1;
-        $userFY = $thisUser->getFY();
-        if ( !is_null($userFY) ) {
-            $date = date_parse($userFY);
-            $fy_month = $date['month'];
-        }
-        // Get formatted array of saved user reports
-        $report_data = $this->savedUserReports(auth()->id());
-
-        // Load the view with the data
-        // return Inertia::render('home', compact('report_data','counter_reports','filters','conso','fy_month'));
-    }
-
-    /**
      * Return options for Reporting component
      *
+     * @param  \Illuminate\Http\Request  $request
      * @return JSON (array of options)
      */
-    public function create()
+    public function create(Request $request)
     {
-        $thisUser = auth()->user();
+        $thisUser = $request->user();
         $consoAdmin = $thisUser->isConsoAdmin();
         $return_data = array();
 
@@ -284,7 +196,7 @@ class ReportController extends Controller
     {
         global $all_models;
 
-        $thisUser = auth()->user();
+        $thisUser = $request->user();
         $user_inst = $thisUser->inst_id;
         $conso_db = config('database.connections.consodb.database');
 
@@ -484,7 +396,7 @@ class ReportController extends Controller
         $conso = ($con) ? $con->name : '';
 
         // Get list of saved reports for this user
-        $saved_reports = SavedReport::where('user_id', auth()->id())->get(['id','title'])->toArray();
+        $saved_reports = SavedReport::where('user_id', thisUser->id)->get(['id','title'])->toArray();
         return view(
             'reports.preview',
             compact('preset_filters', 'fields', 'columns', 'saved_reports', 'title', 'filter_options', 'rangetype', 'conso')
@@ -494,14 +406,15 @@ class ReportController extends Controller
     /**
      * Setup export file: name, headers and info and return an active handle for writing data records
      *
+     * @param  \Illuminate\Http\Request  $request
      * @param Array $fields
      * @return Array $headerRows
      * @return String $filename
      */
-    public function prepareExport($report, $fields)
+    public function prepareExport(Request $request, $report, $fields)
     {
         global $format, $rpt_only;
-        $thisUser = auth()->user();
+        $thisUser = $request->user();
 
         // Get/set global things
         $filters = self::$input_filters;
@@ -791,21 +704,16 @@ class ReportController extends Controller
      * @param  \Illuminate\Http\Request  $request
      * @return JSON array
      */
-    public function usageData(Request $request)
+    public function usageData(Request $request, ReportService $reportService)
     {
-        global $joins, $raw_fields, $raw_where, $subq_fields, $subq_where, $group_by, $global_db, $conso_db,
-               $format, $rpt_only, $all_models;
-         $thisUser = auth()->user();
+        global $format, $rpt_only;
+        $thisUser = $request->user();
 
         // Validate and deal w/ inputs
         $this->validate($request, ['report_id'=>'required', 'fields'=>'required', 'from'=>'required', 'to'=>'required']);
+        $runtype = (isset($request->runtype)) ? $request->runtype : 'preview';
         $report_id = $request->report_id;
         $selected_fields = $request->fields;
-        $runtype = (isset($request->runtype)) ? $request->runtype : 'preview';
-        $preview = (isset($request->preview) && $runtype == 'preview') ? $request->preview : 0;
-        $format = (isset($request->format)) ? $request->format : 'COUNTER';
-        $ignore_zeros = $request->zeros;
-        $rpt_only = (isset($request->RPTonly)) ? $request->RPTonly : false;
 
         // Get Report model, set report table target
         $report = Report::with('parent','reportFields','reportFields.reportFilter')
@@ -814,63 +722,17 @@ class ReportController extends Controller
             return response()->json(['result' => false, 'msg' => 'Report ID: ' . $report_id . ' is undefined']);
         }
 
-        if ($report->parent_id == 0) {
-            $master_id = $report_id;
-            $master_name = $report->name;
-            $report_fields = $report->reportFields;
-        } else {
-            $master_id = $report->parent_id;
-            $master_name = $report->parent->name;
-            $report_fields = $report->parent->reportFields;
-        }
-        // Loop through selected_fields and set filters from 'limit' arrays there
-        $_filters = array('fromYM' => $request->from, 'toYM' => $request->to);
-        $_filters['yop'] = null;
-        foreach ($selected_fields as $field) {
-            if (isset($field['limit'])) {
-                $reportField = $report_fields->where('id',$field['id'])->first();
-                if ($reportField) {
-                    if ($reportField->reportFilter) {
-                        $_filters[$reportField->reportFilter->report_column] = $field['limit'];
-                    }
-                }
-            }
-        }
-        // Get/set global filters and master/report fields
-        self::$input_filters = $_filters;
-        $global_db = config('database.connections.globaldb.database');
-        $conso_db = config('database.connections.consodb.database');
-        $master_id = ($report->parent_id == 0) ? $report_id : $report->parent_id;
-        $master_name = ($report->parent_id == 0) ? $report->name : $report->parent->name;
-        $report_table = $conso_db . '.' . strtolower($master_name) . '_report_data as ' . $master_name;
+        // Use ReportService to generate the report records
+        $request->merge(['report' => $report]);
+        $records = $reportService->reportData($request);
 
-        // Setup joins, fields to select, raw_where, and group_by based on active columns and formattting
-        self::setupQueryFields($report_fields, $selected_fields);
-
-        // Setup arrays for institution, provider, and platform whereIn clauses
-        $limit_to_insts = self::limitToIds('inst_id');
-        $limit_to_provs = self::limitToIds('prov_id');
-        $limit_to_plats = self::limitToIds('plat_id');
-        $limit_to_dbase = self::limitToIds('db_id');
-        $limit_to_dtype = self::limitToIds('datatype_id');
-        $limit_to_atype = self::limitToIds('accesstype_id');
-        $limit_to_ameth = self::limitToIds('accessmethod_id');
-        $limit_to_stype = self::limitToIds('sectiontype_id');
-        // Create where clause conditions for this report beginning with date-range
-        $conditions = self::filterDates();
-
-        // Set sorting based on report-type
-        $sortBy = $master_name . ".yearmon";    // default to ... something
-        $sortDir = ($request->sortDesc) ? 'DESC' : 'ASC';
-        if ($master_name == 'TR' || $master_name == 'IR') {
-            $sortBy = ($request->sortBy != '') ? $request->sortBy : 'Title';
-        } elseif ($master_name == 'DR') {
-            $sortBy = ($request->sortBy != '') ? $request->sortBy : 'Dbase';
-        } elseif ($master_name == 'PR') {
-            $sortBy = ($request->sortBy != '') ? $request->sortBy : 'platform';
-        }
+        // Get limit arrays for institution, provider, and platform that reportService just used
+        $limit_to_insts = $reportService->get('limit_to_insts');
+        $limit_to_provs = $reportService->get('limit_to_provs');
+        $limit_to_plats = $reportService->get('limit_to_plats');
 
         // Generate database filter-options for DR report
+        $master_name = ($report->parent_id == 0) ? $report->name : $report->parent->name;
         if ($master_name == "DR") {
             $db_options = DB::table($report_table)->selectRaw("DISTINCT(DB.name),DB.id")
                             ->join($global_db . '.databases as DB', 'DR.db_id', 'DB.id')
@@ -886,193 +748,10 @@ class ReportController extends Controller
                             ->orderBy('DB.name', 'ASC')->get()->toArray();
         }
 
-        // Generate platform filter-options for all reports, limit by inst/prov if set
-        $platform_ids = $limit_to_plats;
-        if (count($limit_to_plats) == 0) { // if limiting platforms, use the IDs in the limit array
-            $_model = $all_models[$master_name];
-            $platform_ids = $_model::distinct('plat_id')
-                                   ->when(count($limit_to_insts)>0, function ($query) use ($limit_to_insts) {
-                                       return $query->whereIn('inst_id', $limit_to_insts);
-                                   })
-                                   ->when(count($limit_to_provs)>0, function ($query) use ($limit_to_provs) {
-                                       return $query->whereIn('prov_id', $limit_to_provs);
-                                   })
-                                   ->pluck('plat_id')->toArray();
-        }
-        $pf_options = Platform::orderBy('name', 'ASC')->whereIn('id',$platform_ids)
+        // Setup arrays for institution, provider, and platform whereIn clauses
+        $pf_options = Platform::orderBy('name', 'ASC')->whereIn('id',$limit_to_plats)
                               ->where('name','<>',' ')->get(['id','name'])->toArray();
-
-
-        // Run the query for "COUNTER" formatted output
-        if ($format == "COUNTER") {
-            $conditions[] = array('RF.is_metric',1);
-            $inner_group = $group_by;
-            $inner_group[] = 'yearmon';
-            $records = DB::table(function ($query) use ($report_table, $joins, $subq_fields, $conditions, $inner_group,
-                           $limit_to_insts, $limit_to_provs, $limit_to_dbase, $limit_to_plats, $limit_to_dtype, $limit_to_atype,
-                           $limit_to_ameth, $limit_to_stype, $master_name, $master_id, $global_db) {
-                      $query->from($report_table)
-                      ->when($master_name == "TR", function ($query, $join) use ($master_name, $global_db) {
-                          return $query->join($global_db . '.titles as TI', $master_name . '.title_id', 'TI.id');
-                      })
-                      ->when($master_name == "DR", function ($query, $join) use ($master_name, $global_db) {
-                          return $query->join($global_db . '.databases as DB', $master_name . '.db_id', 'DB.id');
-                      })
-                      ->when($master_name == "IR", function ($query, $join) use ($master_name, $global_db) {
-                          return $query->join($global_db . '.items as Item', $master_name . '.item_id', 'Item.id')
-                                       ->join($global_db . '.titles as TI', 'Item.title_id', 'TI.id');
-                      })
-                      ->when($joins['institution'], function ($query, $join) use ($master_name) {
-                          return $query->join($join, $master_name . '.inst_id', 'INST.id');
-                      })
-                      ->when($joins['provider'], function ($query, $join) use ($master_name) {
-                          return $query->join($join, $master_name . '.prov_id', 'PROV.id');
-                      })
-                      ->when($joins['platform'], function ($query, $join) use ($master_name) {
-                          return $query->join($join, $master_name . '.plat_id', 'PLAT.id');
-                      })
-                      ->when($joins['publisher'], function ($query, $join) use ($master_name) {
-                          return $query->join($join, $master_name . '.publisher_id', 'PUBL.id');
-                      })
-                      ->when($joins['datatype'], function ($query, $join) use ($master_name) {
-                          return $query->join($join, $master_name . '.datatype_id', 'DTYP.id');
-                      })
-                      ->when($joins['accesstype'], function ($query, $join) use ($master_name) {
-                          return $query->join($join, $master_name . '.accesstype_id', 'ATYP.id');
-                      })
-                      ->when($joins['accessmethod'], function ($query, $join) use ($master_name) {
-                          return $query->join($join, $master_name . '.accessmethod_id', 'AMTH.id');
-                      })
-                      ->when($joins['sectiontype'], function ($query, $join) use ($master_name) {
-                          return $query->join($join, $master_name . '.sectiontype_id', 'STYP.id');
-                      })
-                      ->join($global_db . '.reportfields as RF', 'report_id', '=', $master_id, 'inner', true)
-                      ->selectRaw($subq_fields)
-                      ->when($limit_to_insts, function ($query, $limit_to_insts) use ($master_name) {
-                          return $query->whereIn($master_name . '.inst_id', $limit_to_insts);
-                      })
-                      ->when($limit_to_provs, function ($query, $limit_to_provs) use ($master_name) {
-                          return $query->whereIn($master_name . '.prov_id', $limit_to_provs);
-                      })
-                      ->when($limit_to_dbase, function ($query, $limit_to_dbase) use ($master_name) {
-                          return $query->whereIn($master_name . '.db_id', $limit_to_dbase);
-                      })
-                      ->when($limit_to_plats, function ($query, $limit_to_plats) use ($master_name) {
-                          return $query->whereIn($master_name . '.plat_id', $limit_to_plats);
-                      })
-                      ->when($limit_to_dtype, function ($query, $limit_to_dtype) use ($master_name) {
-                          return $query->whereIn($master_name . '.datatype_id', $limit_to_dtype);
-                      })
-                      ->when($limit_to_atype, function ($query, $limit_to_atype) use ($master_name) {
-                          return $query->whereIn($master_name . '.accesstype_id', $limit_to_atype);
-                      })
-                      ->when($limit_to_ameth, function ($query, $limit_to_ameth) use ($master_name) {
-                          return $query->whereIn($master_name . '.accessmethod_id', $limit_to_ameth);
-                      })
-                      ->when($limit_to_stype, function ($query, $limit_to_stype) use ($master_name) {
-                          return $query->whereIn($master_name . '.sectiontype_id', $limit_to_stype);
-                      })
-                      ->when(self::$input_filters['yop'], function ($query) {
-                          return $query->whereBetween('yop', self::$input_filters['yop']);
-                      })
-                      ->when(sizeof($conditions) > 0, function ($query) use ($conditions) {
-                          return $query->where($conditions);
-                      })
-                      ->groupBy($inner_group);
-            }, 'stats')
-                ->selectRaw($raw_fields)
-                ->groupBy($group_by)
-                ->when($ignore_zeros, function ($query) {
-                    return $query->havingRaw('Reporting_Period_Total>0');
-                })
-                ->orderBy($sortBy, $sortDir)
-                ->orderBy('Metric_Type', 'ASC')
-                ->when($preview, function ($query, $preview) {
-                      return $query->limit($preview)->get();
-                }, function ($query) {
-                    return $query->get();
-                });
-        // Run the query for the "Compact" format
-        } else {
-            $records = DB::table($report_table)
-                      ->when($master_name == "TR", function ($query, $join) use ($master_name, $global_db) {
-                          return $query->join($global_db . '.titles as TI', $master_name . '.title_id', 'TI.id');
-                      })
-                      ->when($master_name == "DR", function ($query, $join) use ($master_name, $global_db) {
-                          return $query->join($global_db . '.databases as DB', $master_name . '.db_id', 'DB.id');
-                      })
-                      ->when($master_name == "IR", function ($query, $join) use ($master_name, $global_db) {
-                          return $query->join($global_db . '.items as Item', $master_name . '.item_id', 'Item.id')
-                                       ->join($global_db . '.titles as TI', 'Item.title_id', 'TI.id');
-                      })
-                      ->when($joins['institution'], function ($query, $join) use ($master_name) {
-                          return $query->join($join, $master_name . '.inst_id', 'INST.id');
-                      })
-                      ->when($joins['provider'], function ($query, $join) use ($master_name) {
-                          return $query->join($join, $master_name . '.prov_id', 'PROV.id');
-                      })
-                      ->when($joins['platform'], function ($query, $join) use ($master_name) {
-                          return $query->join($join, $master_name . '.plat_id', 'PLAT.id');
-                      })
-                      ->when($joins['publisher'], function ($query, $join) use ($master_name) {
-                          return $query->join($join, $master_name . '.publisher_id', 'PUBL.id');
-                      })
-                      ->when($joins['datatype'], function ($query, $join) use ($master_name) {
-                          return $query->join($join, $master_name . '.datatype_id', 'DTYP.id');
-                      })
-                      ->when($joins['accesstype'], function ($query, $join) use ($master_name) {
-                          return $query->join($join, $master_name . '.accesstype_id', 'ATYP.id');
-                      })
-                      ->when($joins['accessmethod'], function ($query, $join) use ($master_name) {
-                          return $query->join($join, $master_name . '.accessmethod_id', 'AMTH.id');
-                      })
-                      ->when($joins['sectiontype'], function ($query, $join) use ($master_name) {
-                          return $query->join($join, $master_name . '.sectiontype_id', 'STYP.id');
-                      })
-                      ->selectRaw($raw_fields)
-                      ->when($limit_to_insts, function ($query, $limit_to_insts) use ($master_name) {
-                          return $query->whereIn($master_name . '.inst_id', $limit_to_insts);
-                      })
-                      ->when($limit_to_provs, function ($query, $limit_to_provs) use ($master_name) {
-                          return $query->whereIn($master_name . '.prov_id', $limit_to_provs);
-                      })
-                      ->when($limit_to_dbase, function ($query, $limit_to_dbase) use ($master_name) {
-                          return $query->whereIn($master_name . '.db_id', $limit_to_dbase);
-                      })
-                      ->when($limit_to_plats, function ($query, $limit_to_plats) use ($master_name) {
-                          return $query->whereIn($master_name . '.plat_id', $limit_to_plats);
-                      })
-                      ->when($limit_to_dtype, function ($query, $limit_to_dtype) use ($master_name) {
-                          return $query->whereIn($master_name . '.datatype_id', $limit_to_dtype);
-                      })
-                      ->when($limit_to_atype, function ($query, $limit_to_atype) use ($master_name) {
-                          return $query->whereIn($master_name . '.accesstype_id', $limit_to_atype);
-                      })
-                      ->when($limit_to_ameth, function ($query, $limit_to_ameth) use ($master_name) {
-                          return $query->whereIn($master_name . '.accessmethod_id', $limit_to_ameth);
-                      })
-                      ->when($limit_to_stype, function ($query, $limit_to_stype) use ($master_name) {
-                          return $query->whereIn($master_name . '.sectiontype_id', $limit_to_stype);
-                      })
-                      ->when(self::$input_filters['yop'], function ($query) {
-                          return $query->whereBetween('yop', self::$input_filters['yop']);
-                      })
-                      ->when($ignore_zeros && $raw_where, function ($query) use ($raw_where) {
-                          return $query->whereRaw($raw_where);
-                      })
-                      ->when(sizeof($conditions) > 0, function ($query) use ($conditions) {
-                          return $query->where($conditions);
-                      })
-                      ->groupBy($group_by)
-                      ->orderBy($sortBy, $sortDir)
-                      ->when($preview, function ($query, $preview) {
-                          return $query->limit($preview)->get();
-                      }, function ($query) {
-                          // return $query->get()->paginate($rows);
-                          return $query->get();
-                      });
-        }
-
+                              
         // If we're exporting,
         if ($runtype == 'export') {
             // Build an organized field list and separate the "basic" fields from the "metric" ones
