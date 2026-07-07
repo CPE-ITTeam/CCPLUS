@@ -23,7 +23,7 @@ import Reporting from '@/components/panels/Reporting.vue';
 import RolesTable from '@/components/tables/RolesTable.vue';
 import CredentialsTable from '@/components/tables/CredentialsTable.vue';
 import ConnectionsTable from '@/components/tables/ConnectionsTable.vue';
-import PlaceHolder from '@/pages/PlaceHolder.vue';
+import CCPlusApi from '@/components/panels/CCPlusApi.vue';
 import AccountSettings from '@/components/panels/AccountSettings.vue';
 import CredentialsAudit from '@/components/tables/CredentialsAudit.vue';
 // Pinia datastore
@@ -158,12 +158,19 @@ export const router = createRouter({
       ]
     },
   ],
-  // This is separate so that layout won't treat like other (app) top-level tabs
+  // These are separate so that layout won't treat them like other (app) top-level tabs
   profileRoute:
   {
       path: '/profile', name: 'Profile',
       meta: { title: 'Account Settings', layout: AuthenticatedLayout, role: 'Viewer', key:0, level:1 }, 
       component: markRaw(AccountSettings),
+  },
+  // This is separate so that layout won't treat like other (app) top-level tabs
+  apiRoute:
+  {
+      path: '/ccplusApi', name: 'API',
+      meta: { title: 'CC-PLUS API', layout: AuthenticatedLayout, role: 'Viewer', key:0, level:1 }, 
+      component: markRaw(CCPlusApi),
   },
 });
 
@@ -186,4 +193,10 @@ router.beforeEach(async (to, from ) => {
     const { logout } = useAuthStore();
     await logout();
   }
+});
+
+// Navigation guard
+router.afterEach( to => {
+  document.title = "CC-Plus";
+  document.title += (to.meta.title.length>0) ? ' - '+to.meta.title : '';
 });
