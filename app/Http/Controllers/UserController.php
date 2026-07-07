@@ -13,6 +13,7 @@ use App\Models\Consortium;
 use Illuminate\Http\Request;
 use Illuminate\Support\Arr;
 use Illuminate\Support\Facades\Mail;
+use Illuminate\Support\Facades\Crypt;
 use PhpOffice\PhpSpreadsheet\Spreadsheet;
 use PhpOffice\PhpSpreadsheet\Writer\Xlsx;
 //Enables us to output flash messaging
@@ -114,6 +115,11 @@ class UserController extends Controller
         $data = $user->toArray();
         $data['inst_name'] = $user->institution->name;
         $data['fiscalYr'] = ($user->fiscalYr) ? $user->fiscalYr : config('ccplus.fiscalYr');
+
+        // Add access token details
+        $token = $user->tokens()->where('name',"PAT_User_".$user->id)->first();
+        $data['access_token'] = ($token) ? Crypt::decryptString($user->enc_api_token) : null;
+        $data['token_expires'] = ($token) ? $token->expires_at : null;
 
         return response()->json(['records' => $data, 'options' => [], 'result' => true], 200);
     }
@@ -296,7 +302,7 @@ class UserController extends Controller
         $updated_user['status'] = ($user->is_active) ? "Active" : "Inactive";
         $updated_user['inst_name'] = $user->institution->name;
         $updated_user['fiscalYr'] = ($user->fiscalYr) ? $user->fiscalYr : config('ccplus.fiscalYr');
-        $updated_user['user_role'] = $rec->fullRoleName();
+        $updated_user['user_role'] = $user->fullRoleName();
         // Set all user roles as arrays of <role>:<ID> pairs for institutions and groups
         $inst_roles = array();
         $group_roles = array();
