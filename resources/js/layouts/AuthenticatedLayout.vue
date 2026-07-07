@@ -15,6 +15,7 @@
   const router = useRouter();
   const all_routes = [ ...router.options.routes ];
   const profileRoute = {...router.options.profileRoute };
+  const apiRoute = {...router.options.apiRoute };
   // Pinia DataStore
   const authStore = useAuthStore();
   // These are intentionally NOT reactive...
@@ -96,14 +97,25 @@
         <v-tab v-for="(page, index) in pages" :key="index" :value="index">
           {{ page.meta.title }}
         </v-tab>
-        <!-- Add user profile icon as a right-aligned tab using spacer -->
-        <v-spacer></v-spacer> 
+        <!-- Add API icon as a tab using spacer -->
+        <v-spacer></v-spacer>
+        <v-tab key="900" value="900">
+          <v-icon size="large" :title="apiRoute.meta.title">mdi-api</v-icon>
+        </v-tab>
         <v-tab key="999" value="999">
           <v-icon :title="(authStore.user!=null) ? authStore.user.name+' '+profileRoute.meta.title
                                                  : profileRoute.meta.title">mdi-account</v-icon>
         </v-tab>
       </v-tabs>
-      <v-main v-if="activePage==999">
+      <!-- Component assignment for api and profile panels -->
+      <v-main v-if="activePage==900">
+        <v-tabs-window v-model="activePage">
+          <v-tabs-window-item key=900 value=900 transition="false" reverse-transition="false">
+              <component :is="apiRoute.component" :key="apiRoute.meta.key"/>
+          </v-tabs-window-item>
+        </v-tabs-window>
+      </v-main>
+      <v-main v-else-if="activePage==999">
         <v-tabs-window v-model="activePage">
           <v-tabs-window-item key=999 value=999 transition="false" reverse-transition="false">
               <component :is="profileRoute.component" :key="profileRoute.meta.key"/>
