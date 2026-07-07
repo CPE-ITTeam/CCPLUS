@@ -16,6 +16,7 @@ use App\Models\HarvestLog;
 use App\Models\GlobalProvider;
 use App\Models\Alert;
 use App\Models\SystemAlert;
+use App\Services\ReportService;
 use Illuminate\Http\Request;
 
 class SavedReportController extends Controller
@@ -121,6 +122,53 @@ class SavedReportController extends Controller
         $return_data = SavedReport::formattedReports($saved_report->id);
 
         return response()->json(['result'=>true, 'record'=>$return_data, 'msg'=>'Configuration saved successfully']);
+    }
+
+
+    /**
+     * Return the result of running a previously saved report.
+     *
+     * @param  \Illuminate\Http\Request  $request
+     * @param  \App\Models\SavedReport  $id
+     * @return JSON # array of report records
+     */
+    public function execute(Request $request, $id, ReportService $reportService)
+    {
+        // Ensure current user allowed to request the report data
+        $savedReport = SavedReport::with('report','report.parent','report.reportFields','report.reportFields.reportFilter')
+                             ->findOrFail($id);
+        if (!$savedReport->canManage()) {
+            return response()->json(['result' => false, 'msg' => 'Update failed (403) - Forbidden']);
+        }
+        if (!$savedReport->report) {
+            return response()->json(['result' => false, 'msg' => 'Requested Report is undefined']);
+        }
+
+        // Preset filters in reportService
+        $reportService->set('input_filters', $savedReport->filterBy());
+
+        // Build an array of reportFields for ReportService
+        $inherited = preg_split('/,/', $savedReport->fields);
+        $fields = ReportField::whereIn('id',$inherited)->get();
+        foreach ($fields as $fld) {
+            $preset = (isset($fld->preset)) ? $fld->preset : null;
+            $report_fields[$fld->qry_as] = array(
+                'id' => $fld->id, 'preset' => $preset, 'is_metric' => $fld->is_metric,
+                'metric_type' => $fld->metric_type, 'qry_as' => $fld->qry_as, 'active' => 1
+            );
+        }
+
+        // Setup a Request object for the service class
+        $args = array('report' => $savedReport->report, 'fields' => $report_fields, 'format' => $savedReport->format,
+                      'from' => $savedReport->ym_from, 'to' => $savedReport->ym_to,
+                      'RPTonly' => $savedReport->rpt_only, 'zeros' => $savedReport->exclude_zeros
+        );
+        $request = Request::create('/api/usageData', 'POST', $args);
+
+        // Call the service class to get the records
+        $records = $reportService->reportData($request);
+
+        return response()->json(['records' => $records], 200);
     }
 
     /**
