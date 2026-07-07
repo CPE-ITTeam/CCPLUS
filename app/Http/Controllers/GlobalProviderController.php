@@ -27,15 +27,15 @@ class GlobalProviderController extends Controller
     /**
      * Display a listing of the resource.
      *
-     * @param  String $role    // 'admin' or 'viewer'
+     * @param  \Illuminate\Http\Request  $request
      * @return \Illuminate\Http\Response
      */
-    public function index($role)
+    public function index(Request $equest)
     {
         global $masterReports, $allConnectors;
 
         // Set and confirm the user's role(s)
-        $thisUser = auth()->user();
+        $thisUser = $request->user();
         abort_unless($thisUser->isServerAdmin(), 403);
 
         // Get all provider records
