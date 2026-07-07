@@ -129,4 +129,45 @@ onMounted(() => {
 .greenNotice {
   color: var(--green);
 }
+
+:root {
+  --filled-bg: #e7f1f6; /* gray when filled */
+  --empty-bg: #ffffff;  /* white when empty */
+}
+
+/* Base: white when empty */
+.v-text-field .v-field,
+.v-text-field .v-field__overlay,
+.v-text-field .v-field__input,
+.v-text-field .v-field__prepend-inner,
+.v-text-field .v-field__append-inner {
+  background-color: var(--empty-bg) !important;
+}
+
+/* When the field has a value (typed or autofilled), turn everything gray */
+.v-text-field .v-field.v-field--dirty,
+.v-text-field .v-field.v-field--dirty .v-field__overlay,
+.v-text-field .v-field.v-field--dirty .v-field__input,
+.v-text-field .v-field.v-field--dirty .v-field__prepend-inner,
+.v-text-field .v-field.v-field--dirty .v-field__append-inner {
+  background-color: var(--filled-bg) !important;
+}
+
+/* Optional: keep your autofill color consistent with the same var */
+input:-webkit-autofill,
+input:-webkit-autofill:hover,
+input:-webkit-autofill:focus,
+input:-webkit-autofill:active {
+  -webkit-box-shadow: 0 0 0 1000px var(--filled-bg) inset !important;
+  box-shadow: 0 0 0 1000px var(--filled-bg) inset !important;
+  background-color: var(--filled-bg) !important;
+  color: inherit !important;
+}
+
+input:-moz-autofill {
+  box-shadow: 0 0 0 1000px var(--filled-bg) inset !important;
+  background-color: var(--filled-bg) !important;
+  color: inherit !important;
+}
+
 </style>
