@@ -20,6 +20,51 @@ class CounterRegistryController extends Controller
     private $options;
 
     /**
+     * Returns contents of the global counter_registries table as JSON (for the API)
+     *
+     * @param  \Illuminate\Http\Request  $request
+     * @return JSON
+     */
+    public function index(Request $request)
+    {
+        global $masterReports, $allConnectors;
+
+        // Setup return array and load masterReports and connectionFields
+        $jsonData = array();
+        $this->getMasterReports();
+        $this->getConnectionFields();
+
+        // Get and loop through all the counter_registries records, and build an array of output to return
+        $records = CounterRegistry::with('globalProv','dataHost')->get();
+        foreach ($records as $rec) {
+            $row = array('id' => $rec->id, 'global_id' => $rec->global_id, 'release' => $rec->release,
+                         'datahost_id' => $rec->datahost_id, 'service_url' => $rec->service_url,
+                         'notifications_url' => $rec->notifications_url);
+            // Add the global provider and datahost names
+            $row['global_platform'] = ($rec->globalProv) ? $rec->globalProv->name : '';
+            $row['data_host'] = ($rec->dataHost) ? $rec->dataHost->name : '';
+            // Return connection field strings instead of IDs
+            $row['connection_fields'] = array();
+            foreach ($rec->connectors as $id) {
+                $_field = $allConnectors->where('id',$id)->first();
+                if ($_field) {
+                    $row['connection_fields'][] = $_field->name;
+                }
+            }
+            // Return the master report names instead of IDs
+            $row['master_reports'] = array();
+            foreach ($rec->master_reports as $id) {
+                $_rpt = $masterReports->where('id',$id)->first();
+                if ($_rpt) {
+                    $row['master_reports'][] = $_rpt->name;
+                }
+            }
+            $jsonData[] = $row;
+        }
+        return response()->json(['result' => true, 'records' => $jsonData]);
+    }
+
+    /**
      * Pull and return a fresh copy of the registry data for a given provider
      *
      * @param  \Illuminate\Http\Request  $request
