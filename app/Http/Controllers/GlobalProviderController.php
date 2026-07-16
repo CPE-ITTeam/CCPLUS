@@ -153,6 +153,35 @@ class GlobalProviderController extends Controller
     }
 
     /**
+     * Display a listing of the resource (for the API)
+     *
+     * @param  \Illuminate\Http\Request  $request
+     * @return JSON
+     */
+    public function apiIndex(Request $equest)
+    {
+        // Get all provider records
+        $data = GlobalProvider::with('registries')->orderBy('name', 'ASC')->get();
+
+        $providers = array();
+        foreach ($data as $gp) {
+            $rec = array('id'=>$gp->id, 'name'=>$gp->name, 'abbrev'=>$gp->abbrev, 'day_of_month'=>$gp->day_of_month,
+                         'platform_parm' => $gp->platform_parm, 'content_provider' => $gp->content_provider);
+            $rec['status'] = ($gp->is_active) ? "Active" : "Inactive";
+            $rec['refreshable'] = ($gp->refreshable) ? "Yes" : "No";
+            $rec['registry_id'] = (is_null($gp->registry_id) || $gp->registry_id=="") ? null : $gp->registry_id;
+            // Set release-related fields
+            $rec['cur_release'] = $gp->default_release();
+            $service_url = $gp->service_url();
+            $rec['service_url'] = $service_url;
+
+            $providers[] = $rec;
+        }
+        // Return the data array
+        return response()->json(['records' => $providers], 200);
+    }
+
+    /**
      * Store a newly created resource in storage.
      *
      * @param  \Illuminate\Http\Request  $request
