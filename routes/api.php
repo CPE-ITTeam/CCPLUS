@@ -98,14 +98,12 @@ Route::middleware('ccplusAuth')->group( function () {
     Route::prefix('roles')->group(function () {
         Route::get('/get', 'App\Http\Controllers\RoleController@index')->name('roles.index');
         Route::post('/store', 'App\Http\Controllers\RoleController@store')->name('roles.store');
-        // Route::patch('/update/{role}', 'App\Http\Controllers\RoleController@update')->name('roles.update');
         Route::delete('/delete/{role}', 'App\Http\Controllers\RoleController@destroy')->name('roles.destroy');
         Route::post('/bulk', 'App\Http\Controllers\RoleController@bulk')->name('roles.bulk');
     });
     Route::prefix('settings')->group(function () {
         Route::get('/get/{type}', 'App\Http\Controllers\GlobalSettingController@index')->name('settings.index');
         Route::post('/store', 'App\Http\Controllers\GlobalSettingController@store')->name('settings.store');
-        // Route::post('setSettings', 'App\Http\Controllers\GlobalSettingController@store')->name('setSettings');
         Route::patch('/update/{setting}', 'App\Http\Controllers\GlobalSettingController@update')->name('settings.update');
     });
     Route::prefix('harvests')->group(function () {
@@ -134,5 +132,17 @@ Route::middleware('ccplusAuth')->group( function () {
         Route::get('/options', 'App\Http\Controllers\ReportController@create')->name('reports.options');
         Route::post('/usageData', 'App\Http\Controllers\ReportController@usageData')->name('reports.usageData');
         Route::post('/updateColumns', 'App\Http\Controllers\ReportController@updateColumns')->name('reports.updateColumns');
+    });
+    // API routes to expose global database tables
+    Route::prefix('global')->group(function () {
+        Route::get('/registries', 'App\Http\Controllers\CounterRegistryController@index')->name('global.registries');
+        Route::get('/providers', 'App\Http\Controllers\GlobalProviderController@apiIndex')->name('global.providers');
+        Route::get('/titles', 'App\Http\Controllers\GlobalDataController@titles')->name('global.titles');
+        Route::get('/platforms', 'App\Http\Controllers\GlobalDataController@platforms')->name('global.platforms');
+        Route::get('/publishers', 'App\Http\Controllers\GlobalDataController@publishers')->name('global.publishers');
+        Route::get('/databases', 'App\Http\Controllers\GlobalDataController@databases')->name('global.databases');
+        Route::get('/items', 'App\Http\Controllers\GlobalDataController@items')->name('global.items');
+        Route::get('/datahosts', 'App\Http\Controllers\GlobalDataController@datahosts')->name('global.datahosts');
+        Route::get('/errors', 'App\Http\Controllers\GlobalDataController@errors')->name('global.errors');
     });
 });
