@@ -31,7 +31,6 @@ class DatabaseSeeder extends Seeder
           SeveritiesTableSeeder::class,
           CcplusErrorsTableSeeder::class,
           ConnectionFieldSeeder::class,
-          GlobalProviderSeeder::class,
           GlobalSettingSeeder::class,
         ]);
     }
