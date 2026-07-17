@@ -107,61 +107,70 @@
           <v-select label="Fiscal Year Start" :items="fyMonths" v-model="acctSettings.fiscalYr" variant="outlined"
                     :rules="[required]" item-title="label" item-value="value" density="compact"/>
         </v-col>
-      </v-row>   
-      <v-row no-gutters>
-        <v-col cols="4" class="d-flex px-2">
-          <v-text-field v-model="acctSettings.password" label="Password" :type="pw_show ? 'text' : 'password'"
-                        :append-icon="pw_show ? 'mdi-eye' : 'mdi-eye-off'" @click:append="pw_show = !pw_show"
-                        variant="outlined" density="compact"/>
-        </v-col>
-        <v-col cols="4" class="d-flex px-2">
-          <v-text-field v-model="acctSettings.confirm_pass" label="Confirm Password" :type="pwc_show ? 'text' : 'password'"
-                        :append-icon="pwc_show ? 'mdi-eye' : 'mdi-eye-off'" @click:append="pwc_show=!pwc_show" 
-                        variant="outlined" :rules="(acctSettings.password!=null) ? [requiredRule] : []" density="compact"/>
-        </v-col>
-      </v-row>   
-      <v-row v-if="acctSettings.access_token == null" no-gutters>
-        <v-col cols="4" class="d-flex px-2">
-          <v-btn color="primary" @click="makeToken">Create Access Token</v-btn>
-        </v-col>
       </v-row>
-      <v-row v-else no-gutters>
-        <v-col cols="4" class="d-flex px-2">
-          <v-text-field v-model="acctSettings.access_token" label="Access Token" readonly
-                        :type="pat_show ? 'text' : 'password'" :append-icon="pat_show ? 'mdi-eye' : 'mdi-eye-off'"
-                        @click:append="pat_show = !pat_show" variant="outlined" density="compact"/>
-        </v-col>
-        <v-col cols="4" class="d-flex px-2">
-          Expires {{  acctSettings.token_expires ? new Date(acctSettings.token_expires).toLocaleString() : 'N/A' }}
-        </v-col>
-        <v-col cols="4" class="d-flex px-2">
-          <v-btn color="primary" @click="destroyToken">Destroy</v-btn>
-        </v-col>
-      </v-row>
-      <v-row v-if="!is_serveradmin" no-gutters>
-        <v-col class="d-flex px-2">
-          Home Institution: {{ acctSettings.inst_name }}
-        </v-col>
-      </v-row>
-      <v-row v-if="!is_serveradmin" no-gutters>
-        <v-col cols="8" class="d-flex px-2">
-          User Role(s)
-          <div>
-            <ul class="roles-list">  
-              <li class="verydense" v-for="(role,idx) in acctSettings.roles" :key="idx">
-                <span class="d-flex pl-4" v-if="role.inst_id==1">{{ role.role.name }} : Consortium-Wide</span>
-                <span class="d-flex pl-4" v-if="role.inst_id>1">{{ role.role.name }} : {{ role.institution.name }}</span>
-                <span class="d-flex pl-4" v-if="role.inst_id==null && role.group_id>0">
-                  {{ role.role.name }} :  {{ role.institutiongroup.name }}
-                </span>
-              </li>
-            </ul>
-          </div>
-        </v-col>
-      </v-row>   
+      <div v-if="is_serveradmin">
+        <blockquote>
+            <strong>ServerAdmin credentials are managed using the Artisan command-line interface.</strong><br>
+            For example: <em> # php artisan ccplus:resetadminpw</em><br>
+            Refer to the CCPlus <a href="https://github.com/CPE-ITTeam/CCPLUS/blob/main/docs/installation.markdown" target="_blank">
+            installation documentation</a> for more information.
+        </blockquote>
+      </div>
+      <div v-else>
+        <v-row no-gutters>
+          <v-col cols="4" class="d-flex px-2">
+            <v-text-field v-model="acctSettings.password" label="Password" :type="pw_show ? 'text' : 'password'"
+                          :append-icon="pw_show ? 'mdi-eye' : 'mdi-eye-off'" @click:append="pw_show = !pw_show"
+                          variant="outlined" density="compact"/>
+          </v-col>
+          <v-col cols="4" class="d-flex px-2">
+            <v-text-field v-model="acctSettings.confirm_pass" label="Confirm Password" :type="pwc_show ? 'text' : 'password'"
+                          :append-icon="pwc_show ? 'mdi-eye' : 'mdi-eye-off'" @click:append="pwc_show=!pwc_show" 
+                          variant="outlined" :rules="(acctSettings.password!=null) ? [requiredRule] : []" density="compact"/>
+          </v-col>
+        </v-row>   
+        <v-row v-if="acctSettings.access_token == null" no-gutters>
+          <v-col cols="4" class="d-flex px-2">
+            <v-btn color="primary" @click="makeToken">Create Access Token</v-btn>
+          </v-col>
+        </v-row>
+        <v-row v-else no-gutters>
+          <v-col cols="4" class="d-flex px-2">
+            <v-text-field v-model="acctSettings.access_token" label="Access Token" readonly
+                          :type="pat_show ? 'text' : 'password'" :append-icon="pat_show ? 'mdi-eye' : 'mdi-eye-off'"
+                          @click:append="pat_show = !pat_show" variant="outlined" density="compact"/>
+          </v-col>
+          <v-col cols="4" class="d-flex px-2">
+            Expires {{  acctSettings.token_expires ? new Date(acctSettings.token_expires).toLocaleString() : 'N/A' }}
+          </v-col>
+          <v-col cols="4" class="d-flex px-2">
+            <v-btn color="primary" @click="destroyToken">Destroy</v-btn>
+          </v-col>
+        </v-row>
+        <v-row no-gutters>
+          <v-col class="d-flex px-2">
+            Home Institution: {{ acctSettings.inst_name }}
+          </v-col>
+        </v-row>
+        <v-row no-gutters>
+          <v-col cols="8" class="d-flex px-2">
+            User Role(s)
+            <div>
+              <ul class="roles-list">  
+                <li class="verydense" v-for="(role,idx) in acctSettings.roles" :key="idx">
+                  <span class="d-flex pl-4" v-if="role.inst_id==1">{{ role.role.name }} : Consortium-Wide</span>
+                  <span class="d-flex pl-4" v-if="role.inst_id>1">{{ role.role.name }} : {{ role.institution.name }}</span>
+                  <span class="d-flex pl-4" v-if="role.inst_id==null && role.group_id>0">
+                    {{ role.role.name }} :  {{ role.institutiongroup.name }}
+                  </span>
+                </li>
+              </ul>
+            </div>
+          </v-col>
+        </v-row>
+      </div>
       <v-row class="d-flex justify-center mt-4" no-gutters>
         <v-btn size="small" color="primary" type="submit">Save Settings</v-btn>
-        <!-- <v-btn small type="button" @click="hideForm">Cancel</v-btn> -->
         <div class="status-message" v-if="success || failure">
           <span v-if="success" class="good" role="alert" v-text="success"></span>
           <span v-if="failure" class="fail" role="alert" v-text="failure"></span>
