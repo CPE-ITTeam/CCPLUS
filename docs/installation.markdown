@@ -6,11 +6,11 @@ nav_order: 2
 
 # CC-PLUS Installation Instructions
 
-CC-Plus is designed to run as a standalone, single page (SPA) Laravel application connected to a MySQL database and a web server.  It allows for multiple, or just a single, consortia to be managed within a host system.  The report harvesting system COUNTER request and protocols, and expects to receive valid and conformant COUNTER-5 usage reports. The code repository and the documentation for the original (and deprecated) version of CC-Plus can be downloaded at: [http://github.com/palcilibraries/CC-PLUS](http://github.com/palcilibraries/CC-PLUS).
+CC-Plus is runs as a standalone, single page (SPA) Laravel application connected to a MySQL database and a web server.  It allows for multiple, or just a single, consortia to be managed within a host system.  The system harvests report data using COUNTER requests and protocols, and expects to receive valid and conformant COUNTER-5/5.1 usage reports. The code repository and the documentation for the original (and deprecated) version of CC-Plus can be downloaded at: [http://github.com/palcilibraries/CC-PLUS](http://github.com/palcilibraries/CC-PLUS).
 
-**Be Aware : This code is still under development. Care, feeding, customizing, and bug-fixing may be necessary for the system to work well for your specific environment - *use at your own risk*.**
+**This code is still under development, and may change (and hopefully improve!) over time. Care, feeding, customizing, and bug-fixing may be necessary for the system to work well for your specific environment.**
 
-Once the application is installed, the application administrator will need to configure the membership of the consortia, users who will be using the data along with their roles, and the report providers.  The schedule of data harvesting is also configurable and involves validation and storage in the database.  The raw data can be saved as it is received as JSON (encrypted in the filesystem).  Harvested data stored in the database can then be queried to build, display, and/or download faceted reports.
+Once the application is installed, the application administrator will need to configure the membership of the consortia, users who will be using the data along with their roles, and the report providers.  The schedule of data harvesting is also configurable and involves validation and storage in the database.  Raw report data files can be saved as they are received as JSON (encrypted in the filesystem).  Harvested data stored in the database can then be queried to build, display, and/or download faceted reports.
 
 
 ## Table of Contents
@@ -248,7 +248,7 @@ The `ccplus:add_consortium` command script prompts for inputs and creates the ne
 You should now be able to connect and login to the application using the Administrator credential for your initial consortium! You can now create users, institutions, and providers through the [web interface](overview.markdown).
 
 ### Step 10: Reset Server administrator
-The `ccplus:resetadminpw` command script prompts for and resets the credential for the ServerAdmin user. The CC-Plus distribution, and ANY consortium created with *artisan ccplus:addconsortium* (as above) is seeded with an initial password for this user (ChangeMeNow!), and it should be changed. The ServerAdmin user can create new consortial instances in the system, modify all existing consortia and global CC-Plus settings via the application interface. The *artisan ccplus:resetadminpw* script can be run any time from the system command line to reset the password across all consortium instances.
+The `ccplus:resetadminpw` command script prompts for and resets the credential for the ServerAdmin user. The CC-Plus distribution, and ANY consortium created with *artisan ccplus:addconsortium* (as above) is seeded with an initial password for this user (ChangeMeNow!), **which should be changed**. The ServerAdmin user can create new consortial instances in the system, and can modify all existing consortia and global CC-Plus settings via the application user-interface. The *artisan ccplus:resetadminpw* script can be run any time from the system command line to reset the password across all consortium instances; it is also the only way to update the global credential - the ServerAdmin password is not changeable via the application interface.
 ```bash
 php artisan ccplus:resetadminpw
 ```
@@ -269,7 +269,7 @@ php artisan ccplus:global-provider-update
 ### Step 12: Update Harvesting Schedule (Optional)
 Automated harvesting for CC-Plus is defined using the schedule defined in `app/routes/console.php`. The default setup file is configured to automate harvesting for all active consortium instances using a single, common harvester. A pair of dedicated processes are scheduled for each (active) consortium to create harvests on the nightly schedule (queueloader) and to regularly scan (every 10-minutes) for downloaed reports to be processed (reportprocessor).
 
-More details on scheduling tasks in Laravel applications can be found [here: https://laravel.com/docs/12.x/scheduling](https://laravel.com/docs/12.x/scheduling)
+More details on scheduling tasks in Laravel applications can be found [here: https://laravel.com/docs/13.x/scheduling](https://laravel.com/docs/13.x/scheduling)
 
 ### Step 13: Add Scheduler to System Cron
 The default Scheduler configuration expects to be launched on a regular interval (by default, every 10 minutes). If nothing needs to be processed, the scheduler will exit until the next cycle. These lines (or a close approximation) need to be added to the system cron processing to enable unattended harvesting:
