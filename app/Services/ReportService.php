@@ -154,10 +154,11 @@ class ReportService
         if ($this->format == "COUNTER") {
             $conditions[] = array('RF.is_metric',1);
             $inner_group = $this->group_by;
+            $inner_group[] = 'RF.qry_as';
             $inner_group[] = 'yearmon';
-            $records = DB::table(function ($query) use ($report_table, $joins, $subq_fields, $conditions, $inner_group,
-                           $limit_to_insts, $limit_to_provs, $limit_to_dbase, $limit_to_plats, $limit_to_dtype, $limit_to_atype,
-                           $limit_to_ameth, $limit_to_stype, $master_name, $master_id, $global_db) {
+            $records = DB::table(function ($query) use ($report_table, $joins, $subq_fields, $conditions, $input_filters,
+                           $inner_group, $limit_to_insts, $limit_to_provs, $limit_to_dbase, $limit_to_plats, $limit_to_dtype,
+                           $limit_to_atype, $limit_to_ameth, $limit_to_stype, $master_name, $master_id, $global_db) {
                       $query->from($report_table)
                       ->when($master_name == "TR", function ($query, $join) use ($master_name, $global_db) {
                           return $query->join($global_db . '.titles as TI', $master_name . '.title_id', 'TI.id');
