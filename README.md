@@ -1,4 +1,4 @@
-# ![CC-PLUS logo](images/CC_Plus_Icon_thumb.png) CC-PLUS
+# ![CC-PLUS logo](docs/images/CC_Plus_Icon_thumb.png) CC-PLUS
 CC­-PLUS is an open source software, community, and administrative tool set for usage statistics management that supports libraries and consortia with data­-driven decisions and effective stewardship of electronic resources.
 
 This shareable platform enables consortia and member libraries to:
