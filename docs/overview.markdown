@@ -1,51 +1,51 @@
----
-title: Overview
-layout: default
-nav_order: 3
----
-# Home Page Overview
-The CC-PLUS home page contains the universal navigation and three main sections.
+# Application Overview
+The CC-PLUS application operates as a single-page application. Certain menu, filtering or options are dependent on the role(s) a user is assigned to when they login to the interface.
 
 ## Navigation
 ![navigation](images/navbar.png)
 
 The main CC-PLUS navigation bar has options for :
-* Home
-* Reports
-  * List: a list of definitions of all of the various COUNTER report types as well as any custom reports you save
-  * Create: link to the page to create a new custom report
-  * Manual Harvest: link to the page to set a new, single harvest of data from a provider
-* Settings
-  * Users: the user accounts set up for the CC-PLUS interface
-  * Providers: the providers of data that can be harvested from
-  * Institutions: the institutions data can be harvested for
-  * Institution Groups: groups of institutions that can be created for combined reporting or harvesting
-* Activity
-  * Harvests: a log of all harvest activities
-  * Alerts: a list of failed harvests
-* User profile
-  * The profile details for the user logged in
-  * Logout
-
-## Custom Reports
-![custom reports](images/savedReports.png)
-
-The next area of the home page holds quick links to customized report configurations. More information about setting these up can be found in, [Creating and Exporting Custom Reports](reports.markdown).
-
-## Failed Harvest Alerts
-![failed harvests](images/home_failed.png)
-
-Next is a list of up to 10 of the most recent failed harvests. These are attempts to harvest a report from a provider that fail on 10 repeated attempts. Each contains a link to the specific details for each harvest, and at the bottom a link to a page listing all failed harvests. More information about Failed Harvest Alerts can be found in [Harvesting Reports](harvesting.markdown).
-
-## Recent Activity
-![recent activity](images/recentActivity.png)
-
-The last section of the home page lists the 10 most recent harvest attempts. Each has a link to a page with more details on each harvest attempt and a link at the bottom to the full log of harvests. More information about the harvest activity log can be found in [Harvesting Reports](harvesting.markdown).
+### Admin (*Role: serverAdmin, consortiumAdmin, and institutional admins*)
+  * Institutions
+    * Institutions: Panel to manage member institutions
+    * Institution Types: Panel for customizable institutions categorization(s) 
+    * Institution Groups: (*Role: admin(s) of 1-or-more institutions*)  
+      Panel to manage combining institutions for reporting, harvesting, or access
+  * Users
+    * Users: panel for managing users of the CC-PLUS application
+    * Permissions: panel for setting and viewing user->role assignments
+  * Platform Connections (*Role: serverAdmin, consortiumAdmin*)  
+    panel for enabling which global platforms should be enabled and which master reports (PR/TR/DR/IR) can be harvested. *NOTE:: Definitions here will constrain harvesting options and choices.*
+  * Credentials
+    * Credentials: panel to view, add, import/export, test and manage institutional access to usage reports for global platform connections
+    * Credential Audit: panel for reconciling stored/downloaded report data against CC-Plus configured settings (i.e. ensuring that the raw JSON data received for a given institution-platform credential correlates correctly)
+### Harvests
+  * Manual Harvest: panel to setup new harvest(s) of data from a provider
+  * Harvest Queue: panel to view and managed active or pending harvests
+  * Harvest Log: panelfor viewing and managing the log of harvesting.
+### Reports
+  * Report Scope  
+    Panel controls the what to include in a given report, including the ability to save and recall previously configured reports and to load a preview (in the lower panel or to export the report records as CSV.)
+  * Report Preview  
+    Panel to view/preview the report summary for the defined Report Scope.
+### Server (*Role: ServerAdmin*)
+  * Consortia  
+    Panel for managing consortia application-wide; consortium instances defined in the application reside in separate MySQL databases.
+  * Platforms  
+    This panel manages the platforms that supply usage data. It includes functions to retrieve known platform definitions from the COUNTER registry and uses this data as the "starting point" for how to connect to external providers and what those providers make available.
+  * Settings  
+    * Server Settings: panel for managing global, server-wide defaults for the application (including fiscal-year, max-retries for failed harvests, etc.)
+    * Mail Settings: panel to manage server-wide email connectivity (for, at-minimum forgotten passwords)
+### User profile
+  * Account settings for the current user, including options to create user-specific personal access tokens for the API-based requests.
+  * Saved Reports: panel for viewing and managing user-specific saved report configurations.
+### API
+  This page describes how to use personal access tokens (created and managed in the user profile) to access CC-Plus data and routes using API configuration in other/external applications. 
+ 
 
 ## Getting Started
 
-1. Understanding the [Settings pages](settings.markdown)
-2. [Process for initial upload of settings](ingest_settings.markdown)
-3. [Harvesting Reports](harvesting.markdown)
-4. [Creating and Exporting Custom Reports](reports.markdown)
-5. [Resources for getting started](resources.markdown)
+1. [Initial Consortium Configuration](initial_tasks.markdown)
+2. [Harvesting Reports](harvesting.markdown)
+3. [Creating and Exporting Custom Reports](reports.markdown)
+4. [Resources for getting started](resources.markdown)

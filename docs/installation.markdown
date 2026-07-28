@@ -1,14 +1,6 @@
----
-title: Installation
-layout: default
-nav_order: 2
----
-
 # CC-PLUS Installation Instructions
 
-CC-Plus is runs as a standalone, single page (SPA) Laravel application connected to a MySQL database and a web server.  It allows for multiple, or just a single, consortia to be managed within a host system.  The system harvests report data using COUNTER requests and protocols, and expects to receive valid and conformant COUNTER-5/5.1 usage reports. The code repository and the documentation for the original (and deprecated) version of CC-Plus can be downloaded at: [http://github.com/palcilibraries/CC-PLUS](http://github.com/palcilibraries/CC-PLUS).
-
-**This code is still under development, and may change (and hopefully improve!) over time. Care, feeding, customizing, and bug-fixing may be necessary for the system to work well for your specific environment.**
+**This code is still under development, and may change. Stable releases should install and work with now, or minimal, adjustment(s). Be advised: interim and development releases may require care, feeding, customizing, and bug-fixing for the system to work well for your specific environment.**
 
 Once the application is installed, the application administrator will need to configure the membership of the consortia, users who will be using the data along with their roles, and the report providers.  The schedule of data harvesting is also configurable and involves validation and storage in the database.  Raw report data files can be saved as they are received as JSON (encrypted in the filesystem).  Harvested data stored in the database can then be queried to build, display, and/or download faceted reports.
 
