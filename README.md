@@ -19,4 +19,4 @@ The application is still under active development, but stable and periodic relea
 
 [Latest Release](http://github.com/CPE-ITTeam/CCPLUS/releases/latest).
 
-[Installation documentation is available here](installation.markdown).
+[Installation documentation is available here](docs/installation.markdown).
