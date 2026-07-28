@@ -13,6 +13,7 @@
   // Pinia DataStores
   const { ccGet, ccPost, setConso, fromToDates } = useAuthStore();
   const authStore = useAuthStore();
+  const consoKey = ref(authStore.ccp_key);  
   var selectedConso = ref(authStore.ccp_key);  
   const { consortia } = storeToRefs(useCCPlusStore());
   const is_serveradmin = authStore.is_serveradmin;
@@ -296,8 +297,9 @@
     args['zeros'] = (zeroRecs.value=='Active') ? 1 : 0;
 
     // make a tite for the report
+    let conso_name = (typeof(selectedConso.name)!='undefined') ? selectedConso.name : consoKey.value;
     previewTitle.value = (savedTitle.value != '') ? savedTitle.value
-                                                  : selectedConso.name + " : "+masterReport.value.name;
+                                                  : conso_name + " : "+masterReport.value.name;
     previewTitle.value += " - From: "+reportDates.fromYM+" To: "+reportDates.toYM;
     if (runType == 'preview') {
       args['preview'] = 100;
@@ -368,7 +370,7 @@
             <v-autocomplete v-model="selectedConso" label="Consortium" :items="consortia" item-title="name" item-value="ccp_key"
                             density="compact" return-object @update:modelValue="handleChangeConso" />
           </FlexCol>
-          <FlexCol v-if="selectedConso!='' && savedReports.length>0">
+          <FlexCol v-if="selectedConso.name!='' && savedReports.length>0">
             <v-label class="colLabel">Load a Saved Report</v-label>
             <v-autocomplete v-model="savedReport" label="Saved Reports" :items="savedReports"
                 item-title="title" item-value="id" density="compact"
@@ -384,7 +386,7 @@
             <v-btn color="green" @click="getReportData('export')">Export</v-btn>
           </FlexCol>
         </v-row>
-        <v-row v-if="selectedConso==''">
+        <v-row v-if="selectedConso.name==''">
           <h3>Current Consortium not Properly Defined!</h3>
           <p>Check system installation; logging out and back in <strong>might</strong> fix the issue.</p>
         </v-row>
@@ -392,7 +394,7 @@
           <span v-if="success" class="good" role="alert" v-text="success"></span>
           <span v-if="failure" class="fail" role="alert" v-text="failure"></span>
         </v-row>
-        <v-row v-if="selectedConso!=''">
+        <v-row v-if="selectedConso.name!=''">
           <!-- Institution Filters -->
           <FlexCol>
             <v-label class="colLabel">Select Institutions</v-label>
