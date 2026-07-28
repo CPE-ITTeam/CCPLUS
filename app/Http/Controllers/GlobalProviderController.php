@@ -30,10 +30,9 @@ class GlobalProviderController extends Controller
      * @param  \Illuminate\Http\Request  $request
      * @return \Illuminate\Http\Response
      */
-    public function index(Request $equest)
+    public function index(Request $request)
     {
         global $masterReports, $allConnectors;
-
         // Set and confirm the user's role(s)
         $thisUser = $request->user();
         abort_unless($thisUser->isServerAdmin(), 403);
@@ -158,7 +157,7 @@ class GlobalProviderController extends Controller
      * @param  \Illuminate\Http\Request  $request
      * @return JSON
      */
-    public function apiIndex(Request $equest)
+    public function apiIndex(Request $request)
     {
         // Get all provider records
         $data = GlobalProvider::with('registries')->orderBy('name', 'ASC')->get();
