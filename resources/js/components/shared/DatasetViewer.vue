@@ -123,7 +123,7 @@
       if (consoKey.value=='') return;
       dtLoading.value = true;
       let itemsUrl = config.urlRoot+'/get';
-      if (datasetKey == 'institutions' || datasetKey== 'platforms') {
+      if (datasetKey == 'institutions') {
         itemsUrl += (is_admin) ? '/admin' : '/viewer';
       }
       const { data } = await ccGet(itemsUrl);
