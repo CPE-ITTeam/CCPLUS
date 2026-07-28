@@ -411,10 +411,10 @@ class ReportController extends Controller
      * @return Array $headerRows
      * @return String $filename
      */
-    public function prepareExport(Request $request, $report, $fields)
+    public function prepareExport($report, $fields)
     {
         global $format, $rpt_only;
-        $thisUser = $request->user();
+        $thisUser = auth()->user();
 
         // Get/set global things
         $filters = self::$input_filters;
@@ -730,6 +730,7 @@ class ReportController extends Controller
         $limit_to_insts = $reportService->get('limit_to_insts');
         $limit_to_provs = $reportService->get('limit_to_provs');
         $limit_to_plats = $reportService->get('limit_to_plats');
+        self::$input_filters = $reportService->get('input_filters');
 
         // Generate database filter-options for DR report
         $master_name = ($report->parent_id == 0) ? $report->name : $report->parent->name;
@@ -754,6 +755,7 @@ class ReportController extends Controller
                               
         // If we're exporting,
         if ($runtype == 'export') {
+            $report_fields = $report->reportFields;
             // Build an organized field list and separate the "basic" fields from the "metric" ones
             $basic_fields = array();
             $metric_fields = array();
@@ -831,7 +833,7 @@ class ReportController extends Controller
                                        'title' => $fld['legend'], 'is_metric' => 0);
                 }
             }
-            $columns[] = array('active' => 1, 'field' => 'Metric_Type', 'key' => $fld['metric_type'],
+            $columns[] = array('active' => 1, 'field' => 'Metric_Type', 'key' => 'Metric_Type',
                                'title' => 'Metric_Type');
             if ($metric_count > 0) {
                 $columns[] = array('active' => 1, 'field' => 'Reporting_Period_Total', 'key' => 'Reporting_Period_Total',
