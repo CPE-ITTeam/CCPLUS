@@ -56,8 +56,9 @@ class InstitutionGroupController extends Controller
         foreach ($groups as $group) {
             $rec = array('id' => $group->id, 'name' => $group->name, 'type_id' => $group->type_id);
             $rec['type_string'] = ($group->typeRestriction) ? $group->typeRestriction->name : "";
-            $rec['institutions'] = $group->institutions->sortBy('name')->toArray();
+            $rec['institutions'] = $group->institutions->sortBy('name')->values()->toArray();
             $memberIds = $group->institutions->pluck('id')->toArray();
+            $rec['member_ids'] = $memberIds;
             $rec['count'] = sizeof($memberIds);
             $rec['can_edit'] = true;
             $rec['can_delete'] = true;
@@ -268,6 +269,12 @@ class InstitutionGroupController extends Controller
      */
     public function import(Request $request)
     {
+        // Check Authorization - limit to consoAdmins only
+        $thisUser = auth()->user();
+        if (!$thisUser->isConsoAdmin()) {
+            return response()->json(['result' => false, 'msg' => 'Not Authorized']);
+        }
+
         // Handle and validate inputs
         $this->validate($request, ['type' => 'required', 'csvfile' => 'required']);
         if (!$request->hasFile('csvfile')) {
@@ -293,8 +300,9 @@ class InstitutionGroupController extends Controller
         $num_updated = 0;
         $num_created = 0;
 
-        // Get all the groups
+        // Get all current groups and institutions
         $groups = InstitutionGroup::get();
+        $institutions = Institution::get();
 
         // Process the input rows
         $group_ids_to_keep = array();
@@ -348,6 +356,21 @@ class InstitutionGroupController extends Controller
                         $num_updated++;
                     }
                     $group_ids_to_keep[] = $current_group->id;
+
+                    // If member_ids are present,reset the group membership to match
+                    // If the column is empty, leave the group membership as-is (no change)
+                    if ($row[2] != "") {
+                        $_ids = preg_split('/\s*,\s*/', trim($row[2]));
+                        if (count($_ids) > 0) {
+                            $current_group->institutions()->detach();
+                            foreach ($_ids as $inst_id) {
+                                $_inst = $institutions->where('id', intval($inst_id))->first();
+                                if ($_inst) {
+                                    $current_group->institutions()->attach($inst_id);
+                                }
+                            }
+                        }
+                    }
                 }
             }
         }
