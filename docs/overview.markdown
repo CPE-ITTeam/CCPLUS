@@ -48,4 +48,3 @@ The main CC-PLUS navigation bar has options for :
 1. [Initial Consortium Configuration](initial_tasks.markdown)
 2. [Harvesting Reports](harvesting.markdown)
 3. [Creating and Exporting Custom Reports](reports.markdown)
-4. [Resources for getting started](resources.markdown)
