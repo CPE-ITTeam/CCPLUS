@@ -64,7 +64,7 @@
          Institution Types : (  {{ appUrl }}api/types/get  )
       </v-list-item>
       <v-list-item v-if="is_serveradmin" @click="getJson('Platforms')">
-         Platforms : (  {{ appUrl }}api/platforms/get/admin  )
+         Platforms : (  {{ appUrl }}api/platforms/get  )
       </v-list-item>
       <v-list-item @click="getJson('Connections')">
          Connections : (  {{ appUrl }}api/connections/get  )
