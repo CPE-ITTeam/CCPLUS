@@ -163,8 +163,10 @@ class HarvestLogController extends Controller
         }
 
         // Touch up status filter for BadCreds
-        if (count($filters['statuses']) == 0) {     // Limit status if not set
-            $filters["statuses"] = ($type=='harvests') ? $harvest_statuses : $jobs_statuses;
+        if (count($filters['statuses']) == 0) {
+            if (count($filters['codes']) == 0) {     // Add status filter if no codes are set
+                $filters["statuses"] = ($type=='harvests') ? $harvest_statuses : $jobs_statuses;
+            }
         } else {
             $idx = array_search('Bad Credentials', $filters['statuses']);
             if ($idx !== false) $filters["statuses"][$idx] = 'BadCreds';
