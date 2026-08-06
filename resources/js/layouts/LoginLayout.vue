@@ -36,7 +36,7 @@ const buildEbscoUrl = (ref) => {
             <v-btn v-bind="props" variant="text">Documentation</v-btn>
           </template>
           <v-list>
-            <v-list-item href="https://github.com/CPE-ITTeam/CCPLUS/blob/dev-vue3/docs/installation.markdown" 
+            <v-list-item href="https://github.com/CPE-ITTeam/CCPLUS/blob/main/docs/installation.markdown" 
                          target="_blank" title="Installation instructions" />
             <v-divider />
             <v-list-item href="https://kyvl.libwizard.com/f/ccplus-local" target="_blank" title="Institutional onboarding" />
@@ -110,7 +110,7 @@ const buildEbscoUrl = (ref) => {
         <a href="https://registry.countermetrics.org/" target="_blank" rel="noopener">
           <img src="https://registry.countermetrics.org/favicon.ico" />
         </a>
-        <a href="https://github.com/CPE-ITTeam/CCPLUS/tree/dev-vue3" target="_blank" rel="noopener">
+        <a href="https://github.com/CPE-ITTeam/CCPLUS/releases/latest" target="_blank" rel="noopener">
           <img src="https://github.githubassets.com/favicons/favicon.svg" />
         </a>
       </div>
