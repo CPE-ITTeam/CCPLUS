@@ -26,6 +26,10 @@
   var consoKey = ref(authStore.ccp_key);
   const importDialog = ref(false);
 
+  const serverTab = computed(() => {
+    return (props.dataset=='consortia' || props.dataset=='platforms');
+  });
+
   const consoOnly = computed(() => {
     return (consoKey.value == '' && is_serveradmin);
   });
@@ -105,7 +109,7 @@
                          @update:showSelectedOnly="$emit('update:showSelectedOnly', $event)"/>
       </v-row>
     </FlexCol>
-    <v-col v-if="is_serveradmin && consortia.length>1" class="flex px-4" cols="3">
+    <v-col v-if="!serverTab && (is_serveradmin && consortia.length>1)" class="flex px-4" cols="3">
       <v-autocomplete v-model="consoKey" label="Consortium" :items="consortia" item-title="name" density="compact"
                       return-object item-value="ccp_key" @update:modelValue="$emit('updateConso', $event)" />
     </v-col>
