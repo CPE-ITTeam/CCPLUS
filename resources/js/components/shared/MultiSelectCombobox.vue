@@ -15,8 +15,7 @@
   const item_value = props.itemValue ?? 'value';
   const data_label = props.dataName ?? props.label;
   const allSelected = computed(() => {
-    return ( model.value.length>0 && model.value.length === props.items.length &&
-             model.value.every(val => props.items.map(i => i.id).includes(val)) );
+    return ( model.value.length>0 && model.value.length === props.items.length );
   });
   const selectAllLabel = computed(() => { return (allSelected.value) ? "Clear All" : "Select All"; });
   const selectionString = computed(() => {
@@ -36,13 +35,22 @@
     _string += (model.value.length<=1) ? "" : " +"+(model.value.length-1).toString()+" more";
     return _string;
   });
-  function toggleSelectAll() {
-    model.value = (allSelected.value) ? [] : props.items.map(item => item[item_value]);
+  async function toggleSelectAll() {
+    if (allSelected.value) {  // clear all
+      model.value = [];
+    } else {  // select all
+      // If items have an item_value field, use that for the value, otherwise use the items
+      if (typeof(props.items[0][item_value]) != 'undefined') {
+        model.value = props.items.map(item => item[item_value]);
+      } else {
+        model.value = [...props.items];
+      }
+    }
   }
 </script>
 <template>
-  <v-combobox v-model="model" :items="items" :label="label" multiple clearable :return-object="false"
-                persistent-placeholder variant="outlined" :placeholder="'Select '+label" 
+  <v-combobox v-model="model" :items="items" :label="data_label" multiple clearable :return-object="false"
+                persistent-placeholder variant="outlined" :placeholder="'Select '+data_label" 
                 :item-title="item_title" :item-value="item_value">
     <!-- Select All -->
     <template v-slot:prepend-item>
@@ -54,12 +62,12 @@
     </template>
     <!-- Append "None of the above" for Inst Types and Inst Groups -->
     <template v-slot:append-item>
-      <template v-if="label === 'Institution Types' && shouldShowNoneOfTheAboveType">
+      <template v-if="data_label === 'Institution Types' && shouldShowNoneOfTheAboveType">
         <v-divider class="my-0 py-0 no-pointer" />
         <v-list-item title="None of the above" value="No type assigned"
                     @click="$emit('update:selected', ['No type assigned'])" />
       </template>
-      <template v-else-if="label === 'Institution Groups' && shouldShowNoneOfTheAboveGroup">
+      <template v-else-if="data_label === 'Institution Groups' && shouldShowNoneOfTheAboveGroup">
         <v-divider class="my-0 py-0 no-pointer" />
         <v-list-item title="None of the above" value="No groups assigned"
                     @click="$emit('update:selected', ['No groups assigned'])" />
