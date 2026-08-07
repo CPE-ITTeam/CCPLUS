@@ -172,8 +172,9 @@
             'items': [...f_options], 'value': null
           };
         } else {
+          let f_options = [];
           let initVal = (fld.type == 'mselect') ? [] : null;
-          if (allItems.length>0) {
+          if (allItems.length>0 && Array.isArray(allOptions[fld.name])) {
             f_options = allOptions[fld.name].filter(
               opt => allItems.flatMap( itm => itm[fld.filterCol] ).includes(opt[fld.optVal])
             );
