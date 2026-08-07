@@ -6,8 +6,8 @@ import { useAuthStore } from '../plugins/authStore.js';
 import AuthenticatedLayout from '@/layouts/AuthenticatedLayout.vue';
 import LoginLayout from '@/layouts/LoginLayout.vue';
 import Login from '@/pages/Login.vue';
-import ForgotPassword from '@/pages/ForgotPassword.vue'
-import ResetPassword from '@/pages/ResetPassword.vue'
+import ForgotPassword from '@/pages/ForgotPassword.vue';
+import ResetPassword from '@/pages/ResetPassword.vue';
 import InstitutionsTable from '@/components/tables/InstitutionsTable.vue';
 import InstitutionTypesTable from '@/components/tables/InstitutionTypesTable.vue';
 import InstitutionGroupsTable from '@/components/tables/InstitutionGroupsTable.vue';
@@ -28,7 +28,7 @@ import AccountSettings from '@/components/panels/AccountSettings.vue';
 import CredentialsAudit from '@/components/tables/CredentialsAudit.vue';
 // Pinia datastore
 import { createPinia } from 'pinia';
-import piniaPluginPersistedState from "pinia-plugin-persistedstate"
+import piniaPluginPersistedState from "pinia-plugin-persistedstate";
 export const pinia = createPinia();
 pinia.use(piniaPluginPersistedState);
 
@@ -37,135 +37,158 @@ export const router = createRouter({
   history: createWebHistory(import.meta.env.BASE_URL),
   linkActiveClass: 'active',
   routes: [
+    /* ----------------------------------------------------
+        Authentication Routes  (LoginLayout)
+    ------------------------------------------------------- */
     {
       path: '/', name: 'Home', component: Login, children: [],
-      meta: { title: 'Login', layout: LoginLayout, role: 'Guest', level:0 },
+      meta: { title: 'Login', layout: LoginLayout, role: 'Guest', level: 0 },
     },
     {
       path: '/login', name: 'Login', component: Login, children: [],
-      meta: { title: 'Login', layout: LoginLayout, role: 'Guest', level:0 },
+      meta: { title: 'Login', layout: LoginLayout, role: 'Guest', level: 0 },
     },
     {
       path: '/logout', name: 'Logout', component: Login, children: [],
-      meta: { title: 'Logout', layout: LoginLayout, role: 'Guest', level:0 },
+      meta: { title: 'Logout', layout: LoginLayout, role: 'Guest', level: 0 },
     },
-    { path: '/forgotPassForm', name: 'ForgotPassword', component: ForgotPassword, children: [],
-      meta: { title: 'Forgot Password', layout: LoginLayout, role: 'Guest', level:0 }
+    { 
+      path: '/forgotPassForm', name: 'ForgotPassword', component: ForgotPassword, children: [],
+      meta: { title: 'Forgot Password', layout: LoginLayout, role: 'Guest', level: 0 }
     },
-    { path: '/resetPassForm', name: 'ResetPassword', component: ResetPassword, children: [],
+    { 
+      path: '/resetPassForm', name: 'ResetPassword', component: ResetPassword, children: [],
       props: route => ({ token: route.query.token, key: route.query.key }),
-      meta: { title: 'Reset Password', layout: LoginLayout, role: 'Guest', level:0 }
+      meta: { title: 'Reset Password', layout: LoginLayout, role: 'Guest', level: 0 }
+    },
+
+    /* ----------------------------------------------------
+       Top Navigation Routes (AuthenticatedLayout)
+    ------------------------------------------------------- */
+    {
+      path: '/consortia', name: 'Consortia', component: markRaw(Consortia), children: [],
+      meta: { title: 'Consortia', layout: AuthenticatedLayout, role: 'ServerAdmin', key: 0, level: 1 }
     },
     {
-      path: '/admin', name: 'Admin', meta: { title: 'Admin', layout: AuthenticatedLayout, role: 'Admin', level:1 },
+      path: '/institutions', name: 'Institutions', show: 1, panels:[0],
+      meta: { title: 'Institutions', layout: AuthenticatedLayout, role: 'Admin', level: 1 },
       children: [
-        { path: '/institutions', name: 'Institutions', show:1, panels: [0],
-          meta: { title: 'Institutions', layout: AuthenticatedLayout, role: 'Admin', level:2 },
-          children: [
-            { path: '/admin/institutions', name: 'InstitutionsTable', show:1,
-              meta: { title: 'Institutions', layout: AuthenticatedLayout, role: 'Admin', key:0, level:3 }, 
-              component: markRaw(InstitutionsTable),
-            },
-            { path: '/admin/institutiontypes', name: 'InstitutionsTypesTable', show:1,
-              meta: { title: 'Institution Types', layout: AuthenticatedLayout, role: 'Admin', key:0, level:3 }, 
-              component: markRaw(InstitutionTypesTable),
-            },
-            { path: '/admin/institutiongroups', name: 'InstitutionGroupsTable', show:1,
-              meta: { title: 'Institution Groups', layout: AuthenticatedLayout, role: 'Admin', key:0, level:3 }, 
-              component: markRaw(InstitutionGroupsTable),
-            },
-          ]
+        { 
+          path: 'table', name: 'InstitutionsTable', show: 1,
+          meta: { title: 'Institutions', layout: AuthenticatedLayout, role: 'Admin', key: 0, level: 2 }, 
+          component: markRaw(InstitutionsTable),
         },
-        { path: '/users', name: 'Users', show:1, panels: [0],
-          meta: { title: 'Users', layout: AuthenticatedLayout, role: 'Admin', level:2 }, 
-          children: [
-            { path: '/admin/users', name: 'UserTable', show:1,
-              meta: { title: 'Users', layout: AuthenticatedLayout, role: 'Admin', key:0, level:3 }, 
-              component: markRaw(UsersTable),
-            },
-            { path: '/admin/roles', name: 'RolesTable', show:1,
-              meta: { title: 'Permissions', layout: AuthenticatedLayout, role: 'Admin', key:0, level:3 }, 
-              component: markRaw(RolesTable),
-            },
-          ]
+        { 
+          path: 'types', name: 'InstitutionsTypesTable', show: 1,
+          meta: { title: 'Institution Types', layout: AuthenticatedLayout, role: 'Admin', key: 0, level: 2 }, 
+          component: markRaw(InstitutionTypesTable),
         },
-        { path: '/admin/connections', name: 'ConnectionsTable', show:1,
-          meta: { title: 'Platform Connections', layout: AuthenticatedLayout, role: 'GroupAdmin', key:0, level:2 }, 
+        { 
+          path: 'groups', name: 'InstitutionGroupsTable', show: 1,
+          meta: { title: 'Institution Groups', layout: AuthenticatedLayout, role: 'Admin', key: 0, level: 2 }, 
+          component: markRaw(InstitutionGroupsTable),
+        },
+      ]
+    },
+    {
+      path: '/users', name: 'Users', show: 1, panels:[0],
+      meta: { title: 'Users', layout: AuthenticatedLayout, role: 'Admin', level: 1 }, 
+      children: [
+        { 
+          path: 'table', name: 'UserTable', show: 1,
+          meta: { title: 'Users', layout: AuthenticatedLayout, role: 'Admin', key: 0, level: 2 }, 
+          component: markRaw(UsersTable),
+        },
+        { 
+          path: 'roles', name: 'RolesTable', show: 1,
+          meta: { title: 'Permissions', layout: AuthenticatedLayout, role: 'Admin', key: 0, level: 2 }, 
+          component: markRaw(RolesTable),
+        },
+      ]
+    },
+    {
+      path: '/credentials', name: 'Credentials', show: 1, panels: [],
+      meta: { title: 'Credentials', layout: AuthenticatedLayout, role: 'Admin', level: 1 }, 
+      children: [
+        { 
+          path: 'table', name: 'CredentialsTable', show: 1,
+          meta: { title: 'Credentials', layout: AuthenticatedLayout, role: 'Admin', key: 0, level: 2 }, 
+          component: markRaw(CredentialsTable),
+        },
+        { 
+          path: 'audit', name: 'CredentialsAudit', show: 1,
+          meta: { title: 'Credentials Audit', layout: AuthenticatedLayout, role: 'Admin', key: 0, level: 2 }, 
+          component: markRaw(CredentialsAudit),
+        },
+      ],
+    },
+    {
+      path: '/platforms', name: 'Platforms', show: 1,
+      meta: { title: 'Platforms', layout: AuthenticatedLayout, role: 'Admin', level: 1 },
+      children: [
+        { 
+          path: 'registry', name: 'PlatformsTable', show: 1,
+          meta: { title: 'Registry', layout: AuthenticatedLayout, role: 'ServerAdmin', key: 0, level: 2 }, 
+          component: markRaw(PlatformsTable),
+        },
+        { 
+          path: 'connections', name: 'ConnectionsTable', show: 1,
+          meta: { title: 'Connections', layout: AuthenticatedLayout, role: 'Admin', key: 0, level: 2 }, 
           component: markRaw(ConnectionsTable),
         },
-        { path: '/credentials', name: 'Credentials', show:1, panels: [],
-          meta: { title: 'Credentials', layout: AuthenticatedLayout, role: 'Admin', level:2 }, 
-          children: [
-            { path: '/admin/credentials', name: 'CredentialsTable', show:1,
-              meta: { title: 'Credentials', layout: AuthenticatedLayout, role: 'Admin', key:0, level:3 }, 
-              component: markRaw(CredentialsTable),
-            },
-            { path: '/admin/credentialsaudit', name: 'CredentialsAudit', show:1,
-              meta: { title: 'Credentials Audit', layout: AuthenticatedLayout, role: 'Admin', key:0, level:3 }, 
-              component: markRaw(CredentialsAudit),
-            },
-          ],
-        },
-      ]  
+      ]
     },
     {
       path: '/harvests', name: 'Harvests',
-      meta: { title: 'Harvests', layout: AuthenticatedLayout, role: 'Admin', level:1 },
+      meta: { title: 'Harvests', layout: AuthenticatedLayout, role: 'Admin', level: 1 },
       children: [
-        { path: '/harvests/manual', name: 'ManualHarvest', show:1,
-          meta: { title: 'Manual Harvest', layout: AuthenticatedLayout, role: 'Admin', key:0, level:2 }, 
+        { 
+          path: 'manual', name: 'ManualHarvest', show: 1,
+          meta: { title: 'Manual Harvest', layout: AuthenticatedLayout, role: 'Admin', key: 0, level: 2 }, 
           component: markRaw(ManualHarvest),
         },
-        { path: '/harvests/queue', name: 'HarvestQueue', show:1,
-          meta: { title: 'Harvest Queue', layout: AuthenticatedLayout, role: 'Admin', key:0, level:2 }, 
+        { 
+          path: 'queue', name: 'HarvestQueue', show: 1,
+          meta: { title: 'Harvest Queue', layout: AuthenticatedLayout, role: 'Admin', key: 0, level: 2 }, 
           component: markRaw(HarvestQueue),
         },
-        { path: '/harvests/log', name: 'HarvestLog', show:1,
-          meta: { title: 'Harvest Log', layout: AuthenticatedLayout, role: 'Admin', key:0, level:2 }, 
+        { 
+          path: 'log', name: 'HarvestLog', show: 1,
+          meta: { title: 'Harvest Log', layout: AuthenticatedLayout, role: 'Admin', key: 0, level: 2 }, 
           component: markRaw(HarvestLog),
         },
       ]
     },
     {
       path: '/reports', name: 'Reports',
-      meta: { title: 'Reports', layout: AuthenticatedLayout, role: 'Viewer', key:0, level:1 },
+      meta: { title: 'Reports', layout: AuthenticatedLayout, role: 'Viewer', key: 0, level: 1 },
       children: [], component: markRaw(Reporting),
     },
-    { path: '/admin/serveradmin', name: 'Server',
-      meta: { title: 'Server', layout: AuthenticatedLayout, role: 'ServerAdmin', level:1 }, 
+    // ServerAdmin Routes
+    { 
+      path: '/server', name: 'Server',
+      meta: { title: 'Server', layout: AuthenticatedLayout, role: 'ServerAdmin', level: 1 }, 
       children: [
-        { path: '/admin/consortia', name: 'Consortia', show:1,
-          meta: { title: 'Consortia', layout: AuthenticatedLayout, role: 'ServerAdmin', key:0, level:2 }, 
-          component: markRaw(Consortia),
+        { 
+          path: 'serversettings', name: 'ServerSettings', show: 1,
+          meta: { title: 'Server Settings', layout: AuthenticatedLayout, role: 'ServerAdmin', key: 0, level: 2 }, 
+          component: markRaw(ServerSettings),
         },
-        { path: '/admin/platforms', name: 'PlatformsTable', show:1,
-          meta: { title: 'Platforms', layout: AuthenticatedLayout, role: 'Admin', key:0, level:2 }, 
-          component: markRaw(PlatformsTable),
-        },
-        { path: '/admin/serveradmin', name: 'ServerAdmin', show:1, panels: [0],
-          meta: { title: 'Settings', layout: AuthenticatedLayout, role: 'ServerAdmin', level:2 }, 
-          children: [
-            { path: '/admin/serversettings', name: 'ServerSettings', show:1,
-              meta: { title: 'Server Settings', layout: AuthenticatedLayout, role: 'ServerAdmin', key:0, level:3 }, 
-              component: markRaw(ServerSettings),
-            },
-            { path: '/admin/mailsettings', name: 'MailSettings', show:1,
-              meta: { title: 'Mail Settings', layout: AuthenticatedLayout, role: 'ServerAdmin', key:0, level:3 }, 
-              component: markRaw(MailSettings),
-            },
-          ]
+        { 
+          path: 'mailsettings', name: 'MailSettings', show: 1,
+          meta: { title: 'Mail Settings', layout: AuthenticatedLayout, role: 'ServerAdmin', key: 0, level: 2 }, 
+          component: markRaw(MailSettings),
         },
       ]
     },
   ],
-  // These are separate so that layout won't treat them like other (app) top-level tabs
+  // Separate routes authenticatedLayout tacks onto the application routes in the top navigation bar
   profileRoute:
   {
       path: '/profile', name: 'Profile',
       meta: { title: 'Account Settings', layout: AuthenticatedLayout, role: 'Viewer', key:0, level:1 }, 
       component: markRaw(AccountSettings),
   },
-  // This is separate so that layout won't treat like other (app) top-level tabs
   apiRoute:
   {
       path: '/ccplusApi', name: 'API',

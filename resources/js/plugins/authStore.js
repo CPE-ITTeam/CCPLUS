@@ -72,8 +72,10 @@ export const useAuthStore = defineStore('useAuthStore', {
           this.adminGroups = [ ...response.data.data.adminGroups ];
           this.ccp_key = response.data.data.consoKey;
           this.isAuthenticated = true;
-          if ( this.is_admin ) {
-            this.router.push('/admin');
+          if (this.is_serveradmin) {
+            this.router.push('/consortia');
+          } else if ( this.is_admin ) {
+            this.router.push('/institutions');
           } else {
             this.router.push('/reports');
           }
