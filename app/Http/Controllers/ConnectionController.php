@@ -23,12 +23,13 @@ class ConnectionController extends Controller
 
         // Requesting user needs to be consoAdmin or an admin of a group or multiple insts
         $groupIds = [];
+        $instIds = [];
+        if (!$thisUser->isAdmin()) {
+            return response()->json(['result' => false, 'msg' => 'Request failed (403) - Forbidden']);
+        }
         if (!$consoAdmin) {
             $groupIds = $thisUser->adminGroups();
             $instIds = $thisUser->adminInsts();
-            if (count($groupIds) == 0 && count($instIds) <= 1) {
-                return response()->json(['result' => false, 'msg' => 'Request failed (403) - Forbidden']);
-            }
         }
 
         // Get all active Global Providers
