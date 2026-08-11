@@ -99,7 +99,7 @@
       _filters[key] = filterOptions[key]['value'];
     });
     try {
-      if (consoKey.value=='') return;
+      if (consoKey.value=='' || datasetKey!='consortia') return;
       let itemsUrl = config.urlRoot+'/getItems';
       const response = await ccPost(itemsUrl, { filters: _filters, type: datasetKey });
       if (response.result) {
@@ -120,7 +120,7 @@
   const loadDataset = async (datasetKey) => {
     const config = datasetConfig[datasetKey];
     try {
-      if (consoKey.value=='') return;
+      if (consoKey.value=='' && datasetKey!='consortia') return;
       dtLoading.value = true;
       let itemsUrl = config.urlRoot+'/get';
       if (datasetKey == 'institutions') {
@@ -953,11 +953,11 @@ console.log('Handling for includeZeros toggle not written yet');
       <span v-if="success"      class="good" v-text="success"></span>
       <span v-else-if="failure" class="fail" v-text="failure"></span>
     </div>
-    <DataTable v-if="consoKey!=''" :items="filteredItems" :key="dtKey" :search="search" :headers="headers" :isLoading="dtLoading"
-               :dataset="props.datasetKey" :showSelectedOnly="showSelectedOnly" :editableFields="editableFields"
-               :truncated="truncated" :searchFields="searchFields" :selectedRows="selectedRows" :selectableRows="selectableRows"
-               @edit="handleEdit" @delete="handleDelete" @update:selectedRows="selectedRows = $event"
-               @update:toggle="handleToggleUpdate" @update:report="handleReportToggle"/>
+    <DataTable v-if="consoKey!='' || props.datasetKey=='consortia'" :items="filteredItems" :key="dtKey" :search="search"
+               :headers="headers" :isLoading="dtLoading" :dataset="props.datasetKey" :showSelectedOnly="showSelectedOnly"
+               :editableFields="editableFields" :truncated="truncated" :searchFields="searchFields" :selectedRows="selectedRows"
+               :selectableRows="selectableRows" @edit="handleEdit" @delete="handleDelete"  @update:report="handleReportToggle"
+               @update:selectedRows="selectedRows = $event" @update:toggle="handleToggleUpdate"/>
 
     <v-dialog v-if="editingItem && isEditable" v-model="formDialogOpen">
       <v-card>

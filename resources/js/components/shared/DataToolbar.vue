@@ -39,7 +39,7 @@
   });
 
   const showExportImport = computed(() => {
-    return (!consoOnly.value && props.dataset!='harvests' && props.dataset!='jobs');
+    return (props.dataset=='consortia' || (!consoOnly.value && props.dataset!='harvests' && props.dataset!='jobs'));
   });
 
   const flat_filter_options = computed(() => {
@@ -100,19 +100,22 @@
 </script>
 
 <template>
+  <!-- Consortium Switcher -->
+  <v-row v-if="!serverTab && (is_serveradmin && consortia.length>1)" class="mt-1 mb-1" no-gutters>
+    <v-col  class="flex px-4" cols="3">
+      <v-autocomplete v-model="consoKey" label="Consortium" :items="consortia" item-title="name" density="compact"
+                      return-object item-value="ccp_key" @update:modelValue="$emit('updateConso', $event)" />
+    </v-col>
+  </v-row>
   <!-- Search + Selected Toggle -->
   <v-row class="mt-2 mb-2" no-gutters>
-    <FlexCol v-if="!consoOnly" cols="4">
+    <FlexCol v-if="!consoOnly || is_serveradmin" cols="4">
       <v-row no-gutters >
         <SearchAndSelect :search="search" :showSelectedOnly="showSelectedOnly"
                          @update:search="$emit('update:search', $event)"
                          @update:showSelectedOnly="$emit('update:showSelectedOnly', $event)"/>
       </v-row>
     </FlexCol>
-    <v-col v-if="!serverTab && (is_serveradmin && consortia.length>1)" class="flex px-4" cols="3">
-      <v-autocomplete v-model="consoKey" label="Consortium" :items="consortia" item-title="name" density="compact"
-                      return-object item-value="ccp_key" @update:modelValue="$emit('updateConso', $event)" />
-    </v-col>
     <!-- Export, Import, & Add -->
     <ExportAndImport v-if="showExportImport" :showRefresh="props.dataset=='platforms'"
                      :exportOnly="(props.dataset=='audit')" :hideExport="props.hideExport"
