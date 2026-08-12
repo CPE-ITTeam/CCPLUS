@@ -554,7 +554,11 @@
         // Delete action sets removes records from allItems
         } else if (data.action == 'Delete' || data.action == 'Kill') {
           if (response.affectedIds.length>0) {
-            response.affectedIds.forEach( itemId => { allItems.splice(allItems.findIndex( ii => ii.id == itemId),1); });
+            response.affectedIds.forEach( itemId => {
+              allItems.splice(allItems.findIndex( ii => ii.id == itemId),1);
+              filteredItems.splice(filteredItems.findIndex( ii => ii.id == itemId),1);
+            });
+            dtKey.value++
           }
         // Refresh Registry sends back replacement data for allItems
         } else if ((data.action == 'Refresh Registry' || data.action == 'Full Refresh')) {
