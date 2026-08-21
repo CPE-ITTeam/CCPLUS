@@ -11,7 +11,7 @@ export const useAuthStore = defineStore('useAuthStore', {
     roles: [],
     adminInsts: [],
     adminGroups: [],
-    token: useLocalStorage('user-token', null),
+    token: useLocalStorage('auth_token', null),
     authErrorMessage: null,
     authSuccessMessage: null,
   }),
@@ -51,9 +51,6 @@ export const useAuthStore = defineStore('useAuthStore', {
     },
     admin_insts: (state) => state.adminInsts,
     admin_groups: (state) => state.adminGroups,
-    getToken: (state) => state.token,
-    getToken: (state) => state.token,
-    isLoggedIn: (state) => state.isAuthenticated,
   },
   actions: {
     async login(credentials) {
@@ -79,6 +76,9 @@ export const useAuthStore = defineStore('useAuthStore', {
           } else {
             this.router.push('/reports');
           }
+          // Persist the token and authentication state in localStorage
+          localStorage.setItem('auth_token', this.token);
+          // clear any messages
           this.authErrorMessage = null;
           this.authSuccessMessage = null;
         } else {
@@ -114,7 +114,6 @@ export const useAuthStore = defineStore('useAuthStore', {
         });
         if (response.data.success) {
           this.authSuccessMessage = response.data.message;;
-          this.resetToken = null;
           this.router.push('/api/login');
         } else {
           this.authErrorMessage = 'Password change failed: ' . response.data.message;
@@ -128,6 +127,7 @@ export const useAuthStore = defineStore('useAuthStore', {
       this.user = null;
       this.roles = null;
       this.isAuthenticated = false;
+      localStorage.removeItem('auth_token')
     },
     async logout() {
       try {
@@ -135,7 +135,9 @@ export const useAuthStore = defineStore('useAuthStore', {
         this.user = null;
         this.roles = null;
         this.isAuthenticated = false;
-        this.router.push('/');
+        if (typeof this.router !== 'undefined') {
+          this.router.push('/');
+        }
         console.log('CCPlus Logout successful');
       } catch (error) {
         console.error('Logout attempt failed:', error);
@@ -178,7 +180,6 @@ export const useAuthStore = defineStore('useAuthStore', {
                                        'Authorization': 'Bearer ' + this.token,
                                        'Accept': "application/json",
                                        'X-Tenant': this.ccp_key
-
                                      }
                                   });
       return response.data;
