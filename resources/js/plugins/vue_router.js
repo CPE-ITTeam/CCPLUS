@@ -31,14 +31,10 @@ import { createPinia } from 'pinia';
 import piniaPluginPersistedState from "pinia-plugin-persistedstate";
 export const pinia = createPinia();
 pinia.use(piniaPluginPersistedState);
-
-// Routes and pages
-export const router = createRouter({
-  history: createWebHistory(import.meta.env.BASE_URL),
-  linkActiveClass: 'active',
-  routes: [
+// Routes
+const routes = [
     /* ----------------------------------------------------
-        Authentication Routes  (LoginLayout)
+        Unauthenticated Routes  (LoginLayout)
     ------------------------------------------------------- */
     {
       path: '/', name: 'Home', component: Login, children: [],
@@ -63,7 +59,7 @@ export const router = createRouter({
     },
 
     /* ----------------------------------------------------
-       Top Navigation Routes (AuthenticatedLayout)
+       Authenticated Layout Routes
     ------------------------------------------------------- */
     {
       path: '/consortia', name: 'Consortia', component: markRaw(Consortia), children: [],
@@ -71,10 +67,10 @@ export const router = createRouter({
     },
     {
       path: '/institutions', name: 'Institutions', show: 1, panels:[0],
-      meta: { title: 'Institutions', layout: AuthenticatedLayout, role: 'Admin', level: 1 },
+      meta: { title: 'Institutions', layout: AuthenticatedLayout, role: 'Admin', key: 0, level: 1 },
       children: [
         { 
-          path: 'table', name: 'InstitutionsTable', show: 1,
+          path: 'institutions', name: 'InstitutionsTable', show: 1,
           meta: { title: 'Institutions', layout: AuthenticatedLayout, role: 'Admin', key: 0, level: 2 }, 
           component: markRaw(InstitutionsTable),
         },
@@ -92,10 +88,10 @@ export const router = createRouter({
     },
     {
       path: '/users', name: 'Users', show: 1, panels:[0],
-      meta: { title: 'Users', layout: AuthenticatedLayout, role: 'Admin', level: 1 }, 
+      meta: { title: 'Users', layout: AuthenticatedLayout, role: 'Admin', key: 0, level: 1 }, 
       children: [
         { 
-          path: 'table', name: 'UserTable', show: 1,
+          path: 'users', name: 'UserTable', show: 1,
           meta: { title: 'Users', layout: AuthenticatedLayout, role: 'Admin', key: 0, level: 2 }, 
           component: markRaw(UsersTable),
         },
@@ -108,10 +104,10 @@ export const router = createRouter({
     },
     {
       path: '/credentials', name: 'Credentials', show: 1, panels: [],
-      meta: { title: 'Credentials', layout: AuthenticatedLayout, role: 'Admin', level: 1 }, 
+      meta: { title: 'Credentials', layout: AuthenticatedLayout, role: 'Admin', key: 0, level: 1 }, 
       children: [
         { 
-          path: 'table', name: 'CredentialsTable', show: 1,
+          path: 'credentials', name: 'CredentialsTable', show: 1,
           meta: { title: 'Credentials', layout: AuthenticatedLayout, role: 'Admin', key: 0, level: 2 }, 
           component: markRaw(CredentialsTable),
         },
@@ -124,7 +120,7 @@ export const router = createRouter({
     },
     {
       path: '/platforms', name: 'Platforms', show: 1,
-      meta: { title: 'Platforms', layout: AuthenticatedLayout, role: 'Admin', level: 1 },
+      meta: { title: 'Platforms', layout: AuthenticatedLayout, role: 'Admin', key: 0, level: 1 },
       children: [
         { 
           path: 'registry', name: 'PlatformsTable', show: 1,
@@ -140,7 +136,7 @@ export const router = createRouter({
     },
     {
       path: '/harvests', name: 'Harvests',
-      meta: { title: 'Harvests', layout: AuthenticatedLayout, role: 'Admin', level: 1 },
+      meta: { title: 'Harvests', layout: AuthenticatedLayout, role: 'Admin', key: 0, level: 1 },
       children: [
         { 
           path: 'manual', name: 'ManualHarvest', show: 1,
@@ -167,10 +163,10 @@ export const router = createRouter({
     // ServerAdmin Routes
     { 
       path: '/server', name: 'Server',
-      meta: { title: 'Server', layout: AuthenticatedLayout, role: 'ServerAdmin', level: 1 }, 
+      meta: { title: 'Server', layout: AuthenticatedLayout, role: 'ServerAdmin', key: 0, level: 1 }, 
       children: [
         { 
-          path: 'serversettings', name: 'ServerSettings', show: 1,
+          path: 'settings', name: 'ServerSettings', show: 1,
           meta: { title: 'Server Settings', layout: AuthenticatedLayout, role: 'ServerAdmin', key: 0, level: 2 }, 
           component: markRaw(ServerSettings),
         },
@@ -181,20 +177,24 @@ export const router = createRouter({
         },
       ]
     },
-  ],
-  // Separate routes authenticatedLayout tacks onto the application routes in the top navigation bar
-  profileRoute:
-  {
-      path: '/profile', name: 'Profile',
-      meta: { title: 'Account Settings', layout: AuthenticatedLayout, role: 'Viewer', key:0, level:1 }, 
-      component: markRaw(AccountSettings),
-  },
-  apiRoute:
-  {
-      path: '/ccplusApi', name: 'API',
-      meta: { title: 'CC-PLUS API', layout: AuthenticatedLayout, role: 'Viewer', key:0, level:1 }, 
-      component: markRaw(CCPlusApi),
-  },
+];
+// Separate routes that authenticatedLayout tacks onto the application routes in the top navigation bar
+const  profileRoute = {
+    path: '/profile', name: 'Profile',
+    meta: { title: 'Account Settings', layout: AuthenticatedLayout, role: 'Viewer', key:0, level:1 }, 
+    component: markRaw(AccountSettings),
+};
+const apiRoute ={
+    path: '/ccplusApi', name: 'API',
+    meta: { title: 'CC-PLUS API', layout: AuthenticatedLayout, role: 'Viewer', key:0, level:1 }, 
+    component: markRaw(CCPlusApi),
+};
+
+export const router = createRouter({
+  history: createWebHistory(),
+  routes,
+  profileRoute,
+  apiRoute
 });
 
 // Add router to pinia stores
@@ -203,23 +203,27 @@ pinia.use( ( {store} ) => {
 });
 
 // Navigation guard
-router.beforeEach(async (to, from ) => {
+router.beforeEach(async (to, from, next ) => {
   const authStore = useAuthStore(pinia);
   document.title = `${to.name}`;
   if (to.meta.role != 'Guest' && !authStore.isAuthenticated) {
     return { name: 'Login' }
   }
-  if (authStore.isAuthenticated && (to.name == 'Home' || to.name == 'Login')) {
-    return (authStore.is_admin || authStore.is_serveradmin) ? { name: 'Admin' } : { name: 'Reports' }
+  // Not authenticated and requesting level>0 re-route to login
+  if (to.meta.level>0 && !authStore.user) {
+    next('/api/login');
   }
+  // logout via authStore logout action 
   if (to.name == 'Logout') {
     const { logout } = useAuthStore();
     await logout();
   }
+  next();
 });
 
 // Navigation guard
 router.afterEach( to => {
   document.title = "CC-Plus";
-  document.title += (to.meta.title.length>0) ? ' - '+to.meta.title : '';
+  const ptitle = (to.meta.title) ? to.meta.title : '';
+  document.title += (ptitle.length>0) ? ' - '+ptitle : '';
 });
