@@ -46,7 +46,7 @@ class LoginController extends BaseController
             $user->last_login = now();
             $user->save();
             // Setup return data including the access token, user info, roles, and admin institutions/groups
-            $success['token'] = $user->createToken($token_name)->accessToken;
+            $success['token'] = $user->createToken($token_name)->plainTextToken;
             $success['user'] = $user;
             $success['roles'] = $user->allRoles();
             $success['adminInsts'] =$user->adminInsts();
