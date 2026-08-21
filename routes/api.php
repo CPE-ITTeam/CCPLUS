@@ -85,6 +85,7 @@ Route::middleware('ccplusAuth')->group( function () {
         Route::get('/exportData', 'App\Http\Controllers\GlobalProviderController@export')->name('platforms.exportData');
         Route::post('/import', 'App\Http\Controllers\GlobalProviderController@import')->name('platforms.import');
         Route::post('/refresh', 'App\Http\Controllers\CounterRegistryController@refresh')->name('platforms.refresh');
+        Route::post('/bulk', 'App\Http\Controllers\GlobalProviderController@bulk')->name('platforms.bulk');
     });
     Route::prefix('users')->group(function () {
         Route::get('/get', 'App\Http\Controllers\UserController@index')->name('users.index');

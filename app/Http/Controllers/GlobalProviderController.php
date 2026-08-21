@@ -512,10 +512,10 @@ class GlobalProviderController extends Controller
             // Update is_active value
             if ($input['action'] == 'Set Active' || $input['action'] == 'Set Inactive') {
                 if ($global->is_active == $new_value) {  // skip if already has the new value
+                    $skippedIds[] = $global->id;
+                } else {
                     $global->update(['is_active' => $new_value]);
                     $successIds[] = $global->id;
-                } else {
-                    $skippedIds[] = $global->id;
                 }
             // Delete the global entry
             } else if ($input['action'] == 'Delete') {
@@ -532,8 +532,8 @@ class GlobalProviderController extends Controller
         $msg = '';
         if (count($skippedIds)> 0 || count($failureIds)>0) {
             $msg  = count($successIds).' records successfully updated';
-            $msg .= (count($skippedIds>0)) ? '; '.count($skippedIds).' were skipped' : '';
-            $msg .= (count($failureIds>0)) ? '; '.count($failureIds).' failed' : '';
+            $msg .= (count($skippedIds)>0) ? '; '.count($skippedIds).' were skipped' : '';
+            $msg .= (count($failureIds)>0) ? '; '.count($failureIds).' failed' : '';
         }
         return response()->json(['result' => true, 'msg' => $msg, 'affectedIds' => $successIds], 200);
     }
