@@ -88,10 +88,12 @@ class HarvestLogController extends Controller
         $filter_options['statuses'] = array('Success','Fail','Bad Credentials');
         $filter_options['reports'] = Report::where('parent_id',0)->orderBy('dorder','ASC')
                                            ->get(['id','name'])->toArray();
-        $filter_options['codes'] = HarvestLog::where('error_id','>',0)->orderBy('error_id')->select('error_id')
-                                             ->distinct()->pluck('error_id')->toArray();
-        array_unshift($filter_options['codes'], 'No Error');
-
+        $filter_options['codes'] = array(array('id' => 0, 'name'=> 'No Error'));
+        $codes = HarvestLog::where('error_id','>',0)->orderBy('error_id')->select('error_id')
+                           ->distinct()->pluck('error_id')->toArray();
+        foreach ($codes as $code) {
+            $filter_options['codes'][] = array('id' => $code, 'name' => $code);
+        }
         return response()->json(['records' => [], 'options' => $filter_options, ], 200);
     }
 
@@ -113,18 +115,25 @@ class HarvestLogController extends Controller
             return response()->json(['result' => false, 'msg' => 'Invalid request type for getItems']);
         }
 
-        // Setup for known filters
+        // Validate/handle input filters
         $filters = array('institutions' => [], 'groups' => [], 'platforms' => [], 'yymms' => [], 'reports' => [],
                           'codes' => [], 'statuses' => [], 'updates' => []);
-        $harvest_statuses = array('Success','Fail','BadCreds');
-        $jobs_statuses = array('Queued', 'Harvesting', 'Pending', 'Paused', 'ReQueued', 'Waiting','Processing');
-
-        // Validate/handle input filters
         if ($input['filters']) {
             foreach ($input['filters'] as $key => $val) {
                 $filters[$key] = (is_null($val)) ? [] : $val;
             }
         }
+
+        // Set default status values, based on type, if not given as input
+        $harvest_statuses = array('Success','Fail','BadCreds');
+        $jobs_statuses = array('Queued', 'Harvesting', 'Pending', 'Paused', 'ReQueued', 'Waiting','Processing');
+        if (count($filters['statuses']) == 0) {
+            $filters["statuses"] = ($type=='harvests') ? $harvest_statuses : $jobs_statuses;
+        }
+
+        // Touch up status filter for BadCreds
+        $idx = array_search('Bad Credentials', $filters['statuses']);
+        if ($idx !== false) $filters["statuses"][$idx] = 'BadCreds';
 
         // Enforce limits on institutions and groups
         $limit_insts = array();
@@ -160,16 +169,6 @@ class HarvestLogController extends Controller
         if (count($filters["codes"]) > 0 && in_array('No Error', $filters['codes'])) {
             $idx = array_search('No Error', $filters['codes']);
             if ($idx !== false) $filters["codes"][$idx] = 0;
-        }
-
-        // Touch up status filter for BadCreds
-        if (count($filters['statuses']) == 0) {
-            if (count($filters['codes']) == 0) {     // Add status filter if no codes are set
-                $filters["statuses"] = ($type=='harvests') ? $harvest_statuses : $jobs_statuses;
-            }
-        } else {
-            $idx = array_search('Bad Credentials', $filters['statuses']);
-            if ($idx !== false) $filters["statuses"][$idx] = 'BadCreds';
         }
 
         // Get the harvest rows based on credentials
@@ -778,12 +777,6 @@ class HarvestLogController extends Controller
                          ->whereIn('status',$limit_status)
                          ->orderBy("updated_at", "DESC")->get();
 
-       // Setup options for the U/I - it will limit options further based on what's there
-        $filter_options = array();
-        $filter_options['codes'] = $data->where('error_id','>',0)->unique('error_id')->sortBy('error_id')
-                                       ->pluck('error_id')->toArray();
-        array_unshift($filter_options['codes'], 'No Error');
-
         // Format records for display , limit to 500 output records
         $rcount = 0;
         $truncated = false;
@@ -795,6 +788,16 @@ class HarvestLogController extends Controller
                 $truncated = true;
                 break;
             }
+        }
+
+        // Setup options for the U/I - it will limit options further based on what's there
+        $filter_options = array();
+
+        // Error Codes
+        $filter_options['codes'] = array(array('id' => 0, 'name'=> 'No Error'));
+        $codes = $data->where('error_id','>',0)->unique('error_id')->sortBy('error_id')->pluck('error_id')->toArray();
+        foreach ($codes as $code) {
+            $filter_options['codes'][] = array('id' => $code, 'name' => $code);
         }
 
        // Setup limit arrays for the instID's and provIDs we'll pull credentials for
@@ -814,7 +817,7 @@ class HarvestLogController extends Controller
                $filter_options['statuses'][] = array('value'=>$key, 'text'=>$text);
            }
        }
-       return response()->json(['records' => $harvests, 'options' => $filter_options], 200);
+       return response()->json(['records' => $harvests, 'options' => $filter_options, 'truncated' => $truncated], 200);
 
    }
 
