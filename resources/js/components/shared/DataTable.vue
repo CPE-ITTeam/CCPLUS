@@ -86,6 +86,11 @@
     return (props.dataset=='harvests' || props.dataset=='jobs' || props.dataset=='audit');
   });
 
+  const noDataMessage = computed(() => {
+    if (!refreshDataset) return "No data or matching records available";
+    return (props.dataset == 'jobs') ? "No Matching Records or Harvest Queue is Empty"
+                                     : "Adjust Filters or Click Refresh Records to Load Records";
+  });
   function enableDeleteDialog(item) {
     curItem.value = {...item};
     deleteDialog.value = true;
@@ -121,12 +126,9 @@
                   item-key="id" item-value="id" :show-select="props.selectableRows" return-object
                   :loading="props.isLoading" :custom-key-sort="customKeySort">
       <template v-slot:no-data>
-        <v-list-item v-if="refreshDataset">
-          <v-list-item-title>Click Refresh Records to Load Records</v-list-item-title>
+        <v-list-item>
+          <v-list-item-title>{{ noDataMessage }}</v-list-item-title>
         </v-list-item>        
-        <v-list-item v-else>
-          <v-list-item-title>No data available</v-list-item-title>
-        </v-list-item>
       </template>
       <!-- Dynamic editable fields -->
       <!-- <template v-for="field in props.editableFields" #[`item.${field}`]="{ item }">
