@@ -51,6 +51,7 @@
   const urlRoot = ref('');
   const emptyFlags = { 'available': true, 'conso': false, 'groups': [], 'insts': [],
                        'requested': false, 'sortval': 1 };
+  const refreshable = ['harvests','jobs','audit'];
   var dtLoading = ref(false);
   var truncated = ref(false);
   var success = ref('');
@@ -99,11 +100,11 @@
       _filters[key] = filterOptions[key]['value'];
     });
     try {
-      if (consoKey.value=='' || datasetKey!='consortia') return;
+      if (consoKey.value=='' && datasetKey!='consortia') return;
       let itemsUrl = config.urlRoot+'/getItems';
       const response = await ccPost(itemsUrl, { filters: _filters, type: datasetKey });
       if (response.result) {
-        truncated = response.truncated;
+        truncated.value = response.truncated;
         allItems = [ ...response.records ];
         filteredItems = [ ...response.records ];
         // Clear selected rows    
@@ -127,6 +128,7 @@
         itemsUrl += (is_admin) ? '/admin' : '/viewer';
       }
       const { data } = await ccGet(itemsUrl);
+      truncated.value = (data.truncated) ? data.truncated : false;
       allItems = [ ...data.records ];
       filteredItems = [ ...data.records ];
       allOptions = { ...data.options };
@@ -173,14 +175,20 @@
           };
         } else {
           let f_options = [];
+          let _showIt = false;
           let initVal = (fld.type == 'mselect') ? [] : null;
-          if (allItems.length>0 && Array.isArray(allOptions[fld.name])) {
+          // Filters for refreshable datasets always on with all returned options
+          if (refreshable.includes(datasetKey)) {
+            f_options = [...allOptions[fld.name]];
+            _showIt = true;
+          // Visibility and options for Filters of all other datasets depend on items returned
+          } else if (allItems.length>0 && Array.isArray(allOptions[fld.name])) {
             f_options = allOptions[fld.name].filter(
               opt => allItems.flatMap( itm => itm[fld.filterCol] ).includes(opt[fld.optVal])
             );
+            // Suppress the filter entirely if the list of options is now zero
+            _showIt = (f_options.length == 0 && !refreshable.includes(datasetKey)) ? false : fld.isFilter;
           }
-          // Suppress the filter entirely if the list of options is now zero
-          let _showIt = (f_options.length == 0) ? false : fld.isFilter;
           filterOptions[fld.name] = {
             'name': fld.name, 'label': fld.label, 'type': fld.type, 'val': fld.optVal, 'txt': fld.optTxt,
             'show': _showIt, 'col': fld.filterCol, 'items': [...f_options], 'value': initVal
@@ -697,8 +705,9 @@
   //
   function updateItems() {
     if (allItems.length==0) return;
-    // Harvests datasets need to reload records via "Refresh" when filters change
-    if (props.datasetKey == 'harvests' || props.datasetKey == 'jobs') {
+    // Harvests dataset needs to reload records via "Refresh" when filters change
+    // if (props.datasetKey == 'harvests' || props.datasetKey == 'jobs') {
+    if (props.datasetKey == 'harvests') {
       filteredItems = [];
       return;
     }
