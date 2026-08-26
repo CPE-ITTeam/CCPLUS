@@ -260,7 +260,7 @@
           </v-tooltip>
           <v-tooltip v-else-if="item.refresh_result!=null" :text="item.refresh_text" location="top">
             <template v-slot:activator="{ props }">
-              <v-icon icon="mdi-web-check" :color="item.refresh_color" v-bind="props"
+              <v-icon :icon="item.refresh_icon" :color="item.refresh_color" v-bind="props"
                       @click="openUrl('https://registry.countermetrics.org/platform/'+item.registry_id)" />
             </template>
           </v-tooltip>
