@@ -74,13 +74,12 @@ class GlobalProviderController extends Controller
             // result value will match a key in $resultMap, 'noregistry', 'norefresh', or null
             $resultKey = "";
             if ( is_null($provider['registry_id']) ) $resultKey = 'noregistry';
-            if ( !$gp->refreshable ) $resultKey = 'norefresh';
             if (in_array($gp->refresh_result, array_keys($resultMap))) {
                 if ($resultKey=="") $resultKey = $gp->refresh_result;
                 $provider['refresh_result'] = $resultKey;
             } else {
                 $resultKey = 'norefresh';
-                $provider['refresh_result'] = null;
+                $provider['refresh_result'] = ( $gp->refreshable ) ? null : 'norefresh';
             }
             $provider['refresh_text']  = $resultMap[$resultKey]['refresh_text'];
             $provider['refresh_icon']  = $resultMap[$resultKey]['refresh_icon'];
