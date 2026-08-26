@@ -581,7 +581,6 @@
                   Object.keys(plat).forEach( (key) =>  { allItems[_idx][key] = plat[key]; });
               }
             });
-            dtLoading.value = false;
             // Display the summary
             if (response.summary != "") {
                 Swal.fire({
@@ -632,23 +631,6 @@
       console.log('Error processing bulk request: ', error);
     }
   }
-
-  // function sortItems() {
-  //   const config = datasetConfig[props.datasetKey];
-  //   const sortCol = config.sortby;
-  //   if (typeof(allItems[sortCol])=='undefined') return;
-  //   this.allItems.sort((a,b) => {
-  //     if ( a[sortCol] < b[sortCol] ) return -1;
-  //     if ( a[sortCol] > b[sortCol] ) return 1;
-  //     return 0;
-  //   });
-  //   if (typeof(filteredItems[sortCol])=='undefined') return;
-  //   this.filteredItems.sort((a,b) => {
-  //     if ( a[sortCol] < b[sortCol] ) return -1;
-  //     if ( a[sortCol] > b[sortCol] ) return 1;
-  //     return 0;
-  //   });
-  // }
 
   // Handle toolbar filter emits
   function handleFilter(filt) {
@@ -846,9 +828,6 @@
         } catch (error) {
           console.log('Error updating status', error);
         }
-      }
-      if (field == 'includeZeros') {
-console.log('Handling for includeZeros toggle not written yet');
       }
     }
   }
