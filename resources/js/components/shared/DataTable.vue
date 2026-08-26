@@ -130,12 +130,6 @@
           <v-list-item-title>{{ noDataMessage }}</v-list-item-title>
         </v-list-item>        
       </template>
-      <!-- Dynamic editable fields -->
-      <!-- <template v-for="field in props.editableFields" #[`item.${field}`]="{ item }">
-        <component :is="getFieldComponent(field)" v-model="item[field]" :label="getFieldLabel(field)"
-                   density="compact" hide-details variant="plain" class="editable-cell"
-                   @blur="emitEdit(item)"/>
-      </template> -->
 
       <!-- Preserved custom slots -->
       <template v-if="hasStatusColumn" #item.status="{ item }">
