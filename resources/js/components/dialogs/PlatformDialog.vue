@@ -65,10 +65,8 @@
   function changeRelease() {
       let registry = formValues['registries'].find(r => r.release == formValues['cur_release']);
       if (typeof(registry)!='undefined') {
-        let initial_connector_state = (typeof(registry)!='undefined') ? Object.assign({},registry.connector_state) : {};
-        formValues['connector_state'] = Object.assign({},initial_connector_state);
-        let initial_report_state = (typeof(registry)!='undefined') ? Object.assign({},registry.report_state) : {};
-        formValues['report_state'] = Object.assign({},initial_report_state);
+        formValues['connector_state'] = Object.assign({},registry.connector_state);
+        formValues['report_state'] = Object.assign({},registry.report_state);
         formValues['is_selected'] = registry.is_selected;
       }
   }
