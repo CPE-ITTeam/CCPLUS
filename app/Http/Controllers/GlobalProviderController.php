@@ -142,11 +142,11 @@ class GlobalProviderController extends Controller
         $filter_options['all_connectors'] = $all_connectors;
         $filter_options['master_reports'] = $masterReports; 
         $filter_options['statuses'] = array('Active','Inactive');
-        // Set refresh_result filter options to key->value pairs so they make better sense in the U/I
-        $filter_options['results'] = array( array('key'=>'success','value' =>'Success'), array('key'=>'new','value' =>'New'),
-            array('key'=>'orphan','value' =>'Deprecated'), array('key'=>'partial','value' =>'Incomplete'),
-            array('key'=>'failed','value' =>'Failed'), array('key'=>'norefresh','value' =>'Refresh Disabled'),
-            array('key'=>'noregistry','value' =>'No Registry ID'));
+        // Set refresh_result filter options to id->value pairs so they make better sense in the U/I
+        $filter_options['results'] = array( array('id'=>'success','value' =>'Success'), array('id'=>'new','value' =>'New'),
+            array('id'=>'orphan','value' =>'Deprecated'), array('id'=>'partial','value' =>'Incomplete'),
+            array('id'=>'failed','value' =>'Failed'), array('id'=>'norefresh','value' =>'Refresh Disabled'),
+            array('id'=>'noregistry','value' =>'No Registry ID'));
         // Return the data array
         return response()->json(['records' => $providers, 'options' => $filter_options], 200);
     }

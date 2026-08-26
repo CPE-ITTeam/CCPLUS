@@ -494,7 +494,7 @@
         { name: 'refresh_result', type: 'text',   header: null,     editable: false, searchable: true,  label: 'Refresh Result',
           icon: '', helperText: '' },
         { name: 'results',       type: 'mselect', header: null,     editable: false, searchable: true,  label: 'Filter Refresh Result',
-          options: 'fromURL', optVal: 'key', optTxt: 'value', icon: '', helperText: '', isFilter: true, filterCol: 'refresh_result' },
+          options: 'fromURL', optVal: 'id', optTxt: 'value', icon: '', helperText: '', isFilter: true, filterCol: 'refresh_result' },
         { name: 'statuses',       type: 'text',   header: null,     editable: false, searchable: true,  label: 'Filter Status',
           options: 'fromURL', icon: '', helperText: '', isFilter: true, filterCol: 'status' },
         { name: 'customer_id',    type: 'text', header: null, editable: true, searchable: false, label:'Customer ID',
