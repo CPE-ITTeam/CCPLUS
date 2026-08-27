@@ -100,13 +100,16 @@ class CounterRegistryController extends Controller
             if (!is_array($input['ids'])) {
                 return response()->json(['result' => false, 'msg' => "Refresh Request Failed - Invalid Input!"]);
             }
-            $global_providers = $all_globals->where('refreshable',1)->whereIn('id', $input['ids']);
-
+            if ( $is_dialog && count($input['ids']) == 1 ) {    // Allow dialog to request refresh even if set to NoRefresh
+                $global_providers = $all_globals->whereIn('id', $input['ids']);
+            } else {
+                $global_providers = $all_globals->where('refreshable',1)->whereIn('id', $input['ids']);
+                $no_refresh = $all_globals->where('refreshable',0)->whereIn('id', $input['ids'])->pluck('name')->toArray();
+            }
             // If nothing requested is refreshable, report the error and exit
             if ($global_providers->count() == 0) {
                 return response()->json(['result'=>false, 'msg'=>"The requested platform(s) are marked not refreshable"]);
             }
-            $no_refresh = $all_globals->where('refreshable',0)->whereIn('id', $input['ids'])->pluck('name')->toArray();
         }
         $gpCount = count($global_providers);
         $ids_to_update = $global_providers->pluck('registry_id')->toArray();
@@ -145,7 +148,7 @@ class CounterRegistryController extends Controller
         $this->getConnectionFields();
         $datahosts = DataHost::get();
 
-        // Setup a static array to conect what the COUNTER API sends back to conbnection_fields
+        // Setup a static array to connect what the COUNTER API returns to conbnection_fields
         $api_connectors = array('customer_id_info'      => array('field' => 'customer_id', 'id' => null),
                                 'requestor_id_required' => array('field' => 'requestor_id', 'id' => null),
                                 'api_key_required'      => array('field' => 'api_key', 'id' => null)
@@ -168,19 +171,23 @@ class CounterRegistryController extends Controller
         $return_data = array();
         $updated_ids = array();   // track global_providers actually updated
         $no_registryID = array(); // track names of platforms with no registry_id (skipped)
-        $no_url = array();    // track names of platforms with refresh disabled (skipped)
+        $no_url = array();        // track names of platforms with refresh disabled (skipped)
         $new_platforms = array(); // track names of newly created platforms for summary
         foreach ($platform_records as $platform) {
-            // Full refresh needs to include NEW platforms. Bulk/single refresh should skip them
-            if (is_null($platform->id) || (!$full_refresh && !in_array($platform->id,$ids_to_update))) continue;
+            // Skip platforms with no ID value
+            if (is_null($platform->id)) continue;
+            // Skip if platform ID is not one to be updated
+            if (!$full_refresh && !in_array($platform->id,$ids_to_update)) continue;
 
             // Look for a matching provider
             $newProvider = false;
             $global_provider = $all_globals->where('registry_id',$platform->id)->first();
 
-            // Skip if platform not matched (and not full refresh) or if it is set not-refreshable
-            if ($global_provider && $full_refresh) {
-                if ($global_provider->refreshable == 0) continue;
+            // Full refresh needs to include NEW platforms (!$global_provider means it is NEW)
+            // Skip if doing full refresh and platform is known and not-refreshable
+            if ($full_refresh && $global_provider && $global_provider->refreshable == 0) {
+                continue; 
+            // Skip unmatched provider if not doing full refresh
             } else if (!$global_provider && !$full_refresh) {
                 continue;
             }
@@ -197,7 +204,7 @@ class CounterRegistryController extends Controller
                 }
             }
 
-            // if no URL defined, don't create a GlobalProvider, just flag it
+            // if no URL defined, don't create a GlobalProvider, just setup error/return
             if (!$hasUrl) {
                 if ($global_provider) { // clear service_url(s) for existing provider if sushi_services or url missing
                     CounterRegistry::where('global_id',$global_provider->id)->update(['service_url' => null]);
@@ -210,10 +217,10 @@ class CounterRegistryController extends Controller
                     continue;
                 }
 
-            // Platform entry has a URL defined..
+            // Registry platform entry has a URL defined..
             } else {
-                // If global provider w/ matching ID not found, look for a match on name, and
-                // if none matches, create new entry
+                // If global provider w/ matching registryID not found, look for a match on name, and
+                // if none matches, create new GlobalProvider record
                 if (!$global_provider) {
                     $global_provider = $all_globals->where('name',$platform->name)->first();
                     if ($global_provider) {
@@ -225,7 +232,7 @@ class CounterRegistryController extends Controller
                             $global_provider->refresh_result = 'new';
                             $new_platforms[] = $platform->name;
                             $newProvider = true;
-                        // If not found, and we're doing more than one, skip this entry and continue
+                        // If not found, and we're doing more than one (bulk), skip this entry and continue
                         // (this is not an error - we pulled everything when count>1)
                         } else if ($gpCount>1) {
                             continue;
@@ -335,14 +342,18 @@ class CounterRegistryController extends Controller
                     $global_provider->save();   
                 }
                 $old_connectors = $global_provider->connectors();
+                // Setup an array to hold (unsaved) registry rows for dialog requests
+                $dialog_registries = array();
                 foreach ( $service_details as $release => $details ) {
                     if (strlen(trim($details->url)) > 0) {
                         $registry = $global_provider->registries->where('release',$release)->first();
                         // create a new entry if it doesn't exist
+                        $new_registry = false;
                         if (!$registry) {
                             $registry = new CounterRegistry;
                             $registry->global_id = $global_provider->id;
                             $registry->release = $release;
+                            $new_registry = true;
                             // Remove release="0" entry, if defined, since we have a "real" one now
                             $zero_reg = $global_provider->registries->where('release',"0")->first();
                             if ($zero_reg) {
@@ -362,15 +373,15 @@ class CounterRegistryController extends Controller
                         if (isset($details->data_host)) {
                             $datahost_url = $details->data_host;
                             $parts = explode('/', $datahost_url);
-                            $host_id = trim($parts[count($parts) - 2]);
-                            $dataHost = $datahosts->where('id',$host_id)->first();
+                            $host_key = trim($parts[count($parts) - 2]);
+                            $dataHost = $datahosts->where('datahost_key',$host_key)->first();
                             if ($dataHost) {
-                                $registry->datahost_id = $host_id;
+                                $registry->datahost_id = $dataHost->id;
                             } else {
                                 $host = $this->requestURI($datahost_url);
                                 if (is_object($host)) {
                                     try {
-                                        $dataHost = DataHost::create(['datahost_key' => $host->id, 'name' => $host->name]);
+                                        $dataHost = DataHost::create(['datahost_key' => $host_key, 'name' => $host->name]);
                                         $registry->datahost_id = $dataHost->id;
                                         $datahosts->push($dataHost);
                                     } catch (\Exception $e) {
@@ -400,10 +411,22 @@ class CounterRegistryController extends Controller
                             }
                         }
                         $registry->connectors = $connectors;
-                        $registry->save();
+                        // For dialog, we avoid updating existing registry records. Registry records are
+                        // collected and injected before using them (below)
+                        if ($is_dialog) {
+                            $dialog_registries[] = $registry;
+                        }
+                        if (!$is_dialog || $new_registry) {
+                            $registry->save();
+                        }
                     }
                 }
-                $global_provider->load('registries');
+                // Set registries relationship in global_provider 
+                if ($is_dialog) {
+                    $global_provider->setRelation('registries',collect($dialog_registries));
+                } else {
+                    $global_provider->load('registries');
+                }
     
                 // Check for changed connectors (in the default/max release) - if new ones are now required, we need
                 // to update credentials.
@@ -416,30 +439,41 @@ class CounterRegistryController extends Controller
             if (!$is_dialog) {
                 $_release = $global_provider->default_release();
                 $global_provider->update(['selected_release' => $_release]);
-            }
-
-            // If changes implicate connection settings, apply to all instances
-            if ($global_provider->name != $orig_name || $global_provider->is_active!=$orig_isActive || $connectors_changed) {
-                $global_provider->applyToInstances();
+                // If changes implicate connection settings, apply to all instances
+                if ($global_provider->name != $orig_name || $global_provider->is_active!=$orig_isActive || $connectors_changed) {
+                    $global_provider->applyToInstances();
+                }
             }
 
             // Setup return data
             $return_rec = $global_provider->toArray();
             $return_rec['registries'] = array();
+            $return_rec['reg_releases'] = array();
             $return_rec['release'] = $global_provider->default_release();
+            $return_rec['report_state'] = $this->reportState([]);
             foreach ($global_provider->registries->sortBy('release') as $reg) {
                 $data = $reg->toArray();
                 $data['connector_state'] = $this->connectorState($reg->connectors);
                 $data['report_state'] = $this->reportState($reg->master_reports);
-                if ($reg->release == $return_rec['release']) {
-                    $return_rec['data_host'] = ($reg->dataHost) ? $reg->dataHost->name : "-missing-";
+                $data['is_selected'] = ($reg->release == $global_provider->selected_release) ? 'Active' : 'Inactive';
+                $data['data_host'] = ($reg->dataHost) ? $reg->dataHost->name : "-missing-";
+                if ( $data['is_selected'] == 'Active' ) {
+                    $return_rec['is_selected'] = 'Active';
+                    $return_rec['connector_state'] = $data['connector_state'];
+                    $return_rec['report_state'] = $data['report_state'];
+                    $return_rec['data_host'] = $data['data_host'];
+                    // Set array of booleans for connectors (so they show as Y/N in exports - not shown in U/I)
+                    foreach ($return_rec['connector_state'] as $con => $val) {
+                        $return_rec[$con] = ($val) ? 'Y' : 'N';
+                    }
                 }
                 $return_rec['registries'][] = $data;
+                $return_rec['reg_releases'][] = trim($reg->release);
             }
             $return_rec['release'] = $global_provider->default_release();
             $return_rec['service_url'] = $global_provider->service_url();
             $return_rec['status'] = ($global_provider->is_active) ? "Active" : "Inactive";
-            $return_rec['refreshable'] = ($global_provider->refreshable) ? "Active" : "Inactive";
+            $return_rec['refreshable'] = ($global_provider->refreshable || $is_dialog) ? "Active" : "Inactive";
             $return_rec['updated'] = date("Y-m-d H:i", strtotime($global_provider->updated_at));
             $updated_ids[] = $global_provider->id;
             $return_rec['error'] = 0;
