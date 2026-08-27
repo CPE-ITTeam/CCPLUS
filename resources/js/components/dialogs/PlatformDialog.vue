@@ -104,7 +104,9 @@
     dialog_success.value = '';
     var args = {ids: [ formValues['id'] ], dialog: true };
     const response = await ccPost('/api/platforms/refresh', args);
-    if (response.result && typeof(response.affectedItems[0] != 'undefined')) {
+    if (!response.result) {
+      dialog_error.value = response.msg;
+    } else if (typeof(response.affectedItems[0] != 'undefined')) {
       Object.keys(formValues).forEach( (key) => {
         if (typeof(response.affectedItems[0][key]) != 'undefined') {
           if (Array.isArray(response.affectedItems[0][key])) {
