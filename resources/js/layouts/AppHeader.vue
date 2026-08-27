@@ -6,8 +6,6 @@ import { useExternalLinks } from '@/composables/useExternalLinks';
 
 const authStore = useAuthStore();
 const { openCop, openCounterApi, openRegistry, openRegistryApi } = useExternalLinks();
-// Set homeUrl based on role
-const homeUrl = (authStore.is_serveradmin || authStore.is_admin) ? "/admin" : "/reports";
 function apiLogout() { authStore.logout({}); };
 
 </script>
