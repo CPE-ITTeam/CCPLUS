@@ -107,7 +107,11 @@
     if (response.result && typeof(response.affectedItems[0] != 'undefined')) {
       Object.keys(formValues).forEach( (key) => {
         if (typeof(response.affectedItems[0][key]) != 'undefined') {
-          formValues[key] = response.affectedItems[0][key];
+          if (Array.isArray(response.affectedItems[0][key])) {
+            formValues[key] = [...response.affectedItems[0][key]];
+          } else {
+            formValues[key] = response.affectedItems[0][key];
+          }
         }
       });
       dialog_success.value = "Selected platform successfully retrieved.";
