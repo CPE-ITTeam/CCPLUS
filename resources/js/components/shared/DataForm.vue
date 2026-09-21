@@ -43,6 +43,7 @@
   });
   const showConfirm = computed(() => {
     if ( Object.keys(formValues).includes('password')) {
+      if (opType.value=='Add') return true;
       if (formValues['password']!==null) {
         return (formValues['password'].length > 0);
       }
