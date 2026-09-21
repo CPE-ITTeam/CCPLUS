@@ -10,6 +10,7 @@ use App\Models\UserRole;
 use App\Models\Institution;
 use App\Models\InstitutionGroup;
 use App\Models\Consortium;
+use App\Models\GlobalSetting;
 use Illuminate\Http\Request;
 use Illuminate\Support\Arr;
 use Illuminate\Support\Facades\Mail;
@@ -161,7 +162,11 @@ class UserController extends Controller
         }
 
         // Create the user
-        $user = User::create($input);
+        try {
+            $user = User::create($input);
+        } catch (\Exception $e) {
+            return response()->json(['result'=>false, 'msg'=>'Error creating user: '.$e->getMessage()]);
+        }
 
         // Add Role record for Viewer
         $viewer_role_id = Role::where('name','Viewer')->value('id');
@@ -182,11 +187,27 @@ class UserController extends Controller
             $con_name = ($current) ? $current->name : "";
         }
 
-        // Send email to the user about their new account, but fail silently
-        $data = array('name' => $user->name, 'password' => $input['password']);
-        try {
-            Mail::to($input['email'])->send(new \App\Mail\NewUser($con_name,$data));
-        } catch (\Exception $e) { }
+        // Send email to the user about their new account (tolerate and report errors)
+        $mail_settings = GlobalSetting::where('type','mail')->get();
+        $host = ($mail_settings) ? $mail_settings->where('name','host')->pluck('value')->first() : null;
+        $port = ($mail_settings) ? $mail_settings->where('name','port')->pluck('value')->first() : null;
+        $msg = 'User successfully created';
+        if (is_null($host) || is_null($port)) {
+            $msg .= ', but email not sent - global setings are not configured.';
+        } else {
+            $data = array('name' => $user->name, 'password' => $input['password']);
+            try {
+                Mail::to($input['email'])->send(new \App\Mail\NewUser($con_name,$data));
+                $msg .= ' and email sent to : ' . $input['email'];
+            // Handle mail-specific exception(s) - tolerate and report
+            } catch (\MailException $e) {
+                $msg .= ', but email could not be sent to user.';
+                \Log::error('Mail sending failed: ' . $e->getMessage());
+            } catch (\Exception $e) {
+                $msg .= ', but email could not be sent to user.';
+                \Log::error('Mail sending failed: ' . $e->getMessage());
+            }
+        }
 
         // Setup array to hold new user to match index fields
         $new_user = array('id' => $user->id, 'email' => $user->email, 'name' => $user->name,
@@ -198,7 +219,7 @@ class UserController extends Controller
         $new_user['can_edit'] = true;
         $new_user['can_delete'] = true;
 
-        return response()->json(['result' => true, 'msg' => 'User successfully created', 'record' => $new_user]);
+        return response()->json(['result' => true, 'msg' => $msg, 'record' => $new_user]);
     }
 
     /**
@@ -331,7 +352,7 @@ class UserController extends Controller
             ($user->isServerAdmin() && $user->email == config('ccplus.server_admin')) ) {
             return response()->json(['result' => false, 'msg' => 'Delete failed (403) - Forbidden']);
         }
-        if (auth()->id() == $id) {
+        if (auth()->id() == $user->id) {
             return response()->json(['result' => false,
                                      'msg' => 'Self-deletion forbidden (403); have an Admin assist you.']);
         }
