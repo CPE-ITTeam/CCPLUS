@@ -42,11 +42,11 @@ class RoleController extends Controller
         // Role options need to be dependent on $thisUser's roles
         $filter_options['role'] = array();
         $all_roles = Role::where('id', '<=', $thisUser->maxRole())->orderBy('id', 'DESC')
-                         ->where('name','<>','ServerAdmin')->get(['name', 'id'])->toArray();
-        foreach ($all_roles as $idx => $r) {
-            if ($r['name'] == 'Admin' && $thisUser->isConsoAdmin())  $filter_options['role'][] = "Consortium Admin";
-            if ($r['name'] == 'Viewer' && $thisUser->isConsoAdmin()) $filter_options['role'][] = "Consortium Viewer";
-            $filter_options['role'][] = $r['name'];
+                         ->where('name','<>','ServerAdmin')->get();
+        foreach ($all_roles as $r) {
+            if ($r->name == 'Admin' && $thisUser->isConsoAdmin())  $filter_options['role'][] = "Consortium Admin";
+            if ($r->name == 'Viewer' && $thisUser->isConsoAdmin()) $filter_options['role'][] = "Consortium Viewer";
+            $filter_options['role'][] = $r->name;
         }
         $filter_options['user_role'] = array('Admin','Viewer');
 
@@ -57,7 +57,10 @@ class RoleController extends Controller
                              return $qry->whereIn('inst_id', $limit_insts);
                          })->orderBy('name', 'ASC')->get();
 
-        // Make user role names one string, role IDs into an array, and status to a string for the view
+        // Make user role names one string, role IDs into an array, build array of institution id,
+        // and turn status to a string for the view
+        $role_insts = array();
+        $filter_options['user_role'] = array('Admin','Viewer');
         $maxRole = $thisUser->maxRole();
         foreach ($user_data as $user) {
             $canManage = $user->canManage();
@@ -73,6 +76,9 @@ class RoleController extends Controller
                 $rec['can_edit'] = false;   // Disallow editing roles - Add+Delete only
                 $rec['can_delete'] = ($canManage && $role['id'] <= $maxRole);
                 $data[] = $rec;
+                if (!in_array($role['inst_id'],$role_insts) && !is_null($role['inst_id'])) {
+                    $role_insts[] = $role['inst_id'];
+                }
             }
         }
 
@@ -87,8 +93,8 @@ class RoleController extends Controller
                                                         return $qry->whereIn('id', $limit_groups);
                                                     })->orderBy('name', 'ASC')->get(['id','name']);
         // Limit institution filter to those with existing user-role records
-        $insts_with_roles = $user_data->unique('inst_id')->pluck('inst_id')->toArray();
-        $filter_options['institution'] = Institution::whereIn('id', $insts_with_roles)->orderBy('name', 'ASC')->get();
+        $filter_options['institution'] = Institution::whereIn('id', $role_insts)->orderBy('name', 'ASC')
+                                                    ->get(['name', 'id'])->toArray();
         $filter_options['user'] = $user_data->map(function ($rec) {
             return [ 'id' => $rec['id'], 'name' => $rec['name'] ];
         })->toArray();
