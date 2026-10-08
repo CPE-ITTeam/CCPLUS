@@ -18,6 +18,7 @@
     selectedRows: { type: Array, required: true },
     bulkOptions: { type: Object, required: true },
     hideExport: { type: Boolean, required: true },
+    warning: { type: String, required:true },
   });
 
   const authStore = useAuthStore();
@@ -35,7 +36,7 @@
   });
 
   const needsRefreshButton = computed(() => {
-    return (props.dataset=='harvests' || props.dataset=='jobs' || props.dataset=='audit');
+    return (props.dataset=='harvests' || props.dataset=='jobs' || props.dataset=='credentials' || props.dataset=='audit');
   });
 
   const showExportImport = computed(() => {
@@ -124,7 +125,9 @@
               
     <!-- Refresh Items button for harvest tables -->
     <v-col v-if="needsRefreshButton && consoKey!=''" class="d-flex justify-center">
-      <v-btn color="primary" @click="$emit('refreshRecords')">Refresh Records</v-btn>
+      <v-btn v-if="warning==''" color="primary" @click="$emit('refreshRecords')">Refresh Records</v-btn>
+      <v-btn v-else color="warning" @click="$emit('refreshRecords')">Refresh Records</v-btn>
+      <span v-if="warning!=''" class="ml-2" style="color: #dd0000; font-weight: bold;"> &nbsp;{{ warning }}</span>
     </v-col>
   </v-row>
   <!-- Search + Selected Toggle -->
