@@ -1,6 +1,6 @@
 <script setup>
 
-  import { ref, onMounted, onBeforeMount, watch } from 'vue';
+  import { ref, onMounted, onBeforeMount, watch, computed } from 'vue';
   import { useRouter,useRoute } from 'vue-router';
   import { useAuthStore } from '@/plugins/authStore.js';
 
@@ -13,8 +13,16 @@
   const this_route = useRoute();
   const router = useRouter();
   const all_routes = [ ...router.options.routes ];
-  const profileRoute = {...router.options.profileRoute };
-  const apiRoute = {...router.options.apiRoute };
+  // API route index-value is hardwired to 900 below
+  const apiRoute = computed(() => {
+    let theRoute = all_routes.find( route => route.name == 'API');
+    return (theRoute) ? {...theRoute} : { path:'/', meta: { title:'API', level:0 } };
+  });
+  // Profile route index-value is hardwired to 999 below
+  const profileRoute = computed(() => {
+    let theRoute = all_routes.find( route => route.name == 'Profile');
+    return (theRoute) ? {...theRoute} : { path:'/', meta: { title:'Profile', level:0 } };
+  });
   // Pinia DataStore
   const authStore = useAuthStore();
   // These are intentionally NOT reactive...
@@ -54,6 +62,13 @@
   }
   // Update page changes from menu(s)
   function onPageChange(newPage) {
+    if (newPage == 900) {
+      router.push(apiRoute.value.path);
+      return;
+    } else if (newPage == 999) {
+      router.push(profileRoute.value.path);
+      return;
+    }
     let page = pages.value[newPage];
     if ( typeof(page) != 'undefined') {
       let path = page.path;
@@ -66,7 +81,8 @@
     }
   };
 
-  // Before Mount
+  // Before Mount - Build the pages array based on user role and route configuration
+  // Routes marked level-0 or not-shown are excluded.
   onBeforeMount(() => {
     // Restrict routes by role
     // **Expects** : Level-1 routes may have mixed roles for their (level-2) child routes.
