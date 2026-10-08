@@ -17,7 +17,8 @@
     editableFields: { type: Array, required: true },
     isLoading: { type: Boolean, required:true },
     truncated: { type: Boolean, required:true },
-    selectableRows: { type: Boolean, required:true }
+    selectableRows: { type: Boolean, required:true },
+    pnate: { type: Object, required:true }
   });
 
   const showActions = computed( () => {
@@ -83,7 +84,7 @@
   };
 
   const refreshDataset = computed(() => {
-    return (props.dataset=='harvests' || props.dataset=='jobs' || props.dataset=='audit');
+    return (props.dataset=='harvests' || props.dataset=='jobs' || props.dataset=='credentials' || props.dataset=='audit');
   });
 
   const noDataMessage = computed(() => {
@@ -122,9 +123,10 @@
         ✅ {{ selectedRows.length }} item{{ selectedRows.length=== 1 ? '' : 's' }} selected
       </div>
     </div>
-    <v-data-table v-model="internalSelectedRows" :headers="computedHeaders" :items="filteredItems"
-                  item-key="id" item-value="id" :show-select="props.selectableRows" return-object
-                  :loading="props.isLoading" :custom-key-sort="customKeySort">
+    <v-data-table v-model="internalSelectedRows" v-model:page="pnate['cur']" v-model:items-per-page="pnate['ipp']"
+                  :headers="computedHeaders" :items="filteredItems" item-key="id" item-value="id"
+                  :show-select="props.selectableRows" return-object :loading="props.isLoading"
+                  :custom-key-sort="customKeySort">
       <template v-slot:no-data>
         <v-list-item>
           <v-list-item-title>{{ noDataMessage }}</v-list-item-title>
@@ -183,22 +185,37 @@
 
       <!-- Customer ID -->
       <template #item.customer_id="{ item }">
-        <span :class="{ 'required-field': item.customer_id === '-required-' }">
-          {{ item.customer_id }}
+        <span v-if="item.customer_id==null || item.customer_id==''"></span>
+        <span v-else-if="item.customer_id=='-required-'" :class="{ 'required-field': item.customer_id === '-required-' }">
+          -required-
+        </span>
+        <span v-else>
+          <!-- {{ item.customer_id }} -->
+          {{ item.customer_id.substring(0,4) }}...
         </span>
       </template>
 
       <!-- Requestor ID -->
       <template #item.requestor_id="{ item }">
-        <span :class="{ 'required-field': item.requestor_id === '-required-' }">
-          {{ item.requestor_id }}
+        <span v-if="item.requestor_id==null || item.requestor_id==''"></span>
+        <span v-else-if="item.requestor_id=='-required-'" :class="{ 'required-field': item.requestor_id === '-required-' }">
+          -required-
+        </span>
+        <span v-else>
+          <!-- {{ item.requestor_id }} -->
+          {{ item.requestor_id.substring(0,4) }}...
         </span>
       </template>
 
       <!-- API Key -->
       <template #item.api_key="{ item }">
-        <span :class="{ 'required-field': item.api_key === '-required-' }">
-          {{ item.api_key }}
+        <span v-if="item.api_key==null || item.api_key==''"></span>
+        <span v-else-if="item.api_key=='-required-'" :class="{ 'required-field': item.api_key === '-required-' }">
+          -required-
+        </span>
+        <span v-else>
+          <!-- {{ item.api_key }} -->
+          {{ item.api_key.substring(0,4) }}...
         </span>
       </template>
 
