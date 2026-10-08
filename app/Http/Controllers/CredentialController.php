@@ -48,16 +48,6 @@ class CredentialController extends Controller
                               return $qry->whereIn('inst_id',$limit_to_insts);
                           })->get();
 
-        // Pull all connections $thisUser can admin to get a set of GlobalProvider ids
-        $connections = Connection::where('inst_id',1)
-                                 ->when(count($limit_to_insts) > 0, function ($qry) use ($limit_to_insts) {
-                                         return $qry->orWhereIn('inst_id',$limit_to_insts);
-                                 })
-                                 ->when(count($limit_to_groups) > 0, function ($qry) use ($limit_to_groups) {
-                                         return $qry->orWhereIn('group_id',$limit_to_groups);
-                                 })->get();
-        $globalIds = $connections->unique('global_id')->pluck('global_id')->toArray();
-
         // Get all global providers
         $globals = GlobalProvider::with('registries','connections','connections.reports')
                                  ->orderBy('name','ASC')->get();
@@ -65,7 +55,6 @@ class CredentialController extends Controller
         // Setup filtering options for the datatable
         $global_connectors = ConnectionField::get();
         $filter_options = array();
-        $filter_options['results'] = array();
         $filter_options['statuses'] = $data->unique('status')->pluck('status')->toArray();
         $filter_options['platforms'] = $globals->map(function ($plat) use ($global_connectors) {
             $_connectors = array();
@@ -76,6 +65,21 @@ class CredentialController extends Controller
             return [ 'id' => $plat->id, 'name' => $plat->name, 'is_active' => $plat->is_active,
                      'connectors' => $_connectors ];
         });
+        // Build results filter options based on what is in records
+        $filter_options['results'] = array();
+        $codes = $data->filter(function ($cred) {
+            return ($cred->lastHarvest);
+        })->pluck('lastHarvest.error_id')->unique()->toArray();
+        $numNoHarvests = $data->filter(function ($cred) {
+            return (!$cred->lastHarvest);
+        })->count();
+        foreach ($codes as $code) {
+            $_val = ($code>0) ? $code : 'Success';
+            $filter_options['results'][] = array('result' => $_val);
+        }
+        if ($numNoHarvests > 0) {
+            $filter_options['results'][] = array('result' => 'No Harvests');
+        }
 
         // Set institution and group filter options, depending on role(s)
         if ($thisUser->isConsoAdmin()) {
@@ -84,23 +88,116 @@ class CredentialController extends Controller
             $filter_options['institutions'] = Institution::where('is_active',1)->orderBy('name','ASC')
                                                          ->get(['id','name','is_active']);
         } else {
-            $inst_ids = $thisUser->adminInsts();
-            $filter_options['groups'] = array();
-            $filter_options['institutions'] = Institution::where('is_active',1)->whereIn('id',$inst_ids)
+            $filter_options['groups'] = InstitutionGroup::whereIn('id', $limit_to_groups)->orderBy('name','ASC')
+                                                        ->get(['id','name']);
+            $filter_options['institutions'] = Institution::where('is_active',1)->whereIn('id',$limit_to_insts)
                                                          ->orderBy('name','ASC')->get(['id','name','is_active']);
         }
 
-        // Keep track of the last error values for the filter options
-        $nh_count = 0;
-        $seen_codes = array(0); // preset success code
+        // Return the data array
+        return response()->json(['records' => [], 'options' => $filter_options, 'result' => true], 200);
+    }
 
-        // Get master report definitions
-        $this->getMasterReports();
+    /**
+     * Returns (possibly filtered) items for the U/I
+     *
+     * @param  \Illuminate\Http\Request  $request
+     * @return \Illuminate\Http\Response or JSON
+     */
+    public function getItems(Request $request)
+    {
+        global $masterReports;
+
+        $thisUser = auth()->user();
+        abort_unless($thisUser->hasRole('Admin'), 403);
+        $consoAdmin = $thisUser->isConsoAdmin();
+
+        // Get insitution and group limits for this user's role(s)
+        $limit_to_insts = $thisUser->adminInsts();
+        if ($limit_to_insts === [1]) $limit_to_insts = [];
+        $limit_to_groups = $thisUser->adminGroups();
+        if ($limit_to_groups === [1]) $limit_to_groups = [];
+
+        $input = $request->all();
+        $type = (isset($input['type'])) ? $input['type'] : null;
+        if ($type!='credentials') {
+            return response()->json(['result' => false, 'msg' => 'Invalid request type for getItems']);
+        }
+
+        // Setup for known filters
+        $filters = array('results'=>[],'platforms'=>null,'institutions'=>null,'statuses'=>[],'groups'=>null);
+        // Validate/handle input filters
+        if ($input['filters']) {
+            foreach ($input['filters'] as $key => $val) {
+                if (is_array($filters[$key])) {
+                    $filters[$key] = (is_array($val)) ? $val : [];
+                } else {
+                    $filters[$key] = (is_null($val)) ? null : $val;
+                }
+            }
+        }
+
+        // Enforce limits on institutions and groups
+        $limit_insts = array();
+        $group_insts = array();
+        // Turn groups into a set of institutions (harvests happen to insts, not groups)
+        if (!is_null($filters['groups']) || !$consoAdmin) {
+            $limit_groups = (!$consoAdmin) ? array_intersect($limit_to_groups, $filters['groups'])
+                                           : $filters['groups'];
+            $group = InstitutionGroup::where('id',$limit_groups)->with('institutions:id,name')->first();
+            $group_insts = ($group) ? $group->institutions->pluck('id')->toArray() : [];
+            $limit_insts = $group_insts;
+        }
+        if (!is_null($filters['institutions']) || !$consoAdmin) {
+            $limit_insts = (!$consoAdmin) ? array_intersect($limit_to_insts, $filters['institutions'])
+                                          : array($filters['institutions']);
+        }
+        if (!is_null($filters['institutions']) && !is_null($filters['groups'])) {
+            $limit_insts = array_intersect($limit_insts,$group_insts);
+        }
+
+        // Get all credentials and apply filters (if any) to the query
+        $data = Credential::with('institution:id,name,is_active,local_id','provider','lastHarvest')
+                          ->when(count($limit_insts) > 0, function ($qry) use ($limit_insts) {
+                              return $qry->whereIn('inst_id',$limit_insts);
+                          })
+                          ->when(!is_null($filters['platforms']), function ($query) use ($filters) {
+                              return $query->where('prov_id', $filters['platforms']);
+                          })
+                          ->when(count($filters['statuses'])>0, function ($query) use ($filters) {
+                              return $query->whereIn('status', $filters['statuses']);
+                          })
+                          ->get();
+        if (!$data) {
+            return response()->json(['result'=>false, 'msg'=>'No matching connected credentials to audit.']);
+        }
+
+        // Apply results filter if given
+        if (count($filters['results']) > 0) {
+            $data = $data->filter(function ($cred) use ($filters) {
+                $lastHarvest = $cred->lastHarvest;
+                return ((!$lastHarvest && in_array('No Harvests',$filters['results'])) ||
+                        ($lastHarvest && $lastHarvest->error_id==0 && in_array('Success',$filters['results'])) ||
+                        ($lastHarvest && $lastHarvest->error_id>0 && in_array($lastHarvest->error_id,$filters['results'])));
+            });
+        }
+
+        // Get all global providers
+        $globals = GlobalProvider::with('registries','connections','connections.reports')
+                                 ->orderBy('name','ASC')->get();
+        $global_connectors = ConnectionField::get();
 
         // Add provider global connectors and can_edit flag to the credentials
+        $count = 0;
+        $truncated = false;
         $credentials = array();
         foreach ($data as $cred) {
             if (!$cred->provider) continue;
+            // Limit to 500 records
+            if ($count>500) {
+                $truncated = true;
+                break;
+            }
             // can_edit and can_delete true b/c $data limited above by adminInsts()
             $rec = array('id' => $cred->id, 'status' => $cred->status, 'inst_id' => $cred->inst_id,
                          'prov_id' => $cred->prov_id, 'customer_id' => $cred->customer_id,
@@ -121,13 +218,9 @@ class CredentialController extends Controller
             $rec['connected'] = ($cred->status == 'Enabled') ? true : false;
             $lastHarvest = $cred->lastHarvest;
             if ($lastHarvest) {
-                if ($lastHarvest->error_id>0 && !in_array($lastHarvest->error_id,$seen_codes)) {
-                    $seen_codes[] = $lastHarvest->error_id;
-                }
                 $rec['result'] = ($lastHarvest->status == 'Success' || $lastHarvest->error_id==0)
                                  ? 'Success' : $lastHarvest->error_id;
             } else {
-                $nh_count++;
                 $rec['result'] = 'No Harvests';
             }
 
@@ -152,21 +245,10 @@ class CredentialController extends Controller
                 }
             }
             $credentials[] = $rec;
+            $count++;
         }
-
-        // Setup results filter options based on what is in records
-        sort($seen_codes);
-        foreach ($seen_codes as $code) {
-            $_val = ($code>0) ? $code : 'Success';
-            $filter_options['results'][] = array('result' => $_val);
-        }
-        if ($nh_count > 0) {
-            $filter_options['results'][] = array('result' => 'No Harvests');
-        }
-        $filter_options['all_connectors'] = $global_connectors;
-
         // Return the data array
-        return response()->json(['records' => $credentials, 'options' => $filter_options, 'result' => true], 200);
+        return response()->json(['result' => true, 'records' => $credentials, 'truncated' => $truncated], 200);
     }
 
     /**
@@ -861,7 +943,7 @@ class CredentialController extends Controller
         $limit_plats = $connections->pluck('global_id')->toArray();
 
         // Get all institutions and their group-membership to support filter-by-group in the UI
-        $all_institutions = Institution::with('institutionGroups:id,name')
+        $all_institutions = Institution::with('institutionGroups:id,name','institutionType:id,name')
                                         ->when(!$consoAdmin, function ($query) use ($limit_insts) {
                                             return $query->whereIn('id', $limit_insts);
                                         })->orderBy('name','ASC')->get();
@@ -871,6 +953,9 @@ class CredentialController extends Controller
         $filter_options['valid_types'] = array(
             'Fully Validated','Not Fully Validated','Institution Not Validated','Platform Not Validated'
         );
+        $filter_options['itypes'] = $all_institutions->pluck('institutionType')->unique()->values()->map(function ($type) {
+            return [ 'id' => $type->id, 'name' => $type->name ];
+        });
         $globals = GlobalProvider::with('connections')->whereIn('id',$limit_plats)->where('is_active',1)
                                  ->orderBy('name','ASC')->get(['id','name']);
         $filter_options['platforms'] = $globals->map(function ($plat) {
@@ -903,13 +988,13 @@ class CredentialController extends Controller
         $consoAdmin = $thisUser->isConsoAdmin();
 
         $input = $request->all();
-        $type = (isset($input['type'])) ? $input['type'] : 'harvests';
+        $type = (isset($input['type'])) ? $input['type'] : null;
         if ($type!='audit') {
             return response()->json(['result' => false, 'msg' => 'Invalid request type for auditItems']);
         }
 
         // Setup for known filters
-        $filters = array('valid_types' => [], 'platforms' => [], 'institutions' => [], 'groups' => []);
+        $filters = array('valid_types' =>[], 'platforms'=>[], 'institutions'=>[], 'groups'=>[], 'itypes'=>[]);
         $validations = array(
             'Fully Validated','Not Fully Validated','Institution Not Validated','Platform Not Validated'
         );
@@ -992,6 +1077,12 @@ class CredentialController extends Controller
         $records = array();
         foreach ($credentials as $credential) {
             if (is_null($credential->provider) || is_null($credential->institution)) continue;
+
+            // Apply institution type filter if provided
+            if (count($filters['itypes']) > 0 &&
+                !in_array($credential->institution->type_id, $filters['itypes'])) {
+                continue;
+            }
 
             // Apply validations filter if provided
             if ( in_array($filters['valid_types'],$validations) ) {
