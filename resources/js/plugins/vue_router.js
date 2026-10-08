@@ -61,6 +61,18 @@ const routes = [
     /* ----------------------------------------------------
        Authenticated Layout Routes
     ------------------------------------------------------- */
+    // These are excluded from the menu bar with level:0, but authenticatedLayout will tack
+    // them onto the top navigation bar after the accessible (by role) other routes.
+    {
+        path: '/profile', name: 'Profile', component: markRaw(AccountSettings),
+        meta: { title: 'Account Settings', layout: AuthenticatedLayout, role: 'Viewer', key:0, level:0 },
+    },
+    {
+        path: '/ccplusApi', name: 'API', component: markRaw(CCPlusApi),
+        meta: { title: 'CC-PLUS API', layout: AuthenticatedLayout, role: 'Viewer', key:0, level:0 },
+    },
+    // Role-based routes (level:1) are displayed in the menu bar, and their children (level:2)
+    // are displayed in the sub-menu.
     {
       path: '/consortia', name: 'Consortia', component: markRaw(Consortia), children: [],
       meta: { title: 'Consortia', layout: AuthenticatedLayout, role: 'ServerAdmin', key: 0, level: 1 }
@@ -178,23 +190,10 @@ const routes = [
       ]
     },
 ];
-// Separate routes that authenticatedLayout tacks onto the application routes in the top navigation bar
-const  profileRoute = {
-    path: '/profile', name: 'Profile',
-    meta: { title: 'Account Settings', layout: AuthenticatedLayout, role: 'Viewer', key:0, level:1 }, 
-    component: markRaw(AccountSettings),
-};
-const apiRoute ={
-    path: '/ccplusApi', name: 'API',
-    meta: { title: 'CC-PLUS API', layout: AuthenticatedLayout, role: 'Viewer', key:0, level:1 }, 
-    component: markRaw(CCPlusApi),
-};
 
 export const router = createRouter({
-  history: createWebHistory(),
-  routes,
-  profileRoute,
-  apiRoute
+  history: createWebHistory(import.meta.env.BASE_URL),
+  routes
 });
 
 // Add router to pinia stores
