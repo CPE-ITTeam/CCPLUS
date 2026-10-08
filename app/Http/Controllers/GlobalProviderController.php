@@ -95,7 +95,9 @@ class GlobalProviderController extends Controller
             $provider['connector_state'] = array();
             $provider['report_state'] = $this->reportState([]);
             foreach ($gp->registries->sortBy('release') as $registry) {
-                if (!in_array($registry->release,$all_releases)) $all_releases[] = $registry->release;
+                if (!in_array($registry->release,$all_releases) && $registry->release!='0') {
+                    $all_releases[] = $registry->release;
+                }
                 $reg = $registry->toArray();
                 $reg['connector_state'] = $this->connectorState($registry->connectors);
                 $reg['report_state'] = $this->reportState($registry->master_reports);
@@ -142,7 +144,7 @@ class GlobalProviderController extends Controller
         $filter_options['releases'] = $all_releases;
         $filter_options['all_connectors'] = $all_connectors;
         $filter_options['master_reports'] = $masterReports; 
-        $filter_options['statuses'] = array('Active','Inactive');
+        $filter_options['status'] = array('Active','Inactive');
         // Set refresh_result filter options to id->value pairs so they make better sense in the U/I
         $filter_options['results'] = array( array('id'=>'success','value' =>'Success'), array('id'=>'new','value' =>'New'),
             array('id'=>'orphan','value' =>'Deprecated'), array('id'=>'partial','value' =>'Incomplete'),
@@ -553,7 +555,7 @@ class GlobalProviderController extends Controller
     }
 
     /**
-     * GET route to pull platform data for exporting
+     * POST route to pull platform data for exporting
      *
      * @param  \Illuminate\Http\Request  $request
      * @return \Illuminate\Http\Response
@@ -566,8 +568,46 @@ class GlobalProviderController extends Controller
         $thisUser = auth()->user();
         abort_unless($thisUser->isServerAdmin(), 403);
 
-        // Get all provider records
-        $gp_data = GlobalProvider::with('registries')->orderBy('name', 'ASC')->get();
+        // Setup for known filters
+        $input = $request->all();
+        $filters = array('results' => [], 'releases' => [], 'status' => null);
+        // Validate/handle input filters
+        if ($input['filters']) {
+            foreach ($input['filters'] as $key => $val) {
+                if (is_array($filters[$key])) {
+                    $filters[$key] = (is_array($val)) ? $val : [];
+                } else {
+                    $_val = (is_null($val)) ? null : strtoupper(trim($val));
+                    if (!is_null($_val) && strlen($_val) > 0) {
+                        $filters[$key] = ($_val == 'ACTIVE') ? 1 : 0;
+                    }
+                }
+            }
+        }
+
+        // Get provider records
+        $data = GlobalProvider::with('registries')->orderBy('name', 'ASC')
+                              ->when(!is_null($filters['status']), function ($query) use ($filters) {
+                                  return $query->where('is_active', $filters['status']);
+                              })
+                              ->get();
+
+        // Apply the release and refresh_result filters
+        $gp_data = $data->filter(function ($gp) use ($filters) {
+            // Filter by release
+            if (count($filters['releases']) > 0) {
+                $gp->registries = $gp->registries->filter(function ($registry) use ($filters) {
+                    return in_array($registry->release, $filters['releases']);
+                });
+            }
+            // Filter by refresh_result
+            if (count($filters['results']) > 0) {
+                return ( (!$gp->refreshable && in_array('norefresh', $filters['results'])) ||
+                         (is_null($gp->registry_id) && in_array('noregistry', $filters['results'])) ||
+                         in_array($gp->refresh_result, $filters['results']) );
+            }
+            return true;
+        });
 
         // Pull master reports and connection fields
         $this->getMasterReports();
@@ -586,24 +626,36 @@ class GlobalProviderController extends Controller
             $provider['registry_id'] = (is_null($gp->registry_id) || $gp->registry_id=="") ? null : $gp->registry_id;
             $provider['status'] = ($gp->is_active) ? "Active" : "Inactive";
             $provider['refreshable'] = ($gp->refreshable) ? "Active" : "Inactive";
-            foreach ($gp->registries->sortBy('release') as $registry) {
-                $provider['release'] = trim($registry->release);
-                $provider['service_url'] = $registry->service_url;
-                // Set Y/N flags for connectors
-                $connector_state = $this->connectorState($registry->connectors);
-                foreach ($connector_state as $con => $val) {
-                    $provider[$con] = ($val) ? 'Y' : 'N';
+            if (!$gp->registries || $gp->registries->count() < 1) {
+                $provider['release'] = "--";
+                $provider['service_url'] = "-No Related Registry Definition-";
+                foreach ($allConnectors as $fld) {
+                    $provider[$fld->name] = 'N';
                 }
-                // Set Y/N flags for reports
-                $report_state = $this->reportState($registry->master_reports);
-                foreach ($report_state as $rpt => $val) {
-                    $provider[$rpt] = ($val) ? 'Y' : 'N';
+                foreach ($masterReports as $rpt) {
+                    $provider[$rpt->name] = 'N';
                 }
                 $providers[] = $provider;
+            } else {
+                foreach ($gp->registries->sortBy('release') as $registry) {
+                    $provider['release'] = trim($registry->release);
+                    $provider['service_url'] = $registry->service_url;
+                    // Set Y/N flags for connectors
+                    $connector_state = $this->connectorState($registry->connectors);
+                    foreach ($connector_state as $con => $val) {
+                        $provider[$con] = ($val) ? 'Y' : 'N';
+                    }
+                    // Set Y/N flags for reports
+                    $report_state = $this->reportState($registry->master_reports);
+                    foreach ($report_state as $rpt => $val) {
+                        $provider[$rpt] = ($val) ? 'Y' : 'N';
+                    }
+                    $providers[] = $provider;
+                }
             }
         }
         // Return the data array
-        return response()->json(['records' => $providers], 200);
+        return response()->json(['result' => true, 'records' => $providers], 200);
     }
 
     /**
