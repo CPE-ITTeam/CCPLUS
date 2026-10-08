@@ -72,9 +72,9 @@ export const useAuthStore = defineStore('useAuthStore', {
           if (this.is_serveradmin) {
             this.router.push('/consortia');
           } else if ( this.is_admin ) {
-            this.router.push('/institutions');
+            this.router.push({ name: 'InstitutionsTable' });
           } else {
-            this.router.push('/reports');
+            this.router.push({ name: 'Reports' });
           }
           // Persist the token and authentication state in localStorage
           localStorage.setItem('auth_token', this.token);
