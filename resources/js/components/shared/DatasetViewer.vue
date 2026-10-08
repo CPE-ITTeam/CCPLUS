@@ -27,6 +27,7 @@
 
   // Reactive state
   var dtKey = ref(0);
+  var pnate = ref({'cur': 1, 'ipp': 10});
   var formDialogType = ref('');
   var formDialogTitle = ref('Item');
   var reptDialogSubtitle = ref('Item');
@@ -51,9 +52,10 @@
   const urlRoot = ref('');
   const emptyFlags = { 'available': true, 'conso': false, 'groups': [], 'insts': [],
                        'requested': false, 'sortval': 1 };
-  const refreshable = ['harvests','jobs','audit'];
+  const refreshable = ['harvests','jobs','credentials','audit'];
   var dtLoading = ref(false);
   var truncated = ref(false);
+  var warning = ref('');
   var success = ref('');
   var failure = ref('');
 
@@ -105,6 +107,7 @@
       const response = await ccPost(itemsUrl, { filters: _filters, type: datasetKey });
       if (response.result) {
         truncated.value = response.truncated;
+        warning.value = "";
         allItems = [ ...response.records ];
         filteredItems = [ ...response.records ];
         // Clear selected rows    
@@ -129,6 +132,7 @@
       }
       const { data } = await ccGet(itemsUrl);
       truncated.value = (data.truncated) ? data.truncated : false;
+      warning.value = "";
       allItems = [ ...data.records ];
       filteredItems = [ ...data.records ];
       allOptions = { ...data.options };
@@ -412,11 +416,22 @@
       fileName += "_"+capDataset.value+".xlsx";
     }
     // Add items to a new tab in the workbook and send it
+    var itemsSheet = null;
     if (config.title == 'Platform') {
-        const { data } = await ccGet('/api/platforms/exportData');
-        platformExportItems = [...data.records];
+        // Setup filters to be passed
+        let _filters = {};
+        Object.keys(filterOptions).forEach( key => {
+          _filters[key] = filterOptions[key]['value'];
+        });
+        // Pull platform items for the export
+        const response = await ccPost('/api/platforms/exportData', { filters: _filters });
+        if (!response.result) {
+          throw new Error('Error fetching platform records for export: '+response.msg);
+        }
+        itemsSheet = XLSX.utils.json_to_sheet([...response.records]);
+    } else {
+      itemsSheet = XLSX.utils.json_to_sheet(exportDataRows.value);
     }
-    const itemsSheet = XLSX.utils.json_to_sheet(exportDataRows.value);
     XLSX.utils.book_append_sheet(workbook, itemsSheet, sheet_name);
     XLSX.writeFile(workbook, fileName);
   }
@@ -634,16 +649,25 @@
 
   // Handle toolbar filter emits
   function handleFilter(filt) {
+    let recordCount = (filteredItems.length>0) ? filteredItems.length : 0;
     // if key=='reset', clear all set filter values and selected rows
     if (filt.key == 'reset') {
       selectedRows.value = [];
       for (const key of Object.keys(filterOptions)) {
-        // restore visibility of group(s)/institution(s) if they've been suppressed
+        // restore visibility of group(s)/institution(s)/inst-type(s) if they've been suppressed
         if (key.includes('institution')) {
           if (typeof(filterOptions.group) != 'undefined') filterOptions.group.show = true;
           if (typeof(filterOptions.groups) != 'undefined') filterOptions.groups.show = true;
+          if (typeof(filterOptions.itypes) != 'undefined') filterOptions.itypes.show = true;
         }
         if (key.includes('group')) {
+          if (typeof(filterOptions.institution) != 'undefined') filterOptions.institution.show = true;
+          if (typeof(filterOptions.institutions) != 'undefined') filterOptions.institutions.show = true;
+          if (typeof(filterOptions.itypes) != 'undefined') filterOptions.itypes.show = true;
+        }
+        if (key.includes('itype')) {
+          if (typeof(filterOptions.group) != 'undefined') filterOptions.group.show = true;
+          if (typeof(filterOptions.groups) != 'undefined') filterOptions.groups.show = true;
           if (typeof(filterOptions.institution) != 'undefined') filterOptions.institution.show = true;
           if (typeof(filterOptions.institutions) != 'undefined') filterOptions.institutions.show = true;
         }
@@ -656,13 +680,14 @@
           filterOptions[key]['value'] = (filterOptions[key]['type'] == 'toggle') ? 'Inactive' : null;
         }
       }
+      warning.value = "";
       updateItems();
       dtKey.value++;
     // Otherwise, update a specific filter key
     } else if (typeof(filterOptions[filt.key]['value']) != 'undefined') {
       filterOptions[filt.key]['value'] = filt.value;
-      // Setting/clearing 'institution(s)' or 'group(s)' suppresses/reveals the other
-      if (filt.key.includes('institution') || filt.key.includes('group')) {
+      // Setting/clearing 'institution(s)', 'group(s)' or 'itype(s)' suppresses/reveals the other
+      if (filt.key.includes('institution') || filt.key.includes('group') || filt.key.includes('itype')) {
         let cleared = false;
         if (Array.isArray(filterOptions[filt.key]['value'])) {
           cleared = (filterOptions[filt.key]['value'].length==0);
@@ -672,14 +697,25 @@
         if (filt.key.includes('institution')) {
           if (typeof(filterOptions.group) != 'undefined') filterOptions.group.show = cleared;
           if (typeof(filterOptions.groups) != 'undefined') filterOptions.groups.show = cleared;
+          if (typeof(filterOptions.itypes) != 'undefined') filterOptions.itypes.show = cleared;
         }
         if (filt.key.includes('group')) {
           if (typeof(filterOptions.institution) != 'undefined') filterOptions.institution.show = cleared;
           if (typeof(filterOptions.institutions) != 'undefined') filterOptions.institutions.show = cleared;
+          if (typeof(filterOptions.itypes) != 'undefined') filterOptions.itypes.show = cleared;
+        }
+        // Setting a type filter suppresses only groups
+        if (filt.key.includes('itype')) {
+          if (typeof(filterOptions.group) != 'undefined') filterOptions.group.show = cleared;
+          if (typeof(filterOptions.groups) != 'undefined') filterOptions.groups.show = cleared;
         }
       }
       updateItems();
       dtKey.value++;
+    }
+    // Changing filter(s) for a refreshable dataset sets a warning message next to the refresh button
+    if (recordCount>0 && refreshable.includes(props.datasetKey)) {
+        warning.value = "Filters changed - Refresh Recommended";
     }
   }
 
@@ -938,9 +974,9 @@
   <v-sheet>
     <DataToolbar v-model="toolbarFilters" :search="search" :showSelectedOnly="showSelectedOnly" :dataset="props.datasetKey"
                  :bulkOptions="bulkOptions" :selectedRows="selectedRows" :hideExport="!exportable || filteredItems.length==0"
-                 @updateConso="handleChangeConso" @export="handleExport" @setFilter="handleFilter" @bulkAction="handleBulk"
-                 @add="handleAddItem" @update:search="search=$event" @update:showSelectedOnly="handleToggle"
-                 @refreshRecords="refreshData(props.datasetKey)" @imported="handleImported"/>
+                 :warning="warning" @updateConso="handleChangeConso" @export="handleExport" @setFilter="handleFilter"
+                 @bulkAction="handleBulk" @add="handleAddItem" @update:search="search=$event" @imported="handleImported"
+                 @update:showSelectedOnly="handleToggle" @refreshRecords="refreshData(props.datasetKey)" />
     <div v-if="success || failure" class="status-message">
       <span v-if="success"      class="good" v-text="success"></span>
       <span v-else-if="failure" class="fail" v-text="failure"></span>
@@ -949,7 +985,7 @@
                :headers="headers" :isLoading="dtLoading" :dataset="props.datasetKey" :showSelectedOnly="showSelectedOnly"
                :editableFields="editableFields" :truncated="truncated" :searchFields="searchFields" :selectedRows="selectedRows"
                :selectableRows="selectableRows" @edit="handleEdit" @delete="handleDelete"  @update:report="handleReportToggle"
-               @update:selectedRows="selectedRows = $event" @update:toggle="handleToggleUpdate"/>
+               @update:selectedRows="selectedRows = $event" @update:toggle="handleToggleUpdate" :pnate="pnate" />
 
     <v-dialog v-if="editingItem && isEditable" v-model="formDialogOpen">
       <v-card>
