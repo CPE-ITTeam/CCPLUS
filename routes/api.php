@@ -33,6 +33,7 @@ Route::middleware('ccplusAuth')->group( function () {
     });
     Route::prefix('credentials')->group(function () {
         Route::get('/get', 'App\Http\Controllers\CredentialController@index')->name('credentials.index');
+        Route::post('/getItems', 'App\Http\Controllers\CredentialController@getItems')->name('credentials.items');
         Route::post('/store', 'App\Http\Controllers\CredentialController@store')->name('credentials.store');
         Route::patch('/update/{credential}', 'App\Http\Controllers\CredentialController@update')->name('credentials.update');
         Route::delete('/delete/{credential}', 'App\Http\Controllers\CredentialController@destroy')->name('credentials.destroy');
@@ -82,7 +83,7 @@ Route::middleware('ccplusAuth')->group( function () {
         Route::post('/store', 'App\Http\Controllers\GlobalProviderController@store')->name('platforms.store');
         Route::patch('/update/{platform}', 'App\Http\Controllers\GlobalProviderController@update')->name('platforms.update');
         Route::delete('/delete/{platform}', 'App\Http\Controllers\GlobalProviderController@destroy')->name('platforms.destroy');
-        Route::get('/exportData', 'App\Http\Controllers\GlobalProviderController@export')->name('platforms.exportData');
+        Route::post('/exportData', 'App\Http\Controllers\GlobalProviderController@export')->name('platforms.exportData');
         Route::post('/import', 'App\Http\Controllers\GlobalProviderController@import')->name('platforms.import');
         Route::post('/refresh', 'App\Http\Controllers\CounterRegistryController@refresh')->name('platforms.refresh');
         Route::post('/bulk', 'App\Http\Controllers\GlobalProviderController@bulk')->name('platforms.bulk');
