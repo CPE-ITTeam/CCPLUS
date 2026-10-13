@@ -99,10 +99,10 @@
                   (childRoute.meta.role == "ConsoAdmin" && is_conso_admin) ||
                   (childRoute.meta.role == "GroupAdmin" && is_group_admin) ||
                   childRoute.meta.role == "Viewer") {
-              // Hide specific grandchild route(s)
-              if (childRoute.name === 'Institutions') { // Hide groups if not "Admin" for at least one group
-                const _gcx = childRoute.children.findIndex(gc => gc.name === 'InstitutionGroupsTable');
-                childRoute.children[_gcx].show = is_group_admin;
+              // Hide Institution groups and types routes if not "Admin" for at least one group
+              if (topRoute.name === 'Institutions' && 
+                  (childRoute.name === 'InstitutionGroupsTable' || childRoute.name === 'InstitutionsTypesTable')) {
+                  childRoute.show = is_group_admin;
               }
               theRoute.children.push(childRoute);
             }
