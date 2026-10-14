@@ -85,13 +85,19 @@ class RoleController extends Controller
         // Add filtering options for institutions, groups, and users to cover institutions and groups
         // that the current user has admin rights for; $limit_insts already set (above)
         $limit_groups = [];
+        $get_groups = true;
         if (!$thisUser->isConsoAdmin()) {
             $limit_groups = $thisUser->adminGroups();
-            if ($limit_groups === [1]) $limit_groups = [];
+            $get_groups = ( count($limit_groups) > 0 );
         }
-        $filter_options['group'] = InstitutionGroup::when(count($limit_groups)>0, function ($qry) use ($limit_groups) {
-                                                        return $qry->whereIn('id', $limit_groups);
-                                                    })->orderBy('name', 'ASC')->get(['id','name']);
+        if ($get_groups) {
+            $filter_options['group'] = InstitutionGroup::when(count($limit_groups)>0, function ($qry) use ($limit_groups) {
+                                                            return $qry->whereIn('id', $limit_groups);
+                                                        })->orderBy('name', 'ASC')->get(['id','name']);
+        } else {
+            $filter_options['group'] = [];
+        }
+
         // Limit institution filter to those with existing user-role records
         $filter_options['institution'] = Institution::whereIn('id', $role_insts)->orderBy('name', 'ASC')
                                                     ->get(['name', 'id'])->toArray();
