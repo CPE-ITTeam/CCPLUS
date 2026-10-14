@@ -54,6 +54,12 @@
       master_reports.value = [...data.records.master_reports];
       fields.value = [...data.records.fields];
       fyMo.value = data.records.fyMo;
+      // Only one institution available - hardwire to it
+      if (institutions.value.length == 1) {
+          inst_name.value = institutions.value[0].name;
+          form.value.inst = [institutions.value[0].id];
+          onInstChange();
+      }
     } catch (error) {
       console.log('Error loading options: '+error.message);
     }
@@ -292,11 +298,6 @@
   );
   onBeforeMount(() => {
     initializeOptions();
-    if (institutions.value.length == 1) {
-        inst_name.value = institutions.value[0].name;
-        form.value.inst = [institutions.value[0].id];
-        onInstChange();
-    }
   });
   onMounted(() => {
     let dt = new Date();
@@ -352,7 +353,7 @@
       <div v-else>
         <v-row class="d-flex align-mid ma-2" no-gutters>
           <v-col class="d-flex px-2" cols="6" sm="4">
-            <h5>Institution : {{ inst_name }}</h5>
+            <h3>Institution : {{ inst_name }}</h3>
           </v-col>
         </v-row>
       </div>
