@@ -125,7 +125,7 @@ class CredentialController extends Controller
         }
 
         // Setup for known filters
-        $filters = array('results'=>[],'platforms'=>null,'institutions'=>null,'statuses'=>[],'groups'=>null);
+        $filters = array('results'=>[],'platforms'=>[],'institutions'=>[],'statuses'=>[],'groups'=>[]);
         // Validate/handle input filters
         if ($input['filters']) {
             foreach ($input['filters'] as $key => $val) {
@@ -141,18 +141,18 @@ class CredentialController extends Controller
         $limit_insts = array();
         $group_insts = array();
         // Turn groups into a set of institutions (harvests happen to insts, not groups)
-        if (!is_null($filters['groups']) || !$consoAdmin) {
+        if (count($filters['groups']) > 0 || !$consoAdmin) {
             $limit_groups = (!$consoAdmin) ? array_intersect($limit_to_groups, $filters['groups'])
                                            : $filters['groups'];
             $group = InstitutionGroup::where('id',$limit_groups)->with('institutions:id,name')->first();
             $group_insts = ($group) ? $group->institutions->pluck('id')->toArray() : [];
             $limit_insts = $group_insts;
         }
-        if (!is_null($filters['institutions']) || !$consoAdmin) {
+        if (count($filters['institutions']) > 0 || !$consoAdmin) {
             $limit_insts = (!$consoAdmin) ? array_intersect($limit_to_insts, $filters['institutions'])
                                           : array($filters['institutions']);
         }
-        if (!is_null($filters['institutions']) && !is_null($filters['groups'])) {
+        if (count($filters['institutions']) > 0 && count($filters['groups']) > 0) {
             $limit_insts = array_intersect($limit_insts,$group_insts);
         }
 
@@ -161,7 +161,7 @@ class CredentialController extends Controller
                           ->when(count($limit_insts) > 0, function ($qry) use ($limit_insts) {
                               return $qry->whereIn('inst_id',$limit_insts);
                           })
-                          ->when(!is_null($filters['platforms']), function ($query) use ($filters) {
+                          ->when(count($filters['platforms'])>0, function ($query) use ($filters) {
                               return $query->where('prov_id', $filters['platforms']);
                           })
                           ->when(count($filters['statuses'])>0, function ($query) use ($filters) {
@@ -953,9 +953,14 @@ class CredentialController extends Controller
         $filter_options['valid_types'] = array(
             'Fully Validated','Not Fully Validated','Institution Not Validated','Platform Not Validated'
         );
-        $filter_options['itypes'] = $all_institutions->pluck('institutionType')->unique()->values()->map(function ($type) {
-            return [ 'id' => $type->id, 'name' => $type->name ];
-        });
+
+        // Institution types only needed for consoAdmins and users that admin more than one institution
+        $filter_options['itypes'] = (!$consoAdmin && count($limit_insts) <= 1) ? [] :
+            $all_institutions->pluck('institutionType')->unique()->values()->map(function ($type) {
+                return [ 'id' => $type->id, 'name' => $type->name ];
+            });
+
+        // Get all globals this user has connections to
         $globals = GlobalProvider::with('connections')->whereIn('id',$limit_plats)->where('is_active',1)
                                  ->orderBy('name','ASC')->get(['id','name']);
         $filter_options['platforms'] = $globals->map(function ($plat) {
@@ -1099,8 +1104,8 @@ class CredentialController extends Controller
                 }
             }
             $record = array('id' => $credential->id,
-                            'plat_id' => $credential->prov_id, 'plat_name'=>$credential->provider->name,
-                            'inst_id' => $credential->inst_id, 'inst_name'=>$credential->institution->name);
+                            'plat_id' => $credential->prov_id, 'platform'=>$credential->provider->name,
+                            'inst_id' => $credential->inst_id, 'institution'=>$credential->institution->name);
 
             // Set valid_state and status based on inst/plat validated
             $record['inst_valid'] = (is_null($credential->inst_valid)) ? 'Inactive' : 'Active';
