@@ -16,6 +16,7 @@
   const authStore = useAuthStore();
   const is_admin = authStore.is_admin;
   const is_conso_admin = authStore.is_conso_admin;
+  const admin_insts = authStore.admin_insts;
   const { ccGet, ccPost, ccPatch, ccDestroy, setConso } = useAuthStore();
   var consoKey = ref(authStore.ccp_key);  
   const props = defineProps({
@@ -39,7 +40,6 @@
   var allOptions = {};
   var bulkOptions = ref([]);
   const filterOptions = reactive({});
-  const headers = ref([]);
   const searchFields = ref([]);
   const search = ref('');
   const selectedRows = ref([]);
@@ -53,6 +53,8 @@
   const emptyFlags = { 'available': true, 'conso': false, 'groups': [], 'insts': [],
                        'requested': false, 'sortval': 1 };
   const refreshable = ['harvests','jobs','credentials','audit'];
+  const auditInstColumns = ['inst_valid', 'institution', 'json_inst'];
+  const auditPlatColumns = ['plat_valid', 'platform', 'json_item', 'json_host'];
   var dtLoading = ref(false);
   var truncated = ref(false);
   var warning = ref('');
@@ -83,13 +85,56 @@
 
   const formSchema = computed(() => {
     const config = datasetConfig[props.datasetKey];
+    let __fields = config.fields.filter( fld => {
+      // Hide selector fields with no options
+      if (fld.type=='select' || fld.type=='mselect' || fld.type=='mtext') {
+        if (typeof(allOptions[fld.name]) == 'undefined') return false;
+        return (allOptions[fld.name].length > 0);        
+      }
+      // Hide 'conso' fields if not a conso_admin, all others are included
+      return (fld.name != 'conso' || (fld.name == 'conso' && is_conso_admin));
+    });
     return {
       dataset: props.datasetKey,
       type: formDialogType.value,
-      fields: [...config.fields],
+      fields: [...__fields],
       requiredKeys: [...config.required],
       options: {...allOptions},
     };
+  });
+
+  // DataTable headers are computed to allow for dynamic changes to the datatable columns
+  // based on role, dataset, and/or filter selections
+  const headers = computed(() => {
+    let config = datasetConfig[props.datasetKey];
+
+    var output = [{ title: "", key: "" }];
+    config.fields.forEach( (fld, idx) => {
+      if (fld.header != null) {
+        if (props.datasetKey == 'harvests' && fld.name == 'error') {
+          output.push({title: fld.label, key: fld.name, align: fld.header,
+                              sort: (a,b) => { return Number(a.id) - Number(b.id); }});
+        } else if (props.datasetKey == 'audit') {
+          let keepit = true;
+          if (typeof(filterOptions.valid_types) != 'undefined') {
+            if (typeof(filterOptions.valid_types.value) != 'undefined') {
+              if ( (filterOptions.valid_types.value == 'Institution Not Validated' &&
+                   !auditInstColumns.includes(fld.name)) ||
+                   (filterOptions.valid_types.value == 'Platform Not Validated' && 
+                   !auditPlatColumns.includes(fld.name))) keepit = false;
+            }
+          }
+          if (keepit) output.push({title: fld.label, key: fld.name, align: fld.header});
+        } else {
+          // Hide institution/inst-name column when the user is not an admin of more than one institution
+          if ( is_conso_admin || admin_insts.length > 1 || props.datasetKey == 'institutions' ||
+              (props.datasetKey != 'institutions' && fld.name != 'institution')) {
+            output.push({title: fld.label, key: fld.name, align: fld.header});
+          }
+        }
+      }
+    });
+    return [...output];
   });
 
   // Load/Refresh dataset items, with filters applied (uses POST route)
@@ -146,17 +191,8 @@
     if (props.datasetKey == 'institutions' && typeof(allOptions.groups) != 'undefined') {
       bulkOptions.value['groups'] = [...allOptions.groups];
     }
-    // set datatable header, display, and editor options
-    headers.value = [{ title: "", key: "" }];
+    // set datatable display and editor options
     config.fields.forEach( (fld, idx) => {
-      if (fld.header != null) {
-        if (datasetKey == 'harvests' && fld.name == 'error') {
-          headers.value.push({title: fld.label, key: fld.name, align: fld.header,
-                              sort: (a,b) => { return Number(a.id) - Number(b.id); }});
-        } else {
-          headers.value.push({title: fld.label, key: fld.name, align:fld.header})
-        }
-      }
       if (fld.name == 'conso' && !is_conso_admin) return;
       config.fields[idx].static = config.static.includes(fld.name);
       // Set filterOptions for select(s) and toggle
@@ -228,6 +264,12 @@
       } else if (fld.name == 'fiscalYr') {
         allOptions['fiscalYr'] = [...fyMonths];
       }
+      // override inst-related filter visibility for users that admin one or zero institutions
+      if (!is_conso_admin && admin_insts.length <= 1 && typeof(filterOptions[fld.name])!='undefined' &&
+         (fld.name == 'institution' || fld.name == 'institutions' || fld.name == 'group' || fld.name == 'groups' ||
+          fld.name == 'itypes') ) {
+        filterOptions[fld.name]['show'] = false;
+      }  
     });
     // Set arrays for searchable and editable fields
     searchFields.value = config.fields.filter(fld => fld.searchable).map(f => f.name);
@@ -653,24 +695,12 @@
     // if key=='reset', clear all set filter values and selected rows
     if (filt.key == 'reset') {
       selectedRows.value = [];
+      // restore visibility of group(s)/institution(s)/inst-type(s) if they've been suppressed
+      if (typeof(filterOptions.group)  != 'undefined') filterOptions.group.show  = (filterOptions.group.items.length>0);
+      if (typeof(filterOptions.groups) != 'undefined') filterOptions.groups.show = (filterOptions.groups.items.length>0);
+      if (typeof(filterOptions.itypes) != 'undefined') filterOptions.itypes.show = (filterOptions.itypes.items.length>0);
+      // update/clear other filter value(s)
       for (const key of Object.keys(filterOptions)) {
-        // restore visibility of group(s)/institution(s)/inst-type(s) if they've been suppressed
-        if (key.includes('institution')) {
-          if (typeof(filterOptions.group) != 'undefined') filterOptions.group.show = true;
-          if (typeof(filterOptions.groups) != 'undefined') filterOptions.groups.show = true;
-          if (typeof(filterOptions.itypes) != 'undefined') filterOptions.itypes.show = true;
-        }
-        if (key.includes('group')) {
-          if (typeof(filterOptions.institution) != 'undefined') filterOptions.institution.show = true;
-          if (typeof(filterOptions.institutions) != 'undefined') filterOptions.institutions.show = true;
-          if (typeof(filterOptions.itypes) != 'undefined') filterOptions.itypes.show = true;
-        }
-        if (key.includes('itype')) {
-          if (typeof(filterOptions.group) != 'undefined') filterOptions.group.show = true;
-          if (typeof(filterOptions.groups) != 'undefined') filterOptions.groups.show = true;
-          if (typeof(filterOptions.institution) != 'undefined') filterOptions.institution.show = true;
-          if (typeof(filterOptions.institutions) != 'undefined') filterOptions.institutions.show = true;
-        }
         // Keep filters w/ no options suppressed
         if (filterOptions[key]['items'].length == 0) filterOptions[key]['show'] = false;
         if (!filterOptions[key]['show']) continue;
@@ -688,30 +718,70 @@
       filterOptions[filt.key]['value'] = filt.value;
       // Setting/clearing 'institution(s)', 'group(s)' or 'itype(s)' suppresses/reveals the other
       if (filt.key.includes('institution') || filt.key.includes('group') || filt.key.includes('itype')) {
+        // Set cleared flag based on whether the updated filter has a value set
         let cleared = false;
         if (Array.isArray(filterOptions[filt.key]['value'])) {
           cleared = (filterOptions[filt.key]['value'].length==0);
         } else {
           cleared = (filterOptions[filt.key]['value']==null || filterOptions[filt.key]['value']=="");
         }
+        // Don't show institution filters with 0/1 options or Group/Type filters with no options
+        // Otherwise they can be set with 'cleared' value to hide/reveal them
         if (filt.key.includes('institution')) {
-          if (typeof(filterOptions.group) != 'undefined') filterOptions.group.show = cleared;
-          if (typeof(filterOptions.groups) != 'undefined') filterOptions.groups.show = cleared;
-          if (typeof(filterOptions.itypes) != 'undefined') filterOptions.itypes.show = cleared;
+          if (typeof(filterOptions.group) != 'undefined')
+            filterOptions.group.show = (filterOptions.group.items.length > 0) ? cleared : false;
+          if (typeof(filterOptions.groups) != 'undefined')
+            filterOptions.groups.show = (filterOptions.groups.items.length > 0) ? cleared : false;
+          if (typeof(filterOptions.itypes) != 'undefined')
+            filterOptions.itypes.show = (filterOptions.itypes.items.length > 0) ? cleared : false;
         }
         if (filt.key.includes('group')) {
-          if (typeof(filterOptions.institution) != 'undefined') filterOptions.institution.show = cleared;
-          if (typeof(filterOptions.institutions) != 'undefined') filterOptions.institutions.show = cleared;
-          if (typeof(filterOptions.itypes) != 'undefined') filterOptions.itypes.show = cleared;
+          if (typeof(filterOptions.institution) != 'undefined')
+            filterOptions.institution.show = (filterOptions.institution.items.length > 1) ? cleared : false;
+          if (typeof(filterOptions.institutions) != 'undefined')
+            filterOptions.institutions.show = (filterOptions.institutions.items.length > 1) ? cleared : false;
+          if (typeof(filterOptions.itypes) != 'undefined')
+            filterOptions.itypes.show = (filterOptions.itypes.items.length > 0) ? cleared : false;
         }
-        // Setting a type filter suppresses only groups
-        if (filt.key.includes('itype')) {
-          if (typeof(filterOptions.group) != 'undefined') filterOptions.group.show = cleared;
-          if (typeof(filterOptions.groups) != 'undefined') filterOptions.groups.show = cleared;
+        if (filt.key.includes('itype')) {  // Setting an intitution type filter suppresses only groups
+          if (typeof(filterOptions.group) != 'undefined')
+            filterOptions.group.show = (filterOptions.group.items.length > 0) ? cleared : false;
+          if (typeof(filterOptions.groups) != 'undefined')
+            filterOptions.groups.show = (filterOptions.groups.items.length > 0) ? cleared : false;
         }
       }
       updateItems();
       dtKey.value++;
+    }
+    // Special handling of audit dataset filters - limiting by validation type (or clearing it)
+    // affects the visibility of the other validation type filters
+    if (props.datasetKey == 'audit') {
+      if (filt.key == 'reset') {
+          for (const key of Object.keys(filterOptions)) {
+            filterOptions[key].show = ((key != 'institutions' && filterOptions[key].items.length > 0) ||
+                                       (key == 'institutions' && filterOptions[key].items.length > 1));
+          }
+      } else if (filt.key == 'valid_types' && typeof(filterOptions.valid_types) != 'undefined') {
+        if (filterOptions.valid_types.value == 'Institution Not Validated') {
+          for (const key of Object.keys(filterOptions)) {
+              filterOptions[key].show = (key == 'institutions') ? (filterOptions[key].items.length > 1) :
+                                        (filterOptions[key].items.length > 0 && key != 'platforms' &&
+                                         key != 'no_plat' && key != 'no_host');
+          }
+        // Hide inst-related filters when limiting by Platform not validated
+        } else if (filterOptions.valid_types.value == 'Platform Not Validated') {
+          for (const key of Object.keys(filterOptions)) {
+            filterOptions[key].show = (filterOptions[key].items.length >= 0 && key != 'institutions' &&
+                                       key != 'no_inst' && key != 'groups' && key != 'itypes');
+          }
+        // show them all if they have options
+        } else {
+          for (const key of Object.keys(filterOptions)) {
+            filterOptions[key].show = (key == 'institutions') ? (filterOptions[key].items.length > 1)
+                                                              : (filterOptions[key].items.length > 0);
+          }
+        }
+      }
     }
     // Changing filter(s) for a refreshable dataset sets a warning message next to the refresh button
     if (recordCount>0 && refreshable.includes(props.datasetKey)) {
