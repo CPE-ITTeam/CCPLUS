@@ -77,6 +77,9 @@
       console.log('Error loading options: '+error.message);
     }
   }
+  const homeInst = computed(() => {
+    return (optionItems['institution'].length==1) ? optionItems['institution'][0].name : '';
+  });
   const masterReportId = computed(() => {
     return ( typeof(masterReport.value.id)!='undefined' ) ? masterReport.value.id : -1;
   });
@@ -119,10 +122,13 @@
     infoFields.value.forEach(fld => {
       returnFields[fld.qry_as] = {...fld};
       returnFields[fld.qry_as]['active'] =  (enabledInfoFields.value.includes(fld.id));
-      if ( (fld.qry_as == 'institution' || fld.qry_as == 'provider') && selectedFields[fld.qry_as].length>0 ) {
-        returnFields[fld.qry_as]['limit'] = [...selectedFields[fld.qry_as]];
-      } else {
+      if (fld.qry_as == 'institution' || fld.qry_as == 'provider') {
         returnFields[fld.qry_as]['limit'] = [];
+        if (fld.qry_as == 'institution' && homeInst != '') {
+          returnFields[fld.qry_as]['limit'] = [optionItems['institution'][0].id];
+        } else if (selectedFields[fld.qry_as].length>0) {
+          returnFields[fld.qry_as]['limit'] = [...selectedFields[fld.qry_as]];
+        }
       }
     });
     masterReport.value.report_fields.forEach( fld => {
@@ -396,7 +402,7 @@
         </v-row>
         <v-row v-if="selectedConso.name!=''">
           <!-- Institution Filters -->
-          <FlexCol>
+          <FlexCol v-if="homeInst==''">
             <v-label class="colLabel">Select Institutions</v-label>
             <MultiSelectCombobox v-model="selectedFields['institutiontype']" label="Institution Types"
                 itemTitle="name" itemValue="id" :items="optionItems['institutiontype']" />
@@ -405,6 +411,7 @@
             <MultiSelectCombobox v-model="selectedFields['institution']" label="Institutions"
                 itemTitle="name" itemValue="id" :items="optionItems['institution']" />
           </FlexCol>
+          <FlexCol v-else><h3>Institution: <br />{{ homeInst }}</h3></FlexCol>
 
           <!-- Platform Filters -->
           <FlexCol>
