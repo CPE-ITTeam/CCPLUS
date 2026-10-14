@@ -62,7 +62,7 @@ class UserController extends Controller
         foreach ($user_data as $rec) {
             // Setup array for this user data
             $user = array('id' => $rec->id, 'email' => $rec->email, 'name' => $rec->name, 'inst_id' => $rec->inst_id,
-                          'institution' => $rec->institution, 'password' => '', 'phone' => $rec->phone,
+                          'institution' => $rec->institution->name, 'password' => '', 'phone' => $rec->phone,
                           'last_login' => $rec->last_login);
             $user['status'] = ($rec->is_active) ? "Active" : "Inactive";
             $user['user_role'] = $rec->fullRoleName();
@@ -95,8 +95,8 @@ class UserController extends Controller
         // Add filtering options for institutions
         $instIds = $user_data->pluck('inst_id')->toArray();
         $filter_options['institutions'] = ($thisUser->isConsoAdmin())
-            ? Institution::orderBy('name', 'ASC')->get(['id','name'])->toArray()
-            : Institution::orderBy('name', 'ASC')->get(['id','name'])->whereIn('id',$instIds)->toArray();
+            ? Institution::orderBy('name', 'ASC')->get(['id','name'])->values()->toArray()
+            : Institution::orderBy('name', 'ASC')->get(['id','name'])->whereIn('id',$instIds)->values()->toArray();
 
         return response()->json(['records' => $data, 'options' => $filter_options, 'result' => true], 200);
     }
