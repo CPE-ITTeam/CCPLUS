@@ -85,7 +85,7 @@ class InstitutionController extends Controller
             $inst['type'] = ($rec->institutionType) ? $rec->institutionType->name : "(Not classified)";
             $inst['can_edit'] = $rec->canManage();
             $inst['can_delete'] = ($harvest_count > 0 || !$rec->canManage()) ? false : true;
-            $inst['role'] = $this->userRole($rec->id);
+            $inst['role'] = ($thisUser->isAdmin($rec->id)) ? "Admin" : "Viewer";
             $data[] = $inst;
         }
         // sort group options by name
