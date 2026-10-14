@@ -158,12 +158,11 @@ class HarvestLogController extends Controller
             $limit_insts = array_intersect($limit_insts,$group_insts);
         }
 
-        // Get credentials limited by-inst and/or platform (to limit harvests pulled)
-        $credential_ids = Credential::when(count($limit_insts) > 0, function ($qry) use ($limit_insts) {
-                                        return $qry->whereIn('inst_id', $limit_insts);
-                                    })->when(count($filters['platforms']) > 0, function ($qry) use ($filters) {
-                                        return $qry->whereIn('prov_id', $filters['platforms']);
-                                    })->pluck('id')->toArray();
+        // If no institutions are selected, return records for 'viewer' institutions
+        $viewer_insts = $thisUser->viewerInsts();
+        if (count($filters['institutions']) == 0 && !in_array(1,$viewer_insts)) {
+            $limit_insts = $viewer_insts;
+        }
 
         // Replace 'No Error' in codes with 0, if present
         if (count($filters["codes"]) > 0 && in_array('No Error', $filters['codes'])) {
@@ -172,10 +171,13 @@ class HarvestLogController extends Controller
         }
 
         // Get the harvest rows based on credentials
-        $harvest_data = HarvestLog::
-            with('report:id,name','credential','credential.institution:id,name','credential.provider',
-                 'lastError','failedHarvests','failedHarvests.ccplusError')
-            ->whereIn('credentials_id', $credential_ids)
+        $harvest_data = HarvestLog::with('credential','credential.institution:id,name','credential.provider',
+                                         'report:id,name','lastError','failedHarvests','failedHarvests.ccplusError')
+            ->whereHas('credential', function ($qry) use ($limit_insts) {
+                $qry->when(count($limit_insts) > 0, function ($q2) use ($limit_insts) {
+                    return $q2->whereIn('inst_id', $limit_insts);
+                });
+            })
             ->orderBy('updated_at', 'DESC')
             ->when(count($filters['reports']) > 0, function ($qry) use ($filters) {
                 return $qry->whereIn('report_id', $filters['reports']);
@@ -263,7 +265,8 @@ class HarvestLogController extends Controller
         $platforms = array();
         foreach ($globals as $global) {
             $global_inst_ids = $global->connectedInstitutions();
-            if (count($limit_by_inst) == 0 || count(array_intersect($global_inst_ids, $limit_by_inst)) > 0) {
+            if (count($limit_by_inst) == 0 || in_array(1, $global_inst_ids) ||
+                count(array_intersect($global_inst_ids, $limit_by_inst)) > 0) {
                 $global->reports = $global->enabledReports();
                 $global->institutions = $global_inst_ids;
                 $platforms[] = $global;
@@ -771,8 +774,10 @@ class HarvestLogController extends Controller
        // Get all harvests joined with credentials that match the statuses
        $data = HarvestLog::with('credential','credential.provider','credential.institution:id,name','report',
                                 'lastError','failedHarvests','failedHarvests.ccplusError')
-                         ->when(count($limit_insts) > 0, function ($qry) use ($limit_insts) {
-                             return $qry->whereIn('credential.inst_id', $limit_insts);
+                         ->whereHas('credential', function ($qry) use ($limit_insts) {
+                             $qry->when(count($limit_insts) > 0, function ($q2) use ($limit_insts) {
+                                 return $q2->whereIn('inst_id', $limit_insts);
+                             });
                          })
                          ->whereIn('status',$limit_status)
                          ->orderBy("updated_at", "DESC")->get();
@@ -802,7 +807,7 @@ class HarvestLogController extends Controller
 
        // Setup limit arrays for the instID's and provIDs we'll pull credentials for
        $filter_options['institutions'] = Institution::when(count($limit_insts) > 0, function ($qry) use ($limit_insts) {
-                                           return $qry->where('inst_id',1)->orWhereIn('inst_id', $limit_insts);
+                                           return $qry->where('id',1)->orWhereIn('id', $limit_insts);
                                        })->get(['id','name'])->toArray();
 
        // Get all global IDs and names
@@ -855,7 +860,7 @@ class HarvestLogController extends Controller
    private function formatRecord($harvest) {
        $rec = array('id' => $harvest->id, 'harvest_id' => $harvest->id, 'inst_id' => $harvest->credential->inst_id,
                     'prov_id' => $harvest->credential->prov_id, 'release' => $harvest->release, 'yearmon' => $harvest->yearmon,
-                    'attempts' => $harvest->attempts, 'inst_name' => $harvest->credential->institution->name,
+                    'attempts' => $harvest->attempts, 'institution' => $harvest->credential->institution->name,
                     'prov_name' => $harvest->credential->provider->name, 'report_id' => $harvest->report->id,
                     'report_name' => $harvest->report->name, 'status' => $harvest->status, 'rawfile' => $harvest->rawfile,
                     'error_id' => 0, 'error' => []
