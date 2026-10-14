@@ -116,7 +116,8 @@ class ReportController extends Controller
         $return_data['platforms'] = array();
         foreach ($globals as $global) {
             $global_inst_ids = $global->connectedInstitutions();
-            if (count($limit_by_inst) == 0 || count(array_intersect($global_inst_ids, $limit_by_inst)) > 0) {
+            if (count($limit_by_inst) == 0 || in_array(1, $global_inst_ids) ||
+                count(array_intersect($global_inst_ids, $limit_by_inst)) > 0) {
                 $global->reports = $global->enabledReports();
                 $global->institutions = $global_inst_ids;
                 $return_data['platforms'][] = $global;
@@ -706,8 +707,11 @@ class ReportController extends Controller
      */
     public function usageData(Request $request, ReportService $reportService)
     {
-        global $format, $rpt_only;
+        global $format, $rpt_only, $global_db, $conso_db;
+
         $thisUser = $request->user();
+        $conso_db = config('database.connections.consodb.database');
+        $global_db = config('database.connections.globaldb.database');
 
         // Validate and deal w/ inputs
         $this->validate($request, ['report_id'=>'required', 'fields'=>'required', 'from'=>'required', 'to'=>'required']);
@@ -735,7 +739,7 @@ class ReportController extends Controller
         // Generate database filter-options for DR report
         $master_name = ($report->parent_id == 0) ? $report->name : $report->parent->name;
         if ($master_name == "DR") {
-            $db_options = DB::table($report_table)->selectRaw("DISTINCT(DB.name),DB.id")
+            $db_options = DB::table($conso_db . '.dr_report_data as DR')->selectRaw("DISTINCT(DB.name),DB.id")
                             ->join($global_db . '.databases as DB', 'DR.db_id', 'DB.id')
                             ->when(count($limit_to_insts)>0, function ($query) use ($limit_to_insts, $master_name) {
                                 return $query->whereIn($master_name . '.inst_id', $limit_to_insts);
