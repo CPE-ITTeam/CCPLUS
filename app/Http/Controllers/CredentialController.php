@@ -140,20 +140,33 @@ class CredentialController extends Controller
         // Enforce limits on institutions and groups
         $limit_insts = array();
         $group_insts = array();
-        // Turn groups into a set of institutions (harvests happen to insts, not groups)
-        if (count($filters['groups']) > 0 || !$consoAdmin) {
-            $limit_groups = (!$consoAdmin) ? array_intersect($limit_to_groups, $filters['groups'])
-                                           : $filters['groups'];
-            $group = InstitutionGroup::where('id',$limit_groups)->with('institutions:id,name')->first();
-            $group_insts = ($group) ? $group->institutions->pluck('id')->toArray() : [];
+        $limit_groups = $filters['groups'];
+
+        // Set limits on groups to check membership for
+        if (!$consoAdmin) {
+            $limit_groups = (empty($filters['groups'])) ? $thisUser->adminGroups()
+                            : array_intersect($thisUser->adminGroups(), $filters['groups']);
+        }
+
+        // If filtering by-group and/or if not-conso-admin, turn groups into a set of institutions
+        // (harvests happen to insts, not groups)
+        if (!empty($limit_groups)) {
+            $data = InstitutionGroup::whereIn('id',$limit_groups)->with('institutions:id,name')->get();
+            foreach ($data as $group) {
+                $_inst_ids = $group->institutions->pluck('id')->toArray();
+                $group_insts = array_unique(array_merge($group_insts, $_inst_ids));
+            }
             $limit_insts = $group_insts;
         }
-        if (count($filters['institutions']) > 0 || !$consoAdmin) {
-            $limit_insts = (!$consoAdmin) ? array_intersect($limit_to_insts, $filters['institutions'])
-                                          : array($filters['institutions']);
+
+        // Set limit for insts to pull credentials for
+        $limit_insts = $filters['institutions'];
+        if (!$consoAdmin) {
+            $limit_insts = (empty($filters['institutions'])) ? $thisUser->adminInsts()
+                           : array_intersect($thisUser->adminInsts(), $filters['institutions']);
         }
         if (count($filters['institutions']) > 0 && count($filters['groups']) > 0) {
-            $limit_insts = array_intersect($limit_insts,$group_insts);
+            $limit_insts = array_unique(array_merge($limit_insts,$group_insts));
         }
 
         // Get all credentials and apply filters (if any) to the query
@@ -1027,10 +1040,17 @@ class CredentialController extends Controller
         // Enforce limits on institutions and groups
         $limit_insts = array();
         $group_insts = array();
-        // Turn groups into a set of institutions (harvests happen to insts, not groups)
-        if (count($filters['groups']) > 0 || !$consoAdmin) {
-            $limit_groups = (!$consoAdmin) ? array_intersect($thisUser->adminGroups(), $filters['groups'])
-                                           : $filters['groups'];
+        $limit_groups = $filters['groups'];
+
+        // Set limits on groups to check membership for
+        if (!$consoAdmin) {
+            $limit_groups = (empty($filters['groups'])) ? $thisUser->adminGroups()
+                            : array_intersect($thisUser->adminGroups(), $filters['groups']);
+        }
+
+        // If filtering by-group and/or if not-conso-admin, turn groups into a set of institutions
+        // (harvests happen to insts, not groups)
+        if (!empty($limit_groups)) {
             $data = InstitutionGroup::whereIn('id',$limit_groups)->with('institutions:id,name')->get();
             foreach ($data as $group) {
                 $_inst_ids = $group->institutions->pluck('id')->toArray();
@@ -1039,12 +1059,14 @@ class CredentialController extends Controller
             $limit_insts = $group_insts;
         }
 
-        if (count($filters['institutions']) > 0 || !$consoAdmin) {
-            $limit_insts = (!$consoAdmin) ? array_intersect($thisUser->adminInsts(), $filters['institutions'])
-                                          : $filters['institutions'];
+        // Set limit for insts to pull credentials for
+        $limit_insts = $filters['institutions'];
+        if (!$consoAdmin) {
+            $limit_insts = (empty($filters['institutions'])) ? $thisUser->adminInsts()
+                           : array_intersect($thisUser->adminInsts(), $filters['institutions']);
         }
         if (count($filters['institutions']) > 0 && count($filters['groups']) > 0) {
-            $limit_insts = array_intersect($limit_insts,$group_insts);
+            $limit_insts = array_unique(array_merge($limit_insts,$group_insts));
         }
 
         // Limit platforms to intersection of all-connected and filter value (if set)
