@@ -207,7 +207,7 @@ class CredentialController extends Controller
         foreach ($data as $cred) {
             if (!$cred->provider) continue;
             // Limit to 500 records
-            if ($count>500) {
+            if ($count==500) {
                 $truncated = true;
                 break;
             }
@@ -1101,6 +1101,8 @@ class CredentialController extends Controller
 
         // Loop over the credentials - we'll create either a spreadsheet or an array of
         // records to return via JSON to the U/I
+        $count = 0;
+        $truncated = false;
         $records = array();
         foreach ($credentials as $credential) {
             if (is_null($credential->provider) || is_null($credential->institution)) continue;
@@ -1124,6 +1126,11 @@ class CredentialController extends Controller
                    ) {
                     continue;
                 }
+            }
+            // Limit to 500 records
+            if ($count==500) {
+                $truncated = true;
+                break;
             }
             $record = array('id' => $credential->id,
                             'plat_id' => $credential->prov_id, 'platform'=>$credential->provider->name,
@@ -1190,10 +1197,11 @@ class CredentialController extends Controller
             $_inst = $all_institutions->where('id',$credential->inst_id)->first();
             $record['group_ids'] = ($_inst) ? $_inst->institutionGroups()->pluck('institution_group_id')->all() : [];
             $records[] = $record;
+            $count++;
         }
 
         // Return the data array
-        return response()->json(['result' => true, 'records' => $records, 'truncated' => false], 200);
+        return response()->json(['result' => true, 'records' => $records, 'truncated' => $truncated], 200);
     }
 
     /**
