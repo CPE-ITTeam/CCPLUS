@@ -49,6 +49,7 @@ class LoginController extends BaseController
             $success['token'] = $user->createToken($token_name)->plainTextToken;
             $success['user'] = $user;
             $success['roles'] = $user->allRoles();
+            $success['viewInsts'] =$user->viewerInsts();
             $success['adminInsts'] =$user->adminInsts();
             $success['adminGroups'] =$user->adminGroups();
             $success['consoKey'] = ($key == "con_template") ? "" : $key;
