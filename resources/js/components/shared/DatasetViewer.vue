@@ -16,6 +16,7 @@
   const authStore = useAuthStore();
   const is_admin = authStore.is_admin;
   const is_conso_admin = authStore.is_conso_admin;
+  const view_insts = authStore.view_insts;
   const admin_insts = authStore.admin_insts;
   const { ccGet, ccPost, ccPatch, ccDestroy, setConso } = useAuthStore();
   var consoKey = ref(authStore.ccp_key);  
@@ -181,6 +182,12 @@
       allItems = [ ...data.records ];
       filteredItems = [ ...data.records ];
       allOptions = { ...data.options };
+      // Pre-load refreshables, but only if one institution is involved
+      if ( ( (datasetKey == 'harvests' || datasetKey == 'jobs') && view_insts.length == 1) ||
+           ( refreshable.includes(datasetKey) && admin_insts.length == 1) ) {
+          refreshData(props.datasetKey)
+          dtLoading.value = true;
+      }
     } catch (error) {
       console.log('Error fetching records for '+datasetKey+' : ', error);
     }
