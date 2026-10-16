@@ -112,17 +112,20 @@ class UserController extends Controller
         if ($thisUser->id != $user->id && !$user->canManage()) {
             return response()->json(['result' => false, 'msg' => 'Request failed (403) - Forbidden']);
         }
-        $user->load('roles', 'institution:id,name');
-        $data = $user->toArray();
-        $data['inst_name'] = $user->institution->name;
-        $data['fiscalYr'] = ($user->fiscalYr) ? $user->fiscalYr : config('ccplus.fiscalYr');
+        $user->load('roles', 'institution');
+        $acct = $user->toArray();
+        $acct['inst_name'] = $user->institution->name;
+        $acct['fiscalYr'] = ($user->fiscalYr) ? $user->fiscalYr : config('ccplus.fiscalYr');
 
         // Add access token details
         $token = $user->tokens()->where('name',"PAT_User_".$user->id)->first();
-        $data['access_token'] = ($token) ? Crypt::decryptString($user->enc_api_token) : null;
-        $data['token_expires'] = ($token) ? $token->expires_at : null;
+        $acct['access_token'] = ($token) ? Crypt::decryptString($user->enc_api_token) : null;
+        $acct['token_expires'] = ($token) ? $token->expires_at : null;
 
-        return response()->json(['records' => $data, 'options' => [], 'result' => true], 200);
+        // Get/pass home-institution data
+        $inst = $user->institution->toArray();
+
+        return response()->json(['acct' => $acct, 'inst' => $inst, 'options' => [], 'result' => true], 200);
     }
 
     /**
@@ -323,24 +326,6 @@ class UserController extends Controller
 
         // Update the user record
         $user->update($input);
-
-        // If inst_id changed, remove inst-specific roles for the old institution, and add them
-        // back in for the new institution.
-        if ($inst_id_changed) {
-            foreach ($current_user_roles as $role) {
-                // If user already has this role for the new institution, delete the role for the old institution
-                if ($user->hasRole($role->name, $input['inst_id'])) {
-                    $role->delete();
-                    continue;
-                }
-                //Update the existing role to the new institution if it is not a group role (group_id is null)
-                if ($role->inst_id == $old_inst_id && is_null($role->group_id)) {
-                    $role->inst_id = $input['inst_id'];
-                    $role->save();
-                    continue;
-                }
-            }
-        }
 
         // Re-load the user record with roles and institution for the response
         $user->load(['institution:id,name','roles']);
