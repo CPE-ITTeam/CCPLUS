@@ -9,6 +9,7 @@ export const useAuthStore = defineStore('useAuthStore', {
     ccp_key: '',
     user: {'id': null, 'name': '', 'inst_id': null},
     roles: [],
+    viewInsts: [],
     adminInsts: [],
     adminGroups: [],
     token: useLocalStorage('auth_token', null),
@@ -49,6 +50,7 @@ export const useAuthStore = defineStore('useAuthStore', {
       return (state.isAuthenticated) ?
           new Date(Date.parse(state.user.fiscalYr +" 1, 2019")).getMonth()+1 : '';
     },
+    view_insts: (state) => state.viewInsts,
     admin_insts: (state) => state.adminInsts,
     admin_groups: (state) => state.adminGroups,
   },
@@ -65,14 +67,17 @@ export const useAuthStore = defineStore('useAuthStore', {
           this.token = response.data.data.token;
           this.user = { ...response.data.data.user };
           this.roles = [ ...response.data.data.roles ];
+          this.viewInsts = [ ...response.data.data.viewInsts ];
           this.adminInsts = [ ...response.data.data.adminInsts ];
           this.adminGroups = [ ...response.data.data.adminGroups ];
           this.ccp_key = response.data.data.consoKey;
           this.isAuthenticated = true;
           if (this.is_serveradmin) {
             this.router.push('/consortia');
-          } else if ( this.is_admin ) {
+          } else if ( this.is_admin && this.adminInsts.length > 1) {
             this.router.push({ name: 'InstitutionsTable' });
+          } else if ( this.is_admin) {
+            this.router.push({ name: 'UserTable' });
           } else {
             this.router.push({ name: 'Reports' });
           }
