@@ -30,6 +30,7 @@
   const is_conso_admin = authStore.is_conso_admin;
   const is_group_admin = authStore.is_group_admin;
   const is_serveradmin = authStore.is_serveradmin;
+  const admin_insts = authStore.admin_insts;
   const emit = defineEmits(['updateConso']);
 
   // Detect when the path updates via forward/back browser history actions
@@ -90,6 +91,8 @@
     all_routes.forEach( (topRoute) => {
       if (topRoute.meta.level == 1) { // level-1 routes have no "show" property, restrict by-role
         var theRoute = {...topRoute};
+        // Skip Institutions top tab when not an admin of at least 2 institutions
+        if ( !is_conso_admin && topRoute.name==='Institutions' && admin_insts.length < 2) return;
         if ( is_serveradmin ) {
           pages.value.push({...theRoute});
         } else if ( is_serveradmin || (is_admin && topRoute.meta.role == "Admin") || topRoute.meta.role == "Viewer") {
@@ -99,11 +102,6 @@
                   (childRoute.meta.role == "ConsoAdmin" && is_conso_admin) ||
                   (childRoute.meta.role == "GroupAdmin" && is_group_admin) ||
                   childRoute.meta.role == "Viewer") {
-              // Hide Institution groups and types routes if not "Admin" for at least one group
-              if (topRoute.name === 'Institutions' && 
-                  (childRoute.name === 'InstitutionGroupsTable' || childRoute.name === 'InstitutionsTypesTable')) {
-                  childRoute.show = is_group_admin;
-              }
               theRoute.children.push(childRoute);
             }
           });
