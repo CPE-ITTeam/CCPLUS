@@ -596,9 +596,11 @@
         // Grouping actions (institution dataset) return an extra key for the group
         } else if (data.action == 'Create New Group' || data.action=='Add to Existing Group') {
           if (response.affectedIds.length>0 && typeof(allItems[0]['group_string'] != 'undefined')) {
+            // Add new group as a filter option
             if (data.action == 'Create New Group') {
               filterOptions.groups.items.push({'id': response.group.id, 'name': response.group.name});
             }
+            // Update loaded items' group memberships for institutions belonging to the new/updated group
             allItems.filter(aitm => response.affectedIds.includes(aitm.id)).forEach( itm => {
               itm.group_string += (itm.group_string.length>0) ? ',' : '';
               itm.group_string += response.group.name;

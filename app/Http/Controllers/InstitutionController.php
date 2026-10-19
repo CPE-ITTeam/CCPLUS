@@ -341,7 +341,7 @@ class InstitutionController extends Controller
 
         // Get adminInsts for $thisUser
         $adminInsts = $thisUser->adminInsts();
-        $instIDs = ($consoAdmin) ? $input['ids'] : array_intersect($adminInsts, $input['ids']);
+        $instIDs = ($consoAdmin) ? $input['ids'] : array_values(array_intersect($adminInsts, $input['ids']));
 
         // Check for missing inputs - or rights. Dekete or changing is_active is consoAdmin only;
         // group actions require Conso, or admin of multiple insts
@@ -387,7 +387,9 @@ class InstitutionController extends Controller
             foreach ($instIDs as $inst_id) {
                 $group->institutions()->attach($inst_id);
             }
-            return response()->json(['result' => true, 'msg' => '', 'affectedIds' => $instIDs, 'group' => $group], 200);
+            $msg  = "Institution Group: ".$group->name;
+            $msg .= ($input['action'] == 'Create New Group') ? " created successfully" :  " successfully updated";
+            return response()->json(['result' => true, 'msg' => $msg, 'affectedIds' => $instIDs, 'group' => $group], 200);
 
         } else if ($input['action'] == 'Set Institution Type') {
             // Get matching institutions that need to change
