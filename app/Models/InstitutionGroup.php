@@ -25,13 +25,14 @@ class InstitutionGroup extends Model
         return $this->belongsToMany('App\Models\Institution')->withTimestamps();
     }
 
+    // Note:: users with Admin role for a group are not allowed to modify the group
+    // if it is created by a consoAdmin (user_id==null)
     public function canManage()
     {
-      // Admin can manage the group
-      if (auth()->user()->isConsoAdmin()) {
-        return true;
-      }
-      return (auth()->user()->hasRole("Admin", null, $this->id) || $this->user_id == auth()->id());
+      // ConsoAdmin manages all groups
+      if (auth()->user()->isConsoAdmin()) return true;
+      // Users can manage their own groups
+      return ($this->user_id == auth()->id());
     }
 
     public function typeRestriction()
