@@ -20,9 +20,10 @@
     if (option.value == 'Create New Group' || option.value == 'Add to Existing Group') {
       groupingType.value = (option.value=='Create New Group') ? 'Create' : 'Add';
       groupDialog.value = true;
+      return;
     } else if (option.value == 'Delete') {
       deleteDialog.value = true;
-    // No dialog or extra data to return, emit just the seleted option
+    // No dialog or extra data to return, emit just the selected option
     } else {
       emit('bulkAction', { 'action': option.value });
     }
