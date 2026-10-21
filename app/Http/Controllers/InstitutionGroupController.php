@@ -20,10 +20,11 @@ class InstitutionGroupController extends Controller
     public function index(Request $request)
     {
         $thisUser = auth()->user();
+        $consoAdmin = $thisUser->isConsoAdmin();
         $filter_options = array('types' => array(), 'institutions' => array());
 
         // Server/Conso Admins get conso-groups
-        if ($thisUser->isConsoAdmin()) {
+        if ($consoAdmin) {
             $groups = InstitutionGroup::with('institutions:id,name,type_id','typeRestriction')
                                       ->whereNull('user_id')->orderBy('name', 'ASC')->get();
         } else {
@@ -42,7 +43,7 @@ class InstitutionGroupController extends Controller
         // Limit by institutions array based on thisUsers' ability to Admin them
         // (array is used for add operation)
         $limit_insts = array();
-        if (!$thisUser->isConsoAdmin()) {
+        if (!$consoAdmin) {
             $limit_insts = $thisUser->adminInsts();
             if ($limit_insts === [1]) $limit_insts = [];
         }
@@ -60,8 +61,8 @@ class InstitutionGroupController extends Controller
             $memberIds = $group->institutions->pluck('id')->toArray();
             $rec['member_ids'] = $memberIds;
             $rec['count'] = sizeof($memberIds);
-            $rec['can_edit'] = true;
-            $rec['can_delete'] = true;
+            $rec['can_edit'] = ($consoAdmin || $group->user_id == $thisUser->id);
+            $rec['can_delete'] = $rec['can_edit'];
             $data[] = $rec;
         }
 
@@ -247,8 +248,8 @@ class InstitutionGroupController extends Controller
     {
         $thisUser = auth()->user();
 
-        // Check Authorization
-        if (!$thisUser->isConsoAdmin() && !$group->canManage()) {
+        // Check Authorization - null user_id means only consoAdmin can delete
+        if ( (!$thisUser->isConsoAdmin() && is_null($group->user_id)) || !$group->canManage() ) {
             return response()->json(['result' => false, 'msg' => 'Not Authorized']);
         }
 
