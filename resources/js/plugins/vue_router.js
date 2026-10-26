@@ -202,22 +202,18 @@ pinia.use( ( {store} ) => {
 });
 
 // Navigation guard
-router.beforeEach(async (to, from, next ) => {
+router.beforeEach(async (to, from ) => {
   const authStore = useAuthStore(pinia);
   document.title = `${to.name}`;
-  if (to.meta.role != 'Guest' && !authStore.isAuthenticated) {
+  // Not authenticated or no user.id and requesting other than Guest page(s), re-route to login
+  if (to.meta.role != 'Guest' && (!authStore.isAuthenticated || !authStore.user.id)) {
     return { name: 'Login' }
-  }
-  // Not authenticated and requesting level>0 re-route to login
-  if (to.meta.level>0 && !authStore.user) {
-    next('/api/login');
   }
   // logout via authStore logout action 
   if (to.name == 'Logout') {
     const { logout } = useAuthStore();
     await logout();
   }
-  next();
 });
 
 // Navigation guard
