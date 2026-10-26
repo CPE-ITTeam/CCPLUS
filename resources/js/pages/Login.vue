@@ -40,9 +40,6 @@ async function formSubmit() {
     conso_id: consoId,
   });
 }
-function triggerApiCall(url) {
-  router.push(url);
-}
 onMounted(() => {
   // Get consortia if store value is empty
   if (consortia.value.length == 0) fetchConsortia();
@@ -93,7 +90,7 @@ onMounted(() => {
         <v-btn size="small" class="login-primary" type="submit" color="primary" variant="elevated">
           Login
         </v-btn>
-        <v-btn size="small" variant="text" @click="triggerApiCall('/forgotPassForm')">
+        <v-btn variant="text" size="small" to="/forgotPassForm">
           Forgot Your Password
         </v-btn>
       </div>
