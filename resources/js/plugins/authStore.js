@@ -102,7 +102,7 @@ export const useAuthStore = defineStore('useAuthStore', {
           this.authSuccessMessage = response.data.message;
           this.router.push('/api/login');
         } else {
-          this.authErrorMessage = 'Failed to send email instructions: ' . response.data.message;
+          this.authErrorMessage = 'Failed to send email instructions: ' + response.data.message;
         }
       } catch {
         this.authErrorMessage = 'Failed to send email instructions!';
@@ -121,10 +121,14 @@ export const useAuthStore = defineStore('useAuthStore', {
           this.authSuccessMessage = response.data.message;;
           this.router.push('/api/login');
         } else {
-          this.authErrorMessage = 'Password change failed: ' . response.data.message;
+          this.authErrorMessage = 'Password change failed: ' + response.data.message;
         }
-      } catch {
-        this.authErrorMessage = 'Password change failed!';
+      } catch (error) {
+        if (error.response?.data?.message) {
+          this.authErrorMessage = error.response.data.message;
+        } else {
+          this.authErrorMessage = 'Password change failed!';
+        }
       }
     },
     clearToken() {
