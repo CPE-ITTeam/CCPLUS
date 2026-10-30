@@ -82,7 +82,7 @@ class ConsortiumController extends BaseController
         $db_conso_pass = \Config::get('database.connections.consodb.password');
 
         // Create the database
-        DB::statement(DB::raw('CREATE DATABASE ' . $conso_db));
+        DB::statement('CREATE DATABASE `' . $conso_db . '`');
 
         // Set configuration to use the new database as consodb
         config(['database.connections.consodb.database' => $conso_db]);
