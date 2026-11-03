@@ -18,7 +18,6 @@ export const useCCPlusStore = defineStore('useCCPlusStore', {
   },
   getters: {
     report_data: (state) => { return state.reportData },
-    consd_data: state => {  state.consortia },
   },
   actions: {
     
