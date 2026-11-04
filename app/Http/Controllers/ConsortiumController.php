@@ -222,17 +222,25 @@ class ConsortiumController extends BaseController
     /**
      * Remove the specified resource from storage.
      *
-     * @param  int  $id
+     * @param  \App\Models\Consortium  $consortium
      * @return \Illuminate\Http\Response
      */
-    public function destroy($id)
+    public function destroy(Consortium $consortium)
     {
-        $consortium = Consortium::findOrFail($id);
+        // Only allow ServerAdmin to delete consortium records
+        if (!auth()->user()->isServerAdmin()) {
+            return response()->json(['result' => false, 'msg' => 'Delete failed (403) - Forbidden'], 403);
+        }
+
         try {
+            // Remove the consortium record from the global consortia table
             $consortium->delete();
-            return response()->json(['result' => true, 'msg' => 'Instance successfully deleted']);
+            // Delete the consortium's database and all its tables
+            $conso_db = "ccplus_" . $consortium->ccp_key;
+            DB::statement('DROP DATABASE `' . $conso_db . '`');
         } catch (\Exception $e) {
             return response()->json(['result' => true, 'msg' => $e->getMessage()]);
         }
+        return response()->json(['result' => true, 'msg' => 'Consortium successfully deleted']);
     }
 }

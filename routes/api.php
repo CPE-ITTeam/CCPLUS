@@ -30,6 +30,7 @@ Route::middleware('ccplusAuth')->group( function () {
         Route::get('/get', 'App\Http\Controllers\ConsortiumController@index')->name('consortia.index');
         Route::post('/store', 'App\Http\Controllers\ConsortiumController@store')->name('consortia.store');
         Route::patch('/update/{consortium}', 'App\Http\Controllers\ConsortiumController@update')->name('consortia.update');
+        Route::delete('/delete/{consortium}', 'App\Http\Controllers\ConsortiumController@destroy')->name('consortia.destroy');
     });
     Route::prefix('credentials')->group(function () {
         Route::get('/get', 'App\Http\Controllers\CredentialController@index')->name('credentials.index');
