@@ -2,8 +2,10 @@
 <script setup>
   import { ref, reactive, watch, onBeforeMount, computed } from 'vue';
   import { useAuthStore } from '@/plugins/authStore.js';
+  import { useCCPlusStore } from '@/plugins/CCPlusStore.js';
   import { fyMonths } from '@/plugins/CCPlusStore.js';
   import { tableSetup } from '@/composables/DataTableConfig.js';
+  import { storeToRefs } from 'pinia';
   import DataToolbar from './DataToolbar.vue';
   import DataTable from './DataTable.vue';
   import DataForm from './DataForm.vue';
@@ -19,6 +21,7 @@
   const view_insts = authStore.view_insts;
   const admin_insts = authStore.admin_insts;
   const { ccGet, ccPost, ccPatch, ccDestroy, setConso } = useAuthStore();
+  const { consortia } = storeToRefs(useCCPlusStore());
   var consoKey = ref(authStore.ccp_key);  
   const props = defineProps({
     datasetKey: { type: String, required: true }
@@ -882,6 +885,11 @@
           allItems.splice(a_idx,1);
           filteredItems.splice(f_idx,1);
         }
+        // Deleting a consortium also needs to update the datastore array             
+        if (props.datasetKey == 'consortia') {
+          let c_idx = consortia.value.findIndex(ii => ii.id == id);
+          if (c_idx >= 0) consortia.value.splice(c_idx,1);
+        }
         success.value = response.msg
         dtKey.value++;
       } else {
@@ -907,6 +915,15 @@
             _idx = filteredItems.findIndex(ii => ii.id == id);
             if (_idx >= 0) filteredItems.splice(_idx,1,_item);
             dtKey.value++;
+            // set (or clear) disabled prop on the item
+            if (typeof(_item['props']) != 'undefined' || value != 'Active') {
+              _item['props'] = {'disabled': (value == 'Active') ? false : true};
+              //If just toggled a consortium, update the datastore array             
+              if (props.datasetKey == 'consortia') {
+                let c_idx = consortia.value.findIndex(ii => ii.id == id);
+                if (c_idx >= 0) consortia.value.splice(c_idx,1,_item);
+              }
+            }
           } else {
             failure.value = response.msg
           }
@@ -1024,6 +1041,10 @@
         if (response.result) {
           allItems.push(response.record);
           success.value = response.msg
+          // on success for add-new-consortium, update datastore
+          if (props.datasetKey == 'consortia') {
+            consortia.value.push(response.record);
+          }
           // sortItems();
           updateItems();
           dtKey.value++;
