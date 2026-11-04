@@ -13,9 +13,13 @@ class ConsortiumController extends BaseController
 {
     /**
      * Return a (JSON) array of known, active consortia
+     * The route for this is public, so it can be used to populate a dropdown list of consortia for login
+     * @return JSON
      */
     public function index(Request $request) {
-        $data = Consortium::where('is_active',true)->get();
+
+        $data = Consortium::orderBy('name','asc')->get();
+        $is_serverAdmin = (auth()->user()) ? auth()->user()->isServerAdmin() : false;
 
         // Set default conso-admin to ServerAdmin in case one is not defined
         $defaultName  = "Server Administrator";
@@ -29,10 +33,21 @@ class ConsortiumController extends BaseController
             $qry .= "left join ccplus_" . $con->ccp_key . ".roles as RR on RR.id=UR.role_id";
             // Set the first result from the user table, or default it
             $result = DB::select($qry.$where);
-            $data[$idx]['admin_name']  = (count($result) > 0) ? $result[0]->name  : $defaultName;
+            if ($is_serverAdmin) {
             $data[$idx]['admin_email'] = (count($result) > 0) ? $result[0]->email : $defaultEmail;
-            // Return is_active as "status" string
+            // If not server admin, there's no reason to reveal email addresses
+            } else {
+                $data[$idx]['email'] = '';
+                $data[$idx]['admin_email'] = '';
+            }
+            // Return is_active as "status" string and a disabled flag to disable in option if not active
             $data[$idx]['status'] = ($con->is_active) ? "Active" : "Inactive";
+            // Return a disabled prop if not active
+            if ($con->is_active == 0) {
+                $data[$idx]['props'] = array('disabled' => true);
+            }
+            $data[$idx]['can_edit'] = $is_serverAdmin;
+            $data[$idx]['can_delete'] = $is_serverAdmin;
         }
         return response()->json(['records' => $data, 'result' => true], 200);
     }
