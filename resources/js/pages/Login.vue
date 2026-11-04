@@ -41,8 +41,8 @@ async function formSubmit() {
   });
 }
 onMounted(() => {
-  // Get consortia if store value is empty
-  if (consortia.value.length == 0) fetchConsortia();
+  // Get current consortia data every time
+  fetchConsortia();
 
   // Clear any existing error(s)
   clearLoginError();
