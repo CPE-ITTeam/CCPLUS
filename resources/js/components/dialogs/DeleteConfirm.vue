@@ -20,10 +20,19 @@
     </v-card-title>
     <v-card-text>
       <p>&nbsp;</p>
-      <span v-if="props.dataset=='connections'">
+      <p v-if="props.dataset=='connections'">
         <strong>You are about to delete <font color="red">ALL CONNECTIONS</font> to {{  item.platform }}</strong>
-      </span>
-      <span v-else><strong>You are about to delete {{ item.name }} from {{ props.dataset }}</strong></span>
+      </p>
+      <p v-else-if="props.dataset=='consortia'">
+        <strong>
+          Deleting this consortium will completely remove the database and all associated data from the system,
+          including all connections, harvests, and reports for all members of this consortium.<br/><br />
+          <font color="red">WARNING: This action cannot be undone.</font>
+        </strong>
+      </p>
+      <p v-else>
+        <strong>You are about to delete {{ item.name }} from {{ props.dataset }}</strong>
+      </p>
       <p>&nbsp;</p>
       <h3> Are you Sure?</h3>
       <p>&nbsp;</p>
