@@ -34,7 +34,7 @@ class ConsortiumController extends BaseController
             // Set the first result from the user table, or default it
             $result = DB::select($qry.$where);
             if ($is_serverAdmin) {
-            $data[$idx]['admin_email'] = (count($result) > 0) ? $result[0]->email : $defaultEmail;
+                $data[$idx]['admin_email'] = (count($result) > 0) ? $result[0]->email : $defaultEmail;
             // If not server admin, there's no reason to reveal email addresses
             } else {
                 $data[$idx]['email'] = '';
@@ -60,14 +60,19 @@ class ConsortiumController extends BaseController
      */
     public function store(Request $request)
     {
-        //Validate request and put fields into $input
+        // Only allow ServerAdmin to create new consortia
+        if (!auth()->user()->isServerAdmin()) {
+            return response()->json(['result' => false, 'msg' => 'Update failed (403) - Forbidden'], 403);
+        }
+
+        // Validate request and put fields into $input
         $this->validate($request, [
-            'ccp_key' => 'required|max:10',
+            'status' => 'required',
             'name' => 'required',
+            'ccp_key' => 'required|max:10',
             'email' => 'required',
-            'admin_user' => 'required',
-            'admin_pass' => 'required',
-            'admin_confirm_pass' => 'required',
+            'admin_email' => 'required',
+            'password' => 'required|same:confirm_pass',
             ]);
         $input = $request->all();
 
@@ -143,7 +148,8 @@ class ConsortiumController extends BaseController
                 DB::connection('consodb')->statement($command);
                 DB::connection('consodb')->statement($data_query);
             } catch (\Exception $e) {
-                dd($e);
+                return response()->json(['result' => false,
+                                         'msg' => 'Schema cloning failed for table '.$table.':'.$e->getMessage()],422);
             }
         }
 
@@ -165,37 +171,37 @@ class ConsortiumController extends BaseController
         DB::statement($_grant_Usr);
 
         // Create the new consortium
-        $consortium = Consortium::create($request->only('ccp_key', 'name', 'email', 'is_active'));
+        $args = $request->only('ccp_key','name','email');
+        $args['is_active'] = ($input['status'] == 'Active') ? 1 : 0;
+        $consortium = Consortium::create($args);
 
         // Create the Administrator account in the new consortium users table using input values
         // (The ServerAdmin account and role setting should have copied over from the template database)
         DB::table($conso_db . ".users")->insert([
         ['id' => 2,
          'name' => 'CC-Plus Administrator',
-         'password' => Hash::make($input['admin_pass']),
-         'email' => $input['admin_user'],
+         'password' => Hash::make($input['password']),
+         'email' => $input['admin_email'],
          'inst_id' => 1,
          'is_active' => 1]
         ]);
 
         // Set role for 'Administrator'
-        DB::table($conso_db . ".role_user")->insert(['role_id' =>  99, 'user_id' => 2]);
+        DB::table($conso_db . ".user_roles")->insert(['role_id' =>  9, 'inst_id' => 1, 'user_id' => 2]);
 
-        return response()->json(['result' => true, 'consortium' => $consortium,
+        // Add keys to the consortium record for the return JSON
+        $consortium->status = ($args['is_active'] == 1) ? 'Active' : 'Inactive';
+        $consortium->admin_email = $input['admin_email'];
+        // Add a disabled prop if not active
+        if ($consortium->is_active == 0) {
+            $consortium->props = array('disabled' => true);
+        }
+        $consortium->can_edit = true;
+        $consortium->can_delete = true;
+
+        return response()->json(['result' => true, 'record' => $consortium,
                                  'msg' => 'New consortium : ' . $consortium->name . ' Successfully Created.',
                                ]);
-    }
-
-    /**
-     * Display the specified resource.
-     *
-     * @param  int  $id
-     * @return JSON
-     */
-    public function show($id)
-    {
-        $consortium = Consortium::findOrFail($id); //Find consortium w/ id = $id
-        return response()->json(['consortium' => $consortium], 200);
     }
 
     /**
@@ -207,6 +213,11 @@ class ConsortiumController extends BaseController
      */
     public function update(Request $request, $id)
     {
+        // Only allow ServerAdmin to update consortium records
+        if (!auth()->user()->isServerAdmin()) {
+            return response()->json(['result' => false, 'msg' => 'Update failed (403) - Forbidden'], 403);
+        }
+
         // Get the consortium record
         $consortium = Consortium::findOrFail($id);
 
@@ -217,21 +228,44 @@ class ConsortiumController extends BaseController
         $input = $request->all();
         $consortium->is_active = ($input['is_active']) ? 1 : 0;
 
-        // If more than just is_active was requested
-        if (count($input) > 1) {
+        // If only is_active was requested, save now, otherwise update name and email as well
+        if (count($input) == 1) {
+            $consortium->save();
+        } else {
             if (!isset($input['name']) || !isset($input['email'])) {
                 return response()->json(['result' => false, 'msg' => 'Missing arguments! - no update applied.']);
             }
             $consortium->name = $request->input('name');
             $consortium->email = $request->input('email');
+            $consortium->save();
+
+            // Update admin username and password in the consortium users table if given
+            if ($request->has('admin_email')) {
+                $admin_email = $request->input('admin_email');
+                DB::table("ccplus_" . $consortium->ccp_key . ".users")->where('id', 2)->update(['email' => $admin_email]);
+            }
+            if ($request->has('password') && $request->has('confirm_pass') &&
+                $request->input('password') == $request->input('confirm_pass')) {
+                $password = $request->input('password');
+                DB::table("ccplus_" . $consortium->ccp_key . ".users")->where('id', 2)
+                  ->update(['password' => Hash::make($password)]);
+            }
+            // Add status and admin_email to the consortium record for the return JSON
+            $consortium->admin_email = $request->input('admin_email');
+            $consortium->status = ($consortium->is_active == 1) ? 'Active' : 'Inactive';
         }
-        // Save the record
-        $consortium->save();
+
+        // Add a disabled prop if not active
+        if ($consortium->is_active == 0) {
+            $consortium->props = array('disabled' => true);
+        }
+        $consortium->can_edit = true;
+        $consortium->can_delete = true;
 
         // Return the updated object
-        return response()->json(['result' => true, 'consortium' => $consortium,
+        return response()->json(['result' => true, 'record' => $consortium,
                                  'msg' => 'Consortium : ' . $consortium->name . ' Successfully Updated.',
-                               ]);
+                                ]);
     }
 
     /**
