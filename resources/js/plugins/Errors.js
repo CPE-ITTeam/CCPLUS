@@ -1,3 +1,6 @@
+// plugins/Errors.js
+
+
 class Errors {
     /**
      * Create a new Errors instance.

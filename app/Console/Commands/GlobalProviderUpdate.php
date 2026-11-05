@@ -126,7 +126,7 @@ class GlobalProviderUpdate extends Command
             $global_provider->name = $platform->name;
             $global_provider->content_provider = $platform->content_provider_name;
             $global_provider->abbrev = $platform->abbrev;
-            $global_provider->master_reports = $reportIds;
+            $global_provider->master_reports = json_encode($reportIds);
             $global_provider->save();
             $global_provider->load('registries');
 
@@ -149,7 +149,7 @@ class GlobalProviderUpdate extends Command
                         $connectors[] = $cnx['id'];
                     }
                 }
-                $registry->connectors = $connectors;
+                $registry->connectors = json_encode($connectors);
                 $registry->save();
             }
 

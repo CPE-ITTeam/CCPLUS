@@ -15,7 +15,10 @@ class ConsortiumController extends BaseController
      * Return a (JSON) array of known, active consortia
      */
     public function index(Request $request) {
-        $data = Consortium::where('is_active',true)->get();
+        // 💡 FIXED: Added ->orderBy('name', 'asc') to enforce alphabetical sorting natively at the database level!
+        $data = Consortium::where('is_active', true)
+                            ->orderBy('name', 'asc')
+                            ->get();
 
         // Set default conso-admin to ServerAdmin in case one is not defined
         $defaultName  = "Server Administrator";
@@ -36,6 +39,7 @@ class ConsortiumController extends BaseController
         }
         return response()->json(['records' => $data, 'result' => true], 200);
     }
+
 
     /**
      * Store a newly created resource in storage.
@@ -82,8 +86,7 @@ class ConsortiumController extends BaseController
         $db_conso_pass = \Config::get('database.connections.consodb.password');
 
         // Create the database
-        DB::statement(DB::raw('CREATE DATABASE ' . $conso_db));
-
+        DB::statement('CREATE DATABASE `' . $conso_db . '`'); // 💡 FIXED: Passes a clean string natively!
         // Set configuration to use the new database as consodb
         config(['database.connections.consodb.database' => $conso_db]);
         session(['ccp_key' => $input['ccp_key']]);
@@ -128,7 +131,11 @@ class ConsortiumController extends BaseController
                 DB::connection('consodb')->statement($command);
                 DB::connection('consodb')->statement($data_query);
             } catch (\Exception $e) {
-                dd($e);
+                // 💡 FIXED: Purge the dump-and-die trap and pass a clear JSON message back to Vue!
+                return response()->json([
+                    'result' => false, 
+                    'msg' => 'Schema cloning failed for table ' . $table . ': ' . $e->getMessage()
+                ], 422); // 💡 422 forces Axios to jump straight to your frontend catch block!
             }
         }
 
@@ -149,8 +156,13 @@ class ConsortiumController extends BaseController
                       "' identified by '" . $db_conso_pass . "'";
         DB::statement($_grant_Usr);
 
+        // 💡 FIXED: Intercepts the parameter mappings and explicitly forces the state to Active (1)
+        // so it isn't automatically hidden by active-only database endpoints!
+        $consortiumData = $request->only('ccp_key', 'name', 'email');
+        $consortiumData['is_active'] = 1;
+
         // Create the new consortium
-        $consortium = Consortium::create($request->only('ccp_key', 'name', 'email', 'is_active'));
+        $consortium = Consortium::create($consortiumData);
 
         // Create the Administrator account in the new consortium users table using input values
         // (The ServerAdmin account and role setting should have copied over from the template database)
@@ -170,6 +182,7 @@ class ConsortiumController extends BaseController
                                  'msg' => 'New consortium : ' . $consortium->name . ' Successfully Created.',
                                ]);
     }
+
 
     /**
      * Display the specified resource.

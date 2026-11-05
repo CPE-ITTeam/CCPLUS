@@ -21,7 +21,7 @@
       <span v-else>CC-Plus Error : {{ error.id }}</span>
       <v-tooltip text="Cancel" location="bottom">
         <template #activator="{ props }">
-          <v-btn icon variant="outlined" class="close-btn" v-bind="props" @click="$emit('close')">
+          <v-btn icon class="close-btn" v-bind="props" @click="$emit('close')">
             <v-icon size="18">mdi-close</v-icon>
           </v-btn>
         </template>

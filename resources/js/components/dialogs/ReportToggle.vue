@@ -1,8 +1,8 @@
 <!-- components/dialogs/ReportToggle.vue -->
 <script setup>
   import { onMounted, ref, computed } from 'vue';
-  import { useAuthStore } from '@/plugins/authStore.js';
-  import ToggleIcon from '../shared/ToggleIcon.vue';
+  import { useAuthStore } from '@/stores/useAuthStore.js';
+  import ToggleIcon from '@/components/ui/ToggleIcon.vue';
 
   const props = defineProps({
     item: { type: Object, required: true },
@@ -209,8 +209,8 @@
       <hr v-if="selectedInsts.length==0 && selectedGroups.length==0" width="90%">
       <v-row class="d-flex mt-2" no-gutters>
         <v-col cols="12" class="text-left">
-          <v-btn color="primary" @click="submitForm">Save</v-btn>
-          <v-btn variant="text" class="ml-2" @click="emit('cancel')">Cancel</v-btn>
+          <v-btn @click="submitForm">Save</v-btn>
+          <v-btn class="ml-2" @click="emit('cancel')">Cancel</v-btn>
         </v-col>
       </v-row>
     </v-container>

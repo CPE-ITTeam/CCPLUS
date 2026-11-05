@@ -1,38 +1,63 @@
 <!-- components/dialogs/DeleteConfirm.vue -->
 <script setup>
   const props = defineProps({
-    dataset: { type:String, required: true },
-    item: { type:Object, required: true },
+    dataset: { type: String, required: true },
+    item: { type: Object, required: true },
   });
   const emit = defineEmits(['close', 'confirm']);
 </script>
+
 <template>
-  <v-card>
-    <v-card-title class="pa-6 d-flex justify-space-between align-center">
-      <span>Confirm Delete</span>
-      <v-tooltip text="Cancel" location="bottom">
-        <template #activator="{ props }">
-          <v-btn icon variant="outlined" class="close-btn" v-bind="props" @click="$emit('close')">
-            <v-icon size="18">mdi-close</v-icon>
-          </v-btn>
+  <!-- REMOVED hardcoded width props so it centers horizontally again -->
+  <v-card 
+    elevation="3" 
+    style="--v-shadow-color: var(--v-theme-info);"
+  >
+    <v-form @submit.prevent="$emit('confirm')">
+      
+      <!-- Unified header layout -->
+      <v-card-item class="bg-primary rounded-t pa-3" title="Confirm Delete">
+        <template #append>
+          <v-btn 
+            icon="mdi-close" 
+            variant="text" 
+            color="white" 
+            density="comfortable" 
+            @click="$emit('close')" 
+          />
         </template>
-      </v-tooltip>
-    </v-card-title>
-    <v-card-text>
-      <p>&nbsp;</p>
-      <span v-if="props.dataset=='connections'">
-        <strong>You are about to delete <font color="red">ALL CONNECTIONS</font> to {{  item.platform }}</strong>
-      </span>
-      <span v-else><strong>You are about to delete {{ item.name }} from {{ props.dataset }}</strong></span>
-      <p>&nbsp;</p>
-      <h3> Are you Sure?</h3>
-      <p>&nbsp;</p>
-      <v-row>
-        <v-col cols="12" class="text-left">
-          <v-btn color="primary" @click="$emit('confirm')">Yes, Delete it</v-btn>
-          <v-btn variant="text" class="ml-2" @click="$emit('close')">Cancel</v-btn>
-        </v-col>
-      </v-row>
-    </v-card-text>
+      </v-card-item>
+
+      <!-- Dialog Confirmation Content -->
+      <v-card-text class="pt-6 pb-2 text-center text-sm-left">
+        <div v-if="props.dataset == 'connections'" class="text-subtitle-1 mb-4">
+          You are about to delete <strong class="text-error text-uppercase">all connections</strong> to <strong>{{ item.platform }}</strong>
+        </div>
+        <div v-else class="text-subtitle-1 mb-4">
+          You are about to delete <strong>{{ item.name }}</strong> from <strong>{{ props.dataset }}</strong>
+        </div>
+
+        <h3 class="text-h6 font-weight-bold mb-4">Are you sure?</h3>
+      </v-card-text>
+
+      <!-- Action Buttons Row -->
+      <v-card-actions class="px-6 pb-6 justify-start">
+        <v-btn 
+          type="submit"
+          color="error" 
+          variant="flat"
+        >
+          Yes, Delete it
+        </v-btn>
+        <v-btn 
+          variant="text" 
+          class="ml-2" 
+          @click="$emit('close')"
+        >
+          Cancel
+        </v-btn>
+      </v-card-actions>
+      
+    </v-form>
   </v-card>
 </template>

@@ -42,7 +42,7 @@
           </v-col>
         </v-row>
         <v-row v-if="saveType=='Create' || saveTitle.length>0" class="d-flex pa-2" no-gutters>
-          <v-text-field v-model="saveTitle" label="Title" variant="outlined"></v-text-field>
+          <v-text-field v-model="saveTitle" label="Title" ></v-text-field>
         </v-row>
         <v-row v-if="props.saved_reports.length>0 && saveType=='Update'" class="d-flex pa-2" no-gutters>
           <v-col>
@@ -56,10 +56,10 @@
         <v-spacer></v-spacer>
         <v-row class="d-flex justify-center" no-gutters>
           <v-col class="d-flex px-2" cols="3">
-            <v-btn color="primary" @click="saveConfig">Save</v-btn>
+            <v-btn @click="saveConfig">Save</v-btn>
           </v-col>
           <v-col class="d-flex px-2" cols="3">
-            <v-btn color="primary" @click="emit('cancel')">Cancel</v-btn>
+            <v-btn @click="emit('cancel')">Cancel</v-btn>
           </v-col>
         </v-row>
       </v-container>

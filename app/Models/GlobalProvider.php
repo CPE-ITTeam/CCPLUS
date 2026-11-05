@@ -1,6 +1,7 @@
 <?php
 
 namespace App\Models;
+
 use DB;
 use App\Models\Report;
 use App\Models\ConnectionField;
@@ -13,40 +14,64 @@ use Illuminate\Database\Eloquent\Model;
 
 class GlobalProvider extends Model
 {
-  /**
-   * Class Constructor
-   */
-    private $global_masters;
-    private $all_connectors;
-    public function __construct(array $attributes = array())
-    {
-        parent::__construct($attributes);
-        $this->global_masters = Report::where('parent_id',0)->orderBy('dorder', 'ASC')->get();
-        $this->all_connectors = ConnectionField::get();
-    }
-  /**
-   * The database table used by the model.
-   *
-   * @var string
-   */
+    /**
+     * The database connection and table used by the model.
+     *
+     * @var string
+     */
     protected $connection = 'globaldb';
     protected $table = 'global_providers';
 
-  /**
-   * Mass assignable attributes.
-   *
-   * @var array
-   */
-    protected $attributes = ['registry_id' => null, 'name' => '', 'abbrev' => null, 'is_active' => 1, 'refreshable' => 1,
-                             'refresh_result'=>null, 'day_of_month'=>15, 'platform_parm'=>null, 'selected_release'=>null];
-    protected $fillable = ['id', 'registry_id', 'name', 'abbrev', 'is_active', 'refreshable', 'refresh_result', 'master_reports',
-                           'day_of_month', 'platform_parm', 'selected_release'];
-    protected $casts = ['id'=>'integer', 'is_active'=>'integer', 'refreshable'=>'integer', 'day_of_month'=>'integer'];
+    /**
+     * Mass assignable and default attributes.
+     *
+     * @var array
+     */
+    protected $attributes = [
+        'registry_id' => null, 
+        'name' => '', 
+        'abbrev' => null, 
+        'is_active' => 1, 
+        'refreshable' => 1,
+        'refresh_result' => null, 
+        'day_of_month' => 15, 
+        'platform_parm' => null, 
+        'selected_release' => null
+    ];
+
+    protected $fillable = [
+        'id', 'registry_id', 'name', 'abbrev', 'is_active', 'refreshable', 
+        'refresh_result', 'master_reports', 'day_of_month', 'platform_parm', 'selected_release'
+    ];
+
+    // 🏁 FIXED: Added 'array' casting mapping alongside your other scalar types to unblock array serializations
+    protected $casts = [
+        'id' => 'integer', 
+        'is_active' => 'integer', 
+        'refreshable' => 'integer', 
+        'day_of_month' => 'integer',
+        'master_reports' => 'array' 
+    ];
+
+    /**
+     * 🏁 FIXED: Dynamic Accessors replace the broken constructor queries.
+     * These will execute only if requested, saving hundreds of repetitive network requests!
+     */
+    public function getGlobalMastersAttribute()
+    {
+        return Report::where('parent_id', 0)->orderBy('dorder', 'ASC')->get();
+    }
+
+    public function getAllConnectorsAttribute()
+    {
+        return ConnectionField::get();
+    }
 
     // Return the ConnectionField detail based on connectors array
     public function connectionFields()
     {
         $connectors = array();
+
         $registry = $this->default_registry();
         if ($registry) {
             $cnxs = $registry->connectors;
