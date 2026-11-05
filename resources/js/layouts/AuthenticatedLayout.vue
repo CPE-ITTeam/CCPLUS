@@ -27,7 +27,6 @@ const apiRoute = computed(() => all_routes.find(r => r.path === '/')?.children?.
 const authStore = useAuthStore();
 const ccPlusStore = useCCPlusStore();
 const { consortia } = storeToRefs(ccPlusStore);
-const { setConso } = authStore;
 
 // Role Guards
 const is_admin = authStore.is_admin;
@@ -93,17 +92,18 @@ function onPageChange(newPage) {
   }
 }
 
-// Global Connection Switcher Trigger
+
 async function handleGlobalConsoChange(event) {
   if (event && event.id && event.ccp_key) {
     try {
-      await setConso(event.id, event.ccp_key);
+      await authStore.setConso(event.id, event.ccp_key);
       window.location.reload(); // Hot-reload context bounds to clear tenant models securely
     } catch (err) {
       console.error("Failed to re-route cluster connections:", err);
     }
   }
 }
+
 
 function forwardConsoSignal(event) {
   emit('updateConso', event);
@@ -215,22 +215,24 @@ onMounted(async () => {
           <div class="d-flex flex-column flex-md-row align-stretch align-md-center justify-md-space-between ga-0 ga-md-3 px-6 pt-4 w-100">
             
             <!-- ─── 🏢 MOBILE & DESKTOP ENVIRONMENT SELECTOR ─── -->
-            <div v-if="is_serveradmin && consortia.length > 0" class="w-100 flex-md-initial order-first order-md-last mb-2 mb-md-0" style="max-width: 100%; min-width: 280px; width: auto;">
-              <v-autocomplete 
-                v-slot:default
-                v-model="globalConsoKey" 
-                label="Active Environment" 
-                :items="consortia" 
-                item-title="name" 
-                return-object
-                density="compact"
-                variant="outlined"
-                bg-color="white"
-                hide-details
-                @update:modelValue="handleGlobalConsoChange" 
-              />
-              <v-divider class="d-md-none mt-3" />
-            </div>
+<div v-if="is_serveradmin && consortia.length > 0" class="w-100 flex-md-initial order-first order-md-last mb-2 mb-md-0" style="max-width: 100%; min-width: 280px; width: auto;">
+  <v-autocomplete 
+    v-model="globalConsoKey" 
+    label="Active Environment" 
+    :items="consortia" 
+    item-title="name" 
+    item-value="ccp_key"
+    return-object
+    density="compact"
+    variant="outlined"
+    bg-color="white"
+    hide-details
+    @update:modelValue="handleGlobalConsoChange" 
+  />
+  <v-divider class="d-md-none mt-3" />
+</div>
+
+
 
             <!-- ─── 📱 MOBILE ONLY: RESPONSIVE DROPDOWN NAVIGATION MENU ─── -->
             <div class="d-md-none w-100 mt-2 mb-0">

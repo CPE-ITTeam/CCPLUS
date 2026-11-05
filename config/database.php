@@ -87,7 +87,7 @@ return [
             'url' => env('DATABASE_URL'),
             'host' => env('DB_HOST', '127.0.0.1'),
             'port' => env('DB_PORT', '3306'),
-            'database' => '',
+            'database' => env('DB_DATABASE_2', 'con_template'),
             // 'username' => env('DB_CONSO_USER', 'not-defined'),
             // 'password' => env('DB_CONSO_PASS', 'pw-notset'),
             'username' => env('DB_USERNAME', 'not-defined'),

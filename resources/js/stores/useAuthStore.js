@@ -10,7 +10,7 @@ export const useAuthStore = defineStore("useAuthStore", {
     roles: [],
     adminInsts: [],
     adminGroups: [],
-    token: useLocalStorage("auth_token", null),
+    token: useLocalStorage("user-token", null),
     authErrorMessage: null,
     authSuccessMessage: null,
   }),
@@ -113,7 +113,7 @@ export const useAuthStore = defineStore("useAuthStore", {
       this.ccp_key = payload.consoKey || "con_template";
       this.isAuthenticated = true;
       
-      localStorage.setItem("auth_token", this.token);
+      localStorage.setItem("user-token", this.token);
       this.authErrorMessage = null;
       this.authSuccessMessage = null;
 
@@ -134,7 +134,7 @@ export const useAuthStore = defineStore("useAuthStore", {
       this.adminInsts = [];
       this.adminGroups = [];
       this.isAuthenticated = false;
-      localStorage.removeItem("auth_token");
+      localStorage.removeItem("user-token");
     },
 
     logoutStateClear() {
@@ -155,16 +155,37 @@ export const useAuthStore = defineStore("useAuthStore", {
     clearSuccessMessage() { this.authSuccessMessage = null; },
 
     // Moved back inside the actions block where it belongs safely
+    setConsoKey(ccp_key) {
+      if (!this.is_serveradmin) return;
+      this.ccp_key = ccp_key || "con_template";
+    },
+
+    setLoginError(message) { this.authErrorMessage = message; },
+    clearLoginError() { this.authErrorMessage = null; },
+    setSuccessMessage(message) { this.authSuccessMessage = message; },
+    clearSuccessMessage() { this.authSuccessMessage = null; },
+
+    // Replace ONLY this method:
     async setConso(id, ccp_key) {
       if (!this.is_serveradmin) return false;
       this.ccp_key = ccp_key || "con_template";
       try {
-        await axios.post("/api/updateSession", {
-          data: { conso_id: id, ccp_key: this.ccp_key }
-        });
+        const token = this.token || localStorage.getItem("user-token");
+        await axios.post(
+          "/api/updateSession",
+          { data: { conso_id: id, ccp_key: this.ccp_key } },
+          {
+            headers: {
+              Authorization: `Bearer ${token}`,
+              Accept: "application/json",
+            },
+            withCredentials: true,
+          }
+        );
       } catch (error) {
         console.error("Failed to update active tenant database scope:", error);
       }
     },
+
   },
 });
