@@ -1050,12 +1050,13 @@ watch(
 
       <!-- 3. Primary Data Table Grid -->
       <DataTable v-if="consoKey != '' || props.datasetKey == 'consortia'" :items="filteredItems" :key="dtKey"
-        :search="search" :headers="headers" :isLoading="dtLoading" :loadingColor="props.loadingColor"
+        :search="search" :headers="headers" :isLoading="dtLoading && !refreshProgress.active" :loadingColor="props.loadingColor"
         :dataset="props.datasetKey" :showSelectedOnly="showSelectedOnly" :editableFields="editableFields"
         :truncated="truncated" :searchFields="searchFields" :selectedRows="selectedRows"
         :selectableRows="selectableRows" @edit="handleEdit" @delete="handleDelete" @update:report="handleReportToggle"
         @update:selectedRows="selectedRows = $event" @update:toggle="handleToggleUpdate"
         @update:toggleSelectedOnly="handleToggle" />
+
 
       <!-- 4. Dialog One: Core Item Forms -->
       <v-dialog v-if="editingItem && isEditable" v-model="formDialogOpen">

@@ -1,10 +1,16 @@
 <!-- components/tables/DataTable.vue -->
 <script setup>
-import { ref, computed } from 'vue';
+import { ref, computed } from 'vue'; // Both ref and computed are handled here
 import { useAuthStore } from '@/stores/useAuthStore.js';
 import ToggleIcon from '@/components/ui/ToggleIcon.vue';
 import DeleteConfirm from '@/components/dialogs/DeleteConfirm.vue';
 import ErrorDetails from '@/components/dialogs/ErrorDetails.vue';
+import { useDate } from 'vuetify';
+
+// Initialize your store and date composable inside the setup scope
+const authStore = useAuthStore();
+const dateInstance = useDate();
+const dateKeys = ['date', 'created_at', 'updated', 'last_login', 'deleted_at'];
 
 const props = defineProps({
   headers: { type: Array, required: true },
@@ -21,6 +27,8 @@ const props = defineProps({
   selectableRows: { type: Boolean, required: true }
 });
 
+// (Your computedHeaders and showActions logic goes right below this)
+
 const showActions = computed(() => {
   if (props.items.length > 0) {
     return (props.items.some((itm) => (typeof (itm.can_edit) != 'undefined' ||
@@ -29,15 +37,14 @@ const showActions = computed(() => {
   return false;
 });
 
+// ==========================================
+// 1. Your Computed Headers (Keep this block clean)
+// ==========================================
 const computedHeaders = computed(() => {
-  // 1. Filter out any artificial or empty columns that match the reserved selection key
-  // to prevent Vuetify from getting confused and turning it into a normal sortable text row.
   let rawHeaders = props.headers.filter(h => h.key !== 'data-table-select' && h.name !== 'data-table-select');
 
-  // 2. Map over the cleaned headers to inject uniform bold styling and center padding fixes
   const hdrs = rawHeaders.map(header => {
     const isCentered = header.align === 'center';
-
     return {
       ...header,
       headerProps: {
@@ -48,18 +55,29 @@ const computedHeaders = computed(() => {
     };
   });
 
-  // 3. Append your row action column to the end of the array if active
   if (showActions.value) {
     hdrs.push({
       title: 'Actions',
       key: 'actions',
-      align: 'center',
+      align: 'end',
       headerProps: { class: 'font-weight-bold bg-info text-white' }
     });
   }
 
   return hdrs;
 });
+
+// ==========================================
+// 2. Your Date Formatting Helper (Place it right here!)
+// ==========================================
+function formatDateDisplay(dateVal) {
+  if (!dateVal) return '';
+  const d = new Date(dateVal);
+  if (isNaN(d.getTime())) return dateVal;
+  
+  // Natively outputs yyyy-mm-dd format on screen
+  return new Intl.DateTimeFormat('en-CA').format(d); 
+}
 
 const internalSelectedRows = computed({
   get: () => props.selectedRows,
@@ -139,7 +157,6 @@ function openUrl(url) {
 </script>
 
 <!-- components/shared/DataTable.vue -->
-<!-- components/shared/DataTable.vue -->
 <template>
   <div class="w-100">
 
@@ -174,19 +191,9 @@ function openUrl(url) {
     </div>
 
     <!-- Core Interactive Data Grid Matrix -->
-    <v-data-table 
-      v-model="internalSelectedRows" 
-      :headers="computedHeaders" 
-      :items="filteredItems" 
-      item-key="id"
-      item-value="id" 
-      :show-select="props.selectableRows" 
-      return-object 
-      :loading="props.isLoading"
-      :custom-key-sort="customKeySort" 
-      class="elevation-4 bg-surface rounded-lg overflow-hidden"
-    >
-
+    <v-data-table v-model="internalSelectedRows" :headers="computedHeaders" :items="filteredItems" item-key="id"
+      item-value="id" :show-select="props.selectableRows" return-object :loading="props.isLoading"
+      :custom-key-sort="customKeySort" class="elevation-4 bg-surface rounded-lg overflow-hidden">
       <template #no-data>
         <v-alert type="info" variant="tonal" density="compact" icon="mdi-alert-circle-outline" class="ma-4"
           :text="noDataMessage" />
@@ -268,6 +275,11 @@ function openUrl(url) {
         </span>
       </template>
 
+      <!-- Dynamic Date Interceptor: Automatically handles any key in the dateKeys list -->
+      <template v-for="key in dateKeys" :key="key" v-slot:[`item.${key}`]="{ value }">
+        {{ formatDateDisplay(value) }}
+      </template>
+
       <!-- Row Level Operations Action Matrix Column -->
       <template #item.actions="{ item }">
         <div v-if="showActions || props.dataset === 'platforms'" class="d-flex ga-1 justify-end">
@@ -297,7 +309,7 @@ function openUrl(url) {
 
           <!-- 💡 Delete Action: Removed Tooltip wrapper entirely, added adaptive accessibility string modifiers -->
           <v-btn icon="mdi-delete" variant="text" size="small" density="comfortable" :disabled="!item.can_delete"
-            :color="item.can_delete ? 'secondary' : 'medium-emphasis'"
+            :color="item.can_delete ? 'error' : 'medium-emphasis'"
             :aria-label="item.can_delete ? 'Delete item' : 'Delete action disabled'"
             @click="enableDeleteDialog(item)" />
         </div>
