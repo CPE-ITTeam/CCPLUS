@@ -336,12 +336,19 @@ const loadDataset = async (datasetKey) => {
       if (datasetKey == 'harvests' && fld.name == 'error') {
         headers.value.push({
           title: fld.label, key: fld.name, align: fld.header,
+          type: fld.type, // 💡 Forwards 'date' type designator
           sort: (a, b) => { return Number(a.id) - Number(b.id); }
         });
       } else {
-        headers.value.push({ title: fld.label, key: fld.name, align: fld.header });
+        headers.value.push({ 
+          title: fld.label, 
+          key: fld.name, 
+          align: fld.header,
+          type: fld.type // 💡 Forwards 'date' type designator
+        });
       }
     }
+
     if (fld.name == 'conso' && !is_conso_admin) return;
     config.fields[idx].static = config.static.includes(fld.name);
     const _options = (typeof (fld.options) != 'undefined') ? fld.options : [];

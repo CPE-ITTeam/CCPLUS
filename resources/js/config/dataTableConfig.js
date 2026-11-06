@@ -1,4 +1,4 @@
-// resources/js/config/DataTableConfig.js
+// resources/js/config/dataTableConfig.js
 
 // ─────────────────────────────────────────────────────────────────────────
 // STEP 1: THE DEFAULTS DEFINITION (Add this to the absolute top of the file)
@@ -119,7 +119,7 @@ const rawTableSetup = {
         { name: 'password',         label: 'Password',            type: 'password', header: null, searchable: false },
         { name: 'confirm_pass',     label: 'Confirm Password',    type: 'passconf', header: null, searchable: false },
         { name: 'fiscalYr',         label: 'Fiscal Year Start',   type: 'select',   options: '', optVal: 'label', optTxt: 'label', header: null, searchable: false },
-        { name: 'last_login',       label: 'Last Login',                                            header: 'center', editable: false, searchable: false },
+        { name: 'last_login',       label: 'Last Login',          type: 'date',     header: 'center', editable: false, searchable: false },
       ],
 
       required: ['status', 'name', 'email', 'institutions', 'password', 'confirm_pass'],
@@ -231,7 +231,7 @@ const rawTableSetup = {
         { name: 'IR',               label: 'IR Report',                 type: 'toggle',   header: 'center', searchable: false },
 
         // 6. HARVEST COMPLIANCE LOGS & FILTERS
-        { name: 'result',           label: 'Last Harvest',                                                editable: false },
+        { name: 'result',           label: 'Last Harvest',              type: 'date',                          editable: false },
         { name: 'results',          label: 'Last Harvest',              type: 'mselect',  options: 'fromURL', optVal: 'result', optTxt: 'result', isFilter: true, filterCol: 'result', header: null, searchable: false },
       ],
 
@@ -281,7 +281,7 @@ const rawTableSetup = {
       urlRoot: '/api/jobs', title:'',
       fields: [
         // 1. PRIMARY TIMESTAMPS & RECORD CODES (Implicitly text, start, and searchable)
-        { name: 'created',      label: 'Created',                                             editable: false },
+        { name: 'created',      label: 'Created',                  type: 'date',              editable: false },
         { name: 'harvest_id',   label: 'Harvest ID',                                          editable: false },
         { name: 'd_status',     label: 'Status',                                              editable: false },
 
@@ -351,7 +351,7 @@ const rawTableSetup = {
         { name: 'id',            label: 'ID',                     type: 'number',   header: null, editable: false, searchable: false },
         { name: 'title',         label: 'Report Title' },
         { name: 'report_name',   label: 'Report',                                   options: 'fromURL', editable: false },
-        { name: 'last_harvest',  label: 'Last Run Date',                            editable: false },
+        { name: 'last_harvest',  label: 'Last Run Date',          type: 'date',     editable: false },
 
         // 2. CONFIGURATION SELECTION PARAMETERS (Custom array blocks clustered together)
         { name: 'date_range',    label: 'Date Range',             type: 'select',   options: [ { title: 'Fiscal YTD', value: 'fYTD' }, { title: 'Prior FY', value: 'priorFy' }, { title: 'Calendar YTD', value: 'cYTD' }, { title: 'Custom', value: 'Custom' } ], isFilter: true },
@@ -416,14 +416,14 @@ const rawTableSetup = {
         { name: 'data_host',       label: 'Data Host' },
         { name: 'day_of_month',    label: 'Harvest Day',                type: 'number',   header: 'center' },
         { name: 'instance_count',  label: 'Connected Instances',                          header: 'center' , editable: false },
-        { name: 'updated',         label: 'Last Updated',                                 editable: false },
+        { name: 'updated',         label: 'Last Updated',               type: 'date',     editable: false },
 
         // 3. DIALOG DATA ARRAYS & CONFIGURATION REPOSITORIES
         { name: 'reg_releases',    label: 'COUNTER Releases',           type: 'array',    header: null },
         { name: 'connector_state', label: 'Connection Fields',          type: 'array',    header: null },
         { name: 'report_state',    label: 'Supported Reports',          type: 'array',    header: null },
         { name: 'service_url',     label: 'Service URL',                                  header: null },
-        { name: 'platform_parm',   label: 'Platform Parameter',                            header: null },
+        { name: 'platform_parm',   label: 'Platform Parameter',                           header: null },
         { name: 'registry_id',     label: 'Registry ID',                                  header: null, searchable: false },
         { name: 'refreshable',     label: 'Refreshable',                type: 'toggle',   addValue: 'Inactive', header: null, searchable: false },
 

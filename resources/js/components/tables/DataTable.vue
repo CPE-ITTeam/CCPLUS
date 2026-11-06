@@ -1,7 +1,7 @@
 <!-- components/tables/DataTable.vue -->
 <script setup>
 import { ref, computed } from 'vue'; // Both ref and computed are handled here
-import { useAuthStore } from '@/stores/useAuthStore.js';
+import { useAuthStore } from '@/stores/useAuthStore.js';  
 import ToggleIcon from '@/components/ui/ToggleIcon.vue';
 import DeleteConfirm from '@/components/dialogs/DeleteConfirm.vue';
 import ErrorDetails from '@/components/dialogs/ErrorDetails.vue';
@@ -10,7 +10,7 @@ import { useDate } from 'vuetify';
 // Initialize your store and date composable inside the setup scope
 const authStore = useAuthStore();
 const dateInstance = useDate();
-const dateKeys = ['date', 'created_at', 'updated', 'last_login', 'deleted_at'];
+//const dateKeys = ['date', 'created_at', 'updated', 'last_login', 'deleted_at'];
 
 const props = defineProps({
   headers: { type: Array, required: true },
@@ -26,7 +26,6 @@ const props = defineProps({
   truncated: { type: Boolean, required: true },
   selectableRows: { type: Boolean, required: true }
 });
-
 // (Your computedHeaders and showActions logic goes right below this)
 
 const showActions = computed(() => {
@@ -38,7 +37,7 @@ const showActions = computed(() => {
 });
 
 // ==========================================
-// 1. Your Computed Headers (Keep this block clean)
+// 1. Your Computed Headers (Guarantees unique key mapping)
 // ==========================================
 const computedHeaders = computed(() => {
   let rawHeaders = props.headers.filter(h => h.key !== 'data-table-select' && h.name !== 'data-table-select');
@@ -46,7 +45,8 @@ const computedHeaders = computed(() => {
   const hdrs = rawHeaders.map(header => {
     const isCentered = header.align === 'center';
     return {
-      ...header,
+      ...header,            // 💡 1. THIS IS MANDATORY - Copies 'type: "date"' from your matrix config
+      key: header.key || header.name, // 💡 2. THIS IS MANDATORY - Bridges name to key
       headerProps: {
         class: isCentered
           ? 'font-weight-bold bg-info text-white ps-10'
@@ -68,7 +68,7 @@ const computedHeaders = computed(() => {
 });
 
 // ==========================================
-// 2. Your Date Formatting Helper (Place it right here!)
+// 2. Your Date Formatting Helper 
 // ==========================================
 function formatDateDisplay(dateVal) {
   if (!dateVal) return '';
@@ -275,11 +275,15 @@ function openUrl(url) {
         </span>
       </template>
 
-      <!-- Dynamic Date Interceptor: Automatically handles any key in the dateKeys list -->
-      <template v-for="key in dateKeys" :key="key" v-slot:[`item.${key}`]="{ value }">
+      <!-- Dynamic Interceptor Loop -->
+      <template 
+        v-for="header in computedHeaders.filter(h => h.type === 'date')" 
+        :key="header.key" 
+        v-slot:[`item.${header.key}`]="{ value }"
+      >
         {{ formatDateDisplay(value) }}
       </template>
-
+      
       <!-- Row Level Operations Action Matrix Column -->
       <template #item.actions="{ item }">
         <div v-if="showActions || props.dataset === 'platforms'" class="d-flex ga-1 justify-end">
