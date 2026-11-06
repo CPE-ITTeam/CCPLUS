@@ -137,6 +137,8 @@ Route::middleware('ccplusAuth')->group( function () {
     // API routes to expose global database tables
     Route::prefix('global')->group(function () {
         Route::get('/registries', 'App\Http\Controllers\CounterRegistryController@index')->name('global.registries');
+        Route::get('/registries/progress', 'App\Http\Controllers\CounterRegistryController@progress')->name('global.registries.progress');
+        Route::get('/registries/cancel', 'App\Http\Controllers\CounterRegistryController@cancel')->name('global.registries.cancel');
         Route::get('/providers', 'App\Http\Controllers\GlobalProviderController@apiIndex')->name('global.providers');
         Route::get('/titles', 'App\Http\Controllers\GlobalDataController@titles')->name('global.titles');
         Route::get('/platforms', 'App\Http\Controllers\GlobalDataController@platforms')->name('global.platforms');

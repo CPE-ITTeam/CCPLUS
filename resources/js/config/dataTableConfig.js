@@ -411,11 +411,11 @@ const rawTableSetup = {
 
         // 2. CORE VIEWABLE LOG DESCRIPTORS (Implicitly text and searchable)
         { name: 'name',            label: 'Platform Name' },
-        { name: 'abbrev',          label: 'Abbreviation' },
+        { name: 'abbrev',          label: 'Abbreviation',                                  header: 'center' },
         { name: 'cur_release',     label: 'Release',                                      header: 'center' },
         { name: 'data_host',       label: 'Data Host' },
         { name: 'day_of_month',    label: 'Harvest Day',                type: 'number',   header: 'center' },
-        { name: 'instance_count',  label: 'Connected Instances',                          editable: false },
+        { name: 'instance_count',  label: 'Connected Instances',                          header: 'center' , editable: false },
         { name: 'updated',         label: 'Last Updated',                                 editable: false },
 
         // 3. DIALOG DATA ARRAYS & CONFIGURATION REPOSITORIES

@@ -68,20 +68,24 @@ class GlobalProvider extends Model
     }
 
     // Return the ConnectionField detail based on connectors array
-    public function connectionFields()
+       public function connectionFields()
     {
         $connectors = array();
 
         $registry = $this->default_registry();
         if ($registry) {
-            $cnxs = $registry->connectors;
+            $cnxs = is_string($registry->connectors)
+                ? (json_decode($registry->connectors, true) ?? [])
+                : (is_array($registry->connectors) ? $registry->connectors : []);
+
             foreach ($this->all_connectors->toArray() as $cnx) {
-                $cnx['required'] = in_array($cnx['id'],$cnxs);
+                $cnx['required'] = in_array($cnx['id'], $cnxs);
                 $connectors[] = $cnx;
             }
         }
         return $connectors;
     }
+
 
     public function credentials()
     {

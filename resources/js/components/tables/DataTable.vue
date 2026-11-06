@@ -16,7 +16,7 @@ const props = defineProps({
   selectedRows: { type: Array, required: true },
   editableFields: { type: Array, required: true },
   isLoading: { type: Boolean, required: true },
-  loadingColor: { type: String, default: 'info' }, 
+  loadingColor: { type: String, default: 'info' },
   truncated: { type: Boolean, required: true },
   selectableRows: { type: Boolean, required: true }
 });
@@ -40,10 +40,10 @@ const computedHeaders = computed(() => {
 
     return {
       ...header,
-      headerProps: { 
-        class: isCentered 
-          ? 'font-weight-bold bg-info text-white ps-10' 
-          : 'font-weight-bold bg-info text-white' 
+      headerProps: {
+        class: isCentered
+          ? 'font-weight-bold bg-info text-white ps-10'
+          : 'font-weight-bold bg-info text-white'
       }
     };
   });
@@ -53,16 +53,13 @@ const computedHeaders = computed(() => {
     hdrs.push({
       title: 'Actions',
       key: 'actions',
-      align: 'end',
+      align: 'center',
       headerProps: { class: 'font-weight-bold bg-info text-white' }
     });
   }
 
   return hdrs;
 });
-
-
-
 
 const internalSelectedRows = computed({
   get: () => props.selectedRows,
@@ -157,26 +154,16 @@ function openUrl(url) {
         interactive selection grid filter toggle button dynamically.
       -->
       <div v-if="props.selectableRows && selectedRows.length > 0" class="d-flex align-center ga-3 align-self-start">
-        <v-chip 
-          color="primary" 
-          variant="tonal"
-          prepend-icon="mdi-check-circle" 
-          class="font-weight-bold"
-        >
+        <v-chip color="primary" variant="tonal" prepend-icon="mdi-check-circle" class="font-weight-bold">
           {{ selectedRows.length }} {{ selectedRows.length === 1 ? 'item' : 'items' }} selected
         </v-chip>
 
         <!-- Migrated Toggle Button grouped with the count -->
         <v-tooltip :text="props.showSelectedOnly ? 'Show All' : 'Show Selected Only'" location="top">
           <template #activator="{ props: tooltipProps }">
-            <v-btn 
-              v-bind="tooltipProps" 
-              icon 
-              color="primary" 
-              size="small"
+            <v-btn v-bind="tooltipProps" icon color="primary" size="small"
               :variant="props.showSelectedOnly ? 'flat' : 'tonal'"
-              @click="$emit('update:toggleSelectedOnly', !props.showSelectedOnly)"
-            >
+              @click="$emit('update:toggleSelectedOnly', !props.showSelectedOnly)">
               <v-icon size="small">
                 {{ props.showSelectedOnly ? 'mdi-filter-off' : 'mdi-filter' }}
               </v-icon>
@@ -199,52 +186,43 @@ function openUrl(url) {
       :custom-key-sort="customKeySort" 
       class="elevation-4 bg-surface rounded-lg overflow-hidden"
     >
+
       <template #no-data>
-        <v-alert type="info" variant="tonal" density="compact" icon="mdi-alert-circle-outline" class="ma-4" :text="noDataMessage" />
+        <v-alert type="info" variant="tonal" density="compact" icon="mdi-alert-circle-outline" class="ma-4"
+          :text="noDataMessage" />
       </template>
 
       <!-- UNIFIED SELECTION CELL ARCHITECTURE -->
       <template #header.data-table-select="{ allSelected, selectAll, someSelected }">
-        <div 
-          class="d-flex align-center justify-center h-100 bg-info text-white rounded-tl-lg ps-4"
-          style="box-shadow: inset 0 0 0 10px var(--v-theme-info); min-height: 56px;"
-        >
-          <v-checkbox-btn 
-            :indeterminate="someSelected && !allSelected" 
-            :model-value="allSelected" 
-            color="white"
-            hide-details 
-            density="compact" 
-            @update:model-value="selectAll" 
-          />
+        <div class="d-flex align-center justify-center h-100 bg-info text-white rounded-tl-lg ps-4"
+          style="box-shadow: inset 0 0 0 10px var(--v-theme-info); min-height: 56px;">
+          <v-checkbox-btn :indeterminate="someSelected && !allSelected" :model-value="allSelected" color="white"
+            hide-details density="compact" @update:model-value="selectAll" />
         </div>
       </template>
 
       <!-- FAILSAFE SLOT OVERLAY FOR ROOT DATASETS -->
       <template v-if="props.dataset === 'consortia'" #header.id="{ allSelected, selectAll, someSelected }">
-        <div 
-          class="d-flex align-center justify-center h-100 bg-info text-white rounded-tl-lg ps-4"
-          style="box-shadow: inset 0 0 0 10px var(--v-theme-info); min-height: 56px;"
-        >
-          <v-checkbox-btn 
-            :indeterminate="internalSelectedRows.length > 0 && internalSelectedRows.length < filteredItems.length" 
-            :model-value="internalSelectedRows.length === filteredItems.length && filteredItems.length > 0" 
-            color="white"
-            hide-details 
-            density="compact" 
-            @update:model-value="selectAll(!allSelected)" 
-          />
+        <div class="d-flex align-center justify-center h-100 bg-info text-white rounded-tl-lg ps-4"
+          style="box-shadow: inset 0 0 0 10px var(--v-theme-info); min-height: 56px;">
+          <v-checkbox-btn
+            :indeterminate="internalSelectedRows.length > 0 && internalSelectedRows.length < filteredItems.length"
+            :model-value="internalSelectedRows.length === filteredItems.length && filteredItems.length > 0"
+            color="white" hide-details density="compact" @update:model-value="selectAll(!allSelected)" />
         </div>
       </template>
 
       <!-- 1. REUSABLE TOGGLE ENGINE LOOP -->
-      <template v-for="col in ['status', 'connected', 'includeZeros', 'inst_valid', 'plat_valid']" #[`item.${col}`]="{ item }">
-        <ToggleIcon v-model="item[col]" :toggleable="col === 'status' ? (props.dataset !== 'audit') : true" @update:modelValue="$emit('update:toggle', item.id, col, item[col])" />
+      <template v-for="col in ['status', 'connected', 'includeZeros', 'inst_valid', 'plat_valid']"
+        #[`item.${col}`]="{ item }">
+        <ToggleIcon v-model="item[col]" :toggleable="col === 'status' ? (props.dataset !== 'audit') : true"
+          @update:modelValue="$emit('update:toggle', item.id, col, item[col])" />
       </template>
 
       <!-- 2. COUNTER REPORT SLOT ENGINE LOOP -->
       <template v-for="report in ['PR', 'DR', 'TR', 'IR']" #[`item.${report}`]="{ item }">
-        <ToggleIcon v-model="item[report]" :toggleable="true" @update:modelValue="$emit('update:report', item.id, report)" />
+        <ToggleIcon v-model="item[report]" :toggleable="true"
+          @update:modelValue="$emit('update:report', item.id, report)" />
       </template>
 
       <!-- 3. ACCESSIBILITY INPUT VALIDATOR LOOP -->
@@ -270,11 +248,14 @@ function openUrl(url) {
       <template #item.harvest_id="{ item }">
         <div class="d-flex align-center ga-1">
           <span v-if="item.rawfile != null">
-            {<v-btn size="small" density="compact" class="text-primary text-none px-0" @click="ccRawJson(item.harvest_id)" :title="item.harvest_id">Download JSON</v-btn>}
+            {<v-btn size="small" density="compact" class="text-primary text-none px-0"
+              @click="ccRawJson(item.harvest_id)" :title="item.harvest_id">Download JSON</v-btn>}
           </span>
           <span v-else>{{ item.harvest_id }}</span>
 
-          <v-btn icon="mdi-barley" variant="text" size="small" density="comfortable" color="info" title="Manual Retry/Confirm Link" aria-label="Manual Retry or Confirm Link" @click="openUrl(item.retryUrl)" />
+          <v-btn icon="mdi-barley" variant="text" size="small" density="comfortable" color="info"
+            title="Manual Retry/Confirm Link" aria-label="Manual Retry or Confirm Link"
+            @click="openUrl(item.retryUrl)" />
         </div>
       </template>
 
@@ -282,7 +263,8 @@ function openUrl(url) {
       <template #item.error="{ item }">
         <span v-if="item.error?.id > 0" class="d-flex align-center ga-1">
           {{ item.error.id }}
-          <v-btn icon="mdi-dots-vertical" variant="text" size="small" density="comfortable" :color="item.error.color" title="View Error Details" aria-label="View Error Details" @click="enableErrorDialog(item.error)" />
+          <v-btn icon="mdi-dots-vertical" variant="text" size="small" density="comfortable" :color="item.error.color"
+            title="View Error Details" aria-label="View Error Details" @click="enableErrorDialog(item.error)" />
         </span>
       </template>
 
@@ -291,42 +273,33 @@ function openUrl(url) {
         <div v-if="showActions || props.dataset === 'platforms'" class="d-flex ga-1 justify-end">
 
           <!-- Condition A: Platform refresh action configurations (💡 Kept Tooltip, Removed location baseline) -->
-          <v-tooltip v-if="props.dataset === 'platforms' && (item.refresh_result === 'orphan' || item.refresh_result == null)" :text="item.refresh_text">
+          <v-tooltip
+            v-if="props.dataset === 'platforms' && (item.refresh_result === 'orphan' || item.refresh_result == null)"
+            :text="item.refresh_text">
             <template #activator="{ props: tooltipProps }">
-              <v-btn :icon="item.refresh_icon" :color="item.refresh_color" variant="text" size="small" density="comfortable" v-bind="tooltipProps" aria-label="Platform Refresh State" />
+              <v-btn :icon="item.refresh_icon" :color="item.refresh_color" variant="text" size="small"
+                density="comfortable" v-bind="tooltipProps" aria-label="Platform Refresh State" />
             </template>
           </v-tooltip>
 
           <!-- Condition B: Platform refresh targeting registry index records (💡 Kept Tooltip, Removed location baseline) -->
           <v-tooltip v-else-if="item.refresh_result != null" :text="item.refresh_text">
             <template #activator="{ props: tooltipProps }">
-              <v-btn :icon="item.refresh_icon" :color="item.refresh_color" variant="text" size="small" density="comfortable" v-bind="tooltipProps" @click="openUrl('https://countermetrics.org' + item.registry_id)" />
+              <v-btn :icon="item.refresh_icon" :color="item.refresh_color" variant="text" size="small"
+                density="comfortable" v-bind="tooltipProps"
+                @click="openUrl('https://countermetrics.org' + item.registry_id)" />
             </template>
           </v-tooltip>
 
           <!-- 💡 Edit Action: Removed Tooltip wrapper entirely, added descriptive aria-label for WCAG compliance -->
-          <v-btn 
-            v-if="item.can_edit" 
-            icon="mdi-pencil" 
-            variant="text" 
-            size="small" 
-            density="comfortable" 
-            color="medium-emphasis"
-            aria-label="Edit item" 
-            @click="$emit('edit', item)" 
-          />
+          <v-btn v-if="item.can_edit" icon="mdi-pencil" variant="text" size="small" density="comfortable"
+            color="medium-emphasis" aria-label="Edit item" @click="$emit('edit', item)" />
 
           <!-- 💡 Delete Action: Removed Tooltip wrapper entirely, added adaptive accessibility string modifiers -->
-          <v-btn 
-            icon="mdi-delete" 
-            variant="text" 
-            size="small" 
-            density="comfortable" 
-            :disabled="!item.can_delete"
-            :color="item.can_delete ? 'error' : 'medium-emphasis'"
-            :aria-label="item.can_delete ? 'Delete item' : 'Delete action disabled'" 
-            @click="enableDeleteDialog(item)" 
-          />
+          <v-btn icon="mdi-delete" variant="text" size="small" density="comfortable" :disabled="!item.can_delete"
+            :color="item.can_delete ? 'secondary' : 'medium-emphasis'"
+            :aria-label="item.can_delete ? 'Delete item' : 'Delete action disabled'"
+            @click="enableDeleteDialog(item)" />
         </div>
       </template>
     </v-data-table>

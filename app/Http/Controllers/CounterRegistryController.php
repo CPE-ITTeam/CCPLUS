@@ -11,6 +11,7 @@ use App\Models\Credential;
 use App\Models\DataHost;
 use Illuminate\Http\Request;
 use GuzzleHttp\Client;
+use Illuminate\Support\Facades\Cache;
 
 class CounterRegistryController extends Controller
 {
@@ -76,6 +77,24 @@ class CounterRegistryController extends Controller
      * @param  \Illuminate\Http\Request  $request
      * @return \Illuminate\Http\Response
      */
+    
+    public function progress()
+    {
+        return response()->json(Cache::get('registry_refresh_progress', [
+            'current' => 0,
+            'total' => 0,
+            'status' => 'idle',
+        ]));
+    }
+
+    public function cancel()
+    {
+        Cache::put('registry_refresh_cancel', true, 300);
+        Cache::forget('registry_refresh_progress');
+        return response()->json(['cancelled' => true]);
+    }
+
+
     public function refresh(Request $request)
     {
         global $client, $options, $masterReports, $allConnectors;
@@ -88,6 +107,8 @@ class CounterRegistryController extends Controller
 
         // Validate form inputs
         $this->validate($request, [ 'ids' => 'required' ]);
+        Cache::forget('registry_refresh_cancel');
+        Cache::put('registry_refresh_progress', ['current' => 0, 'total' => 0, 'name' => 'Fetching registry list...', 'status' => 'running'], 600);
         $input = $request->all();
 
         $full_refresh = false;
@@ -116,6 +137,7 @@ class CounterRegistryController extends Controller
         }
         $gpCount = count($global_providers);
         $ids_to_update = $global_providers->pluck('registry_id')->toArray();
+
 
         // Set URL - either just one platform, or all of them
         if ($gpCount == 1) {
@@ -176,9 +198,23 @@ class CounterRegistryController extends Controller
         $no_registryID = array(); // track names of platforms with no registry_id (skipped)
         $no_url = array();    // track names of platforms with refresh disabled (skipped)
         $new_platforms = array(); // track names of newly created platforms for summary
+
+        Cache::forget('registry_refresh_cancel');
+        $total_platforms = ($full_refresh) ? count($platform_records) : $gpCount;
+        $processed_count = 0;
+        Cache::put('registry_refresh_progress', ['current' => 0, 'total' => $total_platforms, 'name' => 'Starting...', 'status' => 'running'], 600);
+
         foreach ($platform_records as $platform) {
+            if (Cache::get('registry_refresh_cancel')) {
+                Cache::put('registry_refresh_progress', ['current' => $processed_count, 'total' => $total_platforms, 'name' => 'Cancelled', 'status' => 'cancelled'], 60);
+                break;
+            }
+
             // Full refresh needs to include NEW platforms. Bulk/single refresh should skip them
             if (is_null($platform->id) || (!$full_refresh && !in_array($platform->id,$ids_to_update))) continue;
+
+            $processed_count++;
+            Cache::put('registry_refresh_progress', ['current' => $processed_count, 'total' => $total_platforms, 'name' => $platform->name ?? '', 'status' => 'running'], 600);
 
             // Look for a matching provider
             $newProvider = false;
@@ -456,14 +492,20 @@ class CounterRegistryController extends Controller
             $return_data[] = $return_rec;
         }
 
+        $was_cancelled = (bool) Cache::get('registry_refresh_cancel');
+        if (!$was_cancelled) {
+            Cache::put('registry_refresh_progress', ['current' => $processed_count, 'total' => $total_platforms, 'name' => 'Complete', 'status' => 'done'], 60);
+        }
+
         if (count($updated_ids) == 0) {
-            $_msg = ($gpCount>1) ? "No Records updated" : "Refresh failed";
+            $_msg = ($was_cancelled) ? "Refresh cancelled" : (($gpCount>1) ? "No Records updated" : "Refresh failed");
             return response()->json(['result' => false, 'msg' => $_msg]);
         }
 
         // Providers that are in CC+ as a GlobalProvider, but missing from updated_ids have been orphaned by COUNTER.
         // Mark these providers' refresh_result as "orphan" (the U/I will label as Deprecated)
-        if (!$is_dialog && count($updated_ids) > 0) {
+        if (!$is_dialog && !$was_cancelled && count($updated_ids) > 0) {
+
             $orphans = $global_providers->where('is_active',1)->whereNotIn('id',$updated_ids)->all();
             foreach ($orphans as $gp) {
                 $gp->refresh_result = 'orphan';

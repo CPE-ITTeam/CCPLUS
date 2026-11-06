@@ -253,15 +253,41 @@ const refreshData = async (datasetKey) => {
   });
   try {
     if (consoKey.value == '' && datasetKey != 'consortia') return;
-    let itemsUrl = config.urlRoot + '/getItems';
-    const response = await ccPost(itemsUrl, { filters: _filters, type: datasetKey });
-    if (response.result) {
-      truncated.value = response.truncated;
-      allItems = [...response.records];
-      filteredItems = [...response.records];
+
+    // Detect if this is one of your global database layer routes
+    const isGlobalTable = config.urlRoot.includes('/global') ||
+      ['platforms', 'publishers', 'providers', 'registries', 'titles', 'databases', 'items', 'datahosts', 'errors'].includes(datasetKey);
+
+    let response;
+    if (isGlobalTable) {
+      // Global tier tables match base routes directly (no /getItems) and expect a GET request
+      const axiosResponse = await api.get(config.urlRoot, { params: { filters: _filters, type: datasetKey } });
+      response = axiosResponse.data;
+    } else {
+      // Standard tenant/consortium datasets use the regular backend route and POST method
+      let itemsUrl = config.urlRoot + '/getItems';
+      response = await ccPost(itemsUrl, { filters: _filters, type: datasetKey });
+    }
+
+    if (response && response.result) {
+      truncated.value = response.truncated || false;
+
+      // ✅ NATIVE VUE 3 SOLUTION: Mutate the reactive array proxies in-place
+      allItems.splice(0, allItems.length, ...response.records);
+      filteredItems.splice(0, filteredItems.length, ...response.records);
+
       selectedRows.value = [];
+
+      // Run your standard internal filter/sorting mapping
+      if (typeof updateItems === 'function') {
+        updateItems();
+      }
+
       dtKey.value++;
     }
+
+
+
   } catch (error) {
     console.log('Error refreshing records for ' + datasetKey + ' : ', error);
   }
@@ -519,6 +545,53 @@ function addConnection() {
   reptItem = { 'type': 'Add', 'id': null, 'rept': '', 'flags': emptyFlags, 'connections': [...allItems] };
   reptDialog.value = true;
 }
+const refreshProgress = ref({ active: false, current: 0, total: 0, name: '', cancelling: false });
+let registryPollTimer = null;
+
+function startRegistryProgress() {
+  stopRegistryProgress();
+  refreshProgress.value = { active: true, current: 0, total: 0, name: 'Fetching registry list...', cancelling: false };
+  registryPollTimer = setTimeout(pollRegistryProgress, 1200);
+}
+
+
+async function pollRegistryProgress() {
+  if (!refreshProgress.value.active) return;
+  try {
+    const { data } = await api.get('/api/global/registries/progress');
+    if (!refreshProgress.value.active) return;
+
+    if (data.status === 'running') {
+      refreshProgress.value.current = data.current || 0;
+      refreshProgress.value.total = data.total || 0;
+      refreshProgress.value.name = data.name || '';
+    } else if (data.status === 'done' || data.status === 'cancelled') {
+      stopRegistryProgress();
+      return;
+    }
+  } catch { }
+
+  // Schedule the next poll ONLY after the current one completes
+  if (refreshProgress.value.active) {
+    registryPollTimer = setTimeout(pollRegistryProgress, 1500);
+  }
+}
+
+function stopRegistryProgress() {
+  if (registryPollTimer) clearTimeout(registryPollTimer);
+  registryPollTimer = null;
+  refreshProgress.value.active = false;
+}
+
+async function cancelRegistryRefresh() {
+  refreshProgress.value.cancelling = true;
+  try {
+    await api.get('/api/global/registries/cancel');
+  } catch { }
+  stopRegistryProgress();
+}
+
+
 
 async function handleBulk(data) {
   if (data.action == 'Assign Type') {
@@ -526,14 +599,18 @@ async function handleBulk(data) {
     typeDialog.value = true;
     return;
   }
-  var bulkUrl = urlRoot.value;
-  bulkUrl += (data.action == 'Refresh Registry' || data.action == 'Full Refresh') ? '/refresh' : '/bulk';
+
+  const isRegistryRefresh = (data.action == 'Refresh Registry' || data.action == 'Full Refresh');
+  var bulkUrl = urlRoot.value + (isRegistryRefresh ? '/refresh' : '/bulk');
   var args = (data.action != 'Full Refresh') ? { ids: selectedRows.value.map(ii => ii.id) } : { ids: 'ALL' };
   Object.keys(data).forEach((key) => { args[key] = data[key]; });
+
+  if (isRegistryRefresh) startRegistryProgress();
 
   try {
     dtLoading.value = true;
     const response = await ccPost(bulkUrl, args);
+
     if (response.result && allItems.length > 0) {
       if (data.action == 'Set Active' || data.action == 'Set Inactive') {
         if (response.affectedIds.length > 0) {
@@ -585,7 +662,26 @@ async function handleBulk(data) {
               allItems.push(plat);
               new_platforms = true;
             } else {
-              Object.keys(plat).forEach((key) => { allItems[_idx][key] = plat[key]; });
+              allItems.splice(_idx, 1, plat);
+
+              // 🚀 NATIVE DOM INJECTION: Find and update the table row cell instantly
+              const targetDate = plat.updated || (plat.updated_at ? plat.updated_at.substring(0, 16).replace('T', ' ') : '');
+              if (targetDate) {
+                // Find all table rows matching this specific platform ID
+                const rows = document.querySelectorAll('tr');
+                rows.forEach(row => {
+                  // Check if the row belongs to the current platform row item
+                  if (row.innerText.includes(plat.name)) {
+                    // Find cells containing date-like strings or an 'updated' column class
+                    const cells = row.querySelectorAll('td');
+                    cells.forEach(cell => {
+                      if (cell.innerText.includes('-') && cell.innerText.includes(':')) {
+                        cell.innerText = targetDate;
+                      }
+                    });
+                  }
+                });
+              }
             }
           });
           if (response.summary != "") {
@@ -597,8 +693,12 @@ async function handleBulk(data) {
             allItems.sort((a, b) => a.name.toLowerCase().localeCompare(b.name.toLowerCase()));
           }
         }
-        updateItems();
+
+        if (typeof updateItems === 'function') {
+          updateItems();
+        }
         dtKey.value++;
+
       } else if (data.action == 'Set Institution Type') {
         if (response.affectedIds.length > 0 && newType.id != null) {
           allItems.filter(aitm => response.affectedIds.includes(aitm.id)).forEach(itm => {
@@ -621,15 +721,18 @@ async function handleBulk(data) {
           });
         });
       }
-      dtLoading.value = false;
       success.value = response.msg;
     } else {
       failure.value = response.msg;
     }
   } catch (error) {
     console.log('Error processing bulk request: ', error);
+  } finally {
+    dtLoading.value = false;
+    stopRegistryProgress();
   }
 }
+
 
 function handleFilter(filt) {
   if (filt.key == 'reset') {
@@ -919,17 +1022,40 @@ watch(
         @update:showSelectedOnly="handleToggle" @refreshRecords="refreshData(props.datasetKey)"
         @imported="handleImported" />
 
+      <!-- Live COUNTER Registry Refresh Progress Banner (WCAG Accessible) -->
+      <v-alert v-if="refreshProgress.active" type="info" variant="tonal" class="my-3 rounded-lg" aria-live="polite">
+        <div class="d-flex align-center justify-space-between mb-2">
+          <span>
+            Refreshing COUNTER Registry:
+            <strong>{{ refreshProgress.current }} / {{ refreshProgress.total || '...' }}</strong>
+            <span v-if="refreshProgress.name" class="text-caption ml-2">({{ refreshProgress.name }})</span>
+          </span>
+          <v-btn size="small" color="error" variant="tonal" class="rounded-xl px-3"
+            :disabled="refreshProgress.cancelling" aria-label="Cancel current COUNTER registry refresh process"
+            @click="cancelRegistryRefresh">
+            <v-icon start class="mr-1">mdi-close-circle-outline</v-icon>
+            {{ refreshProgress.cancelling ? 'Stopping...' : 'Cancel' }}
+          </v-btn>
+        </div>
+        <v-progress-linear
+          :model-value="refreshProgress.total ? (refreshProgress.current / refreshProgress.total) * 100 : 0"
+          :indeterminate="!refreshProgress.total" color="primary" height="8" rounded role="progressbar"
+          :aria-valuenow="refreshProgress.current" aria-valuemin="0" :aria-valuemax="refreshProgress.total || 100" />
+      </v-alert>
+
+
       <!-- 2. Status Messages: Native alerts -->
       <v-alert v-if="success" type="success" class="my-3 mx-4" :text="success" />
       <v-alert v-else-if="failure" type="error" class="my-3 mx-4" :text="failure" />
 
       <!-- 3. Primary Data Table Grid -->
       <DataTable v-if="consoKey != '' || props.datasetKey == 'consortia'" :items="filteredItems" :key="dtKey"
-        :search="search" :headers="headers" :isLoading="dtLoading" :loadingColor="props.loadingColor" :dataset="props.datasetKey"
-        :showSelectedOnly="showSelectedOnly" :editableFields="editableFields" :truncated="truncated"
-        :searchFields="searchFields" :selectedRows="selectedRows" :selectableRows="selectableRows" @edit="handleEdit"
-        @delete="handleDelete" @update:report="handleReportToggle" @update:selectedRows="selectedRows = $event"
-        @update:toggle="handleToggleUpdate" @update:toggleSelectedOnly="handleToggle" />
+        :search="search" :headers="headers" :isLoading="dtLoading" :loadingColor="props.loadingColor"
+        :dataset="props.datasetKey" :showSelectedOnly="showSelectedOnly" :editableFields="editableFields"
+        :truncated="truncated" :searchFields="searchFields" :selectedRows="selectedRows"
+        :selectableRows="selectableRows" @edit="handleEdit" @delete="handleDelete" @update:report="handleReportToggle"
+        @update:selectedRows="selectedRows = $event" @update:toggle="handleToggleUpdate"
+        @update:toggleSelectedOnly="handleToggle" />
 
       <!-- 4. Dialog One: Core Item Forms -->
       <v-dialog v-if="editingItem && isEditable" v-model="formDialogOpen">

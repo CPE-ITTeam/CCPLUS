@@ -817,9 +817,13 @@ class GlobalProviderController extends Controller
      */
     private function connectorState($connectors) {
       global $allConnectors;
+      $cnxs = is_string($connectors)
+          ? (json_decode($connectors, true) ?? [])
+          : (is_array($connectors) ? $connectors : []);
+
       $cnx_state = array();
       foreach ($allConnectors as $fld) {
-          $cnx_state[$fld->name] = (in_array($fld->id, $connectors)) ? true : false;
+          $cnx_state[$fld->name] = in_array($fld->id, $cnxs);
       }
       return $cnx_state;
     }
