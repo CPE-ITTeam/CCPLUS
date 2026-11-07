@@ -7,6 +7,10 @@ import { fyMonths } from '@/components/ui/YmInput.vue';
 import { tableSetup } from '@/config/dataTableConfig.js';
 import api from '@/services/api.js'; // 👈 IMPORT THE DECOUPLED INTERCEPTOR SERVICE
 
+//import { exportDatasetToExcel } from '@/utils/excelExporter.js'; 
+import { exportDatasetToExcel } from '@/utils/excelJsExporter.js';
+
+
 import BaseDialogLayout from '@/components/dialogs/BaseDialogLayout.vue'
 import DataToolbar from './DataToolbar.vue';
 import DataTable from './DataTable.vue';
@@ -15,7 +19,6 @@ import PlatformForm from '@/components/forms/PlatformForm.vue';
 import CredentialsForm from '@/components/forms/CredentialsForm.vue';
 import ReportToggle from '@/components/dialogs/ReportToggle.vue';
 
-import * as XLSX from 'xlsx';
 import Swal from 'sweetalert2';
 
 // 2. ROOT ACCOUNT ENVIRONMENT INITIALIZATION
@@ -216,14 +219,34 @@ const exportStatus = computed(() => {
 const exportDataRows = computed(() => {
   const config = datasetConfig[props.datasetKey];
 
-  // ── DEFENSIVE REFACTOR: Safely returns an empty array if exportFields doesn't exist
+  // Safely returns an empty array if exportFields doesn't exist
   if (!config || !config.exportFields || config.exportFields.length == 0) return [];
 
   let exportItems = (config.title == 'Platform') ? [...platformExportItems] : [...filteredItems];
 
+  // ─── DEFENSIVE SELECTION FILTER ───
   if (selectedRows.value.length > 0) {
-    exportItems = exportItems.filter(itm => selectedRows.value.some(row => row.id == itm.id));
+    exportItems = exportItems.filter(itm => {
+      return selectedRows.value.some(row => {
+        // 1. Direct ID comparison
+        if (row.id !== undefined && itm.id !== undefined && row.id == itm.id) return true;
+        
+        // 2. Platform-specific key fallback (e.g., checking platform_id or matching by name string)
+        if (config.title == 'Platform') {
+          const rowPlatId = row.platform_id || row.id;
+          const itmPlatId = itm.platform_id || itm.id;
+          if (rowPlatId !== undefined && itmPlatId !== undefined && rowPlatId == itmPlatId) return true;
+          
+          // 3. Absolute safety fallback: Match by unique name if platform IDs are missing from the raw export
+          if (row.name && itm.name && row.name === itm.name) return true;
+        }
+        
+        return false;
+      });
+    });
   }
+
+  // ─── MAP TO SPREADSHEET HEADERS ───
   return exportItems.map(row => {
     return config.exportFields.reduce((newRow, col) => {
       let fld = config.fields.find(f => f.name == col);
@@ -239,6 +262,7 @@ const exportDataRows = computed(() => {
     }, {});
   });
 });
+
 // ============================================================================
 // PART 6: PIPELINE CONTROLLER METHODS
 // ============================================================================
@@ -422,50 +446,36 @@ const loadDataset = async (datasetKey) => {
   dtLoading.value = false;
 };
 
-
 async function handleExport() {
   const config = datasetConfig[props.datasetKey];
-  let fileName = "CCplus_" + consoKey.value;
-  if (props.datasetKey == 'connections') {
-    if (filterOptions.results['value'].length <= 1) {
-      let _val = (filterOptions.results['value'].length == 1) ? "_" + filterOptions.results['value'] : "";
-      fileName += _val.replaceAll(' ', '');
-    } else {
-      fileName += "_SomeResults";
-    }
-  } else {
-    fileName += (exportInstScope.value != '') ? exportInstScope.value : '';
-    fileName += (exportPlatScope.value != '') ? exportPlatScope.value : '';
-    fileName += (exportStatus.value != '') ? exportStatus.value : '';
-  }
-  let sheet_name = (config.title == 'Credentials') ? 'Credentials' : config.title + 's';
-  const workbook = XLSX.utils.book_new();
-  if (props.datasetKey == 'audit') {
-    fileName += "_COUNTERAudit.xlsx";
-    sheet_name = 'Credentials Audit';
-  } else {
-    let publicPath = '/assets/exportTemplates/' + props.datasetKey + '.xlsx';
-    try {
-      const response = await fetch(publicPath);
-      if (!response.ok) throw new Error('Network response was not ok');
-      const arrayBuffer = await response.arrayBuffer();
-      const templateBook = XLSX.read(arrayBuffer, { type: 'array' });
-      const howToSheet = templateBook.Sheets['HowToImport'];
-      if (!howToSheet) throw new Error(`HowToImport Sheet not found for: ` + props.datasetKey);
-      XLSX.utils.book_append_sheet(workbook, howToSheet, 'How to Import');
-    } catch (error) {
-      console.error("Error during file processing or download: ", error);
-    }
-    fileName += "_" + capDataset.value + ".xlsx";
-  }
+
+  // ─── RESTORED ORIGINAL LIFECYCLE ORDER ───
+  // Re-fetch the platform dataset records first so the reactive exportDataRows 
+  // computed filter properties have time to recalculate exactly like the Git version!
   if (config.title == 'Platform') {
-    const { data } = await ccGet('/api/platforms/exportData');
-    platformExportItems = [...data.records];
+    try {
+      const { data } = await ccGet('/api/platforms/exportData');
+      // Splice in-place to preserve Vue's reactive proxy boundaries safely
+      platformExportItems.splice(0, platformExportItems.length, ...data.records);
+    } catch (error) {
+      console.error("Platform pre-fetch network error before export:", error);
+    }
   }
-  const itemsSheet = XLSX.utils.json_to_sheet(exportDataRows.value);
-  XLSX.utils.book_append_sheet(workbook, itemsSheet, sheet_name);
-  XLSX.writeFile(workbook, fileName);
+
+  // Now exportDataRows.value is fully calculated, filtered, and safe to evaluate lazily
+  await exportDatasetToExcel({
+    datasetKey: props.datasetKey,
+    title: config.title,
+    consoKey: consoKey.value,
+    capDataset: capDataset.value,
+    exportDataRows: exportDataRows.value, // Fully filtered array matrix
+    filterOptions: filterOptions,
+    exportInstScope: exportInstScope.value,
+    exportPlatScope: exportPlatScope.value,
+    exportStatus: exportStatus.value
+  });
 }
+
 
 function handleToggle(value) {
   showSelectedOnly.value = value;

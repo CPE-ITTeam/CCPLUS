@@ -19,6 +19,7 @@
     "dependencies": {
         "@vitejs/plugin-vue": "^6.0.7",
         "@vueuse/core": "^14.3.0",
+        "exceljs": "^4.4.0",
         "npm-check-updates": "^22.2.3",
         "pinia": "^3.0.4",
         "pinia-plugin-persistedstate": "^4.7.1",
@@ -26,7 +27,6 @@
         "sweetalert2": "^11.26.25",
         "vite-plugin-vuetify": "^2.1.3",
         "vue-router": "^5.1.0",
-        "vuetify": "^4.1.1",
-        "xlsx": "https://cdn.sheetjs.com/xlsx-0.20.3/xlsx-0.20.3.tgz"
+        "vuetify": "^4.1.1"
     }
 }

@@ -12,7 +12,7 @@ import MultiSelectCombobox from '@/components/ui/MultiSelectCombobox.vue';
 import ToggleIcon from '@/components/ui/ToggleIcon.vue';
 import FlexCol from '@/components/ui/FlexCol.vue'
 import YmInput from '@/components/ui/YmInput.vue';
-import * as XLSX from 'xlsx';
+import { exportDatasetToExcel } from '@/utils/excelJsExporter.js';
 
 // Pinia DataStores & Modular Core Helpers
 const authStore = useAuthStore();
