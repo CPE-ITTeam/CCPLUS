@@ -5,7 +5,7 @@ import { ref, reactive, watch, computed, onBeforeMount } from 'vue';
 import { storeToRefs } from 'pinia';
 import { useAuthStore } from '@/stores/useAuthStore.js';
 import { useCCPlusStore } from '@/stores/useCCPlusStore.js';
-import { useDateUtils } from '@/composables/useDateUtils.js'; // Wired helper hook
+import { useReportingDates } from '@/composables/useReportingDates.js'; // Updated to newly renamed composable
 import api from '@/services/api.js'; // Automated Axios Client Service
 import SaveReport from '@/components/dialogs/SaveReport.vue';
 import MultiSelectCombobox from '@/components/ui/MultiSelectCombobox.vue';
@@ -16,7 +16,7 @@ import { exportDatasetToExcel } from '@/utils/excelJsExporter.js';
 
 // Pinia DataStores & Modular Core Helpers
 const authStore = useAuthStore();
-const { fromToDates } = useDateUtils();
+const { fromToDates } = useReportingDates(); // Cleanly loaded refactored hook
 
 const consoKey = ref(authStore.ccp_key);
 var selectedConso = ref(authStore.ccp_key);
@@ -48,8 +48,17 @@ const masterReport = ref({});
 var optionsKey = ref(0);
 var dateRange = ref('');
 var reportDates = reactive({ fromYM: '', toYM: '' });
-const reportOptions = [{ title: 'Fiscal YTD', value: 'fYTD' }, { title: 'Prior FY', value: 'priorFy' },
-{ title: 'Calendar YTD', value: 'cYTD' }, { title: 'Custom', value: 'Custom' }];
+
+// Expanded options array matching all capabilities supported by useReportingDates
+const reportOptions = [
+  { title: 'Fiscal YTD', value: 'fYTD' }, 
+  { title: 'Prior FY', value: 'priorFy' },
+  { title: 'Calendar YTD', value: 'cYTD' }, 
+  { title: 'Prior Calendar Year', value: 'priorCy' }, 
+  { title: 'Rolling 12 Months', value: 'last12Months' }, 
+  { title: 'Custom', value: 'Custom' }
+];
+
 const optionItems = reactive({
   'institution': [], 'provider': [], 'institutiontype': [], 'institutiongroup': [],
   'Dbase': [], 'datatype': [], 'sectiontype': [], 'accesstype': [], 'accessmethod': []
@@ -338,11 +347,14 @@ async function getReportData(runType) {
     }
   }
 }
+
+// Updated to map the new composable return properties ({ from, to }) into local component properties
 function changeReportDates() {
-  let dates = fromToDates(dateRange.value);
+  const dates = fromToDates(dateRange.value);
   reportDates.fromYM = dates.from;
   reportDates.toYM = dates.to;
 }
+
 watch(() => reportDates.fromYM, (yearmon) => {
   toKey.value++;
   minYM.value = yearmon;
@@ -480,7 +492,6 @@ onBeforeMount(() => {
               :key="'ts_' + optionsKey" />
           </FlexCol>
           <FlexCol v-else></FlexCol>
-
           <!-- Data Attribute Selectors -->
           <FlexCol v-if="showAccessMethods || showAccessTypes || showDataTypes || showSectionTypes">
             <v-label class="colLabel">Access and Data</v-label>
