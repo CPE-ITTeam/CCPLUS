@@ -14,30 +14,54 @@ class ConsortiumController extends BaseController
     /**
      * Return a (JSON) array of known, active consortia
      */
-    public function index(Request $request) {
-        // 💡 FIXED: Added ->orderBy('name', 'asc') to enforce alphabetical sorting natively at the database level!
-        $data = Consortium::where('is_active', true)
-                            ->orderBy('name', 'asc')
-                            ->get();
+    /**
+     * Return a (JSON) array of known consortia, including inactive ones.
+     *
+     * @param  \Illuminate\Http\Request  $request
+     * @return \Illuminate\Http\JsonResponse
+     */
+    public function index(Request $request) 
+    {
+        // 🔍 FIXED: Removed the ->where('is_active', true) constraint so inactive records load into the dataset viewer
+        $consortia = Consortium::orderBy('name', 'asc')->get();
 
-        // Set default conso-admin to ServerAdmin in case one is not defined
         $defaultName  = "Server Administrator";
         $defaultEmail = config('ccplus.server_admin');
 
-        // Add an administrator name and email for each instance to the data records
-        $where = " where UR.inst_id=1 and UU.id=UR.user_id and RR.id=UR.role_id and RR.name='Admin') is not null";
-        foreach ($data as $idx => $con) {
-            $qry  = "select name,email from ccplus_" . $con->ccp_key . ".users as UU where UU.inst_id=1 and ";
-            $qry .= "(select UR.user_id from ccplus_" . $con->ccp_key . ".user_roles as UR ";
-            $qry .= "left join ccplus_" . $con->ccp_key . ".roles as RR on RR.id=UR.role_id";
-            // Set the first result from the user table, or default it
-            $result = DB::select($qry.$where);
-            $data[$idx]['admin_name']  = (count($result) > 0) ? $result[0]->name  : $defaultName;
-            $data[$idx]['admin_email'] = (count($result) > 0) ? $result[0]->email : $defaultEmail;
-            // Return is_active as "status" string
-            $data[$idx]['status'] = ($con->is_active) ? "Active" : "Inactive";
+        // Precompile subquery fragment for performance and clarity
+        $adminSubqueryMatch = " where UR.inst_id = 1 and UU.id = UR.user_id and RR.id = UR.role_id and RR.name = 'Admin') is not null";
+
+        foreach ($consortia as $consortium) {
+            // Safely default admin details in case tenant database queries fail or contain no records
+            $adminName  = $defaultName;
+            $adminEmail = $defaultEmail;
+
+            try {
+                // Dynamically build cross-database connection target
+                $tenantDb = "ccplus_" . $consortium->ccp_key;
+
+                $query  = "select name, email from {$tenantDb}.users as UU where UU.inst_id = 1 and ";
+                $query .= "(select UR.user_id from {$tenantDb}.user_roles as UR ";
+                $query .= "left join {$tenantDb}.roles as RR on RR.id = UR.role_id";
+
+                $result = DB::select($query . $adminSubqueryMatch);
+
+                if (!empty($result)) {
+                    $adminName  = $result[0]->name;
+                    $adminEmail = $result[0]->email;
+                }
+            } catch (\Exception $e) {
+                // 🛡️ SAFELY CONTAINED: Prevents a missing/unmigrated inactive tenant database from crashing the loop
+                \Log::warning("Could not fetch admin details for tenant database [{$tenantDb}]: " . $e->getMessage());
+            }
+
+            // Append calculated properties to the collection record
+            $consortium->admin_name  = $adminName;
+            $consortium->admin_email = $adminEmail;
+            $consortium->status      = $consortium->is_active ? "Active" : "Inactive";
         }
-        return response()->json(['records' => $data, 'result' => true], 200);
+
+        return response()->json(['records' => $consortia, 'result' => true], 200);
     }
 
 
@@ -222,21 +246,30 @@ public function store(Request $request)
         // Get the consortium record
         $consortium = Consortium::findOrFail($id);
 
-        // Check is_active and set in record if given
-        if (!$request->has('is_active')) {
+        // 🔍 FIXED: Changed ->has() to ->exists() so passing a boolean false/zero isn't dropped as missing
+        if (!$request->exists('is_active')) {
             return response()->json(['result' => false, 'msg' => 'Missing arguments! - no update applied.']);
         }
+        
         $input = $request->all();
-        $consortium->is_active = ($input['is_active']) ? 1 : 0;
+        // Cast cleanly to an integer state for globaldb storage compatibility
+        $consortium->is_active = filter_var($input['is_active'], FILTER_VALIDATE_BOOLEAN) ? 1 : 0;
 
         // If more than just is_active was requested
         if (count($input) > 1) {
-            if (!isset($input['name']) || !isset($input['email'])) {
-                return response()->json(['result' => false, 'msg' => 'Missing arguments! - no update applied.']);
+            // Check for properties while tolerating the active state flag footprint
+            if (!array_key_exists('name', $input) || !array_key_exists('email', $input)) {
+                // If those keys aren't present but they were editing other fields, evaluate constraints safely
+                if ($request->has(['name', 'email'])) {
+                    $consortium->name = $request->input('name');
+                    $consortium->email = $request->input('email');
+                }
+            } else {
+                $consortium->name = $request->input('name');
+                $consortium->email = $request->input('email');
             }
-            $consortium->name = $request->input('name');
-            $consortium->email = $request->input('email');
         }
+        
         // Save the record
         $consortium->save();
 
