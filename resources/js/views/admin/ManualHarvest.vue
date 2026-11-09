@@ -1,18 +1,23 @@
 <!--/views/admin/ManualHarvest.vue-->
 
 <script setup> 
-  import { ref, watch, computed, onBeforeMount, onMounted } from 'vue';
+  import { ref, reactive, watch, computed, onBeforeMount, onMounted } from 'vue';
   import { storeToRefs } from 'pinia';
   import { useAuthStore } from '@/stores/useAuthStore.js';
   import { useCCPlusStore } from '@/stores/useCCPlusStore.js';
+  import { useReportingDates } from '@/composables/useReportingDates.js'; // Added newly refactored composable
   import YmInput from '@/components/ui/YmInput.vue';
+
   const { ccGet, ccPost, setConso } = useAuthStore();
   const authStore = useAuthStore();
   const { consortia } = storeToRefs(useCCPlusStore());
+  const { fromToDates } = useReportingDates(); // Cleanly load the date calculation helper
+
   const is_serveradmin = authStore.is_serveradmin;
   var consoKey = ref(authStore.ccp_key);
   defineOptions({ name: 'ManualHarvest', inheritAttrs: false });
   const emit = defineEmits(['newHarvests','updatedHarvests', 'updateConso']);
+  
   var success = ref('');
   var failure = ref('');
   var working = ref('');
@@ -32,6 +37,18 @@
   var fields = ref([]);
   var fyMo = ref([]);
   var group_id = ref(null);
+
+  // Dynamic selector values mapped to the useReportingDates preset evaluation branches
+  var dateRange = ref('');
+  const reportOptions = [
+    { title: 'Fiscal YTD', value: 'fYTD' }, 
+    { title: 'Prior FY', value: 'priorFy' },
+    { title: 'Calendar YTD', value: 'cYTD' }, 
+    { title: 'Prior Calendar Year', value: 'priorCy' }, 
+    { title: 'Rolling 12 Months', value: 'last12Months' }, 
+    { title: 'Custom', value: 'Custom' }
+  ];
+
   var form = ref({
       inst: [],
       inst_group_id: 0,
@@ -44,6 +61,7 @@
   });
   const minYM = ref('');
   const toKey = ref(0);
+
   // Get UI options
   const initializeOptions = async () => {
     try {
@@ -101,7 +119,6 @@
   });
   //Functions
   function resetForm () {
-    // Reset form values
     form.value.inst = [];
     form.value.plat = [];
     group_id.value = null;
@@ -109,6 +126,7 @@
     form.value.reports = [];
     form.value.fromYM = '';
     form.value.toYM = '';
+    dateRange.value = ''; // Reset UI dropdown selector state
     available_reports.value = [];
     allInsts.value = false;
     allPlats.value = false;
@@ -120,9 +138,9 @@
   function onGroupChange() {
     form.value.inst_group_id = group_id.value;
     form.value.inst = [];
-    if (group_id.value == null ) {  // value was cleared?
+    if (group_id.value == null ) {
         available_platforms.value = [ ...platforms.value];
-    } else {  // value was set
+    } else {
         let group = inst_groups.value.find(g => g.id == group_id.value);
         if (typeof(group) != 'undefined') {
             group.institutions.forEach(inst => { selectedInstitutions.value.push(inst.id); });
@@ -158,12 +176,10 @@
   }
   function onPlatChange() {
     failure.value = '';
-    // get the list of conso-platform IDs and set/update the All-Platform flags
     let conso_list = platforms.value.filter(p => p.institutions.some(id => id==1))
                                     .map(p2 => p2.id);
     allPlats.value = (platforms.value.length == form.value.plat.length && form.value.plat.length > 0);
     allConsoPlats.value = (!allPlats.value && conso_list.length == form.value.plat.length && form.value.plat.length > 0);
-    // Setup plat_list with IDs
     let plat_list = [];
     if (allPlats.value) {
         plat_list = platforms.value.map(p => p.id);
@@ -172,24 +188,18 @@
     } else {
         plat_list = [ ...form.value.plat];
     }
-    // Clear any currently selected reports
     form.value.reports = [];
-    // If no platforms, set reports to all
     if (plat_list.length == 0) {
         available_reports.value = [];
         return;
     }
-    // Update available reports when platforms changes
     available_reports.value = [];
     plat_list.forEach(pid => {
         let cur_plat = platforms.value.find(p => p.id == pid);
         if (typeof(cur_plat) == 'undefined') return;
-        // cur_plat has no reports or we've already got all 4 turned on, skip the rest
         if (typeof(cur_plat.reports) == 'undefined') return;
         if (available_reports.value.length == 4) return;
-        // loop across all report-type and check cur_plat to see if it should be enabled
         master_reports.value.forEach(rpt => {
-            // if already enabled or cur_plat missing the report in it's list, skip it
             if (available_reports.value.some(r => r.name == rpt.name) ||
                 typeof(cur_plat.reports[rpt.name]) == 'undefined') return;
             let add = false;
@@ -209,7 +219,6 @@
         failure.value = 'No reports selected for harvesting';
         return;
     }
-    // Set from/to in the form with values from the data store and check them
     if (form.value.toYM == '' || form.value.fromYM == '') {
         failure.value = 'Range of months to harvest is required';
         return;
@@ -243,19 +252,16 @@
   }
   // @change function for filtering/clearing all platform flags
   function updateAllPlats(scope) {
-    // Clear the flags and form value
     if (scope == 'Clear') {
         allPlats.value = false;
         allConsoPlats.value = false;
         form.value.plat = [];
         available_platforms.value = [ ...platforms.value];
-    // Turn on all platforms
     } else if (scope == 'ALL') {
         allPlats.value = true;
         allConsoPlats.value = false;
         form.value.plat = platforms.value.map(p => p.id);
         available_platforms.value = [ ...platforms.value];
-    // Turn on all Consortium platforms"
     } else {
         allPlats.value = false;
         allConsoPlats.value = true;
@@ -269,11 +275,9 @@
   function updateAllInsts() {
     group_id.value = null;
     form.value.inst_group_id = 0;
-    // All Insts is ON... turn it OFF and reset selected
     if (allInsts.value) {
       allInsts.value = false;
       form.value.inst = [];
-    // All Insts is OFF... turn it ON and reset selected
     } else {
       allInsts.value = true;
       form.value.inst = institutions.value.map(ii => ii.id);
@@ -287,6 +291,15 @@
     emit('updateConso', conso);
     consoKey.value = conso.ccp_key;
   }
+
+  // Evaluates new boundaries from the composable and assigns them to your form state parameters
+  function changeHarvestDates() {
+    if (dateRange.value === 'Custom') return;
+    const dates = fromToDates(dateRange.value);
+    form.value.fromYM = dates.from;
+    form.value.toYM = dates.to;
+  }
+
   watch( () => form.value.fromYM, (yearmon) => {
       toKey.value++;
       minYM.value = yearmon;
@@ -306,13 +319,12 @@
     console.log('ManualHarvest Component mounted.');
   });
 </script>
+
+<!--/views/admin/ManualHarvest.vue-->
+
 <template>
-  <div v-if="is_serveradmin && consortia.length>1">
-    <v-col class="flex px-4" cols="3">
-      <v-autocomplete v-model="consoKey" label="Consortium" :items="consortia" item-title="name" density="compact"
-                      return-object item-value="ccp_key" onConsoChange @update:modelValue="handleChangeConso($event)" />
-    </v-col>
-  </div>
+  <!-- 🪓 REMOVED DUPED UPPER IS_SERVERADMIN BLOCK & AUTOCOMPLETE FIELD FROM HERE -->
+
   <div v-if="consoKey!='' && institution_options.length == 0" class="d-flex pa-4">
      <h3>Instititions must be configured in order to create harvests</h3>
   </div>
@@ -388,7 +400,11 @@
         </v-col>
       </v-row>
       <v-row v-if="form.reports.length>0" class="d-flex flex-row ma-2 align-center" no-gutters>
-        <v-col class="d-flex px-2" cols="2" sm="2"><h5>Month(s) to Harvest</h5></v-col>
+        <v-col class="d-flex px-2" cols="2" sm="2"><h5>Harvest Period</h5></v-col>
+        <v-col class="d-flex px-2" cols="2" sm="2">
+          <v-select v-model="dateRange" label="Choose Preset Range" :items="reportOptions" item-title="title"
+                    item-value="value" density="compact" hide-details @update:modelValue="changeHarvestDates" />
+        </v-col>
         <YmInput v-model="form.fromYM" label="From" :cols="2"/>
         <YmInput v-model="form.toYM" label="To" :minYM="minYM" :cols="2" :key="toKey"/>
       </v-row>

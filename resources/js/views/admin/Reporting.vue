@@ -386,11 +386,7 @@ onBeforeMount(() => {
 
         <!-- Global Toolbar Controls -->
         <v-row>
-          <FlexCol v-if="consortia.length > 1 && is_serveradmin">
-            <v-label class="colLabel">Choose a Consortium Instance</v-label>
-            <v-autocomplete v-model="selectedConso" label="Consortium" :items="consortia" item-title="name"
-              item-value="ccp_key" density="compact" return-object @update:modelValue="handleChangeConso" />
-          </FlexCol>
+          <!-- 🪓 REMOVED DUPED AUTOCOMPLETE CONSO SELECTOR HERE -->
           <FlexCol v-if="selectedConso.name != '' && savedReports.length > 0">
             <v-label class="colLabel">Load a Saved Report</v-label>
             <v-autocomplete v-model="savedReport" label="Saved Reports" :items="savedReports" item-title="title"
@@ -467,6 +463,7 @@ onBeforeMount(() => {
             <v-select v-model="dateRange" label="Choose Report Dates" :items="reportOptions" item-title="title"
               item-value="value" @update:modelValue="changeReportDates" />
             <YmInput v-model="reportDates['fromYM']" label="Start Month" />
+            <v-label class="colLabel">End Month</v-label>
             <YmInput v-model="reportDates['toYM']" label="End Month" :minYM="minYM" :key="toKey" />
           </FlexCol>
         </v-row>
@@ -492,6 +489,7 @@ onBeforeMount(() => {
               :key="'ts_' + optionsKey" />
           </FlexCol>
           <FlexCol v-else></FlexCol>
+
           <!-- Data Attribute Selectors -->
           <FlexCol v-if="showAccessMethods || showAccessTypes || showDataTypes || showSectionTypes">
             <v-label class="colLabel">Access and Data</v-label>
@@ -544,7 +542,6 @@ onBeforeMount(() => {
           </v-col>
         </v-row>
         
-        <!-- 🏁 FIXED: Bound to dynamic filteredHeaders computed parameters array -->
         <v-data-table :headers="filteredHeaders" :items="report_items" :loading="loading" :footer-props="footer_props"
           dense :key="dtKey">
         </v-data-table>
@@ -567,9 +564,3 @@ onBeforeMount(() => {
     </v-card>
   </v-dialog>
 </template>
-
-<style>
-.align-mid {
-  align-items: center;
-}
-</style>

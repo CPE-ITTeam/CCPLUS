@@ -45,9 +45,14 @@ class LoginController extends BaseController
             $user->tokens()->where('name',$token_name)->delete();
             $user->last_login = now();
             $user->save();
+            
+            // 💡 SAFELY INJECT VALUE TO BYPASS SERIALIZATION HOOK ERRORS
+            $userPayload = $user->toArray();
+            $userPayload['user_FYmm'] = $user->getFY();
+
             // Setup return data including the access token, user info, roles, and admin institutions/groups
             $success['token'] = $user->createToken($token_name)->plainTextToken;
-            $success['user'] = $user;
+            $success['user'] = $userPayload; // Injecting the array with user_FYmm cleanly attached
             $success['roles'] = $user->allRoles();
             $success['adminInsts'] =$user->adminInsts();
             $success['adminGroups'] =$user->adminGroups();

@@ -161,9 +161,11 @@ export const useAuthStore = defineStore("useAuthStore", {
       this.ccp_key = ccp_key || "con_template";
       try {
         const token = this.token || localStorage.getItem("user-token");
+        
+        // 💡 CHANGED: Passed a flat object payload to keep Laravel session storage from dropping
         await axios.post(
           "/api/updateSession",
-          { data: { conso_id: id, ccp_key: this.ccp_key } },
+          { conso_id: id, ccp_key: this.ccp_key }, 
           {
             headers: {
               Authorization: `Bearer ${token}`,
@@ -176,5 +178,6 @@ export const useAuthStore = defineStore("useAuthStore", {
         console.error("Failed to update active tenant database scope:", error);
       }
     },
+
   },
 });

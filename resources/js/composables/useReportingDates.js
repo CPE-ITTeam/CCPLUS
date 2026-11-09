@@ -17,8 +17,8 @@ export function useReportingDates() {
     const lastMonthYear = currentMonth === 0 ? currentYear - 1 : currentYear;
     const lastMonthFormatted = `${lastMonthYear}-${String(lastMonth + 1).padStart(2, "0")}`;
     
-    // Fallback to July (7) if account configuration is missing
-    const fiscalStartMonth = Number(authStore.user_FYmm) || 7;
+    // 🏛️ Safely parse nested state variables before executing calendar math fallback paths
+    const fiscalStartMonth = Number(authStore.user?.user_FYmm || authStore.user_FYmm) || 7;
 
     if (range === "cYTD") {
       // 📅 Calendar YTD

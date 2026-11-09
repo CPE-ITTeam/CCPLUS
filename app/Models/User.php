@@ -10,13 +10,6 @@ class User extends Authenticatable
     use HasApiTokens;
 
     /**
-     * The attributes that should be automatically appended to the model's array/JSON form.
-     *
-     * @var array
-     */
-    protected $appends = ['user_FYmm'];
-
-    /**
      * The database table used by the model.
      */
     protected $connection = 'consodb';
@@ -37,19 +30,20 @@ class User extends Authenticatable
     ];
 
     /**
-     * Accessor to map getFY() directly to the frontend's expected user_FYmm property.
-     */
-    public function getUserFYmmAttribute()
-    {
-        return $this->getFY();
-    }
-
-    /**
      * The attributes that should be hidden for arrays.
      *
      * @var array
      */
     protected $hidden = [ 'password' ];
+
+    /**
+     * The attributes that should be cast to native types.
+     *
+     * @var array
+     */
+    // protected $casts = [
+    //     'email_verified_at' => 'datetime',
+    // ];
 
     /**
      * The attributes that should be encrypted on save (password is already hashed)
@@ -100,8 +94,15 @@ class User extends Authenticatable
         return !is_null($this->roles->where('inst_id',1)->where('role.name','Admin')->first());
     }
 
+    // public function isGroupAdmin()
+    // {
+    //     if ($this->roles->where("role.name", "ServerAdmin")->first() ||
+    //         $this->roles->where('inst_id',1)->where('role.name','Admin')->first()) return true;
+    //     return (!is_null($this->roles->where('group_id',1)->where('role.name','Admin')->first()));
+    // }
+
     public function adminInsts() {
-        if ($this->isConsoAdmin()) return;
+        if ($this->isConsoAdmin()) return [1];
         $insts = array();
         foreach ($this->roles as $uRole) {
             if ( !is_null($uRole->inst_id) && $uRole->role->name == 'Admin' ) {
@@ -117,7 +118,7 @@ class User extends Authenticatable
     }
 
     public function adminGroups() {
-        if ($this->isConsoAdmin()) return;
+        if ($this->isConsoAdmin()) return [1];
         $groups = array();
         foreach ($this->roles as $uRole) {
             if ( !is_null($uRole->group_id) && $uRole->role->name == 'Admin' ) {
@@ -128,7 +129,7 @@ class User extends Authenticatable
     }
 
     public function viewerInsts() {
-        if ($this->isConsoAdmin()) return;
+        if ($this->isConsoAdmin()) return [1];
         $insts = array();
         foreach ($this->roles as $uRole) {
             if ( !is_null($uRole->inst_id) &&
@@ -146,7 +147,7 @@ class User extends Authenticatable
     }
 
     public function viewerGroups() {
-        if ($this->isConsoAdmin()) return;
+        if ($this->isConsoAdmin()) return [1];
         $groups = array();
         foreach ($this->roles as $uRole) {
             if ( !is_null($uRole->group_id) && ($uRole->role->name == 'Viewer' || $uRole->role->name == 'Admin') ) {
