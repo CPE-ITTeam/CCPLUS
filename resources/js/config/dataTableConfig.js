@@ -118,7 +118,18 @@ const rawTableSetup = {
         // 4. METADATA & RE-AUTHENTICATION STRINGS
         { name: 'password',         label: 'Password',            type: 'password', header: null, searchable: false },
         { name: 'confirm_pass',     label: 'Confirm Password',    type: 'passconf', header: null, searchable: false },
-        { name: 'fiscalYr',         label: 'Fiscal Year Start',   type: 'select',   options: '', optVal: 'label', optTxt: 'label', header: null, searchable: false },
+// Inside your dataTableConfig.js file:
+{ 
+  name: 'fiscalYr', 
+  label: 'Fiscal Year Start', 
+  type: 'select', 
+  options: 'fromURL',       // 👈 Tells the setup loader to populate options dynamically
+  optVal: 'id',             // 👈 Bind the option value to the integer ID (1-12)
+  optTxt: 'name',           // 👈 Render the readable month string text on screen ("January")
+  header: 'left',           // 👈 CHANGE THIS from null to display it in the table view grid!
+  editable: true, 
+  searchable: false 
+},
         { name: 'last_login',       label: 'Last Login',          type: 'date',     header: 'center', editable: false, searchable: false },
       ],
 

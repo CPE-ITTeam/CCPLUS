@@ -1,3 +1,4 @@
+// resources/js/stores/authStore.js
 import { defineStore } from "pinia";
 import { useLocalStorage } from "@vueuse/core";
 import axios from "axios";
@@ -154,18 +155,7 @@ export const useAuthStore = defineStore("useAuthStore", {
     setSuccessMessage(message) { this.authSuccessMessage = message; },
     clearSuccessMessage() { this.authSuccessMessage = null; },
 
-    // Moved back inside the actions block where it belongs safely
-    setConsoKey(ccp_key) {
-      if (!this.is_serveradmin) return;
-      this.ccp_key = ccp_key || "con_template";
-    },
-
-    setLoginError(message) { this.authErrorMessage = message; },
-    clearLoginError() { this.authErrorMessage = null; },
-    setSuccessMessage(message) { this.authSuccessMessage = message; },
-    clearSuccessMessage() { this.authSuccessMessage = null; },
-
-    // Replace ONLY this method:
+    // Core session context driver tracking active connection tenant databases
     async setConso(id, ccp_key) {
       if (!this.is_serveradmin) return false;
       this.ccp_key = ccp_key || "con_template";
@@ -186,6 +176,5 @@ export const useAuthStore = defineStore("useAuthStore", {
         console.error("Failed to update active tenant database scope:", error);
       }
     },
-
   },
 });

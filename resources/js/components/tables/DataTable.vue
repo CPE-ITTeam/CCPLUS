@@ -1,7 +1,7 @@
 <!-- components/tables/DataTable.vue -->
 <script setup>
 import { ref, computed } from 'vue'; // Both ref and computed are handled here
-import { useAuthStore } from '@/stores/useAuthStore.js';  
+import { useAuthStore } from '@/stores/useAuthStore.js';
 import ToggleIcon from '@/components/ui/ToggleIcon.vue';
 import DeleteConfirm from '@/components/dialogs/DeleteConfirm.vue';
 import ErrorDetails from '@/components/dialogs/ErrorDetails.vue';
@@ -74,9 +74,9 @@ function formatDateDisplay(dateVal) {
   if (!dateVal) return '';
   const d = new Date(dateVal);
   if (isNaN(d.getTime())) return dateVal;
-  
+
   // Natively outputs yyyy-mm-dd format on screen
-  return new Intl.DateTimeFormat('en-CA').format(d); 
+  return new Intl.DateTimeFormat('en-CA').format(d);
 }
 
 const internalSelectedRows = computed({
@@ -209,7 +209,8 @@ function openUrl(url) {
       </template>
 
       <!-- FAILSAFE SLOT OVERLAY FOR ROOT DATASETS -->
-      <template v-if="props.dataset === 'consortia'" #header.id="{ allSelected, selectAll, someSelected }">
+      <template v-if="props.dataset === 'consortia' || props.dataset === 'consortium'"
+        #header.id="{ allSelected, selectAll, someSelected }">
         <div class="d-flex align-center justify-center h-100 bg-info text-white rounded-tl-lg ps-4"
           style="box-shadow: inset 0 0 0 10px var(--v-theme-info); min-height: 56px;">
           <v-checkbox-btn
@@ -219,12 +220,14 @@ function openUrl(url) {
         </div>
       </template>
 
+
       <!-- 1. REUSABLE TOGGLE ENGINE LOOP -->
       <template v-for="col in ['status', 'connected', 'includeZeros', 'inst_valid', 'plat_valid']"
         #[`item.${col}`]="{ item }">
         <ToggleIcon v-model="item[col]" :toggleable="col === 'status' ? (props.dataset !== 'audit') : true"
-          @update:modelValue="$emit('update:toggle', item.id, col, item[col])" />
+          @update:modelValue="$emit('update:toggle', item.id, col, $event)" />
       </template>
+
 
       <!-- 2. COUNTER REPORT SLOT ENGINE LOOP -->
       <template v-for="report in ['PR', 'DR', 'TR', 'IR']" #[`item.${report}`]="{ item }">
@@ -276,14 +279,11 @@ function openUrl(url) {
       </template>
 
       <!-- Dynamic Interceptor Loop -->
-      <template 
-        v-for="header in computedHeaders.filter(h => h.type === 'date')" 
-        :key="header.key" 
-        v-slot:[`item.${header.key}`]="{ value }"
-      >
+      <template v-for="header in computedHeaders.filter(h => h.type === 'date')" :key="header.key"
+        v-slot:[`item.${header.key}`]="{ value }">
         {{ formatDateDisplay(value) }}
       </template>
-      
+
       <!-- Row Level Operations Action Matrix Column -->
       <template #item.actions="{ item }">
         <div v-if="showActions || props.dataset === 'platforms'" class="d-flex ga-1 justify-end">
@@ -333,6 +333,7 @@ function openUrl(url) {
   </div>
 </template>
 
+<!-- Add this to resources/js/components/tables/DataTable.vue -->
 <style scoped>
 /* 
   FIXED VIA DEEP COMBINATOR: 
@@ -345,3 +346,4 @@ function openUrl(url) {
   padding: 0;
 }
 </style>
+
