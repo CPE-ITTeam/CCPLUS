@@ -299,23 +299,67 @@ class InstitutionController extends Controller
     /**
      * Remove the specified resource from storage.
      *
-     * @param  \App\Models\Institution  $institution
+     * @param  int  $id
      * @return \Illuminate\Http\Response
      */
-    public function destroy(Institution $institution)
+    public function destroy($id)
     {
         if (!auth()->user()->hasRole("Admin")) {
             return response()->json(['result' => false, 'msg' => 'Update failed (403) - Forbidden']);
         }
 
         try {
-            $institution->delete();
-        } catch (\Exception $ex) {
-            return response()->json(['result' => false, 'msg' => $ex->getMessage()]);
-        }
+            \DB::beginTransaction();
 
-        return response()->json(['result' => true, 'msg' => 'Institution successfully deleted']);
+            // 💡 REFACTOR 1: Securely delete the institution row directly out of the active tenant connection schema
+            $exists = \DB::table('institutions')->where('id', $id)->exists();
+            if (!$exists) {
+                \DB::rollBack();
+                return response()->json(['result' => false, 'msg' => 'Institution record not found in the active environment.'], 200);
+            }
+
+            // Remove attached pivot dependencies safely first
+            \DB::table('institution_institution_group')->where('institution_id', $id)->delete();
+            
+            // Execute true tenant-bound row deletion
+            \DB::table('institutions')->where('id', $id)->delete();
+
+            \DB::commit();
+
+            // 💡 REFACTOR 2: Hydrate fresh dataset collection exactly like your import/bulk actions to repaint Vue instantly
+            $inst_data = array();
+            $updated_institutions = \DB::table('institutions')->orderBy('name', 'ASC')->get();
+            
+            foreach ($updated_institutions as $inst) {
+                $instGroups = \DB::table('institution_institution_group')
+                    ->join('institutiongroups', 'institution_institution_group.institution_group_id', '=', 'institutiongroups.id')
+                    ->where('institution_id', $inst->id)
+                    ->select('institutiongroups.id', 'institutiongroups.name')
+                    ->get();
+
+                $inst->group_string = ""; 
+                $inst->groups = $instGroups->pluck('id')->all();
+                foreach ($instGroups as $group) {
+                    $inst->group_string .= ($inst->group_string == "") ? "" : ", ";
+                    $inst->group_string .= $group->name;
+                }
+                
+                // Keep the array brackets appended correctly!
+                $inst_data[] = (array) $inst; 
+            }
+
+            return response()->json([
+                'result'    => true, 
+                'msg'       => 'Institution successfully deleted', 
+                'inst_data' => $inst_data
+            ], 200);
+
+        } catch (\Exception $ex) {
+            \DB::rollBack();
+            return response()->json(['result' => false, 'msg' => 'Server Deletion Error: ' . $ex->getMessage()], 200);
+        }
     }
+
 
     /**
      * Bulk operations from the U/I.
@@ -325,85 +369,133 @@ class InstitutionController extends Controller
      */
     public function bulk(Request $request)
     {
-        global $thisUser;
-        $thisUser = auth()->user();
-        $consoAdmin = $thisUser->isConsoAdmin();
+        try {
+            global $thisUser;
+            $thisUser = auth()->user();
+            $consoAdmin = $thisUser->isConsoAdmin();
 
-        // Validate form inputs
-        $this->validate($request, ['ids' => 'required', 'action' => 'required']);
-        $input = $request->all();
+            $this->validate($request, ['ids' => 'required', 'action' => 'required']);
+            $input = $request->all();
 
-        // Create/Add-To Group requires another input value
-        if ( ($input['action'] == 'Create New Group' && !isset($input['name'])) ||
-             ($input['action'] == 'Add to Existing Group' && !isset($input['group_id'])) ) {
-            return response()->json(['result' => false, 'msg' => 'Missing input value(s) for requested operation'], 200);
-        }
+            // 💡 REFACTOR: Allow 'Assign Type' alias passed from the Vue UI block
+            $isAssignType = ($input['action'] == 'Set Institution Type' || $input['action'] == 'Assign Type');
 
-        // Get adminInsts for $thisUser
-        $adminInsts = $thisUser->adminInsts();
-        $instIDs = ($consoAdmin) ? $input['ids'] : array_intersect($adminInsts, $input['ids']);
-
-        // Check for missing inputs - or rights. Dekete or changing is_active is consoAdmin only;
-        // group actions require Conso, or admin of multiple insts
-        if (!$consoAdmin &&
-            ($input['action']=='Set Active' || $input['action']=='Set Inactive' || $input['action']=='Delete' ||
-             (count($adminInsts)<2 && ($input['action']=='Create New Group' || $input['action']=='Add to Existing Group')))) {
-            return response()->json(['result' => false, 'msg' => 'No Authorization for requested operation'], 200);
-        }
-
-        // Handle the action
-        $affectedIds = array();
-        if ($input['action'] == 'Set Active' || $input['action'] == 'Set Inactive') {
-            $new_is_active = ($input['action'] == 'Set Active') ? 1 : 0;
-            // Get matching institutions that need to change
-            $institutions = Institution::whereIn('id',$instIDs)->where('is_active','<>',$new_is_active)
-                                       ->get(['id','is_active']);
-            $args = array('is_active' => $new_is_active);
-            foreach ($institutions as $inst) {
-                $inst->update($args);
-                // Update related the is_active and credentials for all the institution IDs
-                $this->updateCredentials($inst->id, $new_is_active);
+            if ( ($input['action'] == 'Create New Group' && !isset($input['name'])) ||
+                 ($input['action'] == 'Add to Existing Group' && !isset($input['group_id'])) ||
+                 ($isAssignType && !isset($input['type_id'])) ) {
+                return response()->json(['result' => false, 'msg' => 'Missing input values'], 200);
             }
-            $affectedIds  = $institutions->pluck('id')->toArray();
-            return response()->json(['result' => true, 'msg' => '', 'affectedIds' => $affectedIds], 200);
 
-        } else if ($input['action'] == 'Create New Group' || $input['action'] == 'Add to Existing Group') {
-            // Set user_id for the group to check/create
-            $user_id = ($consoAdmin) ? null : $thisUser->id;
-            if ($input['action'] == 'Create New Group') {
-                $exists = InstitutionGroup::where('user_id',$user_id)->where('name',$input['name'])->first();
-                if ($exists) {
-                    return response()->json(['result' => false, 'msg' => 'Group already exists - no updates applied'], 200);
+            $adminInsts = $thisUser->adminInsts();
+            $instIDs = ($consoAdmin) ? $input['ids'] : array_intersect($adminInsts, $input['ids']);
+
+            if (!$consoAdmin && ($input['action']=='Set Active' || $input['action']=='Set Inactive' || $input['action']=='Delete')) {
+                return response()->json(['result' => false, 'msg' => 'No Authorization'], 200);
+            }
+
+            \DB::beginTransaction();
+
+            $msg = '';
+            $extraData = array(); 
+
+            if ($input['action'] == 'Set Active' || $input['action'] == 'Set Inactive') {
+                $new_is_active = ($input['action'] == 'Set Active') ? 1 : 0;
+                \DB::table('institutions')->whereIn('id', $instIDs)->update(['is_active' => $new_is_active, 'updated_at' => now()]);
+                foreach ($instIDs as $id) { $this->updateCredentials($id, $new_is_active); }
+                
+                \DB::commit();
+                $msg = 'Status Updated';
+
+            } else if ($input['action'] == 'Create New Group' || $input['action'] == 'Add to Existing Group') {
+                $user_id = ($consoAdmin) ? null : $thisUser->id;
+                $groupId = null; $groupName = '';
+
+                if ($input['action'] == 'Create New Group') {
+                    $exists = \DB::table('institutiongroups')->where('user_id', $user_id)->where('name', $input['name'])->first();
+                    if ($exists) { \DB::rollBack(); return response()->json(['result' => false, 'msg' => 'Group exists'], 200); }
+                    
+                    $groupId = \DB::table('institutiongroups')->insertGetId(['name' => $input['name'], 'user_id' => $user_id, 'created_at' => now(), 'updated_at' => now()]);
+                    $groupName = $input['name'];
+                } else {
+                    $group = \DB::table('institutiongroups')->where('user_id', $user_id)->where('id', $input['group_id'])->first();
+                    if (!$group) { \DB::rollBack(); return response()->json(['result' => false, 'msg' => 'Group not found'], 200); }
+                    $groupId = $group->id; $groupName = $group->name;
                 }
-                // Create the group
-                $group = InstitutionGroup::create(['name' => $input['name'], 'user_id' => $user_id]);
-            } else  {  // 'Add to Existing Group' , make sure group is there
-                $group = InstitutionGroup::where('user_id',$user_id)->where('id',$input['group_id'])->first();
-                if (!$group) {
-                    return response()->json(['result' => false, 'msg' => 'Target Group not found - no updates applied'], 200);
+
+                foreach ($instIDs as $inst_id) {
+                    $already = \DB::table('institution_institution_group')->where('institution_id', $inst_id)->where('institution_group_id', $groupId)->exists();
+                    if (!$already) { \DB::table('institution_institution_group')->insert(['institution_id' => $inst_id, 'institution_group_id' => $groupId]); }
                 }
-            }
-            // Attach member institutions (to either existing or new group)
-            foreach ($instIDs as $inst_id) {
-                $group->institutions()->attach($inst_id);
-            }
-            return response()->json(['result' => true, 'msg' => '', 'affectedIds' => $instIDs, 'group' => $group], 200);
+                
+                \DB::commit();
+                $msg = 'Group Assigned';
+                $extraData['group'] = ['id' => $groupId, 'name' => $groupName];
 
-        } else if ($input['action'] == 'Set Institution Type') {
-            // Get matching institutions that need to change
-            $institutions = Institution::whereIn('id',$instIDs)->get();
-            $args = array('type_id' => $input['type_id']);
-            foreach ($institutions as $inst) {
-                $inst->update($args);
+            } else if ($isAssignType) {
+                // 💡 REFACTOR: Force update on type configurations
+                \DB::table('institutions')->whereIn('id', $instIDs)->update(['type_id' => $input['type_id'], 'updated_at' => now()]);
+                
+                // Fetch the name of the assigned type so the UI can draw the label cell immediately
+                $typeName = \DB::table('institutiontypes')->where('id', $input['type_id'])->value('name') ?: 'Unknown';
+                
+                \DB::commit();
+                $msg = 'Type Assignment Successful';
+                
+                // Inject metadata keys that composable blocks expect to clear dialog hooks
+                $extraData['newType'] = ['id' => $input['type_id'], 'name' => $typeName];
+            
+            } else {
+                \DB::rollBack();
+                return response()->json(['result' => false, 'msg' => 'Unrecognized action'], 200);
             }
-            $affectedIds  = $institutions->pluck('id')->toArray();
-            return response()->json(['result'=>true,'msg'=>'Type Assignment Successful','affectedIds'=>$affectedIds],200);
 
-        // Unrecognized action
-        } else {
-            return response()->json(['result' => false, 'msg' => 'Unrecognized bulk action requested'], 200);
+            // Generate fresh datasets exactly like the import process to repaint the UI grid automatically
+            // 💡 REFACTOR: Generate fresh datasets with both group and type strings to repaint the UI grid immediately
+            $inst_data = array();
+            $updated_institutions = \DB::table('institutions')->orderBy('name', 'ASC')->get();
+            
+            // Pre-fetch types map to save database query amplification cycles in the loop
+            $typesMap = \DB::table('institutiontypes')->pluck('name', 'id')->all();
+
+            foreach ($updated_institutions as $inst) {
+                $instGroups = \DB::table('institution_institution_group')
+                    ->join('institutiongroups', 'institution_institution_group.institution_group_id', '=', 'institutiongroups.id')
+                    ->where('institution_id', $inst->id)
+                    ->select('institutiongroups.id', 'institutiongroups.name')
+                    ->get();
+
+                $inst->group_string = ""; 
+                $inst->groups = $instGroups->pluck('id')->all();
+                foreach ($instGroups as $group) {
+                    $inst->group_string .= ($inst->group_string == "") ? "" : ", ";
+                    $inst->group_string .= $group->name;
+                }
+
+                // 💡 FIX: Inject the missing type name string mapping onto the object so Vue can read and paint it!
+                $inst->type = isset($typesMap[$inst->type_id]) ? $typesMap[$inst->type_id] : 'Unknown';
+                
+                // 💡 FIX: Keep the brackets to append to the list array collection properly
+                $inst_data[] = (array) $inst; 
+            }
+
+            // Merge metadata properties dynamically into response payload
+            $responsePayload = array_merge([
+                'result'       => true,
+                'msg'          => $msg,
+                'affectedIds'  => $instIDs,
+                'inst_data'    => $inst_data,
+                'institutions' => $inst_data 
+            ], $extraData);
+
+            return response()->json($responsePayload, 200);
+
+
+        } catch (\Throwable $e) {
+            \DB::rollBack();
+            return response()->json(['result' => false, 'msg' => 'Server Error: ' . $e->getMessage()], 200);
         }
     }
+
 
     
         /**
@@ -425,7 +517,7 @@ class InstitutionController extends Controller
             $path = $request->file("csvfile")->getRealPath();
             $handle = fopen($path, 'r');
             if (!$handle) {
-                return response()->json(['result' => false, 'msg' => 'Unable to read uploaded file file pointer stream.']);
+                return response()->json(['result' => false, 'msg' => 'Unable to read file stream.']);
             }
 
             $rawHeaders = fgetcsv($handle);
@@ -434,41 +526,14 @@ class InstitutionController extends Controller
                 return trim(preg_replace('/\s+/', ' ', $cleaned));
             }, $rawHeaders);
 
-            // 💡 REFACTOR: Use your app's standard dynamic connection config key
-            $dummy = new \App\Models\Institution();
-            $connectionName = $dummy->getConnectionName() ?: 'consodb';
+            // 💡 Look how clean! The middleware already set the active DB connection globally
+            $groups = \DB::table('institutiongroups')->get();
+            $inst_skipped = 0; $inst_updated = 0; $inst_created = 0;
 
-            // 💡 REFACTOR: Resolve the chosen short key handle from the Vue switcher session track
-            $rawKey = session('ccp_key') ?: (auth()->user()->ccp_key ?: '');
-
-            // 💡 FORCE LOGIC: Overwrite Laravel's runtime config for 'consodb' to dynamically switch to the 'ccplus_aca' schema
-            if (!empty($rawKey) && $rawKey !== 'consodb') {
-                $targetDatabaseSchema = 'ccplus_' . $rawKey;
-                
-                // Disconnect first to safely purge old cache links
-                \DB::disconnect($connectionName);
-                
-                // Update the active configuration array properties on the fly
-                config(["database.connections.{$connectionName}.database" => $targetDatabaseSchema]);
-                
-                // Force reconnect to lock the configuration changes to disk
-                \DB::reconnect($connectionName);
-            }
-
-            // Load groups explicitly via the targeted tenant connection database tables
-            // 💡 FIX: Your schema table name is 'institutiongroups', not 'institution_groups'
-            $groups = \DB::connection($connectionName)->table('institutiongroups')->get();
-
-            $inst_skipped = 0;
-            $inst_updated = 0;
-            $inst_created = 0;
-
-            // Open the transaction strictly on the switched connection string
-            \DB::connection($connectionName)->beginTransaction();
+            \DB::beginTransaction();
 
             while (($row = fgetcsv($handle)) !== false) {
                 if (empty($row) || count($row) < count($headers)) continue;
-
                 $mappedRow = array_combine($headers, array_slice($row, 0, count($headers)));
 
                 $raw_id     = isset($mappedRow['CC+ System ID']) ? trim($mappedRow['CC+ System ID']) : '';
@@ -482,143 +547,65 @@ class InstitutionController extends Controller
                 $targetId = ($raw_id !== '') ? intval($raw_id) : null;
                 $localID  = ($raw_local !== '') ? $raw_local : null;
 
-                // Skip ID 1 if it's protected for System Use
-                if ($targetId === 1) {
-                    $inst_skipped++;
-                    continue;
-                }
-
-                if (!$targetId && !$localID) {
-                    $inst_skipped++;
-                    continue;
-                }
-
-                $_name = $raw_name;
-                if (strlen($_name) < 1) {
-                    $inst_skipped++;
-                    continue;
+                if ($targetId === 1 || (!$targetId && !$localID) || strlen($raw_name) < 1) {
+                    $inst_skipped++; continue;
                 }
 
                 $_active = ($raw_status === 'Inactive' || $raw_status === 'N') ? 0 : 1;
                 $_fte    = ($raw_fte === '') ? null : intval($raw_fte);
                 $_notes  = ($raw_notes === '') ? null : $raw_notes;
 
-                // Query the verified switcher connection table directly
-                $exists = false;
-                if ($targetId) {
-                    $exists = \DB::connection($connectionName)
-                        ->table('institutions')
-                        ->where('id', $targetId)
-                        ->exists();
-                }
+                $exists = $targetId ? \DB::table('institutions')->where('id', $targetId)->exists() : false;
 
                 if ($exists) {
-                    \DB::connection($connectionName)
-                        ->table('institutions')
-                        ->where('id', $targetId)
-                        ->update([
-                            'name'       => $_name,
-                            'is_active'  => $_active,
-                            'local_id'   => $localID,
-                            'fte'        => $_fte,
-                            'notes'      => $_notes,
-                            'updated_at' => now()
-                        ]);
+                    \DB::table('institutions')->where('id', $targetId)->update([
+                        'name' => $raw_name, 'is_active' => $_active, 'local_id' => $localID, 'fte' => $_fte, 'notes' => $_notes, 'updated_at' => now()
+                    ]);
                     $inst_updated++;
                 } else {
                     $insertData = [
-                        'name'       => $_name,
-                        'is_active'  => $_active,
-                        'local_id'   => $localID,
-                        'fte'        => $_fte,
-                        'notes'      => $_notes,
-                        'type_id'    => 1,
-                        'created_at' => now(),
-                        'updated_at' => now()
+                        'name' => $raw_name, 'is_active' => $_active, 'local_id' => $localID, 'fte' => $_fte, 'notes' => $_notes, 'type_id' => 1, 'created_at' => now(), 'updated_at' => now()
                     ];
-                    
-                    if ($targetId) {
-                        $insertData['id'] = $targetId;
-                    }
-                    
-                    \DB::connection($connectionName)->table('institutions')->insert($insertData);
+                    if ($targetId) $insertData['id'] = $targetId;
+                    \DB::table('institutions')->insert($insertData);
                     $inst_created++;
                 }
 
-                // Sync pivot connections securely
                 if ($targetId) {
-                    \DB::connection($connectionName)
-                        ->table('institution_institution_group')
-                        ->where('institution_id', $targetId)
-                        ->delete();
-
+                    \DB::table('institution_institution_group')->where('institution_id', $targetId)->delete();
                     if ($raw_group !== '') {
                         $_group_list = preg_split('/,/', $raw_group);
                         foreach ($_group_list as $csv_value) {
                             $_id = intval(trim($csv_value));
-                            if ($_id > 0) {
-                                $group = $groups->where('id', $_id)->first();
-                                if ($group) {
-                                    \DB::connection($connectionName)
-                                        ->table('institution_institution_group')
-                                        ->insert([
-                                            'institution_id'       => $targetId,
-                                            'institution_group_id' => $_id
-                                        ]);
-                                }
+                            if ($_id > 0 && $groups->where('id', $_id)->first()) {
+                                \DB::table('institution_institution_group')->insert(['institution_id' => $targetId, 'institution_group_id' => $_id]);
                             }
                         }
                     }
                 }
             }
             fclose($handle);
+            \DB::commit();
 
-            // Commit the opened transaction directly to the targeted tenant database
-            \DB::connection($connectionName)->commit();
-
-            // Generate fresh list back to Vue layout grid
             $inst_data = array();
-            $updated_institutions = \DB::connection($connectionName)
-                ->table('institutions')
-                ->orderBy('name', 'ASC')
-                ->get();
-                
+            $updated_institutions = \DB::table('institutions')->orderBy('name', 'ASC')->get();
             foreach ($updated_institutions as $inst) {
-                // Fetch groups for this institution manually over the active tenant connection
-                // 💡 FIX: Adjusted to use your real table name structure 'institutiongroups'
-                $instGroups = \DB::connection($connectionName)
-                    ->table('institution_institution_group')
+                $instGroups = \DB::table('institution_institution_group')
                     ->join('institutiongroups', 'institution_institution_group.institution_group_id', '=', 'institutiongroups.id')
-                    ->where('institution_id', $inst->id)
-                    ->select('institutiongroups.id', 'institutiongroups.name')
-                    ->get();
+                    ->where('institution_id', $inst->id)->select('institutiongroups.id', 'institutiongroups.name')->get();
 
-                $inst->group_string = "";
-                $inst->groups = $instGroups->pluck('id')->all();
+                $inst->group_string = ""; $inst->groups = $instGroups->pluck('id')->all();
                 foreach ($instGroups as $group) {
                     $inst->group_string .= ($inst->group_string == "") ? "" : ", ";
                     $inst->group_string .= $group->name;
                 }
-                
-                // Appends correct data objects to array tracking
-                $inst_data[] = (array) $inst;
+                $inst_data[] = (array) $inst; // Fixed appending array logic safely!
             }
 
-            $msg = "Institution Import successful : {$inst_updated} updated, {$inst_created} added";
-            return response()->json(['result' => true, 'msg' => $msg, 'inst_data' => $inst_data]);
-
+            return response()->json(['result' => true, 'msg' => "Import successful: {$inst_updated} updated, {$inst_created} added", 'inst_data' => $inst_data]);
         } catch (\Throwable $e) {
-            if (isset($connectionName)) {
-                try {
-                    \DB::connection($connectionName)->rollBack();
-                } catch (\Throwable $rollbackError) {
-                    // Silently catch if transaction hadn't initialized yet
-                }
-            }
-            return response()->json([
-                'result' => false,
-                'msg'    => 'Server Error: ' . $e->getMessage()
-            ], 200);
+            \DB::rollBack();
+            return response()->json(['result' => false, 'msg' => 'Server Error: ' . $e->getMessage()]);
         }
     }
 

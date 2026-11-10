@@ -129,16 +129,26 @@ export function useDatasetBulk({
           if (typeof updateItems === 'function') updateItems();
         } 
         
-        else if (data.action === 'Assign Type') {
-          if (resData.affectedIds?.length > 0 && newType.id != null) {
+        else if (data.action === 'Assign Type' || data.action === 'Set Institution Type') {
+          const targetTypeId = newType?.id ?? resData?.newType?.id;
+          const targetTypeName = newType?.name ?? resData?.newType?.name;
+
+          if (resData.affectedIds?.length > 0 && targetTypeId != null) {
             allItems.filter(aitm => resData.affectedIds.includes(aitm.id)).forEach(itm => {
-              itm.type = newType.name;
-              itm.type_id = newType.id;
+              itm.type = targetTypeName;
+              itm.type_id = targetTypeId;
             });
-            typeDialog.value = false;
+            
+            typeDialog.value = false; // Closes dialog panels seamlessly
+            
+            // 💡 FIX: Force Vue's virtual DOM structure tracker to instantly repaint the datatable cells
+            if (dtKey && typeof dtKey.value !== 'undefined') {
+              dtKey.value++;
+            }
           }
-        } 
-        
+        }
+
+
         else if (data.action === 'Restart' || data.action === 'Pause') {
           resData.affectedItems?.forEach(newItem => {
             let idx = allItems.findIndex(ii => ii.id == newItem.id);
