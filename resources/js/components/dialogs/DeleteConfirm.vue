@@ -1,51 +1,50 @@
 <!-- components/dialogs/DeleteConfirm.vue -->
 <script setup>
-  const props = defineProps({
-    dataset: { type: String, required: true },
-    item: { type: Object, required: true },
-  });
-  const emit = defineEmits(['close', 'confirm']);
+import BaseDialogLayout from './BaseDialogLayout.vue';
+
+const props = defineProps({
+  dataset: { type: String, required: true },
+  item: { type: Object, required: true },
+});
+
+defineEmits(['close', 'confirm']);
 </script>
 
 <template>
-  <!-- REMOVED hardcoded width props so it centers horizontally again -->
-  <v-card 
+  <!-- Keep your custom form submit and card-specific style overrides on the layout if needed -->
+  <BaseDialogLayout 
+    content-class="pt-6 pb-2 text-center text-sm-left"
     elevation="3" 
     style="--v-shadow-color: var(--v-theme-info);"
+    @close="$emit('close')"
   >
+    <!-- Header Title Slot -->
+    <template #title>
+      Confirm Delete
+    </template>
+
+    <!-- Content Slot (Wrapped in form for native submission) -->
     <v-form @submit.prevent="$emit('confirm')">
+      <div v-if="props.dataset === 'connections'" class="text-subtitle-1 mb-4">
+        You are about to delete <strong class="text-error text-uppercase">all connections</strong> to <strong>{{ item.platform }}</strong>
+      </div>
+      <div v-else class="text-subtitle-1 mb-4">
+        You are about to delete <strong>{{ item.name }}</strong> from <strong>{{ props.dataset }}</strong>
+      </div>
+
+      <h3 class="text-h6 font-weight-bold mb-4">Are you sure?</h3>
       
-      <!-- Unified header layout -->
-      <v-card-item class="bg-primary rounded-t pa-3" title="Confirm Delete">
-        <template #append>
-          <v-btn 
-            icon="mdi-close" 
-            variant="text" 
-            color="white" 
-            density="comfortable" 
-            @click="$emit('close')" 
-          />
-        </template>
-      </v-card-item>
+      <!-- Hidden submit button so hitting 'Enter' inside the form still triggers submit -->
+      <button type="submit" class="d-none" aria-hidden="true"></button>
+    </v-form>
 
-      <!-- Dialog Confirmation Content -->
-      <v-card-text class="pt-6 pb-2 text-center text-sm-left">
-        <div v-if="props.dataset == 'connections'" class="text-subtitle-1 mb-4">
-          You are about to delete <strong class="text-error text-uppercase">all connections</strong> to <strong>{{ item.platform }}</strong>
-        </div>
-        <div v-else class="text-subtitle-1 mb-4">
-          You are about to delete <strong>{{ item.name }}</strong> from <strong>{{ props.dataset }}</strong>
-        </div>
-
-        <h3 class="text-h6 font-weight-bold mb-4">Are you sure?</h3>
-      </v-card-text>
-
-      <!-- Action Buttons Row -->
-      <v-card-actions class="px-6 pb-6 justify-start">
+    <!-- Footer Actions Slot -->
+    <template #actions>
+      <div class="px-4 pb-4 w-100 d-flex justify-start">
         <v-btn 
-          type="submit"
           color="error" 
           variant="flat"
+          @click="$emit('confirm')"
         >
           Yes, Delete it
         </v-btn>
@@ -56,8 +55,7 @@
         >
           Cancel
         </v-btn>
-      </v-card-actions>
-      
-    </v-form>
-  </v-card>
+      </div>
+    </template>
+  </BaseDialogLayout>
 </template>
