@@ -32,7 +32,7 @@ const rawTableSetup = {
       urlRoot: '/api/institutions', title: 'Institution',
       fields: [
         // 1. SYSTEM KEYS (Turn off searchable explicitly here)
-        { name: 'id',           label: 'CC+ System ID',             type: 'number',   header: null, editable: false, searchable: false },
+        { name: 'id',           label: 'CC+ System ID',             type: 'number',   header: null,  searchable: false },
         { name: 'status',       label: 'Status',                    type: 'toggle',   options: 'fromURL', addValue: 'Active', header: 'center', searchable: false },
 
         // 2. PRIMARY TEXT DESCRIPTORS (Super clean: implicitly searchable!)
@@ -42,7 +42,7 @@ const rawTableSetup = {
 
         // 3. COMPLEX RELATIONAL PIPELINES
         { name: 'group_string', label: 'Groups',                                      editable: false },
-        { name: 'group_ids',    label: 'Group Assigmnent(s)',       type: 'array',    header: null, editable: false, searchable: false },
+        { name: 'group_ids',    label: 'Group Assignment(s)',       type: 'array',    header: null, searchable: false },
         { name: 'groups',       label: 'Groups',                    type: 'mselect',  options: 'fromURL', optVal: 'id', optTxt: 'name', isFilter: true, filterCol: 'group_ids', header: null, searchable: false },
         
         { name: 'type',         label: 'Institution Type',          type: 'select',   options: 'fromURL', optVal: 'id', optTxt: 'name', isFilter: true, filterCol: 'type_id' },
