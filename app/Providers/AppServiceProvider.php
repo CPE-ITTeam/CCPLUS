@@ -27,7 +27,6 @@ class AppServiceProvider extends ServiceProvider
      */
     public function boot()
     {
-
         Vite::prefetch(concurrency: 3);
         if ($this->app->environment() !== 'local') {
             $this->app['request']->server->set('HTTPS', true);
@@ -35,6 +34,11 @@ class AppServiceProvider extends ServiceProvider
 
         // set default string length
         Schema::defaultStringLength(191);
+
+        // Tell Laravel to only discover migrations meant for the global system database
+        $this->loadMigrationsFrom([
+            database_path('migrations/global'),
+        ]);
 
         /**
          * Paginate a standard Laravel Collection.
