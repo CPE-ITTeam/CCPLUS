@@ -1,7 +1,7 @@
 // resources/js/config/dataTableConfig.js
 
 // ─────────────────────────────────────────────────────────────────────────
-// STEP 1: THE DEFAULTS DEFINITION (Add this to the absolute top of the file)
+// STEP 1: THE DEFAULTS DEFINITION (Add cols: 12 to the map)
 // ─────────────────────────────────────────────────────────────────────────
 const FIELD_DEFAULTS = {
   type: 'text',
@@ -10,8 +10,22 @@ const FIELD_DEFAULTS = {
   searchable: true,
   icon: '',
   helperText: '',
-  options: null
+  options: null,
+  cols: 12 // 🌟 DEFAULT: Every field is full-width unless overridden in your configs
 };
+
+// ─────────────────────────────────────────────────────────────────────────
+// STEP 2: THE SCHEMA MERGE HELPER (Add this helper below the defaults)
+// ─────────────────────────────────────────────────────────────────────────
+/**
+ * Maps field configs against core defaults to enforce baseline safety layout rules.
+ * @param {Array} fields 
+ * @return {Array}
+ */
+const defineFields = (fields) => {
+  return fields.map(field => ({ ...FIELD_DEFAULTS, ...field }));
+};
+
 
 // ─────────────────────────────────────────────────────────────────────────
 // STEP 2: YOUR CURRENT DATASETS INDEX MAP
@@ -36,18 +50,17 @@ const rawTableSetup = {
         { name: 'status',       label: 'Status',                    type: 'toggle',   options: 'fromURL', addValue: 'Active', header: 'center', searchable: false },
 
         // 2. PRIMARY TEXT DESCRIPTORS (Super clean: implicitly searchable!)
-        { name: 'name',         label: 'Institution Name' },
-        { name: 'local_id',     label: 'Local ID',                                    header: null },
-        { name: 'role',         label: 'Role',                                        editable: false },
+        { name: 'name',         label: 'Institution', cols: 8},
+        { name: 'local_id',     label: 'Local ID',         cols: 4,                           header: null },
 
         // 3. COMPLEX RELATIONAL PIPELINES
+        { name: 'type',         label: 'Type',                      type: 'select',   options: 'fromURL', optVal: 'id', optTxt: 'name', isFilter: true, filterCol: 'type_id' },
+        { name: 'type_id',      label: 'Type ID',                   type: 'number',   header: null, editable: false, searchable: false },
+
         { name: 'group_string', label: 'Groups',                                      editable: false },
         { name: 'group_ids',    label: 'Group Assignment(s)',       type: 'array',    header: null, searchable: false },
         { name: 'groups',       label: 'Groups',                    type: 'mselect',  options: 'fromURL', optVal: 'id', optTxt: 'name', isFilter: true, filterCol: 'group_ids', header: null, searchable: false },
         
-        { name: 'type',         label: 'Institution Type',          type: 'select',   options: 'fromURL', optVal: 'id', optTxt: 'name', isFilter: true, filterCol: 'type_id' },
-        { name: 'type_id',      label: 'Type ID',                   type: 'number',   header: null, editable: false, searchable: false },
-
         // 4. METRICS, TEXTAREAS & OPT-INS
         { name: 'fte',          label: 'FTE',                       type: 'number',   header: null, searchable: false },
         { name: 'notes',        label: 'Notes',                     type: 'textarea', header: null },
@@ -106,7 +119,7 @@ const rawTableSetup = {
 
         // 2. INSTITUTIONAL LINK RELATIONSHIPS
         { name: 'institution.name', label: 'Home Institution',                                                      editable: false },
-        { name: 'institutions',     label: 'Institution',         type: 'select',   options: 'fromURL', optVal: 'id', optTxt: 'name', isFilter: true, filterCol: 'inst_id', header: null, searchable: false },
+        { name: 'institutions',     label: 'Home Institution',         type: 'select',   options: 'fromURL', optVal: 'id', optTxt: 'name', isFilter: true, filterCol: 'inst_id', header: null, searchable: false },
         { name: 'inst_id',          label: 'Institution ID',      type: 'number',   header: null, editable: false, searchable: false },
 
         // 3. SECURE AUTH & OPERATING PARAMETERS
@@ -393,8 +406,8 @@ const rawTableSetup = {
 
       fields: [
         { name: 'status',      label: 'Status',         options: 'fromURL', header: 'center', searchable: false },
-        { name: 'name',        label: 'Consortium Name' },
-        { name: 'ccp_key',     label: 'Database Key' },
+        { name: 'name',        label: 'Consortium Name', cols: 9 },
+        { name: 'ccp_key',     label: 'Database Key', cols: 3 },
         { name: 'admin_name',  label: 'Admin Contact' },
         { name: 'email',       label: 'Email Address' }, // Aligned to your controller rule
 

@@ -40,13 +40,35 @@ const showActions = computed(() => {
 // 1. Your Computed Headers (Guarantees unique key mapping)
 // ==========================================
 const computedHeaders = computed(() => {
-  let rawHeaders = props.headers.filter(h => h.key !== 'data-table-select' && h.name !== 'data-table-select');
+  let rawHeaders = props.headers.filter(h => {
+    const keyName = h.key || h.name;
+    
+    // 🌟 RULE 1: Standard internal Vuetify filter rules
+    if (keyName === 'data-table-select' || keyName === 'id') {
+      return false;
+    }
+    
+    // 🌟 RULE 2: If a column layout has no visible characters or explicit hidden indicators, DROP IT!
+    if (h.header === null || h.headerProps?.header === null) {
+      return false;
+    }
+    
+    // 🌟 RULE 3: Strict title presence check (wipes out hidden properties like is_selected)
+    const titleText = h.title || h.label || '';
+    if (titleText.trim() === '') {
+      return false;
+    }
+
+    return true;
+  });
 
   const hdrs = rawHeaders.map(header => {
-    const isCentered = header.align === 'center';
+    const isCentered = header.align === 'center' || header.header === 'center';
     return {
-      ...header,            // 💡 1. THIS IS MANDATORY - Copies 'type: "date"' from your matrix config
-      key: header.key || header.name, // 💡 2. THIS IS MANDATORY - Bridges name to key
+      ...header, 
+      key: header.key || header.name, 
+      title: header.title || header.label, // Enforces backward compatibility bridges
+      align: isCentered ? 'center' : (header.align || 'start'),
       headerProps: {
         class: isCentered
           ? 'font-weight-bold bg-info text-white ps-10'
@@ -66,6 +88,7 @@ const computedHeaders = computed(() => {
 
   return hdrs;
 });
+
 
 // ==========================================
 // 2. Your Date Formatting Helper 
