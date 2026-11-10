@@ -211,16 +211,15 @@ onMounted(() => {
 </script>
 
 
-
 <template>
   <div>
     <v-form v-if="m_schema.fields.length" ref="formRef" @submit.prevent="submitForm">
       
-      <!-- 💡 FIXED: Replaced flex column div with a responsive Vuetify Row Grid layout -->
-      <v-row class="ma-0 pa-0">
+      <!-- 🌟 FIXED GUTTER BLOCKS via ma-n2 pa-0 -->
+      <v-row class="ma-n2 pa-0">
 
         <!-- Header Info Row (ID Box) Layout -->
-        <v-col v-if="typeof (formValues['id']) !== 'undefined'" cols="12" class="d-flex justify-end align-center px-1 mb-2">
+        <v-col v-if="typeof (formValues['id']) !== 'undefined'" cols="12" class="d-flex justify-end align-center px-2 mb-2">
           <v-chip size="small" variant="tonal" class="text-caption">
             <v-icon start size="small">mdi-web</v-icon>
             ID: {{ formValues['id'] }}
@@ -230,15 +229,16 @@ onMounted(() => {
         <!-- Dynamic Form Fields Loop -->
         <template v-for="field in m_schema.fields" :key="field.name">
           
-          <!-- 💡 FORCE LINE BREAK: Steps down a row cleanly if requested by your schema configs -->
+          <!-- FORCE LINE BREAK: Steps down a row cleanly if requested by your schema configs -->
           <v-col v-if="field.breakBefore" cols="12" class="pa-0" />
 
-          <!-- 💡 SMART FALLBACK: Kept your conditional logic 100% untouched, but wrapped items inside a layout grid column -->
+          <!-- SMART FALLBACK: Handles responsive sm-breakpoint wrapping cleanly -->
           <v-col 
             v-if="field.visible && (!field.static && (
               (opType == 'Edit' && (field.editable || !field.isFilter)) ||
               (opType == 'Add' && m_schema.requiredKeys.includes(field.name))))"
-            :cols="field.cols || 12"
+            cols="12"
+            :sm="field.cols || 12"
             class="px-2 py-1"
           >
             <!-- Read-only text mode styling with inline un-wrapping guard logic -->
@@ -261,7 +261,7 @@ onMounted(() => {
             </div>
 
             <!-- ToggleIcon inputs layout -->
-            <div v-else-if="isToggleField(field)" class="d-flex align-center py-1">
+            <div v-else-if="isToggleField(field)" class="d-flex align-center h-100 py-1">
               <strong class="mr-2">{{ field.label }} : </strong>
               <ToggleIcon v-model="formValues[field.name]" :toggleable="isToggleEditable(formValues[field.name])"
                 :size="36" @update:modelValue="toggleChanged(field.name)" />
@@ -271,41 +271,41 @@ onMounted(() => {
             <v-text-field v-else-if="field.type === 'password'" v-model="formValues[field.name]" :label="field.label"
               :type="pw_show ? 'text' : 'password'" :append-inner-icon="pw_show ? 'mdi-eye' : 'mdi-eye-off'"
               @click:append-inner="pw_show = !pw_show" :hint="field.helperText" 
-              :rules="field.required ? [requiredRule] : []" density="compact" error-messages="" />
+              :rules="field.required ? [requiredRule] : []" density="compact" error-messages="" variant="outlined" hide-details="auto" />
 
             <v-text-field v-else-if="field.type === 'passconf' && showConfirm" v-model="formValues[field.name]"
               :label="field.label" :hint="field.helperText" :type="pwc_show ? 'text' : 'password'"
               :append-inner-icon="pwc_show ? 'mdi-eye' : 'mdi-eye-off'" @click:append-inner="pwc_show = !pwc_show"
-              :rules="field.required ? [requiredRule] : []" density="compact" error-messages="" />
+              :rules="field.required ? [requiredRule] : []" density="compact" error-messages="" variant="outlined" hide-details="auto" />
 
             <!-- Textareas -->
             <v-textarea v-else-if="field.type === 'textarea'" v-model="formValues[field.name]" :label="field.label"
               :rules="field.required ? [requiredRule] : []" :prepend-inner-icon="field.icon"
-              :hint="field.helperText" density="compact" error-messages="" />
+              :hint="field.helperText" density="compact" error-messages="" variant="outlined" hide-details="auto" />
 
             <!-- Standard Select Fields -->
             <v-select v-else-if="field.type === 'select'" v-model="formValues[field.name]" :label="field.label"
               :items="m_schema.options[field.name]" :item-title="field.optTxt" :item-value="field.optVal"
               :prepend-inner-icon="field.icon" :hint="field.helperText" 
               :rules="field.required ? [requiredRule] : []" density="compact"
-              @update:modelValue="selectChanged(field.name)" error-messages="" />
+              @update:modelValue="selectChanged(field.name)" error-messages="" variant="outlined" hide-details="auto" />
 
             <!-- Rich Object Select Strings -->
             <v-select v-else-if="field.type === 'selectObj'" v-model="formValues[field.name]" :label="field.label"
               :items="m_schema.options[field.name]" :item-title="field.optTxt" :item-value="field.optVal"
               :prepend-inner-icon="field.icon" :hint="field.helperText" 
-              return-object :rules="field.required ? [requiredRule] : []" density="compact" error-messages="" />
+              return-object :rules="field.required ? [requiredRule] : []" density="compact" error-messages="" variant="outlined" hide-details="auto" />
 
             <!-- Token Tag Selectors -->
             <v-combobox v-else-if="field.type === 'mselect'" v-model="formValues[field.name]" :label="field.label"
               :items="m_schema.options[field.name]" :item-title="field.optTxt" :item-value="field.optVal"
               :prepend-inner-icon="field.icon" :hint="field.helperText" multiple 
-              :rules="field.required ? [requiredRule] : []" density="compact" error-messages="" />
+              :rules="field.required ? [requiredRule] : []" density="compact" error-messages="" variant="outlined" hide-details="auto" />
 
             <!-- Universal Fallback text inputs -->
             <v-text-field v-else-if="field.type != 'passconf'" v-model="formValues[field.name]" :label="field.label"
               :prepend-inner-icon="field.icon" :hint="field.helperText" 
-              density="compact" :rules="field.required ? [requiredRule] : []" error-messages="" />
+              density="compact" :rules="field.required ? [requiredRule] : []" error-messages="" variant="outlined" hide-details="auto" />
           </v-col>
 
           <!-- Group Switch Configuration Block -->
@@ -314,7 +314,7 @@ onMounted(() => {
             cols="12"
             class="px-2 py-1"
           >
-            <v-switch v-model="formValues['reset_type']" label="Clear Restriction" color="primary" density="compact" />
+            <v-switch v-model="formValues['reset_type']" label="Clear Restriction" color="primary" density="compact" hide-details="auto" />
           </v-col>
         </template>
 
