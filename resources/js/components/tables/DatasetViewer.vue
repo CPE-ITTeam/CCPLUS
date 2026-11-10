@@ -393,11 +393,26 @@ async function handleChangeConso(conso) {
   emit('updateConso', conso);
   dtKey.value++;
 }
+// 💡 FIXED: Make the hook async so we await the data reload before incrementing the DOM key
+async function handleImported(data) {
+  if (data && data.length > 0) {
+    success.value = data;
+  }
+  
+  // 1. Clear any stale row checkbox selection states from the last view state
+  selectedRows.value = [];
 
-function handleImported(data) {
-  if (data.length > 0) success.value = data;
-  loadDataset(props.datasetKey);
-  dtKey.value++;
+  try {
+    // 2. Await the data reload completely so the reactive array updates first
+    if (typeof loadDataset === 'function') {
+      await loadDataset(props.datasetKey);
+    }
+  } catch (err) {
+    console.error("Dataset re-sync failed after import:", err);
+  } finally {
+    // 3. Increment the key AFTER the array has been replaced, forcing a clean, sequential Virtual DOM paint
+    dtKey.value++;
+  }
 }
 
 function handleEdit(item) {

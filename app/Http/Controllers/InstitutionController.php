@@ -405,7 +405,8 @@ class InstitutionController extends Controller
         }
     }
 
-    /**
+    
+        /**
      * Import institutions (including credentials) from a CSV file to the database.
      *
      * @param  \Illuminate\Http\Request  $request
@@ -413,164 +414,216 @@ class InstitutionController extends Controller
      */
     public function import(Request $request)
     {
-        // Only Admins can import institution data
-        abort_unless(auth()->user()->hasRole('Admin'), 403);
-
-        // Handle and validate inputs
-        $this->validate($request, ['csvfile' => 'required']);
-        if (!$request->hasFile('csvfile')) {
-            return response()->json(['result' => false, 'msg' => 'Error accessing CSV import file']);
-        }
-
-        // Get the CSV data
-        $file = $request->file("csvfile")->getRealPath();
-        $csvData = file_get_contents($file);
-        $rows = array_map("str_getcsv", explode("\n", $csvData));
-        if (sizeof($rows) < 1) {
-            return response()->json(['result' => false, 'msg' => 'Import file is empty, no changes applied.']);
-        }
-
-        // Get existing institution and inst-groups data
-        $institutions = Institution::get();
-        $groups = InstitutionGroup::get();
-
-        // Process the input rows
-        $inst_skipped = 0;
-        $inst_updated = 0;
-        $inst_created = 0;
-        $seen_insts = array();          // keep track of institutions seen while looping
-        foreach ($rows as $rowNum => $row) {
-            // Ignore header row and rows with bad/missing/invalid IDs
-            if ($rowNum == 0 || !isset($row[0]) && !isset($row[1])) continue;
-
-            // Look for a matching existing institution based on ID or local-ID
-            $current_inst = null;
-            $cur_inst_id = (isset($row[0])) ? strval(trim($row[0])) : null;
-            $localID = (strlen(trim($row[1])) > 0) ? trim($row[1]) : null;
-
-            // empty/missing/invalid ID and no localID?  skip the row
-            if (!$localID && ($row[0] == "" || !is_numeric($row[0]))) {
-                $inst_skipped++;
-                continue;
+        try {
+            abort_unless(auth()->user()->hasRole('Admin'), 403);
+            $this->validate($request, ['csvfile' => 'required']);
+            
+            if (!$request->hasFile('csvfile')) {
+                return response()->json(['result' => false, 'msg' => 'Error accessing CSV import file']);
             }
 
-            // Set current_inst based on system-ID (column-0) or local-ID in column-1
-            // column-0 takes precedence over column-1
-            if ($cur_inst_id) {
-                $current_inst = $institutions->where("id", $cur_inst_id)->first();
-            }
-            if (!$current_inst && $localID) {
-                $current_inst = $institutions->where("local_id", $localID)->first();
+            $path = $request->file("csvfile")->getRealPath();
+            $handle = fopen($path, 'r');
+            if (!$handle) {
+                return response()->json(['result' => false, 'msg' => 'Unable to read uploaded file file pointer stream.']);
             }
 
-            // Confirm name and check for conflicts against existing records
-            $_name = trim($row[2]);
-            if ($current_inst) {      // found existing ID
-                // If we already processed this inst, skip doing it again
-                if (in_array($current_inst->id, $seen_insts)) {
+            $rawHeaders = fgetcsv($handle);
+            $headers = array_map(function($header) {
+                $cleaned = preg_replace('/^[\x{FEFF}\x{200B}]+/u', '', $header);
+                return trim(preg_replace('/\s+/', ' ', $cleaned));
+            }, $rawHeaders);
+
+            // 💡 REFACTOR: Use your app's standard dynamic connection config key
+            $dummy = new \App\Models\Institution();
+            $connectionName = $dummy->getConnectionName() ?: 'consodb';
+
+            // 💡 REFACTOR: Resolve the chosen short key handle from the Vue switcher session track
+            $rawKey = session('ccp_key') ?: (auth()->user()->ccp_key ?: '');
+
+            // 💡 FORCE LOGIC: Overwrite Laravel's runtime config for 'consodb' to dynamically switch to the 'ccplus_aca' schema
+            if (!empty($rawKey) && $rawKey !== 'consodb') {
+                $targetDatabaseSchema = 'ccplus_' . $rawKey;
+                
+                // Disconnect first to safely purge old cache links
+                \DB::disconnect($connectionName);
+                
+                // Update the active configuration array properties on the fly
+                config(["database.connections.{$connectionName}.database" => $targetDatabaseSchema]);
+                
+                // Force reconnect to lock the configuration changes to disk
+                \DB::reconnect($connectionName);
+            }
+
+            // Load groups explicitly via the targeted tenant connection database tables
+            // 💡 FIX: Your schema table name is 'institutiongroups', not 'institution_groups'
+            $groups = \DB::connection($connectionName)->table('institutiongroups')->get();
+
+            $inst_skipped = 0;
+            $inst_updated = 0;
+            $inst_created = 0;
+
+            // Open the transaction strictly on the switched connection string
+            \DB::connection($connectionName)->beginTransaction();
+
+            while (($row = fgetcsv($handle)) !== false) {
+                if (empty($row) || count($row) < count($headers)) continue;
+
+                $mappedRow = array_combine($headers, array_slice($row, 0, count($headers)));
+
+                $raw_id     = isset($mappedRow['CC+ System ID']) ? trim($mappedRow['CC+ System ID']) : '';
+                $raw_local  = isset($mappedRow['Local ID']) ? trim($mappedRow['Local ID']) : '';
+                $raw_name   = isset($mappedRow['Institution Name']) ? trim($mappedRow['Institution Name']) : '';
+                $raw_status = isset($mappedRow['Status']) ? trim($mappedRow['Status']) : '';
+                $raw_fte    = isset($mappedRow['FTE']) ? trim($mappedRow['FTE']) : '';
+                $raw_group  = isset($mappedRow['Group Assignment(s)']) ? trim($mappedRow['Group Assignment(s)']) : '';
+                $raw_notes  = isset($mappedRow['Notes']) ? trim($mappedRow['Notes']) : '';
+
+                $targetId = ($raw_id !== '') ? intval($raw_id) : null;
+                $localID  = ($raw_local !== '') ? $raw_local : null;
+
+                // Skip ID 1 if it's protected for System Use
+                if ($targetId === 1) {
                     $inst_skipped++;
                     continue;
                 }
-                // If import-name empty, use current value
+
+                if (!$targetId && !$localID) {
+                    $inst_skipped++;
+                    continue;
+                }
+
+                $_name = $raw_name;
                 if (strlen($_name) < 1) {
-                    $_name = trim($current_inst->name);
+                    $inst_skipped++;
+                    continue;
                 }
-                // Override name change if new-name already assigned to another inst
-                if ($current_inst->name != $_name) {
-                    $existing_inst = $institutions->where("name", $_name)->first();
-                    if ($existing_inst) {
-                        $_name = trim($current_inst->name);
+
+                $_active = ($raw_status === 'Inactive' || $raw_status === 'N') ? 0 : 1;
+                $_fte    = ($raw_fte === '') ? null : intval($raw_fte);
+                $_notes  = ($raw_notes === '') ? null : $raw_notes;
+
+                // Query the verified switcher connection table directly
+                $exists = false;
+                if ($targetId) {
+                    $exists = \DB::connection($connectionName)
+                        ->table('institutions')
+                        ->where('id', $targetId)
+                        ->exists();
+                }
+
+                if ($exists) {
+                    \DB::connection($connectionName)
+                        ->table('institutions')
+                        ->where('id', $targetId)
+                        ->update([
+                            'name'       => $_name,
+                            'is_active'  => $_active,
+                            'local_id'   => $localID,
+                            'fte'        => $_fte,
+                            'notes'      => $_notes,
+                            'updated_at' => now()
+                        ]);
+                    $inst_updated++;
+                } else {
+                    $insertData = [
+                        'name'       => $_name,
+                        'is_active'  => $_active,
+                        'local_id'   => $localID,
+                        'fte'        => $_fte,
+                        'notes'      => $_notes,
+                        'type_id'    => 1,
+                        'created_at' => now(),
+                        'updated_at' => now()
+                    ];
+                    
+                    if ($targetId) {
+                        $insertData['id'] = $targetId;
                     }
+                    
+                    \DB::connection($connectionName)->table('institutions')->insert($insertData);
+                    $inst_created++;
                 }
-                // Override localID change if new-localID already assigned to another inst
-                if ($current_inst->local_id != $localID && strlen($localID) > 0) {
-                    $existing_inst = $institutions->where("local_id", $localID)->first();
-                    if ($existing_inst) {
-                        $localID = trim($current_inst->local_id);
-                    }
-                }
-            // If we get here and current_inst is still null, it is PROBABLY a NEW record .. but
-            // if an exact-match on institution name is found, USE IT instead of inserting
-            } else {           // existing ID not found, try to find by name
-                $current_inst = $institutions->where("name", $_name)->first();
-                if ($current_inst) {
-                    $_name = trim($current_inst->name);
-                }
-            }
 
-            // Dont store/create anything if name is still empty
-            if (strlen($_name) < 1) {
-                $inst_skipped++;
-                continue;
-            }
+                // Sync pivot connections securely
+                if ($targetId) {
+                    \DB::connection($connectionName)
+                        ->table('institution_institution_group')
+                        ->where('institution_id', $targetId)
+                        ->delete();
 
-            // Enforce defaults and put institution data columns into an array
-            $_active = ($row[3] == 'N') ? 0 : 1;
-            $_fte = ($row[4] == '') ? null : $row[4];
-            $_notes = ($row[6] == '') ? null : $row[6];
-            $_inst = array('name' => $_name, 'is_active' => $_active,  'local_id' => $localID,
-                           'fte' => $_fte, 'notes' => $_notes);
-
-            // Update or create the Institution record
-            if (!$current_inst) {      // Create
-                // input row had explicit ID? If so, assign it, otherwise, omit from create input array
-                if ($row[0] != "" && is_numeric($row[0])) {
-                    $_inst['id'] = $row[0];
-                }
-                $current_inst = Institution::create($_inst);
-                $institutions->push($current_inst);
-                $inst_created++;
-            } else {                            // Update
-                $_inst['id'] = $current_inst->id;
-                $current_inst->update($_inst);
-                $inst_updated++;
-            }
-
-            // Clear and reset group membership(s)
-            $current_inst->institutionGroups()->detach();
-            $_group_list = preg_split('/,/', $row[5]);
-            if (sizeof($_group_list) > 0) {
-                foreach ($_group_list as $csv_value) {
-                    $_id = intval(trim($csv_value));
-                    if (is_numeric($_id)) {
-                        $group = $groups->where('id',$_id)->first();
-                        if ($group) {
-                            $current_inst->institutionGroups()->attach($_id);
+                    if ($raw_group !== '') {
+                        $_group_list = preg_split('/,/', $raw_group);
+                        foreach ($_group_list as $csv_value) {
+                            $_id = intval(trim($csv_value));
+                            if ($_id > 0) {
+                                $group = $groups->where('id', $_id)->first();
+                                if ($group) {
+                                    \DB::connection($connectionName)
+                                        ->table('institution_institution_group')
+                                        ->insert([
+                                            'institution_id'       => $targetId,
+                                            'institution_group_id' => $_id
+                                        ]);
+                                }
+                            }
                         }
                     }
                 }
             }
+            fclose($handle);
 
-            $seen_insts[] = $current_inst->id;
-        }
+            // Commit the opened transaction directly to the targeted tenant database
+            \DB::connection($connectionName)->commit();
 
-        // Recreate the institutions list (like index does) to be returned to the caller
-        $inst_data = array();
-        $institutions = Institution::with('institutionGroups')->orderBy('name', 'ASC')
-                                   ->get(['id','name','local_id','is_active']);
-        foreach ($institutions as $inst) {
-            $inst->group_string = "";
-            $inst->groups = $inst->institutionGroups()->pluck('institution_group_id')->all();
-            foreach ($inst->institutionGroups as $group) {
-                $inst->group_string .= ($inst->group_string == "") ? "" : ", ";
-                $inst->group_string .= $group->name;
+            // Generate fresh list back to Vue layout grid
+            $inst_data = array();
+            $updated_institutions = \DB::connection($connectionName)
+                ->table('institutions')
+                ->orderBy('name', 'ASC')
+                ->get();
+                
+            foreach ($updated_institutions as $inst) {
+                // Fetch groups for this institution manually over the active tenant connection
+                // 💡 FIX: Adjusted to use your real table name structure 'institutiongroups'
+                $instGroups = \DB::connection($connectionName)
+                    ->table('institution_institution_group')
+                    ->join('institutiongroups', 'institution_institution_group.institution_group_id', '=', 'institutiongroups.id')
+                    ->where('institution_id', $inst->id)
+                    ->select('institutiongroups.id', 'institutiongroups.name')
+                    ->get();
+
+                $inst->group_string = "";
+                $inst->groups = $instGroups->pluck('id')->all();
+                foreach ($instGroups as $group) {
+                    $inst->group_string .= ($inst->group_string == "") ? "" : ", ";
+                    $inst->group_string .= $group->name;
+                }
+                
+                // Appends correct data objects to array tracking
+                $inst_data[] = (array) $inst;
             }
-            $inst_data[] = $inst->toArray();
-        }
 
-        // return the current full list of groups with a success message
-        $i_msg = "";
-        $i_msg .= ($inst_updated > 0) ? $inst_updated . " updated" : "";
-        if ($inst_created > 0) {
-            $i_msg .= ($i_msg != "") ? ", " . $inst_created . " added" : $inst_created . " added";
-        }
-        if ($inst_skipped > 0) {
-            $i_msg .= ($i_msg != "") ? ", " . $inst_skipped . " skipped" : $inst_skipped . " skipped";
-        }
-        $msg  = 'Institution Import successful : ' . $i_msg;
+            $msg = "Institution Import successful : {$inst_updated} updated, {$inst_created} added";
+            return response()->json(['result' => true, 'msg' => $msg, 'inst_data' => $inst_data]);
 
-        return response()->json(['result' => true, 'msg' => $msg, 'inst_data' => $inst_data]);
+        } catch (\Throwable $e) {
+            if (isset($connectionName)) {
+                try {
+                    \DB::connection($connectionName)->rollBack();
+                } catch (\Throwable $rollbackError) {
+                    // Silently catch if transaction hadn't initialized yet
+                }
+            }
+            return response()->json([
+                'result' => false,
+                'msg'    => 'Server Error: ' . $e->getMessage()
+            ], 200);
+        }
     }
+
+
+
 
     /**
      * Update credentials when an institution is_active setting is changed
