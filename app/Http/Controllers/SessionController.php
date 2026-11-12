@@ -3,7 +3,7 @@
 namespace App\Http\Controllers;
 use Illuminate\Http\Request;
 
-class SessionController extends Controller
+class SessionController extends BaseController
 {
     /* Accept one/more key-value pairs and set in the session
      *

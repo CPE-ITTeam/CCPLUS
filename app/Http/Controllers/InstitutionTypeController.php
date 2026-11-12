@@ -2,257 +2,209 @@
 
 namespace App\Http\Controllers;
 
-use App\Models\InstitutionType;
 use App\Models\Institution;
+use App\Models\InstitutionType;
+use Illuminate\Database\Eloquent\Model;
 use Illuminate\Http\Request;
-use PhpOffice\PhpSpreadsheet\Spreadsheet;
-use PhpOffice\PhpSpreadsheet\Writer\Xlsx;
 
-class InstitutionTypeController extends Controller
+class InstitutionTypeController extends BaseController
 {
-      /**
-       * Display a listing of the resource.
-       *
-       * @return \Illuminate\Http\Response
-       */
+    protected string $modelClass = InstitutionType::class;
+    protected string $modelLabel = 'Institution type';
+
+    /**
+     * Display a listing of the resource.
+     */
     public function index(Request $request)
     {
-        $thisUser = auth()->user();
-        $consoAdmin = $thisUser->isConsoAdmin();
+        $consoAdmin = auth()->user()->isConsoAdmin();
 
-        $data = InstitutionType::with(['institutions:id,name,type_id'])->orderBy('name', 'ASC')->get();
-        $types = $data->map(function ($type) use ($consoAdmin) {
-            return [
-                'id' => $type->id, 'name' => $type->name, 'can_edit' => ($type->id >1 && $consoAdmin),
-                'can_delete' => ( $type->id>1 && $consoAdmin && $type->institutions->count() == 0 ),
-                'institutions' => $type->institutions->toArray()
-            ];
-        });
+        $data = InstitutionType::with(['institutions:id,name,type_id'])
+            ->orderBy('name', 'ASC')
+            ->get();
+
+        $types = $data->map(fn($type) => $this->formatRecord($type, $consoAdmin));
+
         return response()->json(['records' => $types], 200);
     }
 
-      /**
-       * Show the form for creating a new resource.
-       *
-       * @return \Illuminate\Http\Response
-       */
-    public function create()
-    {
-        // return view('institutiontypes.create');
-    }
-
-      /**
-       * Store a newly created resource in storage.
-       *
-       * @param  \Illuminate\Http\Request  $request
-       * @return \Illuminate\Http\Response
-       */
+    /**
+     * Store a newly created resource in storage.
+     */
     public function store(Request $request)
     {
-        $thisUser = auth()->user();
-        if (!$thisUser->isConsoAdmin()) {
-            return response()->json(['result' => false, 'msg' => 'Not Authorized']);
+        if (!auth()->user()->isConsoAdmin()) {
+            return $this->respondError('Not Authorized');
         }
 
-        $test = InstitutionType::where('name', '=', $request->input('name'))->first();
-        if ($test) {
-            return response()->json(['result' => false, 'msg' => 'An existing type with that name already exists']);
-        }
-        $type = InstitutionType::create(['name' => $request->input('name')]);
-        $data = array('id' => $type->id, 'name' => $type->name, 'can_edit' => true, 'can_delete' => true,
-                      'institutions' => array() );
-
-        return response()->json(['result' => true, 'msg' => 'New institution type successfully created',
-                                 'record' => $data]);
-    }
-
-    /**
-     * Display the specified resource.
-     *
-     * @param  int  $id
-     * @return \Illuminate\Http\Response
-     */
-    public function show($id)
-    {
-        // $type = InstitutionType::findOrFail($id);
-        // return view('institutiontypes.edit', compact('type'));
-    }
-
-    /**
-     * Show the form for editing the specified resource.
-     *
-     * @param  int  $id
-     * @return \Illuminate\Http\Response
-     */
-    public function edit($id)
-    {
-        // $type = InstitutionType::findOrFail($id);
-        // return view('institutiontypes.edit', compact('type'));
-    }
-
-    /**
-     * Update the specified resource in storage.
-     *
-     * @param  \Illuminate\Http\Request  $request
-     * @param  InstitutionType $type
-     * @return \Illuminate\Http\Response
-     */
-    public function update(Request $request, InstitutionType $type)
-    {
-        $thisUser = auth()->user();
-        if (!$thisUser->isConsoAdmin()) {
-            return response()->json(['result' => false, 'msg' => 'Not Authorized']);
-        }
         $this->validate($request, ['name' => 'required']);
 
-        // Don't save if the name already exists for another ID
-        $test = InstitutionType::where('name', '=', $request->input('name'))
-                               ->where('id','<>',$type->id)->first();
-        if ($test) {
-            return response()->json(['result' => false, 'msg' => 'Another type with that name already exists']);
+        if (InstitutionType::where('name', $request->input('name'))->exists()) {
+            return $this->respondError('An existing type with that name already exists');
         }
 
-        $type->update([ 'name' => $request->input('name') ]);
+        $type = InstitutionType::create(['name' => $request->input('name')]);
+        $type->setRelation('institutions', collect());
 
-        // Return what index() produces
+        return $this->respondSuccess(
+            'New institution type successfully created',
+            $this->formatRecord($type, true)
+        );
+    }
+    /**
+     * Update the specified resource in storage.
+     */
+    public function update(Request $request, $id)
+    {
+        if (!auth()->user()->isConsoAdmin()) {
+            return $this->respondError('Not Authorized');
+        }
+
+        $type = InstitutionType::findOrFail($id);
+
+        $this->validate($request, ['name' => 'required']);
+
+        $duplicate = InstitutionType::where('name', $request->input('name'))
+            ->where('id', '<>', $type->id)
+            ->exists();
+
+        if ($duplicate) {
+            return $this->respondError('Another type with that name already exists');
+        }
+
+        $type->update(['name' => $request->input('name')]);
         $type->load('institutions:id,name,type_id');
-        $rec = array('id' => $type->id, 'name' => $type->name, 'can_edit' => ($type->id>1),
-                     'can_delete' => ( $type->id>1 && $type->institutions->count() == 0 ),
-                     'institutions' => $type->institutions->toArray());
 
-        return response()->json(['result' => true, 'msg' => 'Institution type successfully updated',
-                                 'record' => $rec]);
+        return $this->respondSuccess(
+            'Institution type successfully updated',
+            $this->formatRecord($type, true)
+        );
     }
 
     /**
-     * Remove the specified resource from storage.
-     *
-     * @param  InstitutionType $type
-     * @return \Illuminate\Http\Response
+     * Restrict deletion to ConsoAdmins and protect the default type (id = 1).
      */
-    public function destroy(InstitutionType $type)
+    protected function canDeleteRecord(Model $type): bool|string
     {
-        $thisUser = auth()->user();
-        if (!$thisUser->isConsoAdmin()) {
-            return response()->json(['result' => false, 'msg' => 'Not Authorized']);
+        if (!auth()->user()->isConsoAdmin()) {
+            return 'Not Authorized';
         }
 
-        // Update all institutions that have this type and then delete it
+        if ($type->id == 1) {
+            return 'Cannot delete the default Institution Type.';
+        }
+
+        return true;
+    }
+
+    /**
+     * Reassign any institutions using this type back to the default type (id = 1).
+     */
+    protected function beforeDeleteRecord(Model $type): void
+    {
         Institution::where('type_id', $type->id)->update(['type_id' => 1]);
-        $type->delete();
-        return response()->json(['result' => true, 'msg' => 'Institution type successfully deleted']);
     }
 
     /**
      * Import institution types from a CSV to the database.
-     *
-     * @param  \Illuminate\Http\Request  $request
-     * @return \Illuminate\Http\Response
      */
     public function import(Request $request)
     {
-        // Handle and validate inputs
-        $this->validate($request, ['type' => 'required', 'csvfile' => 'required']);
-        $type = $request->input('type');
-        if (!$request->hasFile('csvfile')) {
-            return response()->json(['result' => false, 'msg' => 'Error accessing CSV import file']);
+        if (!auth()->user()->isConsoAdmin()) {
+            return $this->respondError('Not Authorized');
         }
 
-        // Turn the CSV data into an array
-        $file = $request->file("csvfile")->getRealPath();
-        $csvData = file_get_contents($file);
-
-        $rows = array_map("str_getcsv", explode("\n", $csvData));
-
-        // If input file is empty, return w/ error string
-        if (sizeof($rows) < 1) {
-            return response()->json(['result' => false, 'msg' => 'Import file is empty, no changes applied.']);
+        $parsed = $this->parseCsvUpload($request, ['Full Replacement', 'Additions & Updates']);
+        if (isset($parsed['error'])) {
+            return $this->respondError($parsed['error']);
         }
+
+        $rows = $parsed['rows'];
+        $importType = $parsed['type'];
+
         $num_deleted = 0;
         $num_skipped = 0;
         $num_updated = 0;
         $num_created = 0;
 
-        // If user requested full replacement, we want to delete the existing types (except id:1)
-        // BUT - since Instiution Type is a foreign key for Institution... we can't just trash it.
-        if ($request->input('type') == 'Full Replacement') {
-            // Get all institutions, and save the current ID => type as a separate array
+        // Preserve institution type mappings before wiping non-default types on Full Replacement
+        if ($importType === 'Full Replacement') {
             $institutions = Institution::get();
-            $original_types = array();
+            $original_types = [];
             foreach ($institutions as $inst) {
                 $original_types[$inst->id] = $inst->type_id;
                 $inst->type_id = 1;
                 $inst->save();
             }
 
-            // Okay, toss the types
             $num_deleted = InstitutionType::count() - 1;
             InstitutionType::where('id', '<>', 1)->delete();
-        } elseif ($request->input('type') != 'Additions & Updates') {
-            return response()->json(['result' => false, 'msg' => 'Error - unrecognized import type.']);
         }
+
         $current_types = InstitutionType::get();
 
-        // Process the input rows
         foreach ($rows as $row) {
-            if (isset($row[0])) {
-                // Ignore bad/missing ID
-                if ($row[0] != "" && is_numeric($row[0]) && $row[0] > 1) {
-                    $_tid = intval($row[0]);
-                    // If we're adding and the name already exists, skip it
-                    if ($request->input('type') == 'Additions & Updates') {
-                        $existing_name = $current_types->where("name", "=", $row[1])->first();
-                        if (!is_null($existing_name)) {
-                            $num_skipped++;
-                            continue;
-                        }
-                    }
+            if (!isset($row) || $row === '' || !is_numeric($row) || intval($row) <= 1) {
+                continue;
+            }
 
-                    // Check for an existing ID
-                    $existing_type = $current_types->where("id", "=", $_tid)->first();
-                    if (!is_null($existing_type)) {
-                        if (!is_null($row[1])) {
-                            $existing_type->name = $row[1];
-                            $existing_type->save();
-                            $num_updated++;
-                        }
-                    } else {
-                        // Save the new name
-                        if (!is_null($row[1])) {
-                            $_name = trim($row[1]);
-                            if (strlen($_name) > 0) {
-                                $new_type = InstitutionType::create(array('id' => $_tid, 'name' => $_name));
-                                $num_created++;
-                            }
-                        }
+            $_tid = intval($row);
+            $_name = isset($row) ? trim($row) : '';
+
+            if ($importType === 'Additions & Updates' && $current_types->where('name', $_name)->first()) {
+                $num_skipped++;
+                continue;
+            }
+
+            $existing_type = $current_types->where('id', $_tid)->first();
+            if ($existing_type) {
+                if ($_name !== '') {
+                    $existing_type->update(['name' => $_name]);
+                    $num_updated++;
+                }
+            } elseif ($_name !== '') {
+                InstitutionType::create(['id' => $_tid, 'name' => $_name]);
+                $num_created++;
+            }
+        }
+
+        // Restore institution type assignments where the type ID still exists
+        if ($importType === 'Full Replacement') {
+            $new_ids = InstitutionType::pluck('id')->toArray();
+            foreach ($original_types as $id => $typeId) {
+                if (in_array($typeId, $new_ids)) {
+                    $inst = $institutions->where('id', $id)->first();
+                    if ($inst) {
+                        $inst->update(['type_id' => $typeId]);
                     }
                 }
             }
         }
 
-        // Get the new full list of types
-        $types = InstitutionType::orderBy('id', 'ASC')->get();
-        $new_ids = $types->pluck('id')->values()->toArray();
+        $extra = ($num_skipped > 0) ? " ({$num_skipped} existing names skipped)" : '';
+        $msg = $this->formatImportSummary(
+            'Institution Types imported successfully',
+            $num_updated,
+            $num_created,
+            $num_deleted,
+            0,
+            $extra
+        );
 
-        // If we're replacing, reset type for institutions if the type still exists,
-        // otherwise leave it as 1 (not classified)
-        if ($request->input('type') == 'Full Replacement') {
-            foreach ($original_types as $id => $type) {
-                $inst = $institutions->where('id', $id)->first();
-                if (in_array($type, $new_ids)) {
-                    $inst->type_id = $type;
-                    $inst->save();
-                }
-            }
-        }
+        return $this->respondSuccess($msg);
+    }
 
-        // return the current full list of types with a success message
-        $msg  = 'Institution Types imported successfully : ';
-        $msg .= ($num_deleted > 0) ? $num_deleted . " removed, " : "";
-        $msg .= $num_updated . " updated and " . $num_created . " added";
-        if ($num_skipped > 0) {
-            $msg .= ($num_skipped > 0) ? " (" . $num_skipped . " existing names skipped)" : ".";
-        }
-        return response()->json(['result' => true, 'msg' => $msg]);
+    /**
+     * Format an InstitutionType record consistently for the dataset UI.
+     */
+    private function formatRecord(InstitutionType $type, bool $consoAdmin): array
+    {
+        return [
+            'id'           => $type->id,
+            'name'         => $type->name,
+            'can_edit'     => ($type->id > 1 && $consoAdmin),
+            'can_delete'   => ($type->id > 1 && $consoAdmin && $type->institutions->count() === 0),
+            'institutions' => $type->institutions->toArray(),
+        ];
     }
 }

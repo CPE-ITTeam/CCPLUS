@@ -5,6 +5,8 @@ import { computed, ref, reactive, onMounted } from 'vue';
 import { useAuthStore } from '@/stores/useAuthStore.js';
 import { useCCPlusStore } from '@/stores/useCCPlusStore.js';
 import ToggleIcon from '@/components/ui/ToggleIcon.vue';
+import { isFieldVisible, isFieldEditable } from '@/config/dataTableConfig.js';
+
 
 const ccPlusStore = useCCPlusStore();
 
@@ -176,6 +178,19 @@ async function submitForm() {
   if (p_idx > 0 && typeof (formValues['platforms']) != 'undefined' && !Array.isArray(formValues['platforms'])) {
     formValues['prov_id'] = formValues['platforms'];
   }
+
+  // Sync any select/mselect field that maps to a separate ID column (e.g., groups -> group_ids, type -> type_id)
+  m_schema.fields.forEach((fld) => {
+    if (fld.filterCol && typeof formValues[fld.name] !== 'undefined') {
+      const val = formValues[fld.name];
+      if (Array.isArray(val)) {
+        formValues[fld.filterCol] = val;
+      } else if (typeof val === 'number' || (typeof val === 'string' && val !== '' && !isNaN(Number(val)))) {
+        formValues[fld.filterCol] = Number(val);
+      }
+    }
+  });
+
   
   if (formRef.value) {
     const { valid } = await formRef.value.validate();
@@ -214,14 +229,11 @@ onMounted(() => {
 <template>
   <div>
     <v-form v-if="m_schema.fields.length" ref="formRef" @submit.prevent="submitForm">
-      
-      <!-- 🌟 FIXED GUTTER BLOCKS via ma-n2 pa-0 -->
-      <v-row class="ma-n2 pa-0">
+      <v-row>
 
         <!-- Header Info Row (ID Box) Layout -->
-        <v-col v-if="typeof (formValues['id']) !== 'undefined'" cols="12" class="d-flex justify-end align-center px-2 mb-2">
-          <v-chip size="small" variant="tonal" class="text-caption">
-            <v-icon start size="small">mdi-web</v-icon>
+        <v-col v-if="typeof (formValues['id']) !== 'undefined'" cols="12" class="d-flex justify-end align-center">
+          <v-chip size="small" variant="tonal" prepend-icon="mdi-web">
             ID: {{ formValues['id'] }}
           </v-chip>
         </v-col>
@@ -229,20 +241,17 @@ onMounted(() => {
         <!-- Dynamic Form Fields Loop -->
         <template v-for="field in m_schema.fields" :key="field.name">
           
-          <!-- FORCE LINE BREAK: Steps down a row cleanly if requested by your schema configs -->
+          <!-- FORCE LINE BREAK -->
           <v-col v-if="field.breakBefore" cols="12" class="pa-0" />
 
-          <!-- SMART FALLBACK: Handles responsive sm-breakpoint wrapping cleanly -->
+          <!-- UNIFIED VISIBILITY & EDITABILITY -->
           <v-col 
-            v-if="field.visible && (!field.static && (
-              (opType == 'Edit' && (field.editable || !field.isFilter)) ||
-              (opType == 'Add' && m_schema.requiredKeys.includes(field.name))))"
+            v-if="isFieldVisible(field, opType)"
             cols="12"
             :sm="field.cols || 12"
-            class="px-2 py-1"
           >
-            <!-- Read-only text mode styling with inline un-wrapping guard logic -->
-            <div v-if="opType !== 'Add' && (!field.editable || field.renderAsText)" class="text-body-1 py-1">
+            <!-- Read-only text mode when field is not editable in current opType -->
+            <div v-if="!isFieldEditable(field, opType) || field.renderAsText" class="text-body-1 py-1">
               <strong>{{ field.label }}:</strong> &nbsp;
               <span class="text-medium-emphasis">
                 {{
@@ -261,70 +270,70 @@ onMounted(() => {
             </div>
 
             <!-- ToggleIcon inputs layout -->
-            <div v-else-if="isToggleField(field)" class="d-flex align-center h-100 py-1">
-              <strong class="mr-2">{{ field.label }} : </strong>
+            <div v-else-if="isToggleField(field)" class="d-flex align-center h-100">
               <ToggleIcon v-model="formValues[field.name]" :toggleable="isToggleEditable(formValues[field.name])"
                 :size="36" @update:modelValue="toggleChanged(field.name)" />
+              <strong class="text-body-2 ms-2 text-medium-emphasis">{{ field.label }}</strong>
             </div>
 
             <!-- Password Fields -->
             <v-text-field v-else-if="field.type === 'password'" v-model="formValues[field.name]" :label="field.label"
               :type="pw_show ? 'text' : 'password'" :append-inner-icon="pw_show ? 'mdi-eye' : 'mdi-eye-off'"
               @click:append-inner="pw_show = !pw_show" :hint="field.helperText" 
-              :rules="field.required ? [requiredRule] : []" density="compact" error-messages="" variant="outlined" hide-details="auto" />
+              :rules="field.required ? [requiredRule] : []" />
 
             <v-text-field v-else-if="field.type === 'passconf' && showConfirm" v-model="formValues[field.name]"
               :label="field.label" :hint="field.helperText" :type="pwc_show ? 'text' : 'password'"
               :append-inner-icon="pwc_show ? 'mdi-eye' : 'mdi-eye-off'" @click:append-inner="pwc_show = !pwc_show"
-              :rules="field.required ? [requiredRule] : []" density="compact" error-messages="" variant="outlined" hide-details="auto" />
+              :rules="field.required ? [requiredRule] : []" />
 
             <!-- Textareas -->
             <v-textarea v-else-if="field.type === 'textarea'" v-model="formValues[field.name]" :label="field.label"
               :rules="field.required ? [requiredRule] : []" :prepend-inner-icon="field.icon"
-              :hint="field.helperText" density="compact" error-messages="" variant="outlined" hide-details="auto" />
+              :hint="field.helperText" />
 
             <!-- Standard Select Fields -->
             <v-select v-else-if="field.type === 'select'" v-model="formValues[field.name]" :label="field.label"
               :items="m_schema.options[field.name]" :item-title="field.optTxt" :item-value="field.optVal"
               :prepend-inner-icon="field.icon" :hint="field.helperText" 
-              :rules="field.required ? [requiredRule] : []" density="compact"
-              @update:modelValue="selectChanged(field.name)" error-messages="" variant="outlined" hide-details="auto" />
+              :rules="field.required ? [requiredRule] : []"
+              @update:modelValue="selectChanged(field.name)" />
 
             <!-- Rich Object Select Strings -->
             <v-select v-else-if="field.type === 'selectObj'" v-model="formValues[field.name]" :label="field.label"
               :items="m_schema.options[field.name]" :item-title="field.optTxt" :item-value="field.optVal"
               :prepend-inner-icon="field.icon" :hint="field.helperText" 
-              return-object :rules="field.required ? [requiredRule] : []" density="compact" error-messages="" variant="outlined" hide-details="auto" />
+              return-object :rules="field.required ? [requiredRule] : []" />
 
-            <!-- Token Tag Selectors -->
-            <v-combobox v-else-if="field.type === 'mselect'" v-model="formValues[field.name]" :label="field.label"
+            <!-- Multi-Select Dropdowns -->
+            <v-select v-else-if="field.type === 'mselect'" v-model="formValues[field.name]" :label="field.label"
               :items="m_schema.options[field.name]" :item-title="field.optTxt" :item-value="field.optVal"
-              :prepend-inner-icon="field.icon" :hint="field.helperText" multiple 
-              :rules="field.required ? [requiredRule] : []" density="compact" error-messages="" variant="outlined" hide-details="auto" />
+              :prepend-inner-icon="field.icon" :hint="field.helperText" multiple chips closable-chips
+              :rules="field.required ? [requiredRule] : []" />
 
-            <!-- Universal Fallback text inputs -->
+            <!-- Universal Fallback text & number inputs -->
             <v-text-field v-else-if="field.type != 'passconf'" v-model="formValues[field.name]" :label="field.label"
+              :type="field.type === 'number' ? 'number' : 'text'"
               :prepend-inner-icon="field.icon" :hint="field.helperText" 
-              density="compact" :rules="field.required ? [requiredRule] : []" error-messages="" variant="outlined" hide-details="auto" />
+              :rules="field.required ? [requiredRule] : []" />
           </v-col>
+
 
           <!-- Group Switch Configuration Block -->
           <v-col 
             v-if="m_schema.dataset == 'groups' && field.name == 'count' && opType == 'Edit' && formValues['types'] != null"
             cols="12"
-            class="px-2 py-1"
           >
-            <v-switch v-model="formValues['reset_type']" label="Clear Restriction" color="primary" density="compact" hide-details="auto" />
+            <v-switch v-model="formValues['reset_type']" label="Clear Restriction" color="primary" />
           </v-col>
         </template>
 
         <!-- Form Status Alerts -->
-        <v-col cols="12" class="px-2 mt-2">
+        <v-col v-if="dialog_success || ccPlusStore?.tableSuccessMessage || dialog_error || ccPlusStore?.tableErrorMessage" cols="12">
           <v-alert 
             v-if="dialog_success || ccPlusStore?.tableSuccessMessage" 
             type="success" 
             variant="tonal" 
-            density="compact" 
             class="mb-2"
             :text="dialog_success || ccPlusStore.tableSuccessMessage" 
           />
@@ -333,19 +342,18 @@ onMounted(() => {
             v-if="dialog_error || ccPlusStore?.tableErrorMessage" 
             type="error" 
             variant="tonal" 
-            density="compact" 
             :text="dialog_error || ccPlusStore.tableErrorMessage" 
           />
         </v-col>
 
         <!-- Submissions Controls Row -->
-        <v-col cols="12" class="d-flex align-center px-2 pt-2">
-          <v-btn @click="submitForm">Save</v-btn>
-          <v-btn class="ml-2" @click="emit('cancel')">Cancel</v-btn>
+        <v-col cols="12" class="d-flex align-center">
+          <v-btn type="submit">Save</v-btn>
+          <v-btn variant="text" class="ml-2" @click="emit('cancel')">Cancel</v-btn>
         </v-col>
 
         <!-- Metadata indicator tracking -->
-        <v-col v-if="typeof (formValues['updated']) !== 'undefined' && formValues['updated'].length > 0" cols="12" class="text-center text-caption text-disabled mt-2">
+        <v-col v-if="typeof (formValues['updated']) !== 'undefined' && formValues['updated'].length > 0" cols="12" class="text-center text-caption text-disabled">
           Last Updated: {{ formValues['updated'] }}
         </v-col>
 

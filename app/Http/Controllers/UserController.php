@@ -10,6 +10,7 @@ use App\Models\UserRole;
 use App\Models\Institution;
 use App\Models\InstitutionGroup;
 use App\Models\Consortium;
+use Illuminate\Database\Eloquent\Model;
 use Illuminate\Http\Request;
 use Illuminate\Support\Arr;
 use Illuminate\Support\Facades\Mail;
@@ -19,8 +20,11 @@ use PhpOffice\PhpSpreadsheet\Writer\Xlsx;
 //Enables us to output flash messaging
 use Session;
 
-class UserController extends Controller
+class UserController extends BaseController
 {
+    protected string $modelClass = User::class;
+    protected string $modelLabel = 'User';
+
     /**
      * Return listing of the resource.
      *
@@ -40,8 +44,8 @@ class UserController extends Controller
         $server_admin = config('ccplus.server_admin');
 
         // Setup filtering options for the datatable
-        $filter_options = array('statuses' => array('ALL','Active','Inactive'));
-        $filter_options['roles'] = Role::where('name','<>','ServerAdmin')->get(['id','name'])->toArray();
+        $filter_options = array('statuses' => array('ALL', 'Active', 'Inactive'));
+        $filter_options['roles'] = Role::where('name', '<>', 'ServerAdmin')->get(['id', 'name'])->toArray();
 
         // Limit by institution based on users's role(s)
         if (!$thisUser->isServerAdmin()) {
@@ -50,19 +54,26 @@ class UserController extends Controller
         }
 
         // Pull user records - exclude serverAdmin
-        $user_data = User::with('roles','institution:id,name')
-                            ->when(count($limit_to_insts)>0, function ($qry) use ($limit_to_insts) {
-                                return $qry->whereIn('inst_id', $limit_to_insts);
-                            })
-                            ->where('email', '<>', $server_admin)
-                            ->orderBy('name', 'ASC')->get();
+        $user_data = User::with('roles', 'institution:id,name')
+            ->when(count($limit_to_insts) > 0, function ($qry) use ($limit_to_insts) {
+                return $qry->whereIn('inst_id', $limit_to_insts);
+            })
+            ->where('email', '<>', $server_admin)
+            ->orderBy('name', 'ASC')->get();
 
         // Make user role names one string, role IDs into an array, and status to a string for the view
         foreach ($user_data as $rec) {
             // Setup array for this user data
-            $user = array('id' => $rec->id, 'email' => $rec->email, 'name' => $rec->name, 'inst_id' => $rec->inst_id,
-                          'institution' => $rec->institution, 'password' => '', 'phone' => $rec->phone,
-                          'last_login' => $rec->last_login);
+            $user = array(
+                'id' => $rec->id,
+                'email' => $rec->email,
+                'name' => $rec->name,
+                'inst_id' => $rec->inst_id,
+                'institution' => $rec->institution,
+                'password' => '',
+                'phone' => $rec->phone,
+                'last_login' => $rec->last_login
+            );
             $user['status'] = ($rec->is_active) ? "Active" : "Inactive";
             $user['user_role'] = $rec->fullRoleName();
             // Set all user roles as arrays of <role>:<ID> pairs for institutions and groups
@@ -70,7 +81,7 @@ class UserController extends Controller
             $group_roles = array();
             foreach ($rec->allRoles() as $r) {
                 $_name = preg_replace('/ /', '', $r['name']);
-                if  (!is_null($r['inst_id']))  $inst_roles[] = $_name . ":" . $r['inst_id'];
+                if (!is_null($r['inst_id']))  $inst_roles[] = $_name . ":" . $r['inst_id'];
                 if (!is_null($r['group_id'])) $group_roles[] = $_name . ":" . $r['group_id'];
             }
             $user['inst_roles'] = $inst_roles;
@@ -84,7 +95,7 @@ class UserController extends Controller
         // Limit roles in UI to current user's max role
         $filter_options['uroles'] = array();
         $all_roles = Role::where('id', '<=', $thisUser->maxRole())->orderBy('id', 'DESC')
-                         ->where('name','<>','ServerAdmin')->get(['name', 'id'])->toArray();
+            ->where('name', '<>', 'ServerAdmin')->get(['name', 'id'])->toArray();
         foreach ($all_roles as $idx => $r) {
             if ($r['name'] == 'Admin' && $thisUser->isConsoAdmin())  $filter_options['uroles'][] = "Consortium Admin";
             if ($r['name'] == 'Viewer' && $thisUser->isConsoAdmin()) $filter_options['uroles'][] = "Consortium Viewer";
@@ -94,8 +105,8 @@ class UserController extends Controller
         // Add filtering options for institutions
         $instIds = $user_data->pluck('inst_id')->toArray();
         $filter_options['institutions'] = ($thisUser->isConsoAdmin())
-            ? Institution::orderBy('name', 'ASC')->get(['id','name'])->toArray()
-            : Institution::orderBy('name', 'ASC')->get(['id','name'])->whereIn('id',$instIds)->toArray();
+            ? Institution::orderBy('name', 'ASC')->get(['id', 'name'])->toArray()
+            : Institution::orderBy('name', 'ASC')->get(['id', 'name'])->whereIn('id', $instIds)->toArray();
 
         return response()->json(['records' => $data, 'options' => $filter_options, 'result' => true], 200);
     }
@@ -117,7 +128,7 @@ class UserController extends Controller
         $data['fiscalYr'] = ($user->fiscalYr) ? $user->fiscalYr : config('ccplus.fiscalYr');
 
         // Add access token details
-        $token = $user->tokens()->where('name',"PAT_User_".$user->id)->first();
+        $token = $user->tokens()->where('name', "PAT_User_" . $user->id)->first();
         $data['access_token'] = ($token) ? Crypt::decryptString($user->enc_api_token) : null;
         $data['token_expires'] = ($token) ? $token->expires_at : null;
 
@@ -150,7 +161,7 @@ class UserController extends Controller
         }
 
         // make sure email is unique 
-        $exists = User::where('email',$input['email'])->first();
+        $exists = User::where('email', $input['email'])->first();
         if ($exists) {
             return response()->json(['result' => false, 'msg' => 'Email address is already assigned to another user']);
         }
@@ -164,34 +175,44 @@ class UserController extends Controller
         $user = User::create($input);
 
         // Add Role record for Viewer
-        $viewer_role_id = Role::where('name','Viewer')->value('id');
+        $viewer_role_id = Role::where('name', 'Viewer')->value('id');
         try {
-            $new_role = UserRole::create(['user_id'=>$user->id, 'role_id'=>$viewer_role_id,
-                                            'inst_id'=>$user->inst_id, 'group_id'=>null]);
+            $new_role = UserRole::create([
+                'user_id' => $user->id,
+                'role_id' => $viewer_role_id,
+                'inst_id' => $user->inst_id,
+                'group_id' => null
+            ]);
         } catch (\Exception $e) {
-            return response()->json(['result'=>false, 'msg'=>'Error adding role to database: '.$e->getMessage()]);
+            return response()->json(['result' => false, 'msg' => 'Error adding role to database: ' . $e->getMessage()]);
         }
         $user->load(['institution:id,name']);
 
         // Set current consortium name if there are more than 1 active in this system
-        $consortia = Consortium::where('is_active',1)->get();
+        $consortia = Consortium::where('is_active', 1)->get();
         $con_name = "";
         if ($consortia->count() > 1) {
             $key = $request->header('X-Tenant');
-            $current = $consortia->where('ccp_key',$key)->first();
+            $current = $consortia->where('ccp_key', $key)->first();
             $con_name = ($current) ? $current->name : "";
         }
 
         // Send email to the user about their new account, but fail silently
         $data = array('name' => $user->name, 'password' => $input['password']);
         try {
-            Mail::to($input['email'])->send(new \App\Mail\NewUser($con_name,$data));
-        } catch (\Exception $e) { }
+            Mail::to($input['email'])->send(new \App\Mail\NewUser($con_name, $data));
+        } catch (\Exception $e) {
+        }
 
         // Setup array to hold new user to match index fields
-        $new_user = array('id' => $user->id, 'email' => $user->email, 'name' => $user->name,
-                          'inst_id' => $user->inst_id, 'institution' => $user->institution,
-                          'last_login' => null);
+        $new_user = array(
+            'id' => $user->id,
+            'email' => $user->email,
+            'name' => $user->name,
+            'inst_id' => $user->inst_id,
+            'institution' => $user->institution,
+            'last_login' => null
+        );
         $new_user['status'] = ($user->is_active) ? "Active" : "Inactive";
         $new_user['user_role'] = $user->fullRoleName();
         $new_user['fiscalYr'] = ($user->fiscalYr) ? $user->fiscalYr : config('ccplus.fiscalYr');
@@ -213,8 +234,10 @@ class UserController extends Controller
         $thisUser = auth()->user();
 
         // Ensure current user allowed to modify the record and is not trying to change ServerAdmin user
-        if (!$user->canManage() ||
-            ($user->isServerAdmin() && $user->email == config('ccplus.server_admin')) ) {
+        if (
+            !$user->canManage() ||
+            ($user->isServerAdmin() && $user->email == config('ccplus.server_admin'))
+        ) {
             return response()->json(['result' => false, 'msg' => 'Update failed (403) - Forbidden']);
         }
 
@@ -228,7 +251,7 @@ class UserController extends Controller
         if (isset($request->email) && $request->email != 'Administrator') {
             $fields['email'] = 'email|unique:consodb.users,email,' . $user->id;
         }
-        if ( count($fields)>0 ) {
+        if (count($fields) > 0) {
             $this->validate($request, $fields);
         }
         $input = $request->all();
@@ -238,15 +261,29 @@ class UserController extends Controller
         $input = Arr::except($input, array('confirm_pass'));
 
         // Disallow non-ConsoAdmins from assigning/changing inst_id to/from insts they don't admin
-        if (!$thisUser->isConsoAdmin() &&
-            (!$thisUser->hasRole('Admin',$user->inst_id) || !$thisUser->hasRole('Admin',$input['inst_id']))) {
+        if (
+            !$thisUser->isConsoAdmin() &&
+            (!$thisUser->hasRole('Admin', $user->inst_id) || !$thisUser->hasRole('Admin', $input['inst_id']))
+        ) {
             return response()->json(['result' => false, 'msg' => 'Update Forbidden (403)']);
         }
 
         // check fiscalYr - save NULL if same as global setting
         if (isset($input['fiscalYr'])) {
-            $months = array('January','February','March','April','May','June','July','August','September',
-                            'October','November','December');
+            $months = array(
+                'January',
+                'February',
+                'March',
+                'April',
+                'May',
+                'June',
+                'July',
+                'August',
+                'September',
+                'October',
+                'November',
+                'December'
+            );
             if (!in_array($input['fiscalYr'], $months) || $input['fiscalYr'] == config('ccplus.fiscalYr')) {
                 $input['fiscalYr'] = null;
             }
@@ -263,7 +300,7 @@ class UserController extends Controller
                 array_unshift($new_roles, $view_role_id);
             }
 
-            $current_user_roles = UserRole::where('user_id',$user->id)->get();
+            $current_user_roles = UserRole::where('user_id', $user->id)->get();
 
             // Add role that aren't set; track, by-inst, any that get skipped
             $skipped_insts = array();
@@ -274,8 +311,8 @@ class UserController extends Controller
                     $skipped_insts[] = $r_new['inst_id'];
                     continue;
                 }
-                if ( !$user->hasRole($r_new['name'],$r_new['inst_id']) ) {
-                    $input = array('user_id'=>$user->id, 'inst_id'=>$r_new['inst_id'], 'role_id'=>$r_new['inst_id']);
+                if (!$user->hasRole($r_new['name'], $r_new['inst_id'])) {
+                    $input = array('user_id' => $user->id, 'inst_id' => $r_new['inst_id'], 'role_id' => $r_new['inst_id']);
                     $result = UserRole::create($input);
                 }
             }
@@ -285,9 +322,9 @@ class UserController extends Controller
             // to add a role above their own.. which means the previous role(s) may not be in $input['roles']
             foreach ($current_user_roles as $role) {
                 if (!array_find($input['roles'], function ($input) use ($role) {
-                        return ($input['role_id'] == $role->id && $input['inst_id'] == $role->inst_id);
-                    }) && !in_array($role->inst_id, $skipped_insts)) {
-                    UserRole::where('id',$role->id)->delete();
+                    return ($input['role_id'] == $role->id && $input['inst_id'] == $role->inst_id);
+                }) && !in_array($role->inst_id, $skipped_insts)) {
+                    UserRole::where('id', $role->id)->delete();
                 }
             }
             $input = Arr::except($input, array('roles'));
@@ -295,7 +332,7 @@ class UserController extends Controller
 
         // Update the user record and re-load roles
         $user->update($input);
-        $user->load(['institution:id,name','roles']);
+        $user->load(['institution:id,name', 'roles']);
 
         // Setup array to hold updated user record
         $updated_user = $user->toArray();
@@ -315,251 +352,224 @@ class UserController extends Controller
         $updated_user['group_roles'] = $group_roles;
         $updated_user['can_edit'] = $user->canManage();
         $updated_user['can_delete'] = $user->canManage();
-        return response()->json(['result' => true, 'msg' => 'User settings successfully updated',
-                                 'record' => $updated_user]);
+        return response()->json([
+            'result' => true,
+            'msg' => 'User settings successfully updated',
+            'record' => $updated_user
+        ]);
     }
 
     /**
-     * Remove the specified resource from storage.
-     *
-     * @param  User $user
-     * @return \Illuminate\Http\Response
+     * Enforce authorization and self-deletion guards before BaseController deletes the user.
      */
-    public function destroy(User $user)
+    protected function canDeleteRecord(Model $user): bool|string
     {
-        if (!$user->canManage() ||
-            ($user->isServerAdmin() && $user->email == config('ccplus.server_admin')) ) {
-            return response()->json(['result' => false, 'msg' => 'Delete failed (403) - Forbidden']);
+        if (!$user->canManage() || ($user->isServerAdmin() && $user->email == config('ccplus.server_admin'))) {
+            return 'Delete failed (403) - Forbidden';
         }
-        if (auth()->id() == $id) {
-            return response()->json(['result' => false,
-                                     'msg' => 'Self-deletion forbidden (403); have an Admin assist you.']);
+
+        if (auth()->id() == $user->id) {
+            return 'Self-deletion forbidden (403); have an Admin assist you.';
         }
-        $user->delete();
-        return response()->json(['result' => true, 'msg' => 'User successfully deleted']);
+
+        return true;
     }
 
+
     /**
-     * Bulk operations from the U/I.
-     *
-     * @param  \Illuminate\Http\Request  $request
-     * @return JSON
+     * Restrict bulk user actions: exclude ServerAdmin, current user, and out-of-scope institutions.
      */
-    public function bulk(Request $request)
+    protected function scopeBulkQuery($query, $user): void
     {
-        global $thisUser;
-        $thisUser = auth()->user();
-        if (!$thisUser->isAdmin()) {
-            return response()->json(['result' => false, 'msg' => 'Request failed (403) - Forbidden']);
-        }
-        $consoAdmin = $thisUser->isConsoAdmin();
+        $query->where('email', '<>', config('ccplus.server_admin'))
+            ->where('id', '<>', $user->id);
 
-        // Validate form inputs
-        $this->validate($request, ['ids' => 'required', 'action' => 'required']);
-        $input = $request->all();
-
-        // Get user records, excluding ServerAdmin, for IDs in input limited by role if necessary
-        $server_admin = config('ccplus.server_admin');
-        $limit_insts = ($consoAdmin) ? [] : $thisUser->adminInsts();
-        $userData = User::where('email','<>',$server_admin)->whereIn('id',$input['ids'])
-                        ->when( count($limit_insts) > 0, function ($qry, $limit_insts) {
-                            return $qry->whereIn('inst_id', $limit_insts);
-                        })->get(['id','is_active']);
-
-        // Handle set active/inactive
-        if ($input['action'] == 'Set Active' || $input['action'] == 'Set Inactive') {
-            $new_is_active = ($input['action'] == 'Set Active') ? 1 : 0;
-            $userIds = $userData->where('is_active','<>',$new_is_active)->pluck('id')->toArray();
-            $args = array('is_active' => $new_is_active);
-            User::whereIn('id',$userIds)->update($args);
-            return response()->json(['result' => true, 'msg' => '', 'affectedIds' => $userIds], 200);
-
-        // Handle delete
-        } else if ($input['action'] == 'Delete') {
-            $userIds = $userData->pluck('id')->toArray();
-            User::whereIn('id',$userIds)->delete();
-            return response()->json(['result' => true, 'msg' => '', 'affectedIds' => $userIds], 200);
-
-        // Unrecognized action
-        } else {
-            return response()->json(['result' => false, 'msg' => 'Unrecognized bulk action requested'], 200);
+        if (!$user->isConsoAdmin()) {
+            $limitInsts = $user->adminInsts();
+            if (count($limitInsts) > 0) {
+                $query->whereIn('inst_id', $limitInsts);
+            }
         }
     }
 
     /**
      * Import users from a CSV file to the database.
-     *
-     * @param  \Illuminate\Http\Request  $request
-     * @return \Illuminate\Http\Response
      */
     public function import(Request $request)
     {
-        // Only Admins can import user data
         $thisUser = auth()->user();
         abort_unless($thisUser->hasAnyRole(['Admin']), 403);
 
-        // Handle and validate inputs
-        $this->validate($request, ['csvfile' => 'required']);
-        if (!$request->hasFile('csvfile')) {
-            return response()->json(['result' => false, 'msg' => 'Error accessing CSV import file']);
+        $parsed = $this->parseCsvUpload($request);
+        if (isset($parsed['error'])) {
+            return $this->respondError($parsed['error']);
         }
 
-        // Get the CSV data
-        $file = $request->file("csvfile")->getRealPath();
-        $csvData = file_get_contents($file);
-        $rows = array_map("str_getcsv", explode("\n", $csvData));
-        if (sizeof($rows) < 1) {
-            return response()->json(['result' => false, 'msg' => 'Import file is empty, no changes applied.']);
-        }
+        $rows = $parsed['rows'];
 
         // Get existing user data
         $users = User::with('roles', 'institution:id,name')->orderBy('name', 'ASC')->get();
         $institutions = Institution::get();
         $all_groups = InstitutionGroup::get();
         $all_roles = Role::orderBy('id', 'ASC')->get(['name', 'id']);
-        $viewRoleId = $all_roles->where('name', 'Viewer')->first()->id;
-        // Process the input rows
+
         $num_skipped = 0;
         $num_updated = 0;
         $num_created = 0;
-        foreach ($rows as $row) {
-            // Ignore bad/missing/invalid IDs and/or headers
-            if (!isset($row[0])) {
-                continue;
-            }
-            if ($row[0] == "" || !is_numeric($row[0]) || sizeof($row) < 2) {
-                continue;
-            }
-            $cur_user_id = intval($row[0]);
 
-            // Skip row if email is empty or set to 'ServerAdmin'
-            $_email = trim($row[1]);
-            if ($_email == "ServerAdmin" || strlen($_email) < 1) {
+        foreach ($rows as $row) {
+            if (!isset($row) || $row === '' || !is_numeric($row) || count($row) < 2) {
+                continue;
+            }
+            $cur_user_id = intval($row);
+
+            $_email = trim($row);
+            if ($_email === 'ServerAdmin' || strlen($_email) < 1) {
                 $num_skipped++;
                 continue;
             }
 
-            // Update/Add the user data/settings
-            // Check ID and name columns for silliness or errors
-            $current_user = $users->where("id", $cur_user_id)->first();
-            if ($current_user) {                 // found existing ID
-                // trap changing an email to one that already exists
-                $existing_user = $users->where("name", $_email)->first();
+            $current_user = $users->where('id', $cur_user_id)->first();
+            if ($current_user) {
+                $existing_user = $users->where('name', $_email)->first();
                 if (!is_null($existing_user)) {
-                    $_email = trim($current_user->email);     // override, use current - no change
+                    $_email = trim($current_user->email);
                 }
-            } else {        // existing ID not found, try to find by name
-                $current_user = $users->where("email", $_email)->first();
+            } else {
+                $current_user = $users->where('email', $_email)->first();
                 if (!is_null($current_user)) {
                     $_email = trim($current_user->email);
                 }
             }
 
-            // If we're creating a user, but the password field is empty, skip it
-            if (is_null($current_user) && $row[2] == '') {
+            if (is_null($current_user) && (!isset($row) || $row === '')) {
                 $num_skipped++;
                 continue;
             }
 
-            // Enforce defaults
-            $_name  = (strlen(trim($row[3])) > 0) ? trim($row[3]) : null;
-            $_phone = (strlen(trim($row[4])) > 0) ? trim($row[4]) : null;
-            $_active = (strtolower($row[5]) == 'inactive') ? 0 : 1;
-            $_inst = (strlen(trim($row[6])) > 0) ? intval(trim($row[6])) : 1;
+            $_name   = (isset($row) && strlen(trim($row)) > 0) ? trim($row) : null;
+            $_phone  = (isset($row) && strlen(trim($row)) > 0) ? trim($row) : null;
+            $_active = (isset($row) && strtolower(trim($row)) === 'inactive') ? 0 : 1;
+            $_inst   = (isset($row) && strlen(trim($row)) > 0) ? intval(trim($row)) : 1;
+
             $user_inst = $institutions->where('id', $_inst)->first();
-
-            // Skip this record if institution not found or current user cannot manage it
-            if (!$user_inst) {
-                $num_skipped++;
-                continue;
-            }
-            if (!$user_inst->canManage()) {
+            if (!$user_inst || !$user_inst->canManage()) {
                 $num_skipped++;
                 continue;
             }
 
-            // Put user data columns into an array
-            $_user = array('id' => $cur_user_id, 'email' => $_email, 'name' => $_name, 'phone' => $_phone,
-                           'is_active' => $_active, 'inst_id' => $_inst);
+            $_user = [
+                'id'        => $cur_user_id,
+                'email'     => $_email,
+                'name'      => $_name,
+                'phone'     => $_phone,
+                'is_active' => $_active,
+                'inst_id'   => $_inst,
+            ];
 
-            // Only include password if it has a value
-            if (strlen(trim($row[2])) > 0) {
-                $_user['password'] = trim($row[2]);
+            if (isset($row) && strlen(trim($row)) > 0) {
+                $_user['password'] = trim($row);
             }
 
-            // Update or create the User record
-            if (is_null($current_user)) {      // Create
+            if (is_null($current_user)) {
                 $current_user = User::create($_user);
                 $users->push($current_user);
-                $cur_user_id = $current_user->id;
                 $num_created++;
-            } else {                            // Update
+            } else {
                 $current_user->update($_user);
                 $num_updated++;
             }
 
-            // Turn inst-roles (col-7) and group-roles (col-8) into a collection of UserRoles,
-            // contingent on the current user having sufficient rights to set the role(s)
-            $inst_roles  = preg_split('/,/', preg_replace('/, /', ',',$row[7]));
             $import_roles = collect([]);
-            foreach ($inst_roles as $inputRole) {
-                $res = preg_split('/:/', preg_replace('/: /', ':',$inputRole));
-                $roleName = ucwords(trim($res[0]));
-                $role = $all_roles->where('name', $roleName)->first();
-                if (!$role) continue;
-                $_instID = intval(trim($res[1]));
-                $_inst = $institutions->where('id',$_instID)->first();
-                if (!$_inst) continue;
-                if (!$_inst->canManage()) continue;
-                $import_roles[] = array('user_id' => $current_user->id, 'role_id' => $role->id,
-                                        'inst_id' => $_instID, 'group_id' => null);
-            }
-            $group_roles = preg_split('/,/', preg_replace('/, /', ',',$row[8]));
-            foreach ($group_roles as $inputRole) {
-                $res = preg_split('/:/', preg_replace('/: /', ':',$inputRole));
-                $roleName = ucwords(trim($res[0]));
-                $role = $all_roles->where('name', $roleName)->first();
-                if (!$role) continue;
-                $_groupID = intval(trim($res[1]));
-                $group = $all_groups->where('id', $_groupID)->first();
-                if (!$group) continue;
-                if (!$group->canManage()) continue;
-                $import_roles[] = array('user_id' => $current_user->id, 'role_id' => $role->id,
-                                        'inst_id' => null, 'group_id' => $_groupID);
+
+            // Institution roles (col 7)
+            if (isset($row) && trim($row) !== '') {
+                $inst_roles = preg_split('/,/', preg_replace('/, /', ',', $row));
+                foreach ($inst_roles as $inputRole) {
+                    $res = preg_split('/:/', preg_replace('/: /', ':', $inputRole));
+                    if (count($res) < 2) {
+                        continue;
+                    }
+                    $role = $all_roles->where('name', ucwords(trim($res)))->first();
+                    if (!$role) {
+                        continue;
+                    }
+                    $_instID = intval(trim($res));
+                    $_instObj = $institutions->where('id', $_instID)->first();
+                    if (!$_instObj || !$_instObj->canManage()) {
+                        continue;
+                    }
+                    $import_roles[] = [
+                        'user_id'  => $current_user->id,
+                        'role_id'  => $role->id,
+                        'inst_id'  => $_instID,
+                        'group_id' => null,
+                    ];
+                }
             }
 
-            // Drop roles for current user not present in the import_roles
+            // Group roles (col 8)
+            if (isset($row) && trim($row) !== '') {
+                $group_roles = preg_split('/,/', preg_replace('/, /', ',', $row));
+                foreach ($group_roles as $inputRole) {
+                    $res = preg_split('/:/', preg_replace('/: /', ':', $inputRole));
+                    if (count($res) < 2) {
+                        continue;
+                    }
+                    $role = $all_roles->where('name', ucwords(trim($res)))->first();
+                    if (!$role) {
+                        continue;
+                    }
+                    $_groupID = intval(trim($res));
+                    $group = $all_groups->where('id', $_groupID)->first();
+                    if (!$group || !$group->canManage()) {
+                        continue;
+                    }
+                    $import_roles[] = [
+                        'user_id'  => $current_user->id,
+                        'role_id'  => $role->id,
+                        'inst_id'  => null,
+                        'group_id' => $_groupID,
+                    ];
+                }
+            }
+
+            // Drop roles not present in import_roles
             foreach ($current_user->roles as $ur) {
-                $keep_role = $import_roles->where('user_id',$ur->user_id)->where('role_id',$ur->role_id)
-                                          ->where('inst_id',$ur->inst_id)->where('group_id',$ur->group_id)
-                                          ->first();
+                $keep_role = $import_roles
+                    ->where('user_id', $ur->user_id)
+                    ->where('role_id', $ur->role_id)
+                    ->where('inst_id', $ur->inst_id)
+                    ->where('group_id', $ur->group_id)
+                    ->first();
                 if (!$keep_role) {
-                    UserRole::where('id',$ur->id)->delete();
+                    UserRole::where('id', $ur->id)->delete();
                 }
             }
-            // Add roles for current user not currently set
+
+            // Add new roles from import_roles
             foreach ($import_roles as $ir) {
-                $role_exists = $current_user->roles->where('user_id',$ir['user_id'])->where('role_id',$ir['role_id'])
-                                                   ->where('inst_id',$ir['inst_id'])->where('group_id',$ir['group_id'])
-                                                   ->first();
+                $role_exists = $current_user->roles
+                    ->where('user_id', $ir['user_id'])
+                    ->where('role_id', $ir['role_id'])
+                    ->where('inst_id', $ir['inst_id'])
+                    ->where('group_id', $ir['group_id'])
+                    ->first();
                 if (!$role_exists) {
-                    UserRole::create(['user_id'=>$ir['user_id'], 'role_id'=>$ir['role_id'], 'inst_id'=>$ir['inst_id'],
-                                      'group_id'=>$ir['group_id']]);
+                    UserRole::create($ir);
                 }
             }
         }
 
-        // return the current full list of users with a success message
-        $detail = "";
-        $detail .= ($num_updated > 0) ? $num_updated . " updated" : "";
-        if ($num_created > 0) {
-            $detail .= ($detail != "") ? ", " . $num_created . " added" : $num_created . " added";
-        }
-        if ($num_skipped > 0) {
-            $detail .= ($detail != "") ? ", " . $num_skipped . " skipped" : $num_skipped . " skipped";
-        }
-        $msg  = 'Import successful, Users : ' . $detail;
+        $msg = $this->formatImportSummary(
+            'Import successful, Users',
+            $num_updated,
+            $num_created,
+            0,
+            $num_skipped
+        );
 
-        return response()->json(['result' => true, 'msg' => $msg]);
+        return $this->respondSuccess($msg);
     }
+
 }

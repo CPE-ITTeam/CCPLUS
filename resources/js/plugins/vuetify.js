@@ -1,4 +1,3 @@
-// resources/js/plugins/vuetify.js
 import "vuetify/styles"; // Framework layout grids mount natively here
 import "vuetify/dist/vuetify-labs.css";
 import "@mdi/font/css/materialdesignicons.css";
@@ -8,15 +7,13 @@ import { createVuetify } from "vuetify";
 const sharedInputDefaults = {
   hideDetails: "auto", // Hides bottom spacing unless an active error shows
   variant: "outlined", // Gives fields a crisp border frame
-  density: "comfortable", // Reduces spacing slightly compared to default (larger than 'compact')
+  density: "default", // Maximizes input height and breathing room
   clearable: true, // GLOBAL DEFAULT: Adds the "X" clear icon to all inputs
   persistentPlaceholder: true, // Keeps placeholder text always visible on empty fields
 };
 
 export default createVuetify({
   // ─── NATIVE FRAMEWORK GLOBAL OVERRIDES ───
-  // resources/js/plugins/vuetify.js
-  // Inside your resources/js/plugins/vuetify.js configuration layout
   defaults: {
     // ─── SHARED INPUT DEFAULTS SELECTION GROUP ───
     VAutocomplete: { ...sharedInputDefaults },
@@ -27,6 +24,16 @@ export default createVuetify({
     VSwitch: { ...sharedInputDefaults },
     VTextField: { ...sharedInputDefaults },
     VTextarea: { ...sharedInputDefaults },
+
+    // ─── FORM LAYOUT SPACING ───
+    VForm: {
+      VRow: {
+        class: "my-1", // Ensures generous vertical spacing between form rows
+      },
+      VCol: {
+        class: "py-2", // Keeps vertical padding consistent across grid columns
+      },
+    },
 
     // ─── SYSTEM CORE COMPONENTS ───
     VAppBar: {
@@ -51,25 +58,34 @@ export default createVuetify({
       elevation: 2,
     },
     VCardActions: {
-      class: "px-4 pb-4 justify-start",
+      class: "px-5 pb-4 pt-3 justify-start",
       VBtn: {
         variant: "tonal",
         color: "primary",
       },
     },
     VCardItem: {
-      // 💡 Modal header strips stay solid dark blue and force inner text templates to pure white
-      class: "bg-primary rounded-t pa-3 text-white", 
+      // Modal header strips stay solid dark blue and force inner text templates to pure white
+      class: "bg-primary rounded-t px-5 py-3 text-white",
+      VBtn: {
+        variant: "text",
+        color: "white",
+        density: "comfortable",
+      },
+    },
+    VCardSubtitle: {
+      class: "pt-3 px-5",
     },
     VCardText: {
-      class: "pa-4",
+      class: "pa-5",
     },
     VCardTitle: {
-      // 💡 FIXED: Removed 'text-primary' so it inherits white context inside popups, 
-      // while allowing your page.vue views to manage standalone styling!
-      class: "px-4 pt-4 text-primary font-weight-semibold",     },
+      color: "primary",
+      class: "text-h6 font-weight-semibold pa-0",
+    },
     VDialog: {
       maxWidth: "600px",
+      scrollable: true,
     },
     VList: {
       density: "compact",
@@ -100,7 +116,6 @@ export default createVuetify({
     },
   },
 
-
   theme: {
     defaultTheme: "light",
     themes: {
@@ -109,8 +124,8 @@ export default createVuetify({
         colors: {
           // ─── ⚓ CORE BRAND ARCHITECTURE ───
           primary: "#0066a1", // Exact dark blue logo token
-          info: "#3686b4", // 💡 SHIFTED: Your medium consortium blue now drives system info/accents!
-          secondary: "#757575", // 💡 NEW: A crisp, professional neutral gray for secondary layout actions
+          info: "#3686b4", // Medium consortium blue drives system info/accents
+          secondary: "#757575", // Neutral gray for secondary layout actions
           surface: "#ffffff", // Solid white for cards and input backgrounds
           background: "#f1f5f9", // Modern light slate gray page background canvas
 
@@ -119,7 +134,7 @@ export default createVuetify({
           warning: "#ff9800", // Vivid orange for incomplete rows
           error: "#f44336", // Scarlet red for destructive alerts/deletes
 
-          // ─── ♿ FOREGROUND TEXT CONTRAST ENGINES ───
+          // ─── 🎨 FOREGROUND TEXT CONTRAST ENGINES ───
           "on-primary": "#ffffff",
           "on-info": "#ffffff", // Forces text to white inside solid consortium blue blocks
           "on-secondary": "#ffffff", // Forces text to white inside solid gray layout elements

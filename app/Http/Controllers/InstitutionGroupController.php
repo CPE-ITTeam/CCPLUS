@@ -4,14 +4,15 @@ namespace App\Http\Controllers;
 
 use App\Models\InstitutionGroup;
 use App\Models\Institution;
-use App\Models\Consortium;
 use App\Models\InstitutionType;
+use Illuminate\Database\Eloquent\Model; // <-- ADD THIS
 use Illuminate\Http\Request;
-use PhpOffice\PhpSpreadsheet\Spreadsheet;
-use PhpOffice\PhpSpreadsheet\Writer\Xlsx;
 
-class InstitutionGroupController extends Controller
+class InstitutionGroupController extends BaseController
 {
+    protected string $modelClass = InstitutionGroup::class;
+    protected string $modelLabel = 'Group';
+
     /**
      * Return a JSON array of the resource.
      *
@@ -24,16 +25,16 @@ class InstitutionGroupController extends Controller
 
         // Server/Conso Admins get conso-groups
         if ($thisUser->isConsoAdmin()) {
-            $groups = InstitutionGroup::with('institutions:id,name,type_id','typeRestriction')
-                                      ->whereNull('user_id')->orderBy('name', 'ASC')->get();
+            $groups = InstitutionGroup::with('institutions:id,name,type_id', 'typeRestriction')
+                ->whereNull('user_id')->orderBy('name', 'ASC')->get();
         } else {
             $groupIds = $thisUser->adminGroups();
             // Group Admins get the groups they create plus the ones they can admin
             if (count($groupIds) > 0) {
-                $groups = InstitutionGroup::with('institutions:id,name,type_id','typeRestriction')
-                                          ->where('user_id',$thisUser->id)->orWhereIn('id',$groupIds)
-                                          ->orderBy('name', 'ASC')->get();
-            // Return nothing
+                $groups = InstitutionGroup::with('institutions:id,name,type_id', 'typeRestriction')
+                    ->where('user_id', $thisUser->id)->orWhereIn('id', $groupIds)
+                    ->orderBy('name', 'ASC')->get();
+                // Return nothing
             } else {
                 return response()->json(['records' => [], 'options' => $filter_options, 'result' => true], 200);
             }
@@ -48,9 +49,9 @@ class InstitutionGroupController extends Controller
         }
 
         // Get institution records
-        $all_institutions = Institution::when(count($limit_insts) > 0 , function ($qry) use ($limit_insts) {
-                                             return $qry->whereIn('id', $limit_insts);
-                                         })->orderBy('name', 'ASC')->get(['id','name','type_id']);
+        $all_institutions = Institution::when(count($limit_insts) > 0, function ($qry) use ($limit_insts) {
+            return $qry->whereIn('id', $limit_insts);
+        })->orderBy('name', 'ASC')->get(['id', 'name', 'type_id']);
 
         $data = array();
         foreach ($groups as $group) {
@@ -66,7 +67,7 @@ class InstitutionGroupController extends Controller
         }
 
         // send institution types for filter option
-        $filter_options['types'] = InstitutionType::orderBy('name', 'ASC')->get(['id','name'])->toArray();
+        $filter_options['types'] = InstitutionType::orderBy('name', 'ASC')->get(['id', 'name'])->toArray();
         $filter_options['institutions'] = $all_institutions->toArray();
 
         return response()->json(['records' => $data, 'options' => $filter_options, 'result' => true], 200);
@@ -91,7 +92,7 @@ class InstitutionGroupController extends Controller
         }
 
         $this->validate($request, [
-          'name' => 'required|unique:consodb.institutiongroups,name',
+            'name' => 'required|unique:consodb.institutiongroups,name',
         ]);
         $input = $request->all();
 
@@ -100,7 +101,7 @@ class InstitutionGroupController extends Controller
 
         // Check to see if the group already exists
         $user_id = ($thisUser->isConsoAdmin()) ? null : $thisUser->id;
-        $exists = InstitutionGroup::where('user_id',$user_id)->where('name',$input['name'])->first();
+        $exists = InstitutionGroup::where('user_id', $user_id)->where('name', $input['name'])->first();
         if ($exists) {
             return response()->json(['result' => false, 'msg' => 'A Group with that name already exists']);
         }
@@ -111,27 +112,26 @@ class InstitutionGroupController extends Controller
 
         // Get all institutions' id and name; limit by input type if not-null
         $all_insts = Institution::orderBy('name', 'ASC')
-                                ->when(!is_null($type_id), function ($q) use ($type_id) {
-                                    return $q->where('type_id', $type_id);
-                                })->get(['id','name','type_id']);
+            ->when(!is_null($type_id), function ($q) use ($type_id) {
+                return $q->where('type_id', $type_id);
+            })->get(['id', 'name', 'type_id']);
 
         // if institutions are passed in, go ahead and attach them now
         $new_members = array();
         if (isset($input['institutions'])) {
             foreach ($input['institutions'] as $inst) {
                 // Confirm institution exists and check authorization
-                $institution = $all_insts->where('id',$inst['id'])->first();
+                $institution = $all_insts->where('id', $inst['id'])->first();
                 if ($institution) {
                     if ($institution->canManage()) {
                         $group->institutions()->attach($inst['id']);
                         $new_members[] = $inst['id'];
                     }
-
                 }
             }
             $group->load('institutions');
 
-        // otherwise send back an empty array
+            // otherwise send back an empty array
         } else {
             $group->institutions = array();
         }
@@ -139,12 +139,12 @@ class InstitutionGroupController extends Controller
 
         if ($group->count() > 0) {
             // Get details for new members
-            $newMembers = $all_insts->whereIn('id',$new_members);
+            $newMembers = $all_insts->whereIn('id', $new_members);
             $newMembers->load('institutionGroups');
 
             // Set the group_string for the institutions
             foreach ($group->institutions as $key => $inst) {
-                $instData = $newMembers->where('id',$inst->id)->first();
+                $instData = $newMembers->where('id', $inst->id)->first();
                 if ($instData) {
                     $_string = "";
                     foreach ($instData->institutionGroups as $grp) {
@@ -182,17 +182,17 @@ class InstitutionGroupController extends Controller
         if (!$thisUser->isConsoAdmin() && !$group->canManage()) {
             return response()->json(['result' => false, 'msg' => 'Not Authorized']);
         }
-        $this->validate($request, [ 'name' => 'required' ]);
+        $this->validate($request, ['name' => 'required']);
         $input = $request->all();
 
         // Update group if name or type was changed
         $args = array();
         if ($group->name != $input['name']) $args['name'] = $input['name'];
-        if ( isset($input['reset_type']) ) {
+        if (isset($input['reset_type'])) {
             if ($input['reset_type']) $input['types'] = null;
         }
-        if ($group->type_id != $input['types']) $args['type_id'] = $input['types']; 
-        if (count($args)>0) {
+        if ($group->type_id != $input['types']) $args['type_id'] = $input['types'];
+        if (count($args) > 0) {
             try {
                 $group->update($args);
             } catch (\Exception $ex) {
@@ -202,11 +202,11 @@ class InstitutionGroupController extends Controller
 
         // Attach requested insts
         $type_skip = 0;
-        if (count($request->institutions)>0) {
+        if (count($request->institutions) > 0) {
             $existing_inst_ids = $group->institutions()->pluck('institutions.id')->toArray();
-            $input_ids = array_column($request->institutions,'id');
-            $detach_ids = array_diff($existing_inst_ids,$input_ids);
-            $attach_ids = array_diff($input_ids,$existing_inst_ids);
+            $input_ids = array_column($request->institutions, 'id');
+            $detach_ids = array_diff($existing_inst_ids, $input_ids);
+            $attach_ids = array_diff($input_ids, $existing_inst_ids);
             // Detach cleared insts
             foreach ($detach_ids as $ii) {
                 $group->institutions()->detach($ii);
@@ -225,171 +225,124 @@ class InstitutionGroupController extends Controller
         $member_ids = $group->institutions->pluck('id')->toArray();
 
         // Get all institutions' data
-        $institutionData = Institution::orderBy('name', 'ASC')->get(['id','name','type_id']);
-        $group->load('institutions:id,name,type_id','typeRestriction');
+        $institutionData = Institution::orderBy('name', 'ASC')->get(['id', 'name', 'type_id']);
+        $group->load('institutions:id,name,type_id', 'typeRestriction');
         $group->count = $group->institutions->count();
         $group->type_string = ($group->typeRestriction) ? $group->typeRestriction->name : "";
         $group->can_edit = true;
         $group->can_delete = true;
 
-        $msg = ($type_skip>0) ? "Group updated, but ".$type_skip." institutions skipped or removed due to type restriction"
-                              : "Group updated successfully";
+        $msg = ($type_skip > 0) ? "Group updated, but " . $type_skip . " institutions skipped or removed due to type restriction"
+            : "Group updated successfully";
         return response()->json(['result' => true, 'msg' => $msg, 'record' => $group]);
     }
 
     /**
-     * Remove the specified resource from storage.
-     *
-     * @param  InstitutionGroup $group
-     * @return JSON
+     * Enforce authorization before BaseController deletes the group.
      */
-    public function destroy(InstitutionGroup $group)
+    protected function canDeleteRecord(Model $group): bool|string
     {
-        $thisUser = auth()->user();
-
-        // Check Authorization
-        if (!$thisUser->isConsoAdmin() && !$group->canManage()) {
-            return response()->json(['result' => false, 'msg' => 'Not Authorized']);
-        }
-
-        // Delete the group
-        try {
-            $group->delete();
-        } catch (\Exception $ex) {
-            return response()->json(['result' => false, 'msg' => $ex->getMessage()]);
-        }
-        return response()->json(['result' => true, 'msg' => 'Group successfully deleted']);
+        return (auth()->user()->isConsoAdmin() || $group->canManage())
+            ? true
+            : 'Not Authorized';
     }
 
     /**
      * Import institution groups from a CSV to the database.
-     *
-     * @param  \Illuminate\Http\Request  $request
-     * @return \Illuminate\Http\Response
      */
     public function import(Request $request)
     {
-        // Check Authorization - limit to consoAdmins only
-        $thisUser = auth()->user();
-        if (!$thisUser->isConsoAdmin()) {
-            return response()->json(['result' => false, 'msg' => 'Not Authorized']);
+        if (!auth()->user()->isConsoAdmin()) {
+            return $this->respondError('Not Authorized');
         }
 
-        // Handle and validate inputs
-        $this->validate($request, ['type' => 'required', 'csvfile' => 'required']);
-        if (!$request->hasFile('csvfile')) {
-            return response()->json(['result' => false, 'msg' => 'Error accessing CSV import file']);
-        }
-        $type = $request->input('type');
-        if ($type != 'Additions & Updates' && $type != 'Full Replacement') {
-            return response()->json(['result' => false, 'msg' => 'Error - unrecognized import type.']);
+        $parsed = $this->parseCsvUpload($request, ['Additions & Updates', 'Full Replacement']);
+        if (isset($parsed['error'])) {
+            return $this->respondError($parsed['error']);
         }
 
-        // Turn the CSV data into an array
-        $file = $request->file("csvfile")->getRealPath();
-        $csvData = file_get_contents($file);
+        $rows = $parsed['rows'];
+        $type = $parsed['type'];
 
-        $rows = array_map("str_getcsv", explode("\n", $csvData));
-
-        // If input file is empty, return w/ error string
-        if (sizeof($rows) < 1) {
-            return response()->json(['result' => false, 'msg' => 'Import file is empty, no changes applied.']);
-        }
         $num_deleted = 0;
         $num_skipped = 0;
         $num_updated = 0;
         $num_created = 0;
 
-        // Get all current groups and institutions
         $groups = InstitutionGroup::get();
         $institutions = Institution::get();
+        $group_ids_to_keep = [];
 
-        // Process the input rows
-        $group_ids_to_keep = array();
         foreach ($rows as $row) {
-            if (isset($row[0])) {
-                // Ignore bad/missing ID
-                if ($row[0] != "" && is_numeric($row[0])) {
-                    $_gid = intval($row[0]);
-                    // If we're adding/updating and the name already exists, skip it
-                    if ($request->input('type') == 'Additions & Updates') {
-                        $existing_name = $groups->where("name", $row[1])->first();
-                        if (!is_null($existing_name)) {
-                            $num_skipped++;
-                            continue;
-                        }
-                    }
+            if (!isset($row) || $row === '' || !is_numeric($row)) {
+                continue;
+            }
 
-                    // Skip the row (nothing to update/save) if name is empty
-                    $_name = trim($row[1]);
-                    if (strlen($_name) < 1) {
-                        $num_skipped++;
-                        continue;
-                    }
+            $_gid = intval($row);
+            $_name = isset($row) ? trim($row) : '';
 
-                    // Get/Setup args for the group
-                    $current_group = $groups->where('id', $_gid)->first();
-                    if ($current_group) {               // found existing ID
-                        if (strlen($_name) < 1) {       // If import-name empty, use current value
-                            $_name = trim($current_group->name);
-                        } else {                        // trap changing a name to a name that already exists
-                            $existing_group = $groups->where("name", $_name)->first();
-                            if ($existing_group) {
-                                $_name = trim($current_group->name);     // override, use current - no change
-                            }
-                        }
-                    } else {        // existing ID not found, try to find by name
-                        $current_group = $groups->where("name", $_name)->first();
-                        if ($current_group) {
-                            $_name = trim($current_group->name);
-                        }
-                    }
+            if ($type === 'Additions & Updates' && $groups->where('name', $_name)->first()) {
+                $num_skipped++;
+                continue;
+            }
 
-                    // Update or create the Group record
-                    $_data = array('id' => $_gid, 'name' => $_name);
-                    if (!$current_group) {      // Create
-                        $current_group = InstitutionGroup::create($_data);
-                        $groups->push($current_group);
-                        $num_created++;
-                    } else {                   // Update
-                        $current_group->update($_data);
-                        $num_updated++;
-                    }
-                    $group_ids_to_keep[] = $current_group->id;
+            if (strlen($_name) < 1) {
+                $num_skipped++;
+                continue;
+            }
 
-                    // If member_ids are present,reset the group membership to match
-                    // If the column is empty, leave the group membership as-is (no change)
-                    if ($row[2] != "") {
-                        $_ids = preg_split('/\s*,\s*/', trim($row[2]));
-                        if (count($_ids) > 0) {
-                            $current_group->institutions()->detach();
-                            foreach ($_ids as $inst_id) {
-                                $_inst = $institutions->where('id', intval($inst_id))->first();
-                                if ($_inst) {
-                                    $current_group->institutions()->attach($inst_id);
-                                }
-                            }
+            $current_group = $groups->where('id', $_gid)->first();
+            if ($current_group) {
+                if ($groups->where('name', $_name)->first()) {
+                    $_name = trim($current_group->name);
+                }
+            } else {
+                $current_group = $groups->where('name', $_name)->first();
+                if ($current_group) {
+                    $_name = trim($current_group->name);
+                }
+            }
+
+            $_data = ['id' => $_gid, 'name' => $_name];
+            if (!$current_group) {
+                $current_group = InstitutionGroup::create($_data);
+                $groups->push($current_group);
+                $num_created++;
+            } else {
+                $current_group->update($_data);
+                $num_updated++;
+            }
+            $group_ids_to_keep[] = $current_group->id;
+
+            if (isset($row) && $row !== '') {
+                $_ids = preg_split('/\s*,\s*/', trim($row));
+                if (count($_ids) > 0) {
+                    $current_group->institutions()->detach();
+                    foreach ($_ids as $inst_id) {
+                        if ($institutions->where('id', intval($inst_id))->first()) {
+                            $current_group->institutions()->attach($inst_id);
                         }
                     }
                 }
             }
         }
 
-        // For Full replacement, clean out any groups not seen above
-        if ($type == 'Full Replacement') {
+        if ($type === 'Full Replacement') {
             $num_deleted = InstitutionGroup::whereNotIn('id', $group_ids_to_keep)->delete();
         }
 
-        // return the current full list of groups with a success message
-        $msg  = 'Institution Groups imported successfully : ';
-        $msg .= ($num_deleted > 0) ? $num_deleted . " removed, " : "";
-        $msg .= $num_updated . " updated and " . $num_created . " added";
-        if ($num_skipped > 0) {
-            $msg .= ($num_skipped > 0) ? " (" . $num_skipped . " existing names/ids skipped)" : ".";
-        }
-        return response()->json(['result' => true, 'msg' => $msg]);
-    }
+        $extra = ($num_skipped > 0) ? " ({$num_skipped} existing names/ids skipped)" : '';
+        $msg = $this->formatImportSummary(
+            'Institution Groups imported successfully',
+            $num_updated,
+            $num_created,
+            $num_deleted,
+            0,
+            $extra
+        );
 
+        return $this->respondSuccess($msg);
+    }
 
     /**
      * Return an array of "belongs-to" strings for all instatitutions
@@ -403,12 +356,11 @@ class InstitutionGroupController extends Controller
         foreach ($institutions as $inst) {
             $string = "";
             foreach ($inst->institutionGroups as $group) {
-                $string .= ($string =="") ? "" : ", ";
+                $string .= ($string == "") ? "" : ", ";
                 $string .= $group->name;
             }
             $belongsTo[] = array('id' => $inst->id, 'groups' => $string);
         }
         return $belongsTo;
     }
-
 }

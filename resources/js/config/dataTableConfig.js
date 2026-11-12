@@ -3,34 +3,38 @@
 // ─────────────────────────────────────────────────────────────────────────
 // STEP 1: THE DEFAULTS DEFINITION (Add cols: 12 to the map)
 // ─────────────────────────────────────────────────────────────────────────
-const FIELD_DEFAULTS = {
+ const FIELD_DEFAULTS = {
   type: 'text',
   header: 'start', 
-  editable: true,
+  editable: true,   // Accepts: true | false | ['Add'] | ['Edit']
+  visible: true,    // Accepts: true | false | ['Add'] | ['Edit']
   searchable: true,
   icon: '',
   helperText: '',
   options: null,
-  cols: 12 // 🌟 DEFAULT: Every field is full-width unless overridden in your configs
+  cols: 12
 };
-
 // ─────────────────────────────────────────────────────────────────────────
-// STEP 2: THE SCHEMA MERGE HELPER (Add this helper below the defaults)
+// STEP 2: SCHEMA PERMISSION HELPERS
 // ─────────────────────────────────────────────────────────────────────────
 /**
- * Maps field configs against core defaults to enforce baseline safety layout rules.
- * @param {Array} fields 
- * @return {Array}
+ * Determines if a field should render in the current form mode ('Add' | 'Edit').
  */
-const defineFields = (fields) => {
-  return fields.map(field => ({ ...FIELD_DEFAULTS, ...field }));
+export const isFieldVisible = (field, mode) => {
+  if (Array.isArray(field.visible)) return field.visible.includes(mode);
+  return Boolean(field.visible);
 };
 
+/**
+ * Determines if a field can be modified in the current form mode ('Add' | 'Edit').
+ */
+export const isFieldEditable = (field, mode) => {
+  if (Array.isArray(field.editable)) return field.editable.includes(mode);
+  return Boolean(field.editable);
+};
 
 // ─────────────────────────────────────────────────────────────────────────
-// STEP 2: YOUR CURRENT DATASETS INDEX MAP
-// Just change this single keyword line at the top to a regular "const" variable.
-// Leave the rest of your 100+ table configuration blocks exactly as they are.
+// STEP 3: DATASETS INDEX MAP
 // ─────────────────────────────────────────────────────────────────────────
 const rawTableSetup = {
     //
@@ -45,34 +49,33 @@ const rawTableSetup = {
     institutions: {
       urlRoot: '/api/institutions', title: 'Institution',
       fields: [
-        // 1. SYSTEM KEYS (Turn off searchable explicitly here)
-        { name: 'id',           label: 'CC+ System ID',             type: 'number',   header: null,  searchable: false },
+        // 1. SYSTEM KEYS
+        { name: 'id',           label: 'CC+ System ID',             type: 'number',   editable: false, visible: ['Edit'], header: null, searchable: false },
         { name: 'status',       label: 'Status',                    type: 'toggle',   options: 'fromURL', addValue: 'Active', header: 'center', searchable: false },
 
-        // 2. PRIMARY TEXT DESCRIPTORS (Super clean: implicitly searchable!)
-        { name: 'name',         label: 'Institution', cols: 8},
-        { name: 'local_id',     label: 'Local ID',         cols: 4,                           header: null },
-
+        // 2. PRIMARY TEXT DESCRIPTORS
+        { name: 'name',         label: 'Institution',               cols: 8 },
+        { name: 'local_id',     label: 'Local ID',                  cols: 4,          header: null },
         // 3. COMPLEX RELATIONAL PIPELINES
-        { name: 'type',         label: 'Type',                      type: 'select',   options: 'fromURL', optVal: 'id', optTxt: 'name', isFilter: true, filterCol: 'type_id' },
-        { name: 'type_id',      label: 'Type ID',                   type: 'number',   header: null, editable: false, searchable: false },
+        { name: 'type',         label: 'Type',                      type: 'select',  options: 'fromURL', optVal: 'id', optTxt: 'name', isFilter: true, filterCol: 'type_id' },
+        { name: 'type_id',      label: 'Type ID',                   type: 'number',  editable: false, visible: false, header: null, searchable: false },
 
-        { name: 'group_string', label: 'Groups',                                      editable: false },
-        { name: 'group_ids',    label: 'Group Assignment(s)',       type: 'array',    header: null, searchable: false },
-        { name: 'groups',       label: 'Groups',                    type: 'mselect',  options: 'fromURL', optVal: 'id', optTxt: 'name', isFilter: true, filterCol: 'group_ids', header: null, searchable: false },
+        { name: 'group_string', label: 'Groups',                                     editable: false, visible: false },
+        { name: 'group_ids',    label: 'Group Assignment(s)',       type: 'array',   editable: false, visible: false, header: null, searchable: false },
+        { name: 'groups',       label: 'Group Assignment(s)',       type: 'mselect', options: 'fromURL', optVal: 'id', optTxt: 'name', isFilter: true, filterCol: 'group_ids', header: null, searchable: false },
         
         // 4. METRICS, TEXTAREAS & OPT-INS
-        { name: 'fte',          label: 'FTE',                       type: 'number',   header: null, searchable: false },
+        { name: 'fte',          label: 'FTE',                       type: 'number',  header: null, searchable: false },
         { name: 'notes',        label: 'Notes',                     type: 'textarea', header: null },
-        { name: 'creds',        label: 'Add Credential Placeholders', type: 'toggle',  options: ['Inactive','Active'], addValue: 'Active', header: null, searchable: false },
+        { name: 'creds',        label: 'Add Credential Placeholders', type: 'toggle', options: ['Inactive','Active'], addValue: 'Active', visible: ['Add'], header: null, searchable: false },
       ],
 
       required: ['status', 'name', 'local_id', 'fte', 'type', 'creds'],
-      static: ['id','group_string','group_ids','type_id'],
-      bulkOptions: ['Set Active', 'Set Inactive', 'Assign Type', 'Create New Group', 'Add to Existing Group'],
+      bulkOptions: ['Set Active', 'Set Inactive', 'Assign Type', 'Create New Group', 'Add to Existing Group', 'Delete'],
       exportFields: ['id','local_id','name','status','fte','group_ids','notes'],
       sortby: 'name',
     },
+
     types: {
       urlRoot: '/api/types', title: 'Institution Type',
       fields: [
@@ -434,8 +437,8 @@ const rawTableSetup = {
         { name: 'is_selected',     label: 'Status',                     type: 'toggle',   options: '', header: null, searchable: false },
 
         // 2. CORE VIEWABLE LOG DESCRIPTORS (Implicitly text and searchable)
-        { name: 'name',            label: 'Platform Name' },
-        { name: 'abbrev',          label: 'Abbreviation',                                  header: 'center' },
+        { name: 'name',            label: 'Platform Name' , cols: 8  },
+        { name: 'abbrev',          label: 'Abbreviation',                                 header: 'center' , cols: 4 },
         { name: 'cur_release',     label: 'Release',                                      header: 'center' },
         { name: 'data_host',       label: 'Data Host' },
         { name: 'day_of_month',    label: 'Harvest Day',                type: 'number',   header: 'center' },
@@ -481,19 +484,27 @@ const rawTableSetup = {
     }
 };
 // ─────────────────────────────────────────────────────────────────────────
-// STEP 3: THE AUTOMATED LOOPER (Paste this at the absolute BOTTOM of the file)
+// STEP 4: THE AUTOMATED LOOPER
 // ─────────────────────────────────────────────────────────────────────────
 // This single loop processes all tables at build time and exports the complete map.
 // Your other components can still import { tableSetup } with zero syntax changes!
 export const tableSetup = Object.keys(rawTableSetup).reduce((acc, datasetKey) => {
   const dataset = rawTableSetup[datasetKey];
   
+  const mergedFields = dataset.fields.map(field => ({
+    ...FIELD_DEFAULTS,
+    ...field
+  }));
+
+  // Auto-derive `static` if omitted so DatasetViewer.vue never crashes
+  const derivedStatic = dataset.static ?? mergedFields
+    .filter(f => f.editable === false || f.visible === false)
+    .map(f => f.name);
+
   acc[datasetKey] = {
     ...dataset,
-    fields: dataset.fields.map(field => ({
-      ...FIELD_DEFAULTS,
-      ...field // Your custom field mappings overwrite the defaults automatically
-    }))
+    fields: mergedFields,
+    static: derivedStatic
   };
   
   return acc;

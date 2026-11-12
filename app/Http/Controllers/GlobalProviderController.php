@@ -13,7 +13,7 @@ use PhpOffice\PhpSpreadsheet\Spreadsheet;
 use PhpOffice\PhpSpreadsheet\Writer\Xlsx;
 use DB;
 
-class GlobalProviderController extends Controller
+class GlobalProviderController extends BaseController
 {
     private $masterReports;
     private $allConnectors;
@@ -24,17 +24,23 @@ class GlobalProviderController extends Controller
     {
         global $resultMap;
 
-        $this->middleware(['auth','role:ServerAdmin']);
+        $this->middleware(['auth', 'role:ServerAdmin']);
         $resultMap = array(
-            'success' => array('refresh_text'=>'Open Registry Details', 'refresh_icon'=>'mdi-web-check', 'refresh_color'=>'blue'),
-            'new'     => array('refresh_text'=>'New Platform Entry', 'refresh_icon'=>'mdi-web-plus', 'refresh_color'=>'green'),
-            'orphan'  => array('refresh_text'=>'Deprecated', 'refresh_icon'=>'mdi-web-remove', 'refresh_color'=>'red'),
-            'partial' => array('refresh_text'=>'Incomplete Result', 'refresh_icon'=>'mdi-web-remove', 'refresh_color'=>'orange'),
-            'failed'  => array('refresh_text'=>'Last Refresh Failed', 'refresh_icon'=>'mdi-web-remove', 'refresh_color'=>'red'),
-            'norefresh' => array('refresh_text'=>'Registry Refresh Disabled', 'refresh_icon'=>'mdi-web-cancel',
-                                 'refresh_color'=>'black'),
-            'noregistry' => array('refresh_text'=>'Registry Refresh Disabled', 'refresh_icon'=>'mdi-web-cancel',
-                                  'refresh_color'=>'black'),
+            'success' => array('refresh_text' => 'Open Registry Details', 'refresh_icon' => 'mdi-web-check', 'refresh_color' => 'blue'),
+            'new'     => array('refresh_text' => 'New Platform Entry', 'refresh_icon' => 'mdi-web-plus', 'refresh_color' => 'green'),
+            'orphan'  => array('refresh_text' => 'Deprecated', 'refresh_icon' => 'mdi-web-remove', 'refresh_color' => 'red'),
+            'partial' => array('refresh_text' => 'Incomplete Result', 'refresh_icon' => 'mdi-web-remove', 'refresh_color' => 'orange'),
+            'failed'  => array('refresh_text' => 'Last Refresh Failed', 'refresh_icon' => 'mdi-web-remove', 'refresh_color' => 'red'),
+            'norefresh' => array(
+                'refresh_text' => 'Registry Refresh Disabled',
+                'refresh_icon' => 'mdi-web-cancel',
+                'refresh_color' => 'black'
+            ),
+            'noregistry' => array(
+                'refresh_text' => 'Registry Refresh Disabled',
+                'refresh_icon' => 'mdi-web-cancel',
+                'refresh_color' => 'black'
+            ),
         );
     }
 
@@ -52,7 +58,7 @@ class GlobalProviderController extends Controller
         abort_unless($thisUser->isServerAdmin(), 403);
 
         // Get all provider records
-        $gp_data = GlobalProvider::with('registries','registries.dataHost')->orderBy('name', 'ASC')->get();
+        $gp_data = GlobalProvider::with('registries', 'registries.dataHost')->orderBy('name', 'ASC')->get();
 
         // Pull master reports and connection fields
         $this->getMasterReports();
@@ -66,21 +72,26 @@ class GlobalProviderController extends Controller
         $all_releases = array();
         $providers = array();
         foreach ($gp_data as $gp) {
-            $provider = array('id'=>$gp->id, 'name'=>$gp->name, 'abbrev'=>$gp->abbrev, 'day_of_month'=>$gp->day_of_month,
-                              'platform_parm' => $gp->platform_parm);
+            $provider = array(
+                'id' => $gp->id,
+                'name' => $gp->name,
+                'abbrev' => $gp->abbrev,
+                'day_of_month' => $gp->day_of_month,
+                'platform_parm' => $gp->platform_parm
+            );
             $provider['status'] = ($gp->is_active) ? "Active" : "Inactive";
             $provider['refreshable'] = ($gp->refreshable) ? "Active" : "Inactive";
-            $provider['registry_id'] = (is_null($gp->registry_id) || $gp->registry_id=="") ? null : $gp->registry_id;
+            $provider['registry_id'] = (is_null($gp->registry_id) || $gp->registry_id == "") ? null : $gp->registry_id;
             // Handle refresh_result and set the meta-values for the U/I 
             // result value will match a key in $resultMap or null
             $resultKey = "";
-            if ( is_null($provider['registry_id']) ) $resultKey = 'noregistry';
+            if (is_null($provider['registry_id'])) $resultKey = 'noregistry';
             if (in_array($gp->refresh_result, array_keys($resultMap))) {
-                if ($resultKey=="") $resultKey = $gp->refresh_result;
+                if ($resultKey == "") $resultKey = $gp->refresh_result;
                 $provider['refresh_result'] = $resultKey;
             } else {
                 $resultKey = 'norefresh';
-                $provider['refresh_result'] = ( $gp->refreshable ) ? null : 'norefresh';
+                $provider['refresh_result'] = ($gp->refreshable) ? null : 'norefresh';
             }
             $provider['refresh_text']  = $resultMap[$resultKey]['refresh_text'];
             $provider['refresh_icon']  = $resultMap[$resultKey]['refresh_icon'];
@@ -95,13 +106,13 @@ class GlobalProviderController extends Controller
             $provider['connector_state'] = array();
             $provider['report_state'] = $this->reportState([]);
             foreach ($gp->registries->sortBy('release') as $registry) {
-                if (!in_array($registry->release,$all_releases)) $all_releases[] = $registry->release;
+                if (!in_array($registry->release, $all_releases)) $all_releases[] = $registry->release;
                 $reg = $registry->toArray();
                 $reg['connector_state'] = $this->connectorState($registry->connectors);
                 $reg['report_state'] = $this->reportState($registry->master_reports);
                 $reg['is_selected'] = ($registry->release == $provider['cur_release']) ? 'Active' : 'Inactive';
                 $reg['data_host'] = ($registry->dataHost) ? $registry->dataHost->name : "-missing-";
-                if ( $reg['is_selected'] == 'Active' ) {
+                if ($reg['is_selected'] == 'Active') {
                     $provider['is_selected'] = 'Active';
                     $provider['connector_state'] = $reg['connector_state'];
                     $provider['report_state'] = $reg['report_state'];
@@ -127,8 +138,12 @@ class GlobalProviderController extends Controller
                     $provider['can_delete'] = false;
                 }
                 if ($details['cnxcount'] > 0) {
-                    $connections[] = array('key'=>$instance->ccp_key, 'name'=>$instance->name, 'num'=>$details['cnxcount'],
-                                            'last_harvest'=>$details['last_harvest']);
+                    $connections[] = array(
+                        'key' => $instance->ccp_key,
+                        'name' => $instance->name,
+                        'num' => $details['cnxcount'],
+                        'last_harvest' => $details['last_harvest']
+                    );
                     $provider['instance_count'] += 1;
                 }
             }
@@ -141,13 +156,18 @@ class GlobalProviderController extends Controller
         $filter_options = array();
         $filter_options['releases'] = $all_releases;
         $filter_options['all_connectors'] = $all_connectors;
-        $filter_options['master_reports'] = $masterReports; 
-        $filter_options['statuses'] = array('Active','Inactive');
+        $filter_options['master_reports'] = $masterReports;
+        $filter_options['statuses'] = array('Active', 'Inactive');
         // Set refresh_result filter options to id->value pairs so they make better sense in the U/I
-        $filter_options['results'] = array( array('id'=>'success','value' =>'Success'), array('id'=>'new','value' =>'New'),
-            array('id'=>'orphan','value' =>'Deprecated'), array('id'=>'partial','value' =>'Incomplete'),
-            array('id'=>'failed','value' =>'Failed'), array('id'=>'norefresh','value' =>'Refresh Disabled'),
-            array('id'=>'noregistry','value' =>'No Registry ID'));
+        $filter_options['results'] = array(
+            array('id' => 'success', 'value' => 'Success'),
+            array('id' => 'new', 'value' => 'New'),
+            array('id' => 'orphan', 'value' => 'Deprecated'),
+            array('id' => 'partial', 'value' => 'Incomplete'),
+            array('id' => 'failed', 'value' => 'Failed'),
+            array('id' => 'norefresh', 'value' => 'Refresh Disabled'),
+            array('id' => 'noregistry', 'value' => 'No Registry ID')
+        );
         // Return the data array
         return response()->json(['records' => $providers, 'options' => $filter_options], 200);
     }
@@ -165,11 +185,17 @@ class GlobalProviderController extends Controller
 
         $providers = array();
         foreach ($data as $gp) {
-            $rec = array('id'=>$gp->id, 'name'=>$gp->name, 'abbrev'=>$gp->abbrev, 'day_of_month'=>$gp->day_of_month,
-                         'platform_parm' => $gp->platform_parm, 'content_provider' => $gp->content_provider);
+            $rec = array(
+                'id' => $gp->id,
+                'name' => $gp->name,
+                'abbrev' => $gp->abbrev,
+                'day_of_month' => $gp->day_of_month,
+                'platform_parm' => $gp->platform_parm,
+                'content_provider' => $gp->content_provider
+            );
             $rec['status'] = ($gp->is_active) ? "Active" : "Inactive";
             $rec['refreshable'] = ($gp->refreshable) ? "Yes" : "No";
-            $rec['registry_id'] = (is_null($gp->registry_id) || $gp->registry_id=="") ? null : $gp->registry_id;
+            $rec['registry_id'] = (is_null($gp->registry_id) || $gp->registry_id == "") ? null : $gp->registry_id;
             // Set release-related fields
             $rec['cur_release'] = $gp->default_release();
             $service_url = $gp->service_url();
@@ -189,76 +215,86 @@ class GlobalProviderController extends Controller
      */
     public function store(Request $request)
     {
-      global $masterReports, $allConnectors;
+        global $masterReports, $allConnectors;
 
-      // Validate form inputs
-      $this->validate($request, [ 'name' => 'required', 'status' => 'required', 'service_url' => 'required',
-                                  'cur_release' => 'required', 'refreshable' => 'required' ]);
-      $input = $request->all();
+        // Validate form inputs
+        $this->validate($request, [
+            'name' => 'required',
+            'status' => 'required',
+            'service_url' => 'required',
+            'cur_release' => 'required',
+            'refreshable' => 'required'
+        ]);
+        $input = $request->all();
 
-      // Create new global provider
-      $provider = new GlobalProvider;
-      $provider->name = $input['name'];
-      $provider->is_active = ($input['status'] == 'Active') ? 1 : 0;
-      $provider->refreshable = ($input['refreshable'] == 'Active') ? 1 : 0;
-      $provider->refresh_result = null;
-      $provider->day_of_month = (isset($input['day_of_month'])) ? min(max($input['day_of_month'],1),28) : 15;
-      $provider->platform_parm = $input['platform_parm'];
-      $provider->save();
+        // Create new global provider
+        $provider = new GlobalProvider;
+        $provider->name = $input['name'];
+        $provider->is_active = ($input['status'] == 'Active') ? 1 : 0;
+        $provider->refreshable = ($input['refreshable'] == 'Active') ? 1 : 0;
+        $provider->refresh_result = null;
+        $provider->day_of_month = (isset($input['day_of_month'])) ? min(max($input['day_of_month'], 1), 28) : 15;
+        $provider->platform_parm = $input['platform_parm'];
+        $provider->save();
 
-      // Create a CounterRegistry record
-      $registry = new CounterRegistry;
-      $registry->global_id = $provider->id;
-      $registry->service_url = $input['service_url'];
-      $input_release = (isset($input['cur_release'])) ? trim($input['cur_release']) : "";
-      $registry->release = (strlen($input_release) > 0) ? $input_release : "0";
+        // Create a CounterRegistry record
+        $registry = new CounterRegistry;
+        $registry->global_id = $provider->id;
+        $registry->service_url = $input['service_url'];
+        $input_release = (isset($input['cur_release'])) ? trim($input['cur_release']) : "";
+        $registry->release = (strlen($input_release) > 0) ? $input_release : "0";
 
-      // Turn array of connection checkboxes into an array of IDs
-      $connectors = array();
-      $this->getConnectionFields();
-      foreach ($allConnectors as $cnx) {
-          if (!isset($input['connector_state'][$cnx->name])) continue;
-          if ($input['connector_state'][$cnx->name]) {
-              $connectors[] = $cnx->id;
-          }
-      }
-      $registry->connectors = $connectors;
-      // Turn array of report checkboxes into an array of IDs amd save in registry
-      $master_reports = array();
-      if (isset($input['report_state'])) {
-          $this->getMasterReports();
-          foreach ($masterReports as $rpt) {
-            if (!isset($input['report_state'][$rpt->name])) continue;
-            if ($input['report_state'][$rpt->name]) {
-                $master_reports[] = $rpt->id;
+        // Turn array of connection checkboxes into an array of IDs
+        $connectors = array();
+        $this->getConnectionFields();
+        foreach ($allConnectors as $cnx) {
+            if (!isset($input['connector_state'][$cnx->name])) continue;
+            if ($input['connector_state'][$cnx->name]) {
+                $connectors[] = $cnx->id;
             }
-          }
-      }
-      $registry->master_reports = $master_reports;
-      $registry->save();
-      $provider->load('registries');
+        }
+        $registry->connectors = $connectors;
+        // Turn array of report checkboxes into an array of IDs amd save in registry
+        $master_reports = array();
+        if (isset($input['report_state'])) {
+            $this->getMasterReports();
+            foreach ($masterReports as $rpt) {
+                if (!isset($input['report_state'][$rpt->name])) continue;
+                if ($input['report_state'][$rpt->name]) {
+                    $master_reports[] = $rpt->id;
+                }
+            }
+        }
+        $registry->master_reports = $master_reports;
+        $registry->save();
+        $provider->load('registries');
 
-      // Setup Return record
-      $record = array('id'=>$provider->id, 'name'=>$provider->name, 'abbrev'=>$provider->abbrev,
-                      'day_of_month'=>$provider->day_of_month, 'platform_parm' => $provider->platform_parm);
-      $record['can_edit'] = true;
-      $record['can_delete'] = true;
-      $record['cnxcount'] = 0;
-      $record['status'] = ($provider->is_active) ? "Active" : "Inactive";
-      $record['refreshable'] = ($provider->refreshable) ? "Active" : "Inactive";
-      $record['connector_state'] = (isset($input['connector_state'])) ? $input['connector_state'] : array();
-      $record['report_state'] = (isset($input['report_state'])) ? $input['report_state'] : array();
-      $record['data_host'] = $provider->name;
-      $record['registries'] = $provider->registries->toArray();
-      $record['cur_release'] = $provider->default_release();
-      $record['reg_releases'] = array($input_release);
-      $record['is_selected'] = 'Active';
-      $record['service_url'] = $provider->service_url();
-      $record['connections'] = array();
-      $record['instance_count'] = 0;
-      $record['updated'] = (is_null($provider->updated_at)) ? "" : date("Y-m-d H:i", strtotime($provider->updated_at));
+        // Setup Return record
+        $record = array(
+            'id' => $provider->id,
+            'name' => $provider->name,
+            'abbrev' => $provider->abbrev,
+            'day_of_month' => $provider->day_of_month,
+            'platform_parm' => $provider->platform_parm
+        );
+        $record['can_edit'] = true;
+        $record['can_delete'] = true;
+        $record['cnxcount'] = 0;
+        $record['status'] = ($provider->is_active) ? "Active" : "Inactive";
+        $record['refreshable'] = ($provider->refreshable) ? "Active" : "Inactive";
+        $record['connector_state'] = (isset($input['connector_state'])) ? $input['connector_state'] : array();
+        $record['report_state'] = (isset($input['report_state'])) ? $input['report_state'] : array();
+        $record['data_host'] = $provider->name;
+        $record['registries'] = $provider->registries->toArray();
+        $record['cur_release'] = $provider->default_release();
+        $record['reg_releases'] = array($input_release);
+        $record['is_selected'] = 'Active';
+        $record['service_url'] = $provider->service_url();
+        $record['connections'] = array();
+        $record['instance_count'] = 0;
+        $record['updated'] = (is_null($provider->updated_at)) ? "" : date("Y-m-d H:i", strtotime($provider->updated_at));
 
-      return response()->json(['result' => true, 'msg' => 'Platform successfully created', 'record' => $record]);
+        return response()->json(['result' => true, 'msg' => 'Platform successfully created', 'record' => $record]);
     }
 
     /**
@@ -270,184 +306,196 @@ class GlobalProviderController extends Controller
      */
     public function update(Request $request, $id)
     {
-      global $masterReports, $allConnectors, $resultMap;
+        global $masterReports, $allConnectors, $resultMap;
 
-      $provider = GlobalProvider::with('registries','registries.dataHost')->findOrFail($id);
-      $orig_name = $provider->name;
-      $orig_refreshable = $provider->refreshable;
+        $provider = GlobalProvider::with('registries', 'registries.dataHost')->findOrFail($id);
+        $orig_name = $provider->name;
+        $orig_refreshable = $provider->refreshable;
 
-      // Validate form inputs
-      $input = $request->all();
+        // Validate form inputs
+        $input = $request->all();
 
-      // If user hits toggle, it arrives as 'is_active' without a status value.
-      // If so, reset input array to hold just status value
-      if (!isset($input['status']) && isset($input['is_active'])) {
-          $value = ($input['is_active'] == 0) ? 'Inactive' : 'Active';
-          $input = array('status' => $value);
-      }
+        // If user hits toggle, it arrives as 'is_active' without a status value.
+        // If so, reset input array to hold just status value
+        if (!isset($input['status']) && isset($input['is_active'])) {
+            $value = ($input['is_active'] == 0) ? 'Inactive' : 'Active';
+            $input = array('status' => $value);
+        }
 
-      // Going INactive or making the platform NO-Refresh means we also clear the refresh_result
-      $isActive = ($input['status'] == 'Active') ? 1 : 0;
-      $provider->is_active = $isActive;
-      if (!$isActive) {
-          $provider->refresh_result = null;
-      }
-      if (array_key_exists('refreshable', $input)) {
-          $provider->refreshable = ($input['refreshable'] == 'Active') ? 1 : 0;
-      } else {
-          $provider->refreshable = 0;
-      }
+        // Going INactive or making the platform NO-Refresh means we also clear the refresh_result
+        $isActive = ($input['status'] == 'Active') ? 1 : 0;
+        $provider->is_active = $isActive;
+        if (!$isActive) {
+            $provider->refresh_result = null;
+        }
+        if (array_key_exists('refreshable', $input)) {
+            $provider->refreshable = ($input['refreshable'] == 'Active') ? 1 : 0;
+        } else {
+            $provider->refreshable = 0;
+        }
 
-      // If refreshable toggle changed, update refresh_result (mark refreshable=1 as success
-      // to get the correct Counter api link in the U/I.)
-      if ($provider->refreshable != $orig_refreshable) {
-          $provider->refresh_result = ($provider->refreshable == 1) ? "success" : null;
-      }
+        // If refreshable toggle changed, update refresh_result (mark refreshable=1 as success
+        // to get the correct Counter api link in the U/I.)
+        if ($provider->refreshable != $orig_refreshable) {
+            $provider->refresh_result = ($provider->refreshable == 1) ? "success" : null;
+        }
 
-      // Pull all connection fields and master reports
-      $this->getConnectionFields();
-      $this->getMasterReports();
+        // Pull all connection fields and master reports
+        $this->getConnectionFields();
+        $this->getMasterReports();
 
-      // Update the record in the global table
-      $input_name = (isset($input['name'])) ? $input['name'] : $orig_name;
-      if (isset($input['name'])) {
-          $provider->name = $input_name;
-      }
+        // Update the record in the global table
+        $input_name = (isset($input['name'])) ? $input['name'] : $orig_name;
+        if (isset($input['name'])) {
+            $provider->name = $input_name;
+        }
 
-      // Get or create the registry record and set service_url
-      $input_release = (isset($input['cur_release'])) ? $input['cur_release'] : "";
-      $release = (strlen(trim($input_release)) > 0) ? $input_release : "0";
-      // If there is only one registry, allow input value to modify the release set for the entry
-      if ($provider->registries->count() == 1) {
-          $registry = $provider->registries->first();
-          $registry->release = $release;
-      } else {
-          $registry = $provider->registries->where('release',$release)->first();
-      }
+        // Get or create the registry record and set service_url
+        $input_release = (isset($input['cur_release'])) ? $input['cur_release'] : "";
+        $release = (strlen(trim($input_release)) > 0) ? $input_release : "0";
+        // If there is only one registry, allow input value to modify the release set for the entry
+        if ($provider->registries->count() == 1) {
+            $registry = $provider->registries->first();
+            $registry->release = $release;
+        } else {
+            $registry = $provider->registries->where('release', $release)->first();
+        }
 
-      if (!$registry) {
-          // Create a CounterRegistry record
-          $registry = new CounterRegistry;
-          $registry->global_id = $provider->id;
-          $registry->service_url = (isset($input['service_url'])) ? $input['service_url'] : null;
-          $registry->release = $release;
-      }
+        if (!$registry) {
+            // Create a CounterRegistry record
+            $registry = new CounterRegistry;
+            $registry->global_id = $provider->id;
+            $registry->service_url = (isset($input['service_url'])) ? $input['service_url'] : null;
+            $registry->release = $release;
+        }
 
-      // Allow input form to modify service_url when refreshable is off
-      if (isset($input['service_url']) && !$provider->refreshable) {
-          $registry->service_url = $input['service_url'];
-      }
+        // Allow input form to modify service_url when refreshable is off
+        if (isset($input['service_url']) && !$provider->refreshable) {
+            $registry->service_url = $input['service_url'];
+        }
 
-      // Turn array of connection checkboxes into an array of IDs
-      $new_connectors = array();
-      if (array_key_exists('connector_state', $input)) {
-          foreach ($allConnectors as $cnx) {
-              if (!isset($input['connector_state'][$cnx->name])) continue;
-              if ($input['connector_state'][$cnx->name]) {
-                  $new_connectors[] = $cnx->id;
-              }
-          }
-          $registry->connectors = $new_connectors;
-      }
-      // Turn array of report checkboxes into an array of IDs
-      $master_reports = array();
-      if (array_key_exists('report_state', $input)) {
-          foreach ($masterReports as $rpt) {
-              if (!isset($input['report_state'][$rpt->name])) continue;
-              if ($input['report_state'][$rpt->name]) {
-                  $master_reports[] = $rpt->id;
-              }
-          }
-      }
-      $registry->master_reports = $master_reports;
-      $registry->save();
+        // Turn array of connection checkboxes into an array of IDs
+        $new_connectors = array();
+        if (array_key_exists('connector_state', $input)) {
+            foreach ($allConnectors as $cnx) {
+                if (!isset($input['connector_state'][$cnx->name])) continue;
+                if ($input['connector_state'][$cnx->name]) {
+                    $new_connectors[] = $cnx->id;
+                }
+            }
+            $registry->connectors = $new_connectors;
+        }
+        // Turn array of report checkboxes into an array of IDs
+        $master_reports = array();
+        if (array_key_exists('report_state', $input)) {
+            foreach ($masterReports as $rpt) {
+                if (!isset($input['report_state'][$rpt->name])) continue;
+                if ($input['report_state'][$rpt->name]) {
+                    $master_reports[] = $rpt->id;
+                }
+            }
+        }
+        $registry->master_reports = $master_reports;
+        $registry->save();
 
-      // Set Provider's selected_release if the input flag is on
-      $isSelected = (isset($input['is_selected'])) ? $input['is_selected'] : null;
-      if ($isSelected == 'Active') {
-          $provider->selected_release = trim($registry->release);
-      }
+        // Set Provider's selected_release if the input flag is on
+        $isSelected = (isset($input['is_selected'])) ? $input['is_selected'] : null;
+        if ($isSelected == 'Active') {
+            $provider->selected_release = trim($registry->release);
+        }
 
-      // Handle other provider values
-      $provider->day_of_month = (isset($input['day_of_month'])) ? min(max($input['day_of_month'],1),28) : 15;
-      $args = array('platform_parm','content_provider','registry_id');
-      foreach ($args as $key) {
-          if (array_key_exists($key, $input)) {
-              $provider->{$key} = ($input[$key]) ? trim($input[$key]) : null;
-          }
-      }
-      $provider->updated_at = now();
-      $provider->save();
-      $provider->load('registries','registries.dataHost');
+        // Handle other provider values
+        $provider->day_of_month = (isset($input['day_of_month'])) ? min(max($input['day_of_month'], 1), 28) : 15;
+        $args = array('platform_parm', 'content_provider', 'registry_id');
+        foreach ($args as $key) {
+            if (array_key_exists($key, $input)) {
+                $provider->{$key} = ($input[$key]) ? trim($input[$key]) : null;
+            }
+        }
+        $provider->updated_at = now();
+        $provider->save();
+        $provider->load('registries', 'registries.dataHost');
 
-      // Set connector_state by-release
-      $reg_releases = array();
-      foreach ($provider->registries as $registry) {
-          $registry->connector_state = $this->connectorState($registry->connectors);
-          $registry->report_state = $this->reportState($registry->master_reports);
-          $registry->is_selected = ($registry->release == $provider->selected_release);
-          $reg_releases[] = $registry->release;
-      }
+        // Set connector_state by-release
+        $reg_releases = array();
+        foreach ($provider->registries as $registry) {
+            $registry->connector_state = $this->connectorState($registry->connectors);
+            $registry->report_state = $this->reportState($registry->master_reports);
+            $registry->is_selected = ($registry->release == $provider->selected_release);
+            $reg_releases[] = $registry->release;
+        }
 
-      // Apply changes system-wide
-      $provider->applyToInstances();
+        // Apply changes system-wide
+        $provider->applyToInstances();
 
-      // Setup Return record
-      $defaultRegistry = $provider->default_registry();
-      $record = array('id'=>$provider->id, 'name'=>$provider->name, 'abbrev'=>$provider->abbrev,
-                      'day_of_month'=>$provider->day_of_month, 'platform_parm' => $provider->platform_parm,
-                      'registry_id'=>$provider->registry_id);
-      $record['status'] = ($provider->is_active) ? "Active" : "Inactive";
-      $record['refreshable'] = ($provider->refreshable) ? "Active" : "Inactive";
-      // Set the meta-values for the U/I ; result value will match a key in $resultMap or null
-      $resultKey = "";
-      if ( is_null($provider['registry_id']) ) $resultKey = 'noregistry';
-      if ( in_array($provider->refresh_result, array_keys($resultMap)) ) {
-          if ($resultKey=="") $resultKey = $provider->refresh_result;
-          $record['refresh_result'] = $resultKey;
-      } else {
-          $resultKey = 'norefresh';
-          $record['refresh_result'] = ( $provider->refreshable ) ? null : 'norefresh';
-      }
-      $record['refresh_text']  = $resultMap[$resultKey]['refresh_text'];
-      $record['refresh_icon']  = $resultMap[$resultKey]['refresh_icon'];
-      $record['refresh_color'] = $resultMap[$resultKey]['refresh_color'];
-      // Set release-related fields
-      $record['registries'] = $provider->registries->toArray();
-      $record['cur_release'] = $provider->default_release();
-      $record['is_selected'] = ($record['cur_release'] == $release) ? 'Active' : 'Inactive';
-      $record['reg_releases'] = $reg_releases;
-      $record['service_url'] = ($defaultRegistry) ? $defaultRegistry->service_url : $provider->service_url();
-      $record['data_host'] = "-missing-";
-      if ($defaultRegistry) {
-          $record['data_host'] = ($defaultRegistry->dataHost) ? $defaultRegistry->dataHost->name : "-missing-";
-      }
-      $record['report_state'] = (isset($input['report_state'])) ? $input['report_state'] : array();
-      $record['connector_state'] = (isset($input['connector_state'])) ? $input['connector_state'] : array();
+        // Setup Return record
+        $defaultRegistry = $provider->default_registry();
+        $record = array(
+            'id' => $provider->id,
+            'name' => $provider->name,
+            'abbrev' => $provider->abbrev,
+            'day_of_month' => $provider->day_of_month,
+            'platform_parm' => $provider->platform_parm,
+            'registry_id' => $provider->registry_id
+        );
+        $record['status'] = ($provider->is_active) ? "Active" : "Inactive";
+        $record['refreshable'] = ($provider->refreshable) ? "Active" : "Inactive";
+        // Set the meta-values for the U/I ; result value will match a key in $resultMap or null
+        $resultKey = "";
+        if (is_null($provider['registry_id'])) $resultKey = 'noregistry';
+        if (in_array($provider->refresh_result, array_keys($resultMap))) {
+            if ($resultKey == "") $resultKey = $provider->refresh_result;
+            $record['refresh_result'] = $resultKey;
+        } else {
+            $resultKey = 'norefresh';
+            $record['refresh_result'] = ($provider->refreshable) ? null : 'norefresh';
+        }
+        $record['refresh_text']  = $resultMap[$resultKey]['refresh_text'];
+        $record['refresh_icon']  = $resultMap[$resultKey]['refresh_icon'];
+        $record['refresh_color'] = $resultMap[$resultKey]['refresh_color'];
+        // Set release-related fields
+        $record['registries'] = $provider->registries->toArray();
+        $record['cur_release'] = $provider->default_release();
+        $record['is_selected'] = ($record['cur_release'] == $release) ? 'Active' : 'Inactive';
+        $record['reg_releases'] = $reg_releases;
+        $record['service_url'] = ($defaultRegistry) ? $defaultRegistry->service_url : $provider->service_url();
+        $record['data_host'] = "-missing-";
+        if ($defaultRegistry) {
+            $record['data_host'] = ($defaultRegistry->dataHost) ? $defaultRegistry->dataHost->name : "-missing-";
+        }
+        $record['report_state'] = (isset($input['report_state'])) ? $input['report_state'] : array();
+        $record['connector_state'] = (isset($input['connector_state'])) ? $input['connector_state'] : array();
 
-      // Check all instances scan for harvests connected to this provider to set the can_delete flag
-      $record['can_edit'] = true;
-      $record['can_delete'] = true;
-      $record['instance_count'] = 0;
-      $connections = array();
-      $instances = Consortium::get();
-      foreach ($instances as $instance) {
-          // Collect details from the instance for this provider
-          $details = $this->instanceDetails($instance->ccp_key, $provider);
-          if ($details['harvest_count'] > 0) {
-              $record['can_delete'] = false;
-          }
-          if ($details['cnxcount'] > 0) {
-              $connections[] = array('key'=>$instance->ccp_key, 'name'=>$instance->name, 'num'=>$details['cnxcount'],
-                                      'last_harvest'=>$details['last_harvest']);
-              $record['instance_count'] += 1;
-          }
-      }
-      $record['connections'] = $connections;
-      $record['updated'] = (is_null($provider->updated_at)) ? "" : date("Y-m-d H:i", strtotime($provider->updated_at));
+        // Check all instances scan for harvests connected to this provider to set the can_delete flag
+        $record['can_edit'] = true;
+        $record['can_delete'] = true;
+        $record['instance_count'] = 0;
+        $connections = array();
+        $instances = Consortium::get();
+        foreach ($instances as $instance) {
+            // Collect details from the instance for this provider
+            $details = $this->instanceDetails($instance->ccp_key, $provider);
+            if ($details['harvest_count'] > 0) {
+                $record['can_delete'] = false;
+            }
+            if ($details['cnxcount'] > 0) {
+                $connections[] = array(
+                    'key' => $instance->ccp_key,
+                    'name' => $instance->name,
+                    'num' => $details['cnxcount'],
+                    'last_harvest' => $details['last_harvest']
+                );
+                $record['instance_count'] += 1;
+            }
+        }
+        $record['connections'] = $connections;
+        $record['updated'] = (is_null($provider->updated_at)) ? "" : date("Y-m-d H:i", strtotime($provider->updated_at));
 
-      return response()->json(['result' => true, 'msg' => 'Platform settings successfully updated',
-                               'record' => $record]);
+        return response()->json([
+            'result' => true,
+            'msg' => 'Platform settings successfully updated',
+            'record' => $record
+        ]);
     }
 
     /**
@@ -472,7 +520,7 @@ class GlobalProviderController extends Controller
             }
 
             try {
-                Connection::where('global_id',$id)->delete();
+                Connection::where('global_id', $id)->delete();
             } catch (\Exception $ex) {
                 return response()->json(['result' => false, 'msg' => $ex->getMessage()]);
             }
@@ -509,12 +557,12 @@ class GlobalProviderController extends Controller
         $input = $request->all();
 
         // Unrecognized action - NOTE - Registry Refresh happens in the CounterRegistryController... not here
-        if (!in_array($input['action'],['Set Active','Set Inactive','Delete'])) {
+        if (!in_array($input['action'], ['Set Active', 'Set Inactive', 'Delete'])) {
             return response()->json(['result' => false, 'msg' => 'Unrecognized bulk action requested'], 200);
         }
 
         // Get platforms
-        $gp_data = GlobalProvider::whereIn('id',$input['ids'])->get();
+        $gp_data = GlobalProvider::whereIn('id', $input['ids'])->get();
 
         // Update providers one-at-a-time; we need to apply changes to instances as we go.
         $successIds = array();
@@ -531,7 +579,7 @@ class GlobalProviderController extends Controller
                     $global->update(['is_active' => $new_value]);
                     $successIds[] = $global->id;
                 }
-            // Delete the global entry
+                // Delete the global entry
             } else if ($input['action'] == 'Delete') {
                 try {
                     $global->delete();
@@ -544,10 +592,10 @@ class GlobalProviderController extends Controller
             $global->applyToInstances();
         }
         $msg = '';
-        if (count($skippedIds)> 0 || count($failureIds)>0) {
-            $msg  = count($successIds).' records successfully updated';
-            $msg .= (count($skippedIds)>0) ? '; '.count($skippedIds).' were skipped' : '';
-            $msg .= (count($failureIds)>0) ? '; '.count($failureIds).' failed' : '';
+        if (count($skippedIds) > 0 || count($failureIds) > 0) {
+            $msg  = count($successIds) . ' records successfully updated';
+            $msg .= (count($skippedIds) > 0) ? '; ' . count($skippedIds) . ' were skipped' : '';
+            $msg .= (count($failureIds) > 0) ? '; ' . count($failureIds) . ' failed' : '';
         }
         return response()->json(['result' => true, 'msg' => $msg, 'affectedIds' => $successIds], 200);
     }
@@ -581,9 +629,13 @@ class GlobalProviderController extends Controller
         $all_releases = array();
         $providers = array();
         foreach ($gp_data as $gp) {
-            $provider = array('registry_id'=>null, 'name'=>$gp->name, 'day_of_month'=>$gp->day_of_month,
-                              'platform_parm' => $gp->platform_parm);
-            $provider['registry_id'] = (is_null($gp->registry_id) || $gp->registry_id=="") ? null : $gp->registry_id;
+            $provider = array(
+                'registry_id' => null,
+                'name' => $gp->name,
+                'day_of_month' => $gp->day_of_month,
+                'platform_parm' => $gp->platform_parm
+            );
+            $provider['registry_id'] = (is_null($gp->registry_id) || $gp->registry_id == "") ? null : $gp->registry_id;
             $provider['status'] = ($gp->is_active) ? "Active" : "Inactive";
             $provider['refreshable'] = ($gp->refreshable) ? "Active" : "Inactive";
             foreach ($gp->registries->sortBy('release') as $registry) {
@@ -608,124 +660,113 @@ class GlobalProviderController extends Controller
 
     /**
      * Import providers from a CSV file to the database.
-     *
-     * @param  \Illuminate\Http\Request  $request
-     * @return \Illuminate\Http\Response
      */
     public function import(Request $request)
     {
-        global $masterReports, $allConnectors;
-
-        // Handle and validate inputs
-        $this->validate($request, ['csvfile' => 'required']);
-        if (!$request->hasFile('csvfile')) {
-            return response()->json(['result' => false, 'msg' => 'Error accessing CSV import file']);
+        if (!auth()->user()->isServerAdmin()) {
+            return $this->respondError('Request failed (403) - Forbidden');
         }
 
-        // Get the CSV data
-        $file = $request->file("csvfile")->getRealPath();
-        $csvData = file_get_contents($file);
-        $rows = array_map("str_getcsv", explode("\n", $csvData));
-        if (count($rows) < 1) {
-            return response()->json(['result' => false, 'msg' => 'Import file is empty, no changes applied.']);
+        $parsed = $this->parseCsvUpload($request);
+        if (isset($parsed['error'])) {
+            return $this->respondError($parsed['error']);
         }
 
-        // Get existing providers, connection fields and master_reports
+        $rows = $parsed['rows'];
+
         $global_providers = GlobalProvider::with('registries')->orderBy('name', 'ASC')->get();
         $this->getMasterReports();
         $this->getConnectionFields();
 
-        // Set defaults for any columns with unset/missing values
-        //  0 : Registry ID  ,  1 : Platform Name  ,  2 : COUNTER Release  ,  3 : Status  ,  4 : Service URL
-        //  5 : Refreshable  ,  6 : Harvest Day    ,  7 : PR  ,  8 : DR  ,  9 : TR  ,  10 : IR
-        // 11 : Customer ID  , 12 : Requestor ID   , 13 : API Key  ,  14 : Platform Parameter        
-        $col_defaults = array( 3=>'Active', 4=>'', 5=>'Y', 6=>15, 7=>'Y', 8=>'N', 9=>'N', 10=>'N',
-                              11=>'Y', 12=>'N', 13=>'N', 14=>null );
-        // Map of report-COLUMN indeces to master_report ID's (reportID => COL) and defaults
-        $rpt_columns = array(3=>7, 2=>8, 1=>9, 4=>10);
-        // Map of connector-COLUMN indeces to connection_field IDs (fieldID => COL)
-        $cnx_columns = array(1=>11, 2=>12, 3=>13, 4=>15);
+        $col_defaults = [
+            3 => 'Active',
+            4 => '',
+            5 => 'Y',
+            6 => 15,
+            7 => 'Y',
+            8 => 'N',
+            9 => 'N',
+            10 => 'N',
+            11 => 'Y',
+            12 => 'N',
+            13 => 'N',
+            14 => null
+        ];
+        $rpt_columns = [3 => 7, 2 => 8, 1 => 9, 4 => 10];
+        $cnx_columns = [1 => 11, 2 => 12, 3 => 13, 4 => 15];
 
-        // Process the input rows
         $prov_skipped = 0;
         $prov_updated = 0;
         $prov_created = 0;
+
         foreach ($rows as $row) {
+            if (count($row) < 5) {
+                continue;
+            }
+            if ($row == 'Registry ID' || $row == 'Platform Name') {
+                continue;
+            }
 
-            // At least first 5 columns required (skip not-counted)
-            if (count($row) < 5)  continue;
-            // Ignore header row (skip not-counted)
-            if ($row[0] == 'Registry ID' || $row[1] == 'Platform Name') continue;
+            $_regid = trim($row);
+            $_name = trim($row);
+            $_release = trim($row);
+            $_service_url = trim($row);
 
-            // Set RegistryID, Name, Release, and service_url in variables
-            $_regid = trim($row[0]);
-            $_name = trim($row[1]);
-            $_release = trim($row[2]);
-            $_service_url = trim($row[4]);
-
-            // RegistryID -or Name, Release, and service_url are required
-            if ( ($_regid == "" && $_name == "") || $_release == "" || $_service_url == "") {
+            if (($_regid === '' && $_name === '') || $_release === '' || $_service_url === '') {
                 $prov_skipped++;
                 continue;
             }
 
-            // Update/Add the provider data/settings
-            // Check Registry-ID and name columns for silliness or errors
             $platform = null;
-            if ( strlen($_regid) > 0 ) {
-                $platform = $global_providers->where("registry_id", $_regid)->first();  // Look for match on ID
+            if (strlen($_regid) > 0) {
+                $platform = $global_providers->where('registry_id', $_regid)->first();
             }
-            if ($platform) {      // found matching Registry-ID
-                if (strlen($_name) < 1) {       // If import-name empty, use current value
+            if ($platform) {
+                if (strlen($_name) < 1) {
                     $_name = trim($platform->name);
-                } else {                        // trap changing a name to a name that already exists
-                    $existing_prov = $global_providers->where("name", $_name)->first();
-                    if ($existing_prov) {
-                        $_name = trim($platform->name);     // override, use current - no change
-                    }
+                } elseif ($global_providers->where('name', $_name)->first()) {
+                    $_name = trim($platform->name);
                 }
-            } else {        // Registry-ID not found, try to find by name
-                $platform = $global_providers->where("name", $_name)->first();
+            } else {
+                $platform = $global_providers->where('name', $_name)->first();
                 if ($platform) {
                     $_name = trim($platform->name);
                 }
             }
 
-            // If no name or (no registry and no service_url), skip the row
-            if (strlen($_name)<1 || (strlen($_regid)==0 && strlen($_service_url)==0)) {
+            if (strlen($_name) < 1 || (strlen($_regid) === 0 && strlen($_service_url) === 0)) {
                 $prov_skipped++;
                 continue;
             }
 
-            // Enforce defaults and set any missing values
             foreach ($col_defaults as $_col => $_val) {
-                if (!isset($row[$_col])) {
-                    $row[$_col] = $_val;
-                } else if (strlen(trim($row[$_col])) < 1) {
+                if (!isset($row[$_col]) || strlen(trim($row[$_col])) < 1) {
                     $row[$_col] = $_val;
                 }
             }
-            $_active = ($row[3] == 'Active') ? 1 : 0;
-            $_day = (strlen(trim($row[5])) == 0) ? 15 : trim($row[5]);
-            // Keep $_day sane; >28 means *some* harvests will never be started
-            if ($_day<0 || $_day>28) $_day = 15;
 
-            // Setup provider update data as an array
-            $_prov = array('name' => $_name, 'is_active' => $_active, 'day_of_month' => $_day);
-
-            // Set platform_parm
-            if (isset($row[14])) {
-                $_prov['platform_parm'] = trim($row[14]);
+            $_active = ($row === 'Active') ? 1 : 0;
+            $_day = (strlen(trim($row)) === 0) ? 15 : intval(trim($row));
+            if ($_day < 0 || $_day > 28) {
+                $_day = 15;
             }
 
-            // Update or create the GlobalProvider record and Registry record
-            if ($platform) {      // Update
+            $_prov = [
+                'name'         => $_name,
+                'is_active'    => $_active,
+                'day_of_month' => $_day,
+            ];
+
+            if (isset($row)) {
+                $_prov['platform_parm'] = trim($row);
+            }
+
+            if ($platform) {
                 $_prov['id'] = $platform->id;
                 $platform->update($_prov);
                 $prov_updated++;
-            } else {                 // Create
-                // Set as not-refreshable if no Registry-ID given
-                if ( strlen($_regid) == 0 ) {
+            } else {
+                if (strlen($_regid) === 0) {
                     $_prov['refreshable'] = 0;
                 }
                 $platform = GlobalProvider::create($_prov);
@@ -733,63 +774,63 @@ class GlobalProviderController extends Controller
                 $prov_created++;
             }
 
-            // Setup reports for the registry record
-            $reports = array();
+            $reports = [];
             foreach ($rpt_columns as $id => $col) {
-                if ($row[$col] == 'Y') $reports[] = $id;
+                if ($row[$col] === 'Y') {
+                    $reports[] = $id;
+                }
             }
 
-            // Setup connectors for the registry record
-            $connectors = array();
+            $connectors = [];
             foreach ($cnx_columns as $id => $col) {
-                if (!isset($row[$col])) continue;   // extra_args is pointing at 15... for now
-                if ($row[$col] == 'Y') $connectors[] = $id;
+                if (isset($row[$col]) && $row[$col] === 'Y') {
+                    $connectors[] = $id;
+                }
             }
 
-            // Find/Update/Create the counter_registry record based on "release" value
-            $registry = $platform->registries->where('release',$_release)->first();
-
-            // Update existing entry
+            $registry = $platform->registries->where('release', $_release)->first();
             if ($registry) {
                 $registry->service_url = $_service_url;
                 $registry->master_reports = $reports;
                 $registry->connectors = $connectors;
                 $registry->save();
-
-            // Create a registry entry (this is either a new platform or new registry entry for an existing platform)
             } else {
-                $_reg = array('global_id' => $platform->id, 'release' => $_release, 'service_url' => $_service_url,
-                              'master_reports' => $reports, 'connectors' => $connectors);
-                $registry = CounterRegistry::create($_reg);
+                CounterRegistry::create([
+                    'global_id'      => $platform->id,
+                    'release'        => $_release,
+                    'service_url'    => $_service_url,
+                    'master_reports' => $reports,
+                    'connectors'     => $connectors,
+                ]);
             }
         }
 
-        // return the current full list of providers with a success message
-        $detail = "";
-        $detail .= ($prov_updated > 0) ? $prov_updated . " updated" : "";
-        if ($prov_created > 0) {
-            $detail .= ($detail != "") ? ", " . $prov_created . " added" : $prov_created . " added";
-        }
-        if ($prov_skipped > 0) {
-            $detail .= ($detail != "") ? ", " . $prov_skipped . " skipped" : $prov_skipped . " skipped";
-        }
-        $msg  = 'Import successful, Platforms : ' . $detail;
+        $msg = $this->formatImportSummary(
+            'Import successful, Platforms',
+            $prov_updated,
+            $prov_created,
+            0,
+            $prov_skipped
+        );
 
-        return response()->json(['result' => true, 'msg' => $msg]);
+        return $this->respondSuccess($msg);
     }
+
 
     /**
      * Pull and re-order master reports and store in private global
      */
-    private function getMasterReports() {
+    private function getMasterReports()
+    {
         global $masterReports;
-        $masterReports = Report::where('revision',5)->where('parent_id',0)->orderBy('dorder','ASC')->get(['id','name']);
+        $masterReports = Report::where('revision', 5)->where('parent_id', 0)->orderBy('dorder', 'ASC')->get(['id', 'name']);
     }
 
     /**
      * Pull and re-order master reports and store in private global
      */
-    private function getConnectionFields() {
+    private function getConnectionFields()
+    {
         global $allConnectors;
         $allConnectors = ConnectionField::get();
     }
@@ -800,7 +841,8 @@ class GlobalProviderController extends Controller
      * @param  Array  $reports
      * @return Array  $report-state
      */
-    private function reportState($reports) {
+    private function reportState($reports)
+    {
         global $masterReports;
         $rpt_state = array();
         foreach ($masterReports as $rpt) {
@@ -815,17 +857,18 @@ class GlobalProviderController extends Controller
      * @param  Array  $connectors
      * @return Array  $connector-state
      */
-    private function connectorState($connectors) {
-      global $allConnectors;
-      $cnxs = is_string($connectors)
-          ? (json_decode($connectors, true) ?? [])
-          : (is_array($connectors) ? $connectors : []);
+    private function connectorState($connectors)
+    {
+        global $allConnectors;
+        $cnxs = is_string($connectors)
+            ? (json_decode($connectors, true) ?? [])
+            : (is_array($connectors) ? $connectors : []);
 
-      $cnx_state = array();
-      foreach ($allConnectors as $fld) {
-          $cnx_state[$fld->name] = in_array($fld->id, $cnxs);
-      }
-      return $cnx_state;
+        $cnx_state = array();
+        foreach ($allConnectors as $fld) {
+            $cnx_state[$fld->name] = in_array($fld->id, $cnxs);
+        }
+        return $cnx_state;
     }
 
     /**
@@ -835,7 +878,8 @@ class GlobalProviderController extends Controller
      * @param  GlobalProvider  $gp
      * @return Array  $details
      */
-    private function instanceDetails($instanceKey, $gp) {
+    private function instanceDetails($instanceKey, $gp)
+    {
 
         // Query the tables directly for what we're after, starting with connection count
         $qry  = "Select count(*) as num, max(last_harvest) as last from ccplus_" . $instanceKey . ".credentials ";
@@ -850,6 +894,6 @@ class GlobalProviderController extends Controller
         $count = $result[0]->num;
 
         // return the numbers
-        return array('harvest_count' => $count , 'cnxcount' => $cnxcount, 'last_harvest' => $last);
+        return array('harvest_count' => $count, 'cnxcount' => $cnxcount, 'last_harvest' => $last);
     }
 }

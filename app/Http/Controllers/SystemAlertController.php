@@ -5,7 +5,7 @@ namespace App\Http\Controllers;
 use App\SystemAlert;
 use Illuminate\Http\Request;
 
-class SystemAlertController extends Controller
+class SystemAlertController extends BaseController
 {
     /**
      * Display a listing of the resource.

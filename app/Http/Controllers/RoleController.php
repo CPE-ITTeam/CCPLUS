@@ -9,10 +9,15 @@ use App\Models\User;
 use App\Models\Institution;
 use App\Models\InstitutionGroup;
 use App\Models\Consortium;
+use Illuminate\Database\Eloquent\Model;
 use Illuminate\Http\Request;
 
-class RoleController extends Controller
+class RoleController extends BaseController
 {
+    protected string $modelClass = UserRole::class;
+    protected string $modelLabel = 'Role';
+    protected array $deleteWith = ['user'];
+
 
     /**
      * Display a listing of the resource.
@@ -42,20 +47,20 @@ class RoleController extends Controller
         // Role options need to be dependent on $thisUser's roles
         $filter_options['role'] = array();
         $all_roles = Role::where('id', '<=', $thisUser->maxRole())->orderBy('id', 'DESC')
-                         ->where('name','<>','ServerAdmin')->get(['name', 'id'])->toArray();
+            ->where('name', '<>', 'ServerAdmin')->get(['name', 'id'])->toArray();
         foreach ($all_roles as $idx => $r) {
             if ($r['name'] == 'Admin' && $thisUser->isConsoAdmin())  $filter_options['role'][] = "Consortium Admin";
             if ($r['name'] == 'Viewer' && $thisUser->isConsoAdmin()) $filter_options['role'][] = "Consortium Viewer";
             $filter_options['role'][] = $r['name'];
         }
-        $filter_options['user_role'] = array('Admin','Viewer');
+        $filter_options['user_role'] = array('Admin', 'Viewer');
 
         // Pull user records - exclude serverAdmin
         // (Note that the 'roles' relationship returns UserRole(s), NOT Roles)
         $user_data = User::with('roles')->where('email', '<>', $server_admin)
-                         ->when(count($limit_insts)>0, function ($qry) use ($limit_insts) {
-                             return $qry->whereIn('inst_id', $limit_insts);
-                         })->orderBy('name', 'ASC')->get();
+            ->when(count($limit_insts) > 0, function ($qry) use ($limit_insts) {
+                return $qry->whereIn('inst_id', $limit_insts);
+            })->orderBy('name', 'ASC')->get();
 
         // Make user role names one string, role IDs into an array, and status to a string for the view
         $maxRole = $thisUser->maxRole();
@@ -63,10 +68,16 @@ class RoleController extends Controller
             $canManage = $user->canManage();
             foreach ($user->allRoles() as $role) {
                 // Setup array for this user data
-                $rec = array('id' => $role['id'], 'role_id' => $role['role_id'], 'user_id' => $user->id,
-                             'inst_id' => $role['inst_id'], 'group_id' => $role['group_id'], 'name' => $user->name,
-                             'email' => $user->email);
-                $rec['role_string'] = ($role['inst_id']==1) ? 'Consortium '.$role['name'] : $role['name'];
+                $rec = array(
+                    'id' => $role['id'],
+                    'role_id' => $role['role_id'],
+                    'user_id' => $user->id,
+                    'inst_id' => $role['inst_id'],
+                    'group_id' => $role['group_id'],
+                    'name' => $user->name,
+                    'email' => $user->email
+                );
+                $rec['role_string'] = ($role['inst_id'] == 1) ? 'Consortium ' . $role['name'] : $role['name'];
                 $rec['inst_name'] = $role['inst'];
                 $rec['group_name'] = $role['group'];
                 $rec['scope'] = (!is_null($rec['inst_id'])) ? $role['inst'] : $role['group'];
@@ -83,14 +94,14 @@ class RoleController extends Controller
             $limit_groups = $thisUser->adminGroups();
             if ($limit_groups === [1]) $limit_groups = [];
         }
-        $filter_options['group'] = InstitutionGroup::when(count($limit_groups)>0, function ($qry) use ($limit_groups) {
-                                                        return $qry->whereIn('id', $limit_groups);
-                                                    })->orderBy('name', 'ASC')->get(['id','name']);
+        $filter_options['group'] = InstitutionGroup::when(count($limit_groups) > 0, function ($qry) use ($limit_groups) {
+            return $qry->whereIn('id', $limit_groups);
+        })->orderBy('name', 'ASC')->get(['id', 'name']);
         // Limit institution filter to those with existing user-role records
         $insts_with_roles = $user_data->unique('inst_id')->pluck('inst_id')->toArray();
         $filter_options['institution'] = Institution::whereIn('id', $insts_with_roles)->orderBy('name', 'ASC')->get();
         $filter_options['user'] = $user_data->map(function ($rec) {
-            return [ 'id' => $rec['id'], 'name' => $rec['name'] ];
+            return ['id' => $rec['id'], 'name' => $rec['name']];
         })->toArray();
 
         return response()->json(['records' => $data, 'options' => $filter_options, 'result' => true], 200);
@@ -112,21 +123,21 @@ class RoleController extends Controller
 
         // An institution or group assignment is required
         if (isset($input['conso']) && $thisUser->isConsoAdmin()) {
-            $inst_id = ($input['conso']=='Active') ? 1 : $input['institution'];
+            $inst_id = ($input['conso'] == 'Active') ? 1 : $input['institution'];
         } else {
             $inst_id = (isset($input['institution'])) ? $input['institution'] : null;
         }
         $group_id = (isset($input['group'])) ? $input['group'] : null;
-        if ( ($inst_id && !$thisUser->isAdmin($inst_id,null)) || ($group_id && !$thisUser->isAdmin(null,$group_id)) ) {
+        if (($inst_id && !$thisUser->isAdmin($inst_id, null)) || ($group_id && !$thisUser->isAdmin(null, $group_id))) {
             return response()->json(['result' => false, 'msg' => 'Operation failed (403) - Forbidden']);
         }
-        $role_inst = ($inst_id) ? Institution::where('id',$inst_id)->first() : null;
-        $role_group = ($group_id) ? InstitutionGroup::where('id',$group_id)->first() : null;
+        $role_inst = ($inst_id) ? Institution::where('id', $inst_id)->first() : null;
+        $role_group = ($group_id) ? InstitutionGroup::where('id', $group_id)->first() : null;
 
         // Confirm that Role, User and (Inst-or-Group) exist
-        $role = Role::where('name',$input['user_role'])->first();
-        $user = User::where('id',$input['user'])->with('roles','institution:id,name')->first();
-        if ( !$user || !$role || (!$role_inst && !$role_group) ) {
+        $role = Role::where('name', $input['user_role'])->first();
+        $user = User::where('id', $input['user'])->with('roles', 'institution:id,name')->first();
+        if (!$user || !$role || (!$role_inst && !$role_group)) {
             return response()->json(['result' => false, 'msg' => 'Operation failed - invalid references']);
         }
 
@@ -142,81 +153,53 @@ class RoleController extends Controller
         // Add the Role record
         try {
             $new_role = UserRole::create(
-                            ['user_id'=>$user->id, 'role_id'=>$role->id, 'inst_id'=>$inst_id, 'group_id'=>$group_id]
-                        );
+                ['user_id' => $user->id, 'role_id' => $role->id, 'inst_id' => $inst_id, 'group_id' => $group_id]
+            );
         } catch (\Exception $e) {
-            return response()->json(['result'=>false, 'msg'=>'Error saving to database: '.$e->getMessage()]);
+            return response()->json(['result' => false, 'msg' => 'Error saving to database: ' . $e->getMessage()]);
         }
 
         // Return the new role (with keys that match index())
-        $new_role->load('user','institution','institutiongroup','role');
-        $record = array('id' => $new_role->id, 'role_id' => $role->id, 'user_id' => $user->id, 'inst_id'=>$inst_id,
-                        'group_id'=>$group_id, 'name' => $user->name, 'email' => $user->email);
-        $record['role_string'] = ($inst_id==1) ? 'Consortium '.$role['name'] : $role['name'];
+        $new_role->load('user', 'institution', 'institutiongroup', 'role');
+        $record = array(
+            'id' => $new_role->id,
+            'role_id' => $role->id,
+            'user_id' => $user->id,
+            'inst_id' => $inst_id,
+            'group_id' => $group_id,
+            'name' => $user->name,
+            'email' => $user->email
+        );
+        $record['role_string'] = ($inst_id == 1) ? 'Consortium ' . $role['name'] : $role['name'];
         $record['inst_name'] = ($new_role->institution) ? $new_role->institution->name : "";
         $record['group_name'] = ($new_role->institutiongroup) ? $new_role->institutiongroup->name : "";
         $record['scope'] = (!is_null($inst_id)) ? $record['inst_name'] : $record['group_name'];
         $record['can_edit'] = false;
         $record['can_delete'] = true;
 
-        return response()->json(['result'=>true, 'msg'=>'Role successfully saved', 'record'=>$record]);
+        return response()->json(['result' => true, 'msg' => 'Role successfully saved', 'record' => $record]);
     }
 
     /**
-     * Bulk operations from the U/I.
-     *
-     * @param  \Illuminate\Http\Request  $request
-     * @return JSON
+     * Restrict bulk role deletion to roles belonging to manageable users in this admin's scope.
      */
-    public function bulk(Request $request)
+    protected function scopeBulkQuery($query, $user): void
     {
-        global $thisUser;
-        $thisUser = auth()->user();
-        if (!$thisUser->isAdmin()) {
-            return response()->json(['result' => false, 'msg' => 'Request failed (403) - Forbidden']);
-        }
-        $consoAdmin = $thisUser->isConsoAdmin();
+        $limitInsts = $user->isConsoAdmin() ? [] : $user->adminInsts();
+        $allowedUserIds = User::where('email', '<>', config('ccplus.server_admin'))
+            ->when(count($limitInsts) > 0, fn($q) => $q->whereIn('inst_id', $limitInsts))
+            ->pluck('id');
 
-        // Validate form inputs
-        $this->validate($request, ['ids' => 'required', 'action' => 'required']);
-        $input = $request->all();
-
-        // Get userRole records, excluding ServerAdmin, for IDs in input limited by role if necessary
-        $server_admin = config('ccplus.server_admin');
-        $limit_insts = ($consoAdmin) ? [] : $thisUser->adminInsts();
-        $userIds = User::where('email', '<>', $server_admin)
-                       ->when( count($limit_insts)>0, function ($qry) use ($limit_insts) {
-                           return $qry->whereIn('inst_id', $limit_insts);
-                       })->pluck('id')->toArray();
-        $userRoleIds = UserRole::whereIn('user_id',$userIds)->whereIn('id',$input['ids'])
-                               ->pluck('id')->toArray();
-        // Handle delete action
-//NOTE:::
-//  Might be a good thing to set any "active" users to "Viewer" if their only role gets deleted....
-//-------
-        if ($input['action'] == 'Delete') {
-            UserRole::whereIn('id',$input['ids'])->delete();
-            return response()->json(['result' => true, 'msg' => '', 'affectedIds' => $userRoleIds], 200);
-
-        // Unrecognized action
-        } else {
-            return response()->json(['result' => false, 'msg' => 'Unrecognized bulk action requested'], 200);
-        }
+        $query->whereIn('user_id', $allowedUserIds);
     }
 
     /**
-     * Remove the specified resource from storage.
-     *
-     * @param  Role  $role
-     * @return \Illuminate\Http\Response
+     * Enforce authorization before BaseController deletes the user role.
      */
-    public function destroy($id)
+    protected function canDeleteRecord(Model $role): bool|string
     {
-        $role = UserRole::with('user')->findOrFail($id);
-        if (!$role->user->canManage()) {
-            return response()->json(['result' => false, 'msg' => 'Request failed (403) - Forbidden']);
-        }
-        $role->delete();
-        return response()->json(['result'=>true, 'msg'=>'Role deleted successfully', 'record'=>null]);
+        return $role->user->canManage()
+            ? true
+            : 'Request failed (403) - Forbidden';
     }
 }

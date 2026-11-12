@@ -423,25 +423,32 @@ function handleEdit(item) {
   // Clone the item right away to prevent mutating data table grid records inline!
   let localizedItem = { ...item };
 
-  config.fields.forEach((fld, idx) => {
-    if (props.datasetKey == 'institutions' && fld.name == 'creds') {
-      config.fields[idx]['visible'] = false;
-    } else {
-      config.fields[idx]['visible'] = true;
-    }
-
+  config.fields.forEach((fld) => {
     if (fld.type == 'select' && fld.name == 'types') {
       localizedItem['types'] = localizedItem.type_id;
       localizedItem['reset_type'] = false;
+    }
+    if (fld.type == 'select' && fld.name == 'type') {
+      localizedItem['type'] = localizedItem.type_id;
     }
     if (fld.type == 'select' && fld.name == 'institutions') {
       localizedItem['institutions'] = localizedItem.inst_id;
     }
   });
 
+
+  // ─── SAFE INSTITUTION-TO-GROUP RE-HYDRATION ───
+  if (props.datasetKey === 'institutions') {
+    if (localizedItem.group_ids) {
+      localizedItem.groups = Array.isArray(localizedItem.group_ids)
+        ? localizedItem.group_ids.map(Number)
+        : String(localizedItem.group_ids).split(',').filter(Boolean).map(Number);
+    } else {
+      localizedItem.groups = [];
+    }
+  }
+
   // ─── SAFE GROUP-TO-INSTITUTION RE-HYDRATION ───
-  // When editing an Institution Group, DataForm looks for the 'institutions' field name 
-  // value. Map it directly from member_ids to ensure your polymorphic checkboxes stay bound!
   if (props.datasetKey === 'groups') {
     if (localizedItem.member_ids) {
       localizedItem.institutions = Array.isArray(localizedItem.member_ids)
@@ -456,7 +463,6 @@ function handleEdit(item) {
   if (localizedItem.fiscalYr !== undefined && localizedItem.fiscalYr !== null) {
     const rawVal = String(localizedItem.fiscalYr).trim().toLowerCase();
 
-    // Find the option item by looking across short names, full names, or indices
     const foundOption = allOptions['fiscalYr']?.find((opt, idx) =>
       opt.name.toLowerCase() === rawVal ||
       opt.fullName.toLowerCase() === rawVal ||
@@ -464,7 +470,6 @@ function handleEdit(item) {
     );
 
     if (foundOption) {
-      // Set it to the abbreviation string matching optVal: 'label' configuration!
       localizedItem.fiscalYr = foundOption.label;
     }
   }
@@ -483,82 +488,90 @@ function handleAddItem() {
   formDialogType.value = "Add";
   formDialogTitle.value = "Add New " + config.title;
   editingItem.value = {};
-  config.fields.forEach((fld, idx) => {
-    if (!config.required.includes(fld.name)) return;
+
+  config.fields.forEach((fld) => {
     if (fld.type == 'toggle') {
-      editingItem.value[fld.name] = fld.addValue;
-    } else {
-      if (fld.name == 'report_state') {
-        if (typeof (formSchema.value.options['master_reports']) != 'undefined') {
-          let _state = {};
-          formSchema.value.options['master_reports'].forEach(rpt => _state[rpt.name] = false);
-          editingItem.value[fld.name] = _state;
-        } else {
-          editingItem.value[fld.name] = { PR: false, DR: false, TR: false, IR: false };
-        }
-      } else if (fld.name == 'connector_state') {
-        if (typeof (formSchema.value.options['all_connectors']) != 'undefined') {
-          let _state = {};
-          formSchema.value.options['all_connectors'].forEach(cnx => _state[cnx.name] = false);
-          editingItem.value[fld.name] = _state;
-        } else {
-          editingItem.value[fld.name] = { customer_id: false, requestor_id: false, api_key: false, extra_args: false };
-        }
+      editingItem.value[fld.name] = fld.addValue ?? 'Inactive';
+    } else if (fld.type == 'mselect' || fld.type == 'array') {
+      editingItem.value[fld.name] = [];
+    } else if (fld.name == 'report_state') {
+      if (typeof (formSchema.value.options['master_reports']) != 'undefined') {
+        let _state = {};
+        formSchema.value.options['master_reports'].forEach(rpt => _state[rpt.name] = false);
+        editingItem.value[fld.name] = _state;
       } else {
-        editingItem.value[fld.name] = null;
+        editingItem.value[fld.name] = { PR: false, DR: false, TR: false, IR: false };
       }
+    } else if (fld.name == 'connector_state') {
+      if (typeof (formSchema.value.options['all_connectors']) != 'undefined') {
+        let _state = {};
+        formSchema.value.options['all_connectors'].forEach(cnx => _state[cnx.name] = false);
+        editingItem.value[fld.name] = _state;
+      } else {
+        editingItem.value[fld.name] = { customer_id: false, requestor_id: false, api_key: false, extra_args: false };
+      }
+    } else {
+      editingItem.value[fld.name] = null;
     }
-    config.fields[idx]['visible'] = true;
   });
+
   formDialogOpen.value = true;
 }
+
 
 function addConnection() {
   reptItem = { 'type': 'Add', 'id': null, 'rept': '', 'flags': emptyFlags, 'connections': [...allItems] };
   reptDialog.value = true;
 }
 
+import { toRaw } from 'vue'; // Ensure `toRaw` is imported at the top of <script setup>
+
 async function handleFormSubmit(updatedValues) {
   failure.value = '';
   success.value = '';
 
+  // Deep-clone plain values safely (unwraps nested reactive arrays/objects)
   const formPayload = JSON.parse(JSON.stringify(updatedValues));
 
-  if (formPayload.fiscalYr && typeof formPayload.fiscalYr === 'string') {
-    // Look up index positions across both raw short arrays or your options list
+  // Normalize fiscal year month name to 1-12 integer
+  if (typeof formPayload.fiscalYr === 'string') {
     const monthIndex = fyMonths.indexOf(formPayload.fiscalYr);
     if (monthIndex >= 0) {
-      // Send raw numeric integer (1-12) to satisfy the database model requirements
-      formPayload.fiscalYr = Number(monthIndex + 1);
+      formPayload.fiscalYr = monthIndex + 1;
     }
   }
 
-  // Dispatch data cleanly out to your isolated action engine
-  const result = await saveItem(formPayload, formDialogType.value, editingItem.value?.id);
+  const isEdit = formDialogType.value === 'Edit';
+  const targetId = isEdit ? editingItem.value?.id : undefined;
 
-  if (result.success) {
-    success.value = result.msg;
+  // Dispatch to action engine
+  const result = await saveItem(formPayload, formDialogType.value, targetId);
 
-    // Combine fields safely within client grid states 
+  if (!result.success) {
+    failure.value = result.msg;
+    return;
+  }
+
+  success.value = result.msg;
+  formDialogOpen.value = false;
+
+  if (isEdit) {
     const finalizedRecord = {
       ...editingItem.value,
       ...formPayload,
       ...(result.record || {})
     };
-
-    if (formDialogType.value === "Edit") {
-      updateLocalArrayRecord(editingItem.value.id, finalizedRecord);
-    } else {
-      allItems.push(finalizedRecord);
-    }
-
+    updateLocalArrayRecord(targetId, finalizedRecord);
     updateItems();
     dtKey.value++;
-    formDialogOpen.value = false;
   } else {
-    failure.value = result.msg;
+    // Pass props.datasetKey so loadDataset knows which dataset to fetch
+    await loadDataset(props.datasetKey);
+    dtKey.value++;
   }
+
 }
+
 async function handleToggleUpdate(id, field, value) {
   const currentItem = allItems.find(item => item.id === id);
   if (!currentItem) return;

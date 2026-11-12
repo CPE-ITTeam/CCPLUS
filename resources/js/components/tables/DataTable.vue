@@ -42,17 +42,17 @@ const showActions = computed(() => {
 const computedHeaders = computed(() => {
   let rawHeaders = props.headers.filter(h => {
     const keyName = h.key || h.name;
-    
+
     // 🌟 RULE 1: Standard internal Vuetify filter rules
     if (keyName === 'data-table-select' || keyName === 'id') {
       return false;
     }
-    
+
     // 🌟 RULE 2: If a column layout has no visible characters or explicit hidden indicators, DROP IT!
     if (h.header === null || h.headerProps?.header === null) {
       return false;
     }
-    
+
     // 🌟 RULE 3: Strict title presence check (wipes out hidden properties like is_selected)
     const titleText = h.title || h.label || '';
     if (titleText.trim() === '') {
@@ -65,8 +65,8 @@ const computedHeaders = computed(() => {
   const hdrs = rawHeaders.map(header => {
     const isCentered = header.align === 'center' || header.header === 'center';
     return {
-      ...header, 
-      key: header.key || header.name, 
+      ...header,
+      key: header.key || header.name,
       title: header.title || header.label, // Enforces backward compatibility bridges
       align: isCentered ? 'center' : (header.align || 'start'),
       headerProps: {
@@ -214,9 +214,11 @@ function openUrl(url) {
     </div>
 
     <!-- Core Interactive Data Grid Matrix -->
-    <v-data-table v-model="internalSelectedRows" :headers="computedHeaders" :items="filteredItems" item-key="id"
-      item-value="id" :show-select="props.selectableRows" return-object :loading="props.isLoading"
-      :custom-key-sort="customKeySort" class="elevation-4 bg-surface rounded-lg overflow-hidden">
+    <v-data-table v-model="internalSelectedRows" :headers="computedHeaders" :header-props="{
+      class: 'bg-info text-white'
+    }" :items="filteredItems" item-key="id" item-value="id" :show-select="props.selectableRows" return-object
+      :loading="props.isLoading" :custom-key-sort="customKeySort"
+      class="elevation-4 bg-surface rounded-lg overflow-hidden">
       <template #no-data>
         <v-alert type="info" variant="tonal" density="compact" icon="mdi-alert-circle-outline" class="ma-4"
           :text="noDataMessage" />
@@ -224,11 +226,8 @@ function openUrl(url) {
 
       <!-- UNIFIED SELECTION CELL ARCHITECTURE -->
       <template #header.data-table-select="{ allSelected, selectAll, someSelected }">
-        <div class="d-flex align-center justify-center h-100 bg-info text-white rounded-tl-lg ps-4"
-          style="box-shadow: inset 0 0 0 10px var(--v-theme-info); min-height: 56px;">
-          <v-checkbox-btn :indeterminate="someSelected && !allSelected" :model-value="allSelected" color="white"
-            hide-details density="compact" @update:model-value="selectAll" />
-        </div>
+        <v-checkbox-btn :indeterminate="someSelected && !allSelected" :model-value="allSelected" color="white"
+          base-color="white" @update:model-value="selectAll" />
       </template>
 
       <!-- FAILSAFE SLOT OVERLAY FOR ROOT DATASETS -->
@@ -355,18 +354,3 @@ function openUrl(url) {
     </v-dialog>
   </div>
 </template>
-
-<!-- Add this to resources/js/components/tables/DataTable.vue -->
-<style scoped>
-/* 
-  FIXED VIA DEEP COMBINATOR: 
-  Wrapping the selector string inside :deep() bypasses Vue's scoped asset compiler boundaries.
-  This allows your authoritative info theme blue color to bind directly to the internal 
-  table cell elements natively, overriding the default layout lines completely.
-*/
-:deep(.v-data-table__td.v-data-table-column--no-padding.v-data-table-column--align-start.v-data-table__th) {
-  border: 10px solid var(--v-theme-info) !important;
-  padding: 0;
-}
-</style>
-

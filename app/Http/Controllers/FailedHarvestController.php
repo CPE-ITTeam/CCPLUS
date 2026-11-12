@@ -10,7 +10,7 @@ use App\Models\Credential;
 use App\Models\HarvestLog;
 use Illuminate\Http\Request;
 
-class FailedHarvestController extends Controller
+class FailedHarvestController extends BaseController
 {
     /**
      * Display a listing of the resource.

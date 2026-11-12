@@ -2,78 +2,64 @@
 
 namespace App\Http\Controllers;
 
-// Controller methods to return data from the global database tables (for the API)
+use App\Models\CcplusError;
+use App\Models\DataBase;
+use App\Models\DataHost;
+use App\Models\Item;
+use App\Models\Platform;
+use App\Models\Publisher;
+use App\Models\Title;
+use Illuminate\Http\JsonResponse;
+
+/**
+ * Controller methods to return data from the global database tables (for the API).
+ */
 class GlobalDataController extends BaseController
 {
-
-    /**
-     * Return records from the titles table
-     * @return JSON
-     */
-    public function titles()
+    public function titles(): JsonResponse
     {
-        $data = \App\Models\Title::all()->toArray();
-        return response()->json($data);
+        return $this->fetchGlobalTable(Title::class);
+    }
+
+    public function platforms(): JsonResponse
+    {
+        return $this->fetchGlobalTable(Platform::class, ['id', 'name']);
+    }
+
+    public function publishers(): JsonResponse
+    {
+        return $this->fetchGlobalTable(Publisher::class, ['id', 'name']);
+    }
+
+    public function databases(): JsonResponse
+    {
+        return $this->fetchGlobalTable(DataBase::class, ['id', 'name', 'PropID']);
+    }
+
+    public function items(): JsonResponse
+    {
+        return $this->fetchGlobalTable(Item::class);
+    }
+
+    public function datahosts(): JsonResponse
+    {
+        return $this->fetchGlobalTable(DataHost::class);
+    }
+
+    public function errors(): JsonResponse
+    {
+        return $this->fetchGlobalTable(CcplusError::class, ['id', 'message', 'explanation', 'new_status']);
     }
 
     /**
-     * Return records from the platforms table
-     * @return JSON
+     * Query a global lookup model with optional column projection.
      */
-    public function platforms()
+    private function fetchGlobalTable(string $modelClass, array $columns = ['*']): JsonResponse
     {
-        $data = \App\Models\Platform::get(['id', 'name'])->toArray();
-        return response()->json($data);
-    }
+        $records = ($columns === ['*'])
+            ? $modelClass::all()
+            : $modelClass::get($columns);
 
-    /**
-     * Return records from the publishers table
-     * @return JSON
-     */
-    public function publishers()
-    {
-        $data = \App\Models\Publisher::get(['id', 'name'])->toArray();
-        return response()->json($data);
+        return response()->json($records->toArray());
     }
-
-    /**
-     * Return records from the databases table
-     * @return JSON
-     */
-    public function databases()
-    {
-        $data = \App\Models\DataBase::get(['id', 'name', 'PropID'])->toArray();
-        return response()->json($data);
-    }
-
-    /**
-     * Return records from the items table
-     * @return JSON
-     */
-    public function items()
-    {
-        $data = \App\Models\Item::all()->toArray();
-        return response()->json($data);
-    }
-
-    /**
-     * Return records from the data_hosts table
-     * @return JSON
-     */
-    public function datahosts()
-    {
-        $data = \App\Models\DataHost::all()->toArray();
-        return response()->json($data);
-    }
-
-    /**
-     * Return records from the ccplus_errors table
-     * @return JSON
-     */
-    public function errors()
-    {
-        $data = \App\Models\CcplusError::get(['id', 'message', 'explanation', 'new_status'])->toArray();
-        return response()->json($data);
-    }
-
 }

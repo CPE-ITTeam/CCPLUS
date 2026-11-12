@@ -4,6 +4,7 @@
 import { ref, reactive, computed } from 'vue';
 import api from '@/services/api.js'; // 🌟 FIXED: Resolves ccPost proxy failures by using your authoritative API layer
 import ToggleIcon from '@/components/ui/ToggleIcon.vue';
+import BaseDialogLayout from '@/components/dialogs/BaseDialogLayout.vue';
 import Swal from 'sweetalert2';
 
 // 2. STABLE COMPONENT CONTRACT MAPPINGS
@@ -63,9 +64,9 @@ function changeConnector() {
   if (!formValues['connector_state']) return;
   Object.keys(formValues['connector_state']).forEach((cnx) => {
     if (formValues['connector_state'][cnx] == null) formValues['connector_state'][cnx] = false;
-    if (props.initialValues['connector_state'] && 
-        props.initialValues['connector_state'][cnx] && 
-        !formValues['connector_state'][cnx]) {
+    if (props.initialValues['connector_state'] &&
+      props.initialValues['connector_state'][cnx] &&
+      !formValues['connector_state'][cnx]) {
       warnConnectors.value = true;
     }
   });
@@ -106,14 +107,14 @@ async function submitForm() {
       " COUNTER API Credentials when the platform is saved.<br />";
     warning_html += "Having good exports of the COUNTER API credentials for all instances could be valuable if you find" +
       " you need to re-enable the modified connector field.";
-    
+
     Swal.fire({
-      title: 'Continue to save?', 
-      html: warning_html, 
-      icon: 'warning', 
+      title: 'Continue to save?',
+      html: warning_html,
+      icon: 'warning',
       showCancelButton: true,
-      confirmButtonColor: '#3085d6', 
-      cancelButtonColor: '#d33', 
+      confirmButtonColor: '#3085d6',
+      cancelButtonColor: '#d33',
       confirmButtonText: 'Yes, proceed',
       customClass: { container: 'swal-container' }
     }).then((result) => {
@@ -134,11 +135,11 @@ async function regRefresh() {
   var args = { ids: [formValues['id']], dialog: true };
   try {
     const response = await api.post('/api/platforms/refresh', args);
-    
+
     // 1. Adaptive Data Extraction Layer
     // Safely reads the payload whether api.js returns the raw Axios wrapper or the unwrapped data object
-    const payload = (response && response.data && typeof response.data.result !== 'undefined') 
-      ? response.data 
+    const payload = (response && response.data && typeof response.data.result !== 'undefined')
+      ? response.data
       : response;
 
     if (!payload || payload.result === false) {
@@ -162,7 +163,7 @@ async function regRefresh() {
         }
       });
       dialog_success.value = payload.msg || "Selected platform successfully retrieved.";
-      
+
       // 4. Force state re-evaluation for UI inputs
       changeRelease();
     } else {
@@ -175,228 +176,127 @@ async function regRefresh() {
 }
 
 </script>
+
 <template>
-  <div>
-    <v-form ref="formRef" @submit.prevent="submitForm">
-      <!-- 🌟 GRID CONTAINER: ma-n2 manages component gutters cleanly without boundary overflow leaks -->
-      <v-row class="ma-n2 pa-4">
+  <!-- Pure form content block. No BaseDialogLayout, no outer v-card -->
+  <v-form ref="formRef" @submit.prevent="submitForm">
+    
+    
+    <v-row align="center">
+      <v-col :sm="formFields['name'].cols" cols="12">
+        <v-text-field v-model="formValues['name']" :label="formFields['name'].label" hide-details />
+      </v-col>
+      <v-col :sm="formFields['abbrev'].cols" cols="12">
+        <v-text-field v-model="formValues['abbrev']" :label="formFields['abbrev'].label" :hint="formFields['abbrev'].helperText" persistent-hint />
+      </v-col>
+    </v-row>
 
-        <!-- 1. Status & System ID Header Meta -->
-        <v-col cols="12" class="d-flex justify-space-between align-center px-2 py-1">
-          <div class="d-flex align-center">
-            <strong class="text-body-1 mr-2">{{ formFields['status'].label }}:</strong>
-            <ToggleIcon v-model="formValues['status']" toggleable :size="36" />
-          </div>
-          <v-chip size="small" variant="tonal" class="text-caption">
-            <v-icon start size="small">mdi-web</v-icon>
-            ID: {{ formValues['id'] }}
-          </v-chip>
-        </v-col>
+    <!-- ROW 2: Release Selection Pipeline Cluster -->
+    <v-row align="center" class="mt-2">
+      <v-col cols="12">
+        <v-row class="align-center ma-0 pa-0">
+          <v-col v-if="opType == 'Add'" class="pa-0">
+            <v-text-field v-model="formValues['cur_release']" :label="formFields['cur_release'].label" :rules="[requiredRule]" />
+          </v-col>
+          <v-col v-else-if="formFields['releases'].options.length <= 1" class="flex-grow-1 pa-0">
+            <v-text-field v-model="formValues['cur_release']" :value="formFields['releases'].options" :label="formFields['cur_release'].label" :rules="[requiredRule]" />
+          </v-col>
+          <v-col v-else-if="formFields['releases'].options.length > 1" class="flex-grow-1 pa-0">
+            <v-select v-model="formValues['cur_release']" :items="formValues['reg_releases']" :label="formFields['cur_release'].label" :rules="[requiredRule]" @update:modelValue="changeRelease" />
+          </v-col>
 
-        <!-- 2. Platform Name Input (Reads dynamic cols threshold from your schema metadata) -->
-        <v-col cols="12" :sm="formFields['name'].cols" class="px-2 py-1">
-          <v-text-field 
-            v-model="formValues['name']" 
-            :label="formFields['name'].label" 
-            density="compact"
-            variant="outlined"
-            hide-details="auto"
-          />
-        </v-col>
+          <v-col v-if="opType == 'Edit'" class="d-flex align-center flex-grow-1 py-0 ps-4 pe-0">
+            <ToggleIcon v-model="formValues['is_selected']" :toggleable="formValues['is_selected'] == 'Inactive'" :size="36" @update:modelValue="changeSelected" />
+            <strong class="text-body-2 ms-2">Currently Selected Release</strong>
+          </v-col>
+        </v-row>
+      </v-col>
+    </v-row>
 
-        <!-- 3. Abbreviation Input (Reads dynamic cols threshold from your schema metadata) -->
-        <v-col cols="12" :sm="formFields['abbrev'].cols" class="px-2 py-1">
-          <v-text-field 
-            v-model="formValues['abbrev']" 
-            :label="formFields['abbrev'].label" 
-            density="compact" 
-            :hint="formFields['abbrev'].helperText" 
-            persistent-hint
-            variant="outlined"
-            hide-details="auto"
-          />
-        </v-col>
+    <!-- ROW 3: Endpoint Connectivity Routing -->
+    <v-row class="mt-2">
+      <v-col :sm="formFields['service_url'].cols" cols="12">
+        <v-text-field v-model="formValues['service_url']" :label="formFields['service_url'].label" :hint="formFields['service_url'].helperText" :readonly="formValues['refreshable'] == 'Active'" persistent-hint />
+      </v-col>
+      <v-col :sm="formFields['platform_parm'].cols" cols="12">
+        <v-text-field v-model="formValues['platform_parm']" :label="formFields['platform_parm'].label" :hint="formFields['platform_parm'].helperText" persistent-hint />
+      </v-col>
+    </v-row>
 
-        <!-- 4. Release Selection Pipeline Cluster (Full width container layout row) -->
-        <v-col cols="12" class="px-2 py-1">
-          <!-- 🌟 UPGRADED: Removed old deprecated 'dense' attribute to satisfy layout checks -->
-          <v-row class="align-center ma-0 pa-0">
-            <v-col v-if="opType == 'Add'" cols="12" class="pa-0">
-              <v-text-field 
-                v-model="formValues['cur_release']" 
-                :label="formFields['cur_release'].label"
-                density="compact" 
-                :rules="[requiredRule]"
-                variant="outlined"
-                hide-details="auto"
-              />
-            </v-col>
-            <v-col v-else-if="formFields['releases'].options.length <= 1" class="flex-grow-1 pa-0">
-              <v-text-field 
-                v-model="formValues['cur_release']" 
-                :value="formFields['releases'].options"
-                :label="formFields['cur_release'].label"  
-                density="compact" 
-                :rules="[requiredRule]"
-                variant="outlined"
-                hide-details="auto"
-              />
-            </v-col>
-            <v-col v-else-if="formFields['releases'].options.length > 1" class="flex-grow-1 pa-0">
-              <v-select 
-                v-model="formValues['cur_release']" 
-                :items="formValues['reg_releases']"
-                :label="formFields['cur_release'].label"  
-                density="compact" 
-                :rules="[requiredRule]"
-                @update:modelValue="changeRelease" 
-                variant="outlined"
-                hide-details="auto"
-              />
-            </v-col>
+    <!-- ROW 4: Relational Matrix Configurations -->
+    <v-row class="mt-2">
+      <v-col cols="12" sm="6">
+        <v-list density="compact" class="bg-transparent pa-0">
+          <v-list-item class="px-0 py-1">
+            <strong class="text-subtitle-2 text-primary text-uppercase font-weight-bold">Connection Fields</strong>
+          </v-list-item>
+          <v-list-item v-for="cnx in props.schema.options['all_connectors']" :key="cnx.name" class="px-0 py-0">
+            <v-checkbox v-model="formValues['connector_state'][cnx.name]" :label="cnx.label" density="compact" color="primary" hide-details @change="changeConnector" />
+          </v-list-item>
+        </v-list>
+      </v-col>
+      <v-col cols="12" sm="6">
+        <v-list density="compact" class="bg-transparent pa-0">
+          <v-list-item class="px-0 py-1">
+            <strong class="text-subtitle-2 text-primary text-uppercase font-weight-bold">Supported Reports</strong>
+          </v-list-item>
+          <v-list-item v-for="rpt in props.schema.options['master_reports']" :key="rpt.name" class="px-0 py-0">
+            <v-checkbox v-model="formValues['report_state'][rpt.name]" :label="rpt.name" density="compact" color="primary" hide-details @change="changeReport" />
+          </v-list-item>
+        </v-list>
+      </v-col>
+    </v-row>
 
-            <v-col v-if="opType == 'Edit'" class="d-flex align-center flex-grow-1 py-0 ps-4 pe-0">
-              <ToggleIcon 
-                v-model="formValues['is_selected']" 
-                :toggleable="formValues['is_selected'] == 'Inactive'"
-                :size="36" 
-                @update:modelValue="changeSelected" 
-              />
-              <strong class="text-body-2 ml-2">Currently Selected Release</strong>
-            </v-col>
-          </v-row>
-        </v-col>
+    <!-- ROW 5: Orchestration Toggles & Harvest Timing -->
+    <v-row align="center" class="mt-4 ga-4">
+      <v-col :sm="formFields['day_of_month'].cols" cols="12" class="d-flex align-center">
+        <strong class="text-body-2 text-no-wrap text-medium-emphasis mr-2">Run Harvests Monthly on day:</strong>
+        <v-text-field v-model="formValues['day_of_month']" :label="formFields['day_of_month'].label" input-class="text-center" type="number" :rules="[dayRules.required, dayRules.validDay]" style="max-width: 90px;" hide-details />
+      </v-col>
+      
+      <v-col cols="auto" class="d-flex align-center">
+        <ToggleIcon v-model="formValues.status" toggleable :size="36" />
+        <strong class="text-body-2 ms-2 text-medium-emphasis">{{ formFields.status.label }}</strong>
+      </v-col>
+      
+      <v-col cols="auto" class="d-flex align-center">
+        <ToggleIcon v-model="formValues['refreshable']" toggleable :size="36" />
+        <strong class="text-body-2 ms-2 text-medium-emphasis">{{ formFields['refreshable'].label }}</strong>
+      </v-col>
+    </v-row>
 
-        <!-- 5. Service URL Input (Reads dynamic cols threshold from your schema metadata) -->
-        <v-col cols="12" :sm="formFields['service_url'].cols" class="px-2 py-1">
-          <v-text-field 
-            v-model="formValues['service_url']" 
-            :label="formFields['service_url'].label" 
-            density="compact" 
-            :hint="formFields['service_url'].helperText" 
-            persistent-hint
-            :readonly="formValues['refreshable'] == 'Active'"
-            variant="outlined"
-            hide-details="auto"
-          />
-        </v-col>
+    <!-- ROW 6: Registry Integration Execution -->
+    <v-row v-if="formValues['refreshable'] == 'Active'" align="center" class="mt-2">
+      <v-col cols="12">
+        <v-row class="align-center ma-0 pa-0">
+          <v-col class="flex-grow-1 pa-0">
+            <v-text-field v-model="formValues['registry_id']" :label="formFields['registry_id'].label" hide-details />
+          </v-col>
+          <v-col cols="auto" class="py-0 ps-3 pe-0">
+            <v-btn color="info" @click="regRefresh">Refresh</v-btn>
+          </v-col>
+        </v-row>
+      </v-col>
+    </v-row>
 
-        <!-- 6. Platform Parameter Input (Reads dynamic cols threshold from your schema metadata) -->
-        <v-col cols="12" :sm="formFields['platform_parm'].cols" class="px-2 py-1">
-          <v-text-field 
-            v-model="formValues['platform_parm']" 
-            :label="formFields['platform_parm'].label"
-            density="compact" 
-            :hint="formFields['platform_parm'].helperText" 
-            persistent-hint
-            variant="outlined"
-            hide-details="auto"
-          />
-        </v-col>
+    <!-- ROW 7: In-line Notification Warnings -->
+    <v-row v-if="dialog_success || dialog_error" class="mt-2">
+      <v-col cols="12">
+        <v-alert v-if="dialog_success" type="success" variant="tonal" class="mb-2" :text="dialog_success" />
+        <v-alert v-if="dialog_error" type="error" variant="tonal" class="mb-2" :text="dialog_error" />
+      </v-col>
+    </v-row>
 
-        <!-- 7. Relational Configuration Checkbox Lists Layout (Styled primary text headers) -->
-        <v-col cols="12" class="px-2 py-2">
-          <!-- 🌟 UPGRADED: Removed old deprecated 'dense' attribute to satisfy layout checks -->
-          <v-row class="ma-0 pa-0">
-            <v-col cols="12" sm="6" class="pt-0 pb-0 ps-0 pe-2">
-              <v-list density="compact" class="bg-transparent pa-0">
-                <v-list-item class="px-0 py-1">
-                  <strong class="text-subtitle-2 text-primary text-uppercase font-weight-bold">Connection Fields</strong>
-                </v-list-item>
-                <v-list-item v-for="cnx in props.schema.options['all_connectors']" :key="cnx.name" class="px-0 py-0">
-                  <v-checkbox 
-                    v-model="formValues['connector_state'][cnx.name]" 
-                    :label="cnx.label" 
-                    density="compact"
-                    color="primary"
-                    hide-details 
-                    @change="changeConnector" 
-                  />
-                </v-list-item>
-              </v-list>
-            </v-col>
-            <v-col cols="12" sm="6" class="pt-0 pb-0 ps-2 pe-0">
-              <v-list density="compact" class="bg-transparent pa-0">
-                <v-list-item class="px-0 py-1">
-                  <strong class="text-subtitle-2 text-primary text-uppercase font-weight-bold">Supported Reports</strong>
-                </v-list-item>
-                <v-list-item v-for="rpt in props.schema.options['master_reports']" :key="rpt.name" class="px-0 py-0">
-                  <v-checkbox 
-                    v-model="formValues['report_state'][rpt.name]" 
-                    :label="rpt.name" 
-                    density="compact"
-                    color="primary"
-                    hide-details 
-                    @change="changeReport" 
-                  />
-                </v-list-item>
-              </v-list>
-            </v-col>
-          </v-row>
-        </v-col>
-
-        <!-- 8. Harvest Day Picker (Reads dynamic cols threshold from your schema metadata) -->
-        <v-col cols="12" :sm="formFields['day_of_month'].cols" class="px-2 py-1 d-flex align-center">
-          <div class="w-100 d-flex align-center ga-3">
-            <strong class="text-body-2 text-no-wrap text-medium-emphasis">Run Harvests Monthly on day:</strong>
-            <v-text-field 
-              v-model="formValues['day_of_month']" 
-              :label="formFields['day_of_month'].label" 
-              input-class="text-center"  
-              density="compact" 
-              type="number"
-              :rules="[dayRules.required, dayRules.validDay]"
-              variant="outlined"
-              hide-details="auto"
-              style="max-width: 90px;"
-            />
-          </div>
-        </v-col>
-
-        <!-- 9. Refreshable Settings Toggle Block (Reads dynamic cols threshold from your schema metadata) -->
-        <v-col cols="12" :sm="formFields['refreshable'].cols" class="px-2 py-1 d-flex align-center">
-          <strong class="text-body-2 mr-2 text-medium-emphasis">{{ formFields['refreshable'].label }}:</strong>
-          <ToggleIcon v-model="formValues['refreshable']" toggleable :size="36" />
-        </v-col>
-
-        <!-- 10. Registry ID Input Block (Full width conditional container row) -->
-        <v-col v-if="formValues['refreshable'] == 'Active'" cols="12" class="px-2 py-1">
-          <!-- 🌟 UPGRADED: Removed old deprecated 'dense' attribute to satisfy layout checks -->
-          <v-row class="align-center ma-0 pa-0">
-            <v-col class="flex-grow-1 pa-0">
-              <v-text-field 
-                v-model="formValues['registry_id']" 
-                :label="formFields['registry_id'].label"
-                density="compact"
-                variant="outlined"
-                hide-details="auto"
-              />
-            </v-col>
-            <v-col cols="auto" class="py-0 ps-3 pe-0">
-              <v-btn color="info" @click="regRefresh">Refresh</v-btn>
-            </v-col>
-          </v-row>
-        </v-col>
-
-        <!-- 11. Dynamic Status Message Alerts -->
-        <v-col cols="12" class="px-2 py-1 mt-2">
-          <v-alert v-if="dialog_success" type="success" variant="tonal" density="compact" class="mb-2" :text="dialog_success" />
-          <v-alert v-if="dialog_error" type="error" variant="tonal" density="compact" class="mb-2" :text="dialog_error" />
-        </v-col>
-
-        <!-- 12. Submission Controls Row -->
-        <v-col cols="12" class="d-flex align-center px-2 pt-3">
-          <v-btn color="primary" @click="submitForm">Save</v-btn>
-          <v-btn class="ml-2" variant="text" @click="emit('cancel')">Cancel</v-btn>
-        </v-col>
-
-        <!-- 13. Timestamp indicators footer block -->
-        <v-col v-if="typeof (formValues['updated']) !== 'undefined' && formValues['updated'].length > 0" cols="12" class="text-center text-caption text-disabled text-italic mt-2">
+    <!-- Optional: Add submission controls inside the form if datasetviewer doesn't provide global actions -->
+    <v-row class="mt-4">
+      <v-col cols="12" class="d-flex justify-end align-center">
+        <div v-if="typeof (formValues['updated']) !== 'undefined' && formValues['updated'].length > 0" class="text-caption text-disabled text-italic mr-auto">
           Last Updated: {{ formValues['updated'] }}
-        </v-col>
+        </div>
+        <v-btn variant="text" @click="emit('cancel')">Cancel</v-btn>
+        <v-btn color="primary" type="submit" class="ml-2">Save</v-btn>
+      </v-col>
+    </v-row>
 
-
-      </v-row>
-    </v-form>
-  </div>
+  </v-form>
 </template>

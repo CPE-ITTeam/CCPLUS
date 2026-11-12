@@ -2,42 +2,25 @@
 
 namespace App\Http\Controllers;
 
-use Illuminate\Http\Request;
-use App\Http\Controllers\Controller as Controller;
+use App\Http\Controllers\Traits\ApiResponds;
+use App\Http\Controllers\Traits\CleansDatasetInput;
+use App\Http\Controllers\Traits\ImportsCsvData;
+use App\Http\Controllers\Traits\ManagesDatasetRecords;
 
 class BaseController extends Controller
 {
-    /**
-     * success response method.
-     *
-     * @return \Illuminate\Http\Response
-     */
-    public function sendResponse($result, $message)
-    {
-    	$response = [
-            'success' => true,
-            'data'    => $result,
-            'message' => $message,
-        ];
-        return response()->json($response, 200);
-    }
+    use ApiResponds;
+    use CleansDatasetInput;
+    use ImportsCsvData;
+    use ManagesDatasetRecords;
 
     /**
-     * return error response.
-     *
-     * @return \Illuminate\Http\Response
+     * Optional Eloquent model class for automated CRUD/bulk actions.
      */
-    public function sendError($error, $errorMessages = [], $code = 404)
-    {
-    	$response = [
-            'success' => false,
-            'message' => $error,
-        ];
+    protected string $modelClass = '';
 
-        if(!empty($errorMessages)){
-            $response['data'] = $errorMessages;
-        }
-
-        return response()->json($response, $code);
-    }
+    /**
+     * Optional human-readable label for response messages (e.g., 'Institution').
+     */
+    protected string $modelLabel = '';
 }

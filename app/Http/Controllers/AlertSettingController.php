@@ -8,7 +8,7 @@ use App\Report;
 use App\ReportField;
 use Illuminate\Http\Request;
 
-class AlertSettingController extends Controller
+class AlertSettingController extends BaseController
 {
    //Index method for Alerts Controller
     public function index(Request $request)

@@ -6,7 +6,7 @@ use App\Models\GlobalSetting;
 use Illuminate\Http\Request;
 use \Illuminate\Contracts\Cache\Factory;
 
-class GlobalSettingController extends Controller
+class GlobalSettingController extends BaseController
 {
     public function __construct()
     {

@@ -13,7 +13,7 @@ use Illuminate\Http\Request;
 use GuzzleHttp\Client;
 use Illuminate\Support\Facades\Cache;
 
-class CounterRegistryController extends Controller
+class CounterRegistryController extends BaseController
 {
     private $masterReports;
     private $allConnectors;
