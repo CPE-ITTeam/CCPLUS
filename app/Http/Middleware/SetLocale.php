@@ -12,14 +12,14 @@ class SetLocale
     /**
      * Supported application locales.
      */
-    protected array $supportedLocales = ['en', 'es', 'fr'];
+    protected array $supportedLocales = ['en', 'fi'];
 
     /**
      * Set the application locale from the incoming request headers.
      */
     public function handle(Request $request, Closure $next): Response
     {
-        // 1. Optional explicit header from frontend (e.g. X-Locale: es)
+        // 1. Optional explicit header from frontend (e.g. X-Locale: fi)
         $explicit = $request->header('X-Locale');
         if ($explicit && in_array(strtolower($explicit), $this->supportedLocales, true)) {
             App::setLocale(strtolower($explicit));
