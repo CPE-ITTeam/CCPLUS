@@ -290,13 +290,14 @@ async function regRefresh() {
     <!-- Optional: Add submission controls inside the form if datasetviewer doesn't provide global actions -->
     <v-row class="mt-4">
       <v-col cols="12" class="d-flex justify-end align-center">
-        <div v-if="typeof (formValues['updated']) !== 'undefined' && formValues['updated'].length > 0" class="text-caption text-disabled text-italic mr-auto">
+        <div v-if="formValues['updated']?.length > 0" class="text-caption text-disabled text-italic mr-auto">
           Last Updated: {{ formValues['updated'] }}
         </div>
         <v-btn variant="text" @click="emit('cancel')">Cancel</v-btn>
         <v-btn color="primary" type="submit" class="ml-2">Save</v-btn>
       </v-col>
     </v-row>
+
 
   </v-form>
 </template>

@@ -21,6 +21,7 @@ import PlatformForm from '@/components/forms/PlatformForm.vue';
 import CredentialsForm from '@/components/forms/CredentialsForm.vue';
 import ReportToggle from '@/components/dialogs/ReportToggle.vue';
 import Swal from 'sweetalert2';
+import { useI18n } from 'vue-i18n';
 
 // ============================================================================
 // PART 2: ACCOUNT LAYER INITIALIZATION & DECOUPLED BRIDGES
@@ -852,6 +853,8 @@ function handleFormCancel() {
 // ============================================================================
 // PART 8: LIFECYCLE WATCHERS & TRIGGERS
 // ============================================================================
+const { locale } = useI18n();
+
 onBeforeMount(() => {
   loadDataset(props.datasetKey);
 });
@@ -862,7 +865,43 @@ watch(
     loadDataset(newKey);
   }
 );
+
+watch(locale, () => {
+  const config = datasetConfig[props.datasetKey];
+  if (!config) return;
+
+  headers.value = [{ title: '', key: '' }];
+  config.fields.forEach((fld) => {
+    if (fld.header != null) {
+      if (props.datasetKey == 'harvests' && fld.name == 'error') {
+        headers.value.push({
+          title: fld.label,
+          key: fld.name,
+          align: fld.header,
+          type: fld.type,
+          sort: (a, b) => Number(a.id) - Number(b.id),
+        });
+      } else {
+        headers.value.push({
+          title: fld.label,
+          key: fld.name,
+          align: fld.header,
+          type: fld.type,
+        });
+      }
+    }
+  });
+
+  // Also refresh filter labels when locale changes
+  Object.keys(filterOptions).forEach((key) => {
+    const fld = config.fields.find((f) => f.name === key);
+    if (fld) filterOptions[key].label = fld.label;
+  });
+
+  dtKey.value++;
+});
 </script>
+
 
 <!-- components/shared/DatasetViewer.vue -->
 <template>

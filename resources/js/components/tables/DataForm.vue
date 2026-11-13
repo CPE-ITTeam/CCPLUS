@@ -79,6 +79,7 @@ const showConfirm = computed(() => {
   return false;
 });
 
+
 // 5. STANDARD FUNCTIONAL LOGIC OPERATORS
 function isToggleField(field) {
   return field.type === 'toggle' ||
@@ -191,7 +192,7 @@ async function submitForm() {
     }
   });
 
-  
+
   if (formRef.value) {
     const { valid } = await formRef.value.validate();
     if (valid) {
@@ -240,16 +241,12 @@ onMounted(() => {
 
         <!-- Dynamic Form Fields Loop -->
         <template v-for="field in m_schema.fields" :key="field.name">
-          
+
           <!-- FORCE LINE BREAK -->
           <v-col v-if="field.breakBefore" cols="12" class="pa-0" />
 
           <!-- UNIFIED VISIBILITY & EDITABILITY -->
-          <v-col 
-            v-if="isFieldVisible(field, opType)"
-            cols="12"
-            :sm="field.cols || 12"
-          >
+          <v-col v-if="isFieldVisible(field, opType)" cols="12" :sm="field.cols || 12">
             <!-- Read-only text mode when field is not editable in current opType -->
             <div v-if="!isFieldEditable(field, opType) || field.renderAsText" class="text-body-1 py-1">
               <strong>{{ field.label }}:</strong> &nbsp;
@@ -279,7 +276,7 @@ onMounted(() => {
             <!-- Password Fields -->
             <v-text-field v-else-if="field.type === 'password'" v-model="formValues[field.name]" :label="field.label"
               :type="pw_show ? 'text' : 'password'" :append-inner-icon="pw_show ? 'mdi-eye' : 'mdi-eye-off'"
-              @click:append-inner="pw_show = !pw_show" :hint="field.helperText" 
+              @click:append-inner="pw_show = !pw_show" :hint="field.helperText"
               :rules="field.required ? [requiredRule] : []" />
 
             <v-text-field v-else-if="field.type === 'passconf' && showConfirm" v-model="formValues[field.name]"
@@ -289,21 +286,19 @@ onMounted(() => {
 
             <!-- Textareas -->
             <v-textarea v-else-if="field.type === 'textarea'" v-model="formValues[field.name]" :label="field.label"
-              :rules="field.required ? [requiredRule] : []" :prepend-inner-icon="field.icon"
-              :hint="field.helperText" />
+              :rules="field.required ? [requiredRule] : []" :prepend-inner-icon="field.icon" :hint="field.helperText" />
 
             <!-- Standard Select Fields -->
             <v-select v-else-if="field.type === 'select'" v-model="formValues[field.name]" :label="field.label"
               :items="m_schema.options[field.name]" :item-title="field.optTxt" :item-value="field.optVal"
-              :prepend-inner-icon="field.icon" :hint="field.helperText" 
-              :rules="field.required ? [requiredRule] : []"
+              :prepend-inner-icon="field.icon" :hint="field.helperText" :rules="field.required ? [requiredRule] : []"
               @update:modelValue="selectChanged(field.name)" />
 
             <!-- Rich Object Select Strings -->
             <v-select v-else-if="field.type === 'selectObj'" v-model="formValues[field.name]" :label="field.label"
               :items="m_schema.options[field.name]" :item-title="field.optTxt" :item-value="field.optVal"
-              :prepend-inner-icon="field.icon" :hint="field.helperText" 
-              return-object :rules="field.required ? [requiredRule] : []" />
+              :prepend-inner-icon="field.icon" :hint="field.helperText" return-object
+              :rules="field.required ? [requiredRule] : []" />
 
             <!-- Multi-Select Dropdowns -->
             <v-select v-else-if="field.type === 'mselect'" v-model="formValues[field.name]" :label="field.label"
@@ -313,37 +308,28 @@ onMounted(() => {
 
             <!-- Universal Fallback text & number inputs -->
             <v-text-field v-else-if="field.type != 'passconf'" v-model="formValues[field.name]" :label="field.label"
-              :type="field.type === 'number' ? 'number' : 'text'"
-              :prepend-inner-icon="field.icon" :hint="field.helperText" 
-              :rules="field.required ? [requiredRule] : []" />
+              :type="field.type === 'number' ? 'number' : 'text'" :prepend-inner-icon="field.icon"
+              :hint="field.helperText" :rules="field.required ? [requiredRule] : []" />
           </v-col>
 
 
           <!-- Group Switch Configuration Block -->
-          <v-col 
+          <v-col
             v-if="m_schema.dataset == 'groups' && field.name == 'count' && opType == 'Edit' && formValues['types'] != null"
-            cols="12"
-          >
+            cols="12">
             <v-switch v-model="formValues['reset_type']" label="Clear Restriction" color="primary" />
           </v-col>
         </template>
 
         <!-- Form Status Alerts -->
-        <v-col v-if="dialog_success || ccPlusStore?.tableSuccessMessage || dialog_error || ccPlusStore?.tableErrorMessage" cols="12">
-          <v-alert 
-            v-if="dialog_success || ccPlusStore?.tableSuccessMessage" 
-            type="success" 
-            variant="tonal" 
-            class="mb-2"
-            :text="dialog_success || ccPlusStore.tableSuccessMessage" 
-          />
-          
-          <v-alert 
-            v-if="dialog_error || ccPlusStore?.tableErrorMessage" 
-            type="error" 
-            variant="tonal" 
-            :text="dialog_error || ccPlusStore.tableErrorMessage" 
-          />
+        <v-col
+          v-if="dialog_success || ccPlusStore?.tableSuccessMessage || dialog_error || ccPlusStore?.tableErrorMessage"
+          cols="12">
+          <v-alert v-if="dialog_success || ccPlusStore?.tableSuccessMessage" type="success" variant="tonal" class="mb-2"
+            :text="dialog_success || ccPlusStore.tableSuccessMessage" />
+
+          <v-alert v-if="dialog_error || ccPlusStore?.tableErrorMessage" type="error" variant="tonal"
+            :text="dialog_error || ccPlusStore.tableErrorMessage" />
         </v-col>
 
         <!-- Submissions Controls Row -->
@@ -353,10 +339,10 @@ onMounted(() => {
         </v-col>
 
         <!-- Metadata indicator tracking -->
-        <v-col v-if="typeof (formValues['updated']) !== 'undefined' && formValues['updated'].length > 0" cols="12" class="text-center text-caption text-disabled">
+        <v-col v-if="typeof (formValues['updated']) !== 'undefined' && formValues['updated'].length > 0" cols="12"
+          class="text-center text-caption text-disabled">
           Last Updated: {{ formValues['updated'] }}
         </v-col>
-
       </v-row>
     </v-form>
 

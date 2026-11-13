@@ -184,13 +184,8 @@ onMounted(async () => {
   <!-- 💡 MOBILE SIDE NAVIGATION DRAWER -->
   <v-navigation-drawer v-model="drawer" temporary class="bg-surface d-md-none">
     <v-list density="compact" nav>
-      <v-list-item 
-        v-for="(page, index) in pages" 
-        :key="index" 
-        :title="page?.meta?.title" 
-        :active="activePage === index"
-        @click="onPageChange(index); drawer = false;" 
-      />
+      <v-list-item v-for="(page, index) in pages" :key="index" :title="page?.meta?.title" :active="activePage === index"
+        @click="onPageChange(index); drawer = false;" />
     </v-list>
   </v-navigation-drawer>
 
@@ -202,7 +197,8 @@ onMounted(async () => {
         <AppHeader @toggle-drawer="drawer = !drawer" />
 
         <!-- ─── 🖥️ DESKTOP ONLY NAVIGATION TABS (Hidden on mobile via d-none d-md-flex) ─── -->
-        <v-tabs v-model="activePage" align-tabs="center" class="d-none d-md-flex w-100" @update:model-value="onPageChange">
+        <v-tabs v-model="activePage" align-tabs="center" class="d-none d-md-flex w-100"
+          @update:model-value="onPageChange">
           <v-tab v-for="(page, index) in pages" :key="index" :value="index">
             {{ page?.meta?.title }}
           </v-tab>
@@ -210,27 +206,21 @@ onMounted(async () => {
 
         <!-- VALIDATES ARRAY LOOKUPS SAFELY BEFORE RENDERING CORES -->
         <div v-if="pages && pages[activePage]">
-          
+
           <!-- 💡 UNIFIED CONTROL HEADER TRACK -->
-          <div class="d-flex flex-column flex-md-row align-stretch align-md-center justify-md-space-between ga-0 ga-md-3 px-6 pt-4 w-100">
-            
+          <div
+            class="d-flex flex-column flex-md-row align-stretch align-md-center justify-md-space-between ga-0 ga-md-3 px-6 pt-4 w-100">
+
             <!-- ─── 🏢 MOBILE & DESKTOP ENVIRONMENT SELECTOR ─── -->
-<div v-if="is_serveradmin && consortia.length > 0" class="w-100 flex-md-initial order-first order-md-last mb-2 mb-md-0" style="max-width: 100%; min-width: 280px; width: auto;">
-  <v-autocomplete 
-    v-model="globalConsoKey" 
-    label="Active Environment" 
-    :items="consortia" 
-    item-title="name" 
-    item-value="ccp_key"
-    return-object
-    density="compact"
-    variant="outlined"
-    bg-color="white"
-    hide-details
-    @update:modelValue="handleGlobalConsoChange" 
-  />
-  <v-divider class="d-md-none mt-3" />
-</div>
+            <div v-if="is_serveradmin && consortia.length > 0"
+              class="w-100 flex-md-initial order-first order-md-last mb-2 mb-md-0"
+              style="max-width: 100%; min-width: 280px; width: auto;">
+              <v-autocomplete v-model="globalConsoKey" :label="$t('nav.active_environment')" :items="consortia"
+                item-title="name" item-value="ccp_key" return-object bg-color="white" hide-details
+                @update:modelValue="handleGlobalConsoChange" />
+
+              <v-divider class="d-md-none mt-3" />
+            </div>
 
 
 
@@ -238,35 +228,22 @@ onMounted(async () => {
             <div class="d-md-none w-100 mt-2 mb-0">
               <v-menu close-on-content-click>
                 <template #activator="{ props: menuProps }">
-                  <v-btn 
-                    v-bind="menuProps" 
-                    variant="outlined" 
-                    color="primary" 
-                    class="w-100 justify-space-between text-none" 
-                    append-icon="mdi-chevron-down"
-                  >
+                  <v-btn v-bind="menuProps" variant="outlined" color="primary"
+                    class="w-100 justify-space-between text-none" append-icon="mdi-chevron-down">
                     <span class="font-weight-bold">
-                      {{ pages[activePage]?.meta?.title || 'Navigate Dashboard' }}
-                    </span>
+                      {{ pages[activePage]?.meta?.title || $t('nav.navigate_dashboard') }} </span>
                   </v-btn>
                 </template>
-                
+
                 <v-list width="100%">
-                  <v-list-item 
-                    v-for="(page, index) in pages" 
-                    :key="index" 
-                    :title="page?.meta?.title"
-                    :active="activePage === index"
-                    :prepend-icon="
-                      page.path.includes('inst') ? 'mdi-bank-outline' :
+                  <v-list-item v-for="(page, index) in pages" :key="index" :title="page?.meta?.title"
+                    :active="activePage === index" :prepend-icon="page.path.includes('inst') ? 'mdi-bank-outline' :
                       page.path.includes('harv') ? 'mdi-cloud-download-outline' :
-                      page.path.includes('rep') ? 'mdi-file-chart-outline' :
-                      page.path.includes('user') ? 'mdi-account-group-outline' :
-                      page.path.includes('alert') ? 'mdi-bell-outline' :
-                      page.path.includes('conso') ? 'mdi-domain' : 'mdi-text-box-outline'
-                    "
-                    @click="onPageChange(index)"
-                  />
+                        page.path.includes('rep') ? 'mdi-file-chart-outline' :
+                          page.path.includes('user') ? 'mdi-account-group-outline' :
+                            page.path.includes('alert') ? 'mdi-bell-outline' :
+                              page.path.includes('conso') ? 'mdi-domain' : 'mdi-text-box-outline'
+                      " @click="onPageChange(index)" />
                 </v-list>
               </v-menu>
             </div>
@@ -290,7 +267,7 @@ onMounted(async () => {
           <v-card-text v-else class="pt-0">
             <v-tabs-window v-model="activePage" @update:model-value="onPageChange">
               <v-tabs-window-item v-for="(page, pageIndex) in pages" :key="pageIndex" :value="pageIndex">
-                
+
                 <v-tabs v-model="activeTab" bg-color="white" density="compact" @update:model-value="onTabChange">
                   <template v-for="(child, cidx) in page?.children" :key="cidx">
                     <v-tab v-if="child?.show" :value="cidx" color="green">
@@ -302,7 +279,7 @@ onMounted(async () => {
                 <v-tabs-window v-model="activeTab" @update:model-value="onTabChange">
                   <template v-for="(child, tabIndex) in page?.children" :key="tabIndex">
                     <v-tabs-window-item v-if="child?.show" :value="tabIndex">
-                      
+
                       <div v-if="child?.children">
                         <v-expansion-panels multiple class="mt-6 rounded-lg" v-model="child.panels">
                           <template v-for="(grandchild, gcidx) in child.children" :key="gcidx">
@@ -317,15 +294,15 @@ onMounted(async () => {
                           </template>
                         </v-expansion-panels>
                       </div>
-                      
+
                       <div v-else>
                         <router-view class="mt-4" :key="$route.fullPath" @updateConso="forwardConsoSignal" />
                       </div>
-                      
+
                     </v-tabs-window-item>
                   </template>
                 </v-tabs-window>
-                
+
               </v-tabs-window-item>
             </v-tabs-window>
           </v-card-text>

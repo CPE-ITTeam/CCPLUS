@@ -1,19 +1,21 @@
 // resources/js/plugins/vue_router.js
-// Vue Router
 import { createRouter, createWebHistory } from "vue-router";
 import { markRaw } from "vue";
-import { useAuthStore } from "@/stores/useAuthStore.js"; // Clean absolute alias
+import { useAuthStore } from "@/stores/useAuthStore.js";
+import i18n from "@/plugins/i18n.js";
+
+const t = (key) => i18n.global.t(key);
 
 // Global Layout Sheets Scaffolds
 import AuthenticatedLayout from "@/layouts/AuthenticatedLayout.vue";
 import LoginLayout from "@/layouts/LoginLayout.vue";
 
-// 1. AUTH FLOW VIEWS (Moved from pages/)
+// 1. AUTH FLOW VIEWS
 import Login from "@/views/auth/Login.vue";
 import ForgotPassword from "@/views/auth/ForgotPassword.vue";
 import ResetPassword from "@/views/auth/ResetPassword.vue";
 
-// 2. DATASET SPREADSHEET MONITORING VIEWS (Moved from components/tables/ and suffixes stripped)
+// 2. DATASET SPREADSHEET MONITORING VIEWS
 import Connections from "@/views/datasets/Connections.vue";
 import Consortia from "@/views/datasets/Consortia.vue";
 import CredentialsAudit from "@/views/datasets/CredentialsAudit.vue";
@@ -27,7 +29,7 @@ import Platforms from "@/views/datasets/Platforms.vue";
 import Roles from "@/views/datasets/Roles.vue";
 import Users from "@/views/datasets/Users.vue";
 
-// 3. SYSTEM INFRASTRUCTURE & SETTINGS PANELS (Moved from components/panels/)
+// 3. SYSTEM INFRASTRUCTURE & SETTINGS PANELS
 import AccountSettings from "@/views/admin/AccountSettings.vue";
 import CCPlusApi from "@/views/admin/CCPlusApi.vue";
 import MailSettings from "@/views/admin/MailSettings.vue";
@@ -42,7 +44,6 @@ import piniaPluginPersistedState from "pinia-plugin-persistedstate";
 export const pinia = createPinia();
 pinia.use(piniaPluginPersistedState);
 
-// Routes configuration layout matrix
 /* ----------------------------------------------------
     Shared Layout Constants
 ------------------------------------------------------- */
@@ -58,26 +59,46 @@ const routes = [
     alias: "/",
     name: "Login",
     component: Login,
-    meta: Object.assign({ title: "Login" }, GUEST_META),
+    meta: {
+      ...GUEST_META,
+      get title() {
+        return t("routes.login");
+      },
+    },
   },
   {
     path: "/logout",
     name: "Logout",
     component: Login,
-    meta: Object.assign({ title: "Logout" }, GUEST_META),
+    meta: {
+      ...GUEST_META,
+      get title() {
+        return t("routes.logout");
+      },
+    },
   },
   {
     path: "/forgotPassForm",
     name: "ForgotPassword",
     component: ForgotPassword,
-    meta: Object.assign({ title: "Forgot Password" }, GUEST_META),
+    meta: {
+      ...GUEST_META,
+      get title() {
+        return t("routes.forgot_password");
+      },
+    },
   },
   {
     path: "/resetPassForm",
     name: "ResetPassword",
     component: ResetPassword,
     props: (route) => ({ token: route.query.token, key: route.query.key }),
-    meta: Object.assign({ title: "Reset Password" }, GUEST_META),
+    meta: {
+      ...GUEST_META,
+      get title() {
+        return t("routes.reset_password");
+      },
+    },
   },
 
   /* ----------------------------------------------------
@@ -88,34 +109,69 @@ const routes = [
     name: "Consortia",
     component: markRaw(Consortia),
     children: [],
-    meta: Object.assign({ title: "Consortia", role: "ServerAdmin", level: 1 }, AUTH_BASE),
+    meta: {
+      ...AUTH_BASE,
+      role: "ServerAdmin",
+      level: 1,
+      get title() {
+        return t("routes.consortia");
+      },
+    },
   },
   {
     path: "/institutions",
     name: "Institutions",
     show: 1,
     panels: [],
-    meta: Object.assign({ title: "Institutions", role: "Admin", level: 1 }, AUTH_BASE),
+    meta: {
+      ...AUTH_BASE,
+      role: "Admin",
+      level: 1,
+      get title() {
+        return t("routes.institutions");
+      },
+    },
     children: [
       {
         path: "institutions",
         name: "InstitutionsTable",
         show: 1,
-        meta: Object.assign({ title: "Institutions", role: "Admin", level: 2 }, AUTH_BASE),
+        meta: {
+          ...AUTH_BASE,
+          role: "Admin",
+          level: 2,
+          get title() {
+            return t("routes.institutions");
+          },
+        },
         component: markRaw(Institutions),
       },
       {
         path: "types",
         name: "InstitutionsTypesTable",
         show: 1,
-        meta: Object.assign({ title: "Institution Types", role: "Admin", level: 2 }, AUTH_BASE),
+        meta: {
+          ...AUTH_BASE,
+          role: "Admin",
+          level: 2,
+          get title() {
+            return t("routes.institution_types");
+          },
+        },
         component: markRaw(InstitutionTypes),
       },
       {
         path: "groups",
         name: "InstitutionGroupsTable",
         show: 1,
-        meta: Object.assign({ title: "Institution Groups", role: "Admin", level: 2 }, AUTH_BASE),
+        meta: {
+          ...AUTH_BASE,
+          role: "Admin",
+          level: 2,
+          get title() {
+            return t("routes.institution_groups");
+          },
+        },
         component: markRaw(InstitutionGroups),
       },
     ],
@@ -125,20 +181,41 @@ const routes = [
     name: "Users",
     show: 1,
     panels: [],
-    meta: Object.assign({ title: "Users", role: "Admin", level: 1 }, AUTH_BASE),
+    meta: {
+      ...AUTH_BASE,
+      role: "Admin",
+      level: 1,
+      get title() {
+        return t("routes.users");
+      },
+    },
     children: [
       {
         path: "users",
         name: "UserTable",
         show: 1,
-        meta: Object.assign({ title: "Users", role: "Admin", level: 2 }, AUTH_BASE),
+        meta: {
+          ...AUTH_BASE,
+          role: "Admin",
+          level: 2,
+          get title() {
+            return t("routes.users");
+          },
+        },
         component: markRaw(Users),
       },
       {
         path: "roles",
         name: "RolesTable",
         show: 1,
-        meta: Object.assign({ title: "Permissions", role: "Admin", level: 2 }, AUTH_BASE),
+        meta: {
+          ...AUTH_BASE,
+          role: "Admin",
+          level: 2,
+          get title() {
+            return t("routes.permissions");
+          },
+        },
         component: markRaw(Roles),
       },
     ],
@@ -148,20 +225,41 @@ const routes = [
     name: "Credentials",
     show: 1,
     panels: [],
-    meta: Object.assign({ title: "Credentials", role: "Admin", level: 1 }, AUTH_BASE),
+    meta: {
+      ...AUTH_BASE,
+      role: "Admin",
+      level: 1,
+      get title() {
+        return t("routes.credentials");
+      },
+    },
     children: [
       {
         path: "credentials",
         name: "CredentialsTable",
         show: 1,
-        meta: Object.assign({ title: "Credentials", role: "Admin", level: 2 }, AUTH_BASE),
+        meta: {
+          ...AUTH_BASE,
+          role: "Admin",
+          level: 2,
+          get title() {
+            return t("routes.credentials");
+          },
+        },
         component: markRaw(Credentials),
       },
       {
         path: "audit",
         name: "CredentialsAudit",
         show: 1,
-        meta: Object.assign({ title: "Credentials Audit", role: "Admin", level: 2 }, AUTH_BASE),
+        meta: {
+          ...AUTH_BASE,
+          role: "Admin",
+          level: 2,
+          get title() {
+            return t("routes.credentials_audit");
+          },
+        },
         component: markRaw(CredentialsAudit),
       },
     ],
@@ -170,20 +268,41 @@ const routes = [
     path: "/platforms",
     name: "Platforms",
     show: 1,
-    meta: Object.assign({ title: "Platforms", role: "Admin", level: 1 }, AUTH_BASE),
+    meta: {
+      ...AUTH_BASE,
+      role: "Admin",
+      level: 1,
+      get title() {
+        return t("routes.platforms");
+      },
+    },
     children: [
       {
         path: "registry",
         name: "PlatformsTable",
         show: 1,
-        meta: Object.assign({ title: "Registry", role: "ServerAdmin", level: 2 }, AUTH_BASE),
+        meta: {
+          ...AUTH_BASE,
+          role: "ServerAdmin",
+          level: 2,
+          get title() {
+            return t("routes.registry");
+          },
+        },
         component: markRaw(Platforms),
       },
       {
         path: "connections",
         name: "ConnectionsTable",
         show: 1,
-        meta: Object.assign({ title: "Connections", role: "Admin", level: 2 }, AUTH_BASE),
+        meta: {
+          ...AUTH_BASE,
+          role: "Admin",
+          level: 2,
+          get title() {
+            return t("routes.connections");
+          },
+        },
         component: markRaw(Connections),
       },
     ],
@@ -191,27 +310,55 @@ const routes = [
   {
     path: "/harvests",
     name: "Harvests",
-    meta: Object.assign({ title: "Harvests", role: "Admin", level: 1 }, AUTH_BASE),
+    meta: {
+      ...AUTH_BASE,
+      role: "Admin",
+      level: 1,
+      get title() {
+        return t("routes.harvests");
+      },
+    },
     children: [
       {
         path: "manual",
         name: "ManualHarvest",
         show: 1,
-        meta: Object.assign({ title: "Manual Harvest", role: "Admin", level: 2 }, AUTH_BASE),
+        meta: {
+          ...AUTH_BASE,
+          role: "Admin",
+          level: 2,
+          get title() {
+            return t("routes.manual_harvest");
+          },
+        },
         component: markRaw(ManualHarvest),
       },
       {
         path: "queue",
         name: "HarvestQueue",
         show: 1,
-        meta: Object.assign({ title: "Harvest Queue", role: "Admin", level: 2 }, AUTH_BASE),
+        meta: {
+          ...AUTH_BASE,
+          role: "Admin",
+          level: 2,
+          get title() {
+            return t("routes.harvest_queue");
+          },
+        },
         component: markRaw(HarvestQueue),
       },
       {
         path: "log",
         name: "HarvestLog",
         show: 1,
-        meta: Object.assign({ title: "Harvest Log", role: "Admin", level: 2 }, AUTH_BASE),
+        meta: {
+          ...AUTH_BASE,
+          role: "Admin",
+          level: 2,
+          get title() {
+            return t("routes.harvest_log");
+          },
+        },
         component: markRaw(HarvestLog),
       },
     ],
@@ -219,7 +366,14 @@ const routes = [
   {
     path: "/reports",
     name: "Reports",
-    meta: Object.assign({ title: "Reports", role: "Viewer", level: 1 }, AUTH_BASE),
+    meta: {
+      ...AUTH_BASE,
+      role: "Viewer",
+      level: 1,
+      get title() {
+        return t("routes.reports");
+      },
+    },
     children: [],
     component: markRaw(Reporting),
   },
@@ -227,47 +381,83 @@ const routes = [
   {
     path: "/server",
     name: "Server",
-    meta: Object.assign({ title: "Server", role: "ServerAdmin", level: 1 }, AUTH_BASE),
+    meta: {
+      ...AUTH_BASE,
+      role: "ServerAdmin",
+      level: 1,
+      get title() {
+        return t("routes.server");
+      },
+    },
     children: [
       {
         path: "settings",
         name: "ServerSettings",
         show: 1,
-        meta: Object.assign({ title: "Server Settings", role: "ServerAdmin", level: 2 }, AUTH_BASE),
+        meta: {
+          ...AUTH_BASE,
+          role: "ServerAdmin",
+          level: 2,
+          get title() {
+            return t("routes.server_settings");
+          },
+        },
         component: markRaw(ServerSettings),
       },
       {
         path: "mailsettings",
         name: "MailSettings",
         show: 1,
-        meta: Object.assign({ title: "Mail Settings", role: "ServerAdmin", level: 2 }, AUTH_BASE),
+        meta: {
+          ...AUTH_BASE,
+          role: "ServerAdmin",
+          level: 2,
+          get title() {
+            return t("routes.mail_settings");
+          },
+        },
         component: markRaw(MailSettings),
       },
       {
         path: "api",
         name: "CCPlusApi",
         show: 1,
-        meta: Object.assign({ title: "API Management", role: "ServerAdmin", level: 2 }, AUTH_BASE),
+        meta: {
+          ...AUTH_BASE,
+          role: "ServerAdmin",
+          level: 2,
+          get title() {
+            return t("routes.api_management");
+          },
+        },
         component: markRaw(CCPlusApi),
       },
       {
         path: "account",
         name: "AccountSettings",
         show: 1,
-        meta: Object.assign({ title: "Account Settings", role: "Admin", level: 2 }, AUTH_BASE),
+        meta: {
+          ...AUTH_BASE,
+          role: "Admin",
+          level: 2,
+          get title() {
+            return t("routes.account_settings");
+          },
+        },
         component: markRaw(AccountSettings),
       },
     ],
   },
 ];
 
-
-// Separate routes that authenticatedLayout tacks onto the application routes in the top navigation bar
+// Separate routes that AuthenticatedLayout tacks onto the application routes in the top navigation bar
 const profileRoute = {
   path: "/profile",
   name: "Profile",
   meta: {
-    title: "Account Settings",
+    get title() {
+      return t("routes.account_settings");
+    },
     layout: AuthenticatedLayout,
     role: "Viewer",
     key: 0,
@@ -280,7 +470,9 @@ const apiRoute = {
   path: "/ccplusApi",
   name: "API",
   meta: {
-    title: "CC-PLUS API",
+    get title() {
+      return t("routes.ccplus_api");
+    },
     layout: AuthenticatedLayout,
     role: "Viewer",
     key: 0,
@@ -289,30 +481,27 @@ const apiRoute = {
   component: markRaw(CCPlusApi),
 };
 
-// Change this block at the bottom of your vue_router.js file:
 export const router = createRouter({
   history: createWebHistory(),
-  // Use the JavaScript spread operator (...) to append them right inside the core routes configuration array!
   routes: [
-    ...routes, 
-    profileRoute, 
+    ...routes,
+    profileRoute,
     apiRoute,
-    // Add the catch-all right here at the absolute bottom of the array to capture blank starts safely
     {
-      path: '/:pathMatch(.*)*',
-      name: 'NotFound',
-      redirect: { name: 'Login' }
-    }
+      path: "/:pathMatch(.*)*",
+      name: "NotFound",
+      redirect: { name: "Login" },
+    },
   ],
 });
-
 
 // Add router reference context directly to Pinia stores
 pinia.use(({ store }) => {
   store.router = markRaw(router);
-});// Structural Navigation Guard
+});
+
+// Structural Navigation Guard
 router.beforeEach(async (to, from) => {
-  //  FIXED: Removed (pinia) so it safely defers instantiation until Vue mounts
   const authStore = useAuthStore();
 
   // 1. Guest Route Checker
@@ -327,21 +516,17 @@ router.beforeEach(async (to, from) => {
 
   // 3. Intercept and Handle Logout Routines
   if (to.name === "Logout") {
-    //  FIXED: Directly use the active authStore instance instead of re-instantiating destructured properties
     await authStore.logout();
   }
 });
 
 // Sync Tab Layout Text Post-render
 router.afterEach((to) => {
-  // Pull your Laravel app name or fallback to a string
   const baseTitle = import.meta.env.VITE_APP_NAME || "CCPLUS";
   const ptitle = to.meta.title || "";
 
-  // Reverse the layout: Page Name first (if it exists), then Project Name
   let finalTitle = ptitle.length > 0 ? `${ptitle} | ${baseTitle}` : baseTitle;
 
-  // Add environment specific host brackets
   const hostname = window.location.hostname;
   if (hostname === "127.0.0.1") {
     finalTitle = `[127] ${finalTitle}`;
