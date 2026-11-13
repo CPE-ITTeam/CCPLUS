@@ -13,8 +13,11 @@ return [
     |
     */
 
-    'failed' => 'These credentials do not match our records.',
-    'password' => 'The provided password is incorrect.',
-    'throttle' => 'Too many login attempts. Please try again in :seconds seconds.',
+    'failed'            => 'These credentials do not match our records.',
+    'password'          => 'The provided password is incorrect.',
+    'throttle'          => 'Too many login attempts. Please try again in :seconds seconds.',
+    'authenticated'     => 'User successfully authenticated.',
+    'not_authorized'    => 'Error - Not authorized.',
+    'token_create_fail' => 'Create access token failed: :error',
 
 ];

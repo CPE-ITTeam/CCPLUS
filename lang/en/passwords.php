@@ -19,4 +19,11 @@ return [
     'token' => 'This password reset token is invalid.',
     'user' => "We can't find a user with that email address.",
 
+    // Custom CC-Plus Password Reset Messages
+    'user_address_invalid' => 'User address not found or invalid',
+    'link_sent'            => 'Password reset link has been sent to your email address',
+    'user_invalid'         => 'User not found or invalid',
+    'invalid_token'        => 'Password reset failed - Invalid token',
+    'updated'              => 'Your password has been successfully updated!',
+
 ];
