@@ -2,13 +2,11 @@
 
 namespace App\Http\Controllers;
 
-use DB;
-use App\Models\Role;
-use App\Models\UserRole;
-use App\Models\User;
 use App\Models\Institution;
 use App\Models\InstitutionGroup;
-use App\Models\Consortium;
+use App\Models\Role;
+use App\Models\User;
+use App\Models\UserRole;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Http\Request;
 
@@ -18,166 +16,162 @@ class RoleController extends BaseController
     protected string $modelLabel = 'Role';
     protected array $deleteWith = ['user'];
 
-
     /**
      * Display a listing of the resource.
-     *
-     * @return JSON
      */
     public function index(Request $request)
     {
-        // Admins see all, managers see only their inst, everyone else gets an error
         $thisUser = auth()->user();
         abort_unless($thisUser->hasAnyRole(['Admin']), 403);
 
-        // Initialize some arrays/values
-        $data = array();
+        $data = [];
         $limit_insts = [];
         $server_admin = config('ccplus.server_admin');
 
-        // Limit by institution based on users's role(s)
         if (!$thisUser->isConsoAdmin()) {
-            $limit_insts = $thisUser->adminInsts();
-            if ($limit_insts === [1]) $limit_insts = [];
+            $limit_insts = array_map('intval', (array) $thisUser->adminInsts());
+            if ($limit_insts === array(1)) {
+                $limit_insts = [];
+            }
         }
 
-        // Setup filtering options for the datatable
-        $filter_options = array();
+        $filter_options = ['role' => [], 'user_role' => ['Admin', 'Viewer']];
+        $all_roles = Role::where('id', '<=', $thisUser->maxRole())
+            ->orderBy('id', 'DESC')
+            ->where('name', '<>', 'ServerAdmin')
+            ->get(['name', 'id'])
+            ->toArray();
 
-        // Role options need to be dependent on $thisUser's roles
-        $filter_options['role'] = array();
-        $all_roles = Role::where('id', '<=', $thisUser->maxRole())->orderBy('id', 'DESC')
-            ->where('name', '<>', 'ServerAdmin')->get(['name', 'id'])->toArray();
-        foreach ($all_roles as $idx => $r) {
-            if ($r['name'] == 'Admin' && $thisUser->isConsoAdmin())  $filter_options['role'][] = "Consortium Admin";
-            if ($r['name'] == 'Viewer' && $thisUser->isConsoAdmin()) $filter_options['role'][] = "Consortium Viewer";
+        foreach ($all_roles as $r) {
+            if ($r['name'] === 'Admin' && $thisUser->isConsoAdmin()) {
+                $filter_options['role'][] = 'Consortium Admin';
+            }
+            if ($r['name'] === 'Viewer' && $thisUser->isConsoAdmin()) {
+                $filter_options['role'][] = 'Consortium Viewer';
+            }
             $filter_options['role'][] = $r['name'];
         }
-        $filter_options['user_role'] = array('Admin', 'Viewer');
 
-        // Pull user records - exclude serverAdmin
-        // (Note that the 'roles' relationship returns UserRole(s), NOT Roles)
-        $user_data = User::with('roles')->where('email', '<>', $server_admin)
-            ->when(count($limit_insts) > 0, function ($qry) use ($limit_insts) {
-                return $qry->whereIn('inst_id', $limit_insts);
-            })->orderBy('name', 'ASC')->get();
+        $user_data = User::with('roles')
+            ->where('email', '<>', $server_admin)
+            ->when(count($limit_insts) > 0, fn($qry) => $qry->whereIn('inst_id', $limit_insts))
+            ->orderBy('name', 'ASC')
+            ->get();
 
-        // Make user role names one string, role IDs into an array, and status to a string for the view
         $maxRole = $thisUser->maxRole();
         foreach ($user_data as $user) {
             $canManage = $user->canManage();
             foreach ($user->allRoles() as $role) {
-                // Setup array for this user data
-                $rec = array(
-                    'id' => $role['id'],
-                    'role_id' => $role['role_id'],
-                    'user_id' => $user->id,
-                    'inst_id' => $role['inst_id'],
-                    'group_id' => $role['group_id'],
-                    'name' => $user->name,
-                    'email' => $user->email
-                );
-                $rec['role_string'] = ($role['inst_id'] == 1) ? 'Consortium ' . $role['name'] : $role['name'];
-                $rec['inst_name'] = $role['inst'];
-                $rec['group_name'] = $role['group'];
-                $rec['scope'] = (!is_null($rec['inst_id'])) ? $role['inst'] : $role['group'];
-                $rec['can_edit'] = false;   // Disallow editing roles - Add+Delete only
-                $rec['can_delete'] = ($canManage && $role['id'] <= $maxRole);
-                $data[] = $rec;
+                $data[] = [
+                    'id'          => $role['id'],
+                    'role_id'     => $role['role_id'],
+                    'user_id'     => $user->id,
+                    'inst_id'     => $role['inst_id'],
+                    'group_id'    => $role['group_id'],
+                    'name'        => $user->name,
+                    'email'       => $user->email,
+                    'role_string' => ($role['inst_id'] == 1) ? 'Consortium ' . $role['name'] : $role['name'],
+                    'inst_name'   => $role['inst'],
+                    'group_name'  => $role['group'],
+                    'scope'       => !is_null($role['inst_id']) ? $role['inst'] : $role['group'],
+                    'can_edit'    => false,
+                    'can_delete'  => ($canManage && $role['id'] <= $maxRole),
+                ];
             }
         }
 
-        // Add filtering options for institutions, groups, and users to cover institutions and groups
-        // that the current user has admin rights for; $limit_insts already set (above)
         $limit_groups = [];
         if (!$thisUser->isConsoAdmin()) {
-            $limit_groups = $thisUser->adminGroups();
-            if ($limit_groups === [1]) $limit_groups = [];
+            $limit_groups = array_map('intval', (array) $thisUser->adminGroups());
+            if ($limit_groups === array(1)) {
+                $limit_groups = [];
+            }
         }
-        $filter_options['group'] = InstitutionGroup::when(count($limit_groups) > 0, function ($qry) use ($limit_groups) {
-            return $qry->whereIn('id', $limit_groups);
-        })->orderBy('name', 'ASC')->get(['id', 'name']);
-        // Limit institution filter to those with existing user-role records
+
+        $filter_options['group'] = InstitutionGroup::when(count($limit_groups) > 0, fn($qry) => $qry->whereIn('id', $limit_groups))
+            ->orderBy('name', 'ASC')
+            ->get(['id', 'name']);
+
         $insts_with_roles = $user_data->unique('inst_id')->pluck('inst_id')->toArray();
         $filter_options['institution'] = Institution::whereIn('id', $insts_with_roles)->orderBy('name', 'ASC')->get();
-        $filter_options['user'] = $user_data->map(function ($rec) {
-            return ['id' => $rec['id'], 'name' => $rec['name']];
-        })->toArray();
+        $filter_options['user'] = $user_data->map(fn($rec) => [
+            'id'   => $rec['id'],
+            'name' => $rec['name'],
+        ])->toArray();
 
         return response()->json(['records' => $data, 'options' => $filter_options, 'result' => true], 200);
     }
 
     /**
      * Store a newly created resource in storage.
-     *
-     * @param  \Illuminate\Http\Request  $request
-     * @return \Illuminate\Http\Response
      */
     public function store(Request $request)
     {
         $thisUser = auth()->user();
 
-        // Get and verify input fields
         $this->validate($request, ['user' => 'required', 'user_role' => 'required']);
         $input = $request->all();
 
-        // An institution or group assignment is required
         if (isset($input['conso']) && $thisUser->isConsoAdmin()) {
-            $inst_id = ($input['conso'] == 'Active') ? 1 : $input['institution'];
+            $inst_id = ($input['conso'] === 'Active') ? 1 : ($input['institution'] ?? null);
         } else {
-            $inst_id = (isset($input['institution'])) ? $input['institution'] : null;
+            $inst_id = $input['institution'] ?? null;
         }
-        $group_id = (isset($input['group'])) ? $input['group'] : null;
-        if (($inst_id && !$thisUser->isAdmin($inst_id, null)) || ($group_id && !$thisUser->isAdmin(null, $group_id))) {
-            return response()->json(['result' => false, 'msg' => 'Operation failed (403) - Forbidden']);
-        }
-        $role_inst = ($inst_id) ? Institution::where('id', $inst_id)->first() : null;
-        $role_group = ($group_id) ? InstitutionGroup::where('id', $group_id)->first() : null;
+        $group_id = $input['group'] ?? null;
 
-        // Confirm that Role, User and (Inst-or-Group) exist
+        if (($inst_id && !$thisUser->isAdmin($inst_id, null)) || ($group_id && !$thisUser->isAdmin(null, $group_id))) {
+            return $this->respondError(__('users.operation_forbidden'));
+        }
+
+        $role_inst = $inst_id ? Institution::find($inst_id) : null;
+        $role_group = $group_id ? InstitutionGroup::find($group_id) : null;
+
         $role = Role::where('name', $input['user_role'])->first();
         $user = User::where('id', $input['user'])->with('roles', 'institution:id,name')->first();
+
         if (!$user || !$role || (!$role_inst && !$role_group)) {
-            return response()->json(['result' => false, 'msg' => 'Operation failed - invalid references']);
+            return $this->respondError(__('users.role_invalid_refs'));
         }
 
-        // Confirm requested role is allowed
         if ($thisUser->maxRole() < $role->id) {
-            return response()->json(['result' => false, 'msg' => 'Operation failed - not authorized']);
+            return $this->respondError(__('users.role_not_authorized'));
         }
-        // If user aleady has the role, bail out
+
         if ($user->hasRole($role->name, $inst_id, $group_id)) {
-            return response()->json(['result' => false, 'msg' => 'User already has the requested role.']);
+            return $this->respondError(__('users.role_already_assigned'));
         }
 
-        // Add the Role record
         try {
-            $new_role = UserRole::create(
-                ['user_id' => $user->id, 'role_id' => $role->id, 'inst_id' => $inst_id, 'group_id' => $group_id]
-            );
+            $new_role = UserRole::create([
+                'user_id'  => $user->id,
+                'role_id'  => $role->id,
+                'inst_id'  => $inst_id,
+                'group_id' => $group_id,
+            ]);
         } catch (\Exception $e) {
-            return response()->json(['result' => false, 'msg' => 'Error saving to database: ' . $e->getMessage()]);
+            return $this->respondError(__('users.role_save_error', ['error' => $e->getMessage()]));
         }
 
-        // Return the new role (with keys that match index())
         $new_role->load('user', 'institution', 'institutiongroup', 'role');
-        $record = array(
-            'id' => $new_role->id,
-            'role_id' => $role->id,
-            'user_id' => $user->id,
-            'inst_id' => $inst_id,
-            'group_id' => $group_id,
-            'name' => $user->name,
-            'email' => $user->email
-        );
-        $record['role_string'] = ($inst_id == 1) ? 'Consortium ' . $role['name'] : $role['name'];
-        $record['inst_name'] = ($new_role->institution) ? $new_role->institution->name : "";
-        $record['group_name'] = ($new_role->institutiongroup) ? $new_role->institutiongroup->name : "";
-        $record['scope'] = (!is_null($inst_id)) ? $record['inst_name'] : $record['group_name'];
-        $record['can_edit'] = false;
-        $record['can_delete'] = true;
+        $record = [
+            'id'          => $new_role->id,
+            'role_id'     => $role->id,
+            'user_id'     => $user->id,
+            'inst_id'     => $inst_id,
+            'group_id'    => $group_id,
+            'name'        => $user->name,
+            'email'       => $user->email,
+            'role_string' => ($inst_id == 1) ? 'Consortium ' . $role['name'] : $role['name'],
+            'inst_name'   => $new_role->institution ? $new_role->institution->name : '',
+            'group_name'  => $new_role->institutiongroup ? $new_role->institutiongroup->name : '',
+            'scope'       => !is_null($inst_id)
+                ? ($new_role->institution ? $new_role->institution->name : '')
+                : ($new_role->institutiongroup ? $new_role->institutiongroup->name : ''),
+            'can_edit'    => false,
+            'can_delete'  => true,
+        ];
 
-        return response()->json(['result' => true, 'msg' => 'Role successfully saved', 'record' => $record]);
+        return $this->respondSuccess(__('users.role_saved'), $record);
     }
 
     /**
@@ -200,6 +194,6 @@ class RoleController extends BaseController
     {
         return $role->user->canManage()
             ? true
-            : 'Request failed (403) - Forbidden';
+            : __('users.forbidden_request');
     }
 }

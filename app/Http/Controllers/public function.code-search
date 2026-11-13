@@ -1,0 +1,279 @@
+# Query: public function
+# Including: app/Http/Controllers/*.php
+# ContextLines: 1
+
+112 results - 20 files
+
+app/Http/Controllers/AlertSettingController.php:
+   13     //Index method for Alerts Controller
+   14:     public function index(Request $request)
+   15      
+
+   46       
+   47:     public function store(Request $request)
+   48      
+
+  113       
+  114:     public function fieldsRefresh(Request $request)
+  115      
+
+  134       
+  135:     public function destroy($id)
+  136      
+
+app/Http/Controllers/BaseController.php:
+  14       
+  15:     public function sendResponse($result, $message)
+  16      
+
+  29       
+  30:     public function sendError($error, $errorMessages = [], $code = 404)
+  31      
+
+app/Http/Controllers/ConnectionController.php:
+ 
+   19:     public function index(Request $request)
+ 
+  137:     public function access(Request $request)
+
+  251:     public function destroy($id)
+ 
+  282:     public function import(Request $request)
+
+app/Http/Controllers/ConsortiumController.php:
+ 
+   23:     public function index(Request $request) 
+  
+   74:     public function store(Request $request)
+  
+  231:     public function show($id)
+ 
+  244:     public function update(Request $request, $id)
+      
+  288:     public function destroy($id)   
+
+app/Http/Controllers/CounterRegistryController.php:
+    
+  29:     public function index(Request $request)
+  
+  81:     public function progress()
+
+  90:     public function cancel()
+
+  98:     public function refresh(Request $request)
+ 
+app/Http/Controllers/CredentialController.php:
+
+    32:     public function index(Request $request)
+     
+   178:     public function store(Request $request)
+   
+   266:     public function update(Request $request)
+ 
+   445:     public function test(Request $request)
+
+   549:     public function destroy($id)
+ 
+   571:     public function bulk(Request $request)
+
+   657:     public function unset(Request $request)
+
+   702:     public function import(Request $request)
+ 
+   851:     public function audit(Request $request)
+
+   898:     public function auditItems(Request $request)
+
+  1088:     public function setvalidated(Request $request, Credential $credential)
+
+app/Http/Controllers/FailedHarvestController.php:
+
+   20:     public function index(Request $request)
+
+  152:     public function show($id)
+
+  164:     public function destroy($id)
+
+app/Http/Controllers/GlobalDataController.php:
+
+  13:     public function titles()
+
+  23:     public function platforms()
+
+  33:     public function publishers()
+
+  43:     public function databases()
+       
+  53:     public function items()
+
+  63:     public function datahosts()
+
+  73:     public function errors()
+
+app/Http/Controllers/GlobalProviderController.php:
+
+   23:     public function __construct()
+
+   47:     public function index(Request $request)
+
+  161:     public function apiIndex(Request $request)
+  
+  190:     public function store(Request $request)
+  
+  271:     public function update(Request $request, $id)
+  
+  458:     public function destroy($id)
+  
+  499:     public function bulk(Request $request)
+  
+  561:     public function export(Request $request)
+  
+  615:     public function import(Request $request)
+
+app/Http/Controllers/GlobalSettingController.php:
+
+  11:     public function __construct()
+
+  21:     public function index($type)
+       
+  40:     public function store(Request $request, Factory $cache)
+
+app/Http/Controllers/HarvestLogController.php:
+
+   36:     public function __construct(HarvestService $harvestService)
+
+   64:     public function index(Request $request)
+      
+  106:     public function getItems(Request $request)
+       
+  222:     public function create(Request $request)
+      
+  305:     public function store(Request $request)
+       
+  520:     public function bulk(Request $request)
+      
+  675:    public function downloadRaw(Request $request, $id)
+      
+  728:    public function destroy($id)
+       
+  761:    public function harvestQueue(Request $request)
+
+app/Http/Controllers/InstitutionController.php:
+
+   32:     public function index($role)
+
+  104:     public function store(Request $request)
+
+  191:     public function update(Request $request, Institution $institution)
+
+  303:     public function destroy($id)
+
+  368:     public function bulk(Request $request)
+
+  505:     public function import(Request $request)
+
+app/Http/Controllers/InstitutionGroupController.php:
+
+   20:     public function index(Request $request)
+
+   81:     public function store(Request $request)
+
+  177:     public function update(Request $request, InstitutionGroup $group)
+
+  246:     public function destroy(InstitutionGroup $group)
+
+  270:     public function import(Request $request)
+
+app/Http/Controllers/InstitutionTypeController.php:
+
+   18:     public function index(Request $request)
+ 
+   39:     public function create()
+ 
+   50:     public function store(Request $request)
+ 
+   75:     public function show($id)
+ 
+   87:     public function edit($id)
+ 
+  100:     public function update(Request $request, InstitutionType $type)
+ 
+  133:     public function destroy(InstitutionType $type)
+ 
+  152:     public function import(Request $request)
+ 
+app/Http/Controllers/ReportController.php:
+ 
+   53:     public function __construct(HarvestService $harvestService)
+ 
+   77:     public function create(Request $request)
+ 
+  184:     public function display(Request $request)
+ 
+  195:     public function preview(Request $request)
+ 
+  414:     public function prepareExport($report, $fields)
+ 
+  593:     public function show($id)
+ 
+  646:     public function getAvailable(Request $request)
+
+  707:     public function usageData(Request $request, ReportService $reportService)
+
+  811:     public function updateColumns(Request $request)
+
+app/Http/Controllers/RoleController.php:
+
+   22:     public function index(Request $request)
+
+  105:     public function store(Request $request)
+  
+  171:     public function bulk(Request $request)
+  
+  213:     public function destroy($id)
+  
+app/Http/Controllers/SavedReportController.php:
+  
+   29:     public function index()
+
+   44:     public function store(Request $request)
+
+  135:     public function execute(Request $request, $id, ReportService $reportService)
+
+  180:     public function destroy($id)
+
+app/Http/Controllers/SessionController.php:
+  
+  12:     public function update(Request $request)
+
+app/Http/Controllers/SystemAlertController.php:
+
+   15:     public function index()
+
+   25:     public function create()
+
+   36:     public function store(Request $request)
+
+   57:     public function show(SystemAlert $systemAlert)
+
+   68:     public function edit(SystemAlert $systemAlert)
+
+   80:     public function update(Request $request, $id)
+
+  103:     public function destroy($id)
+
+app/Http/Controllers/UserController.php:
+
+   29:     public function index(Request $request)
+
+  108:     public function settings(User $user)
+
+  133:     public function store(Request $request)
+
+  211:     public function update(Request $request, User $user)
+
+  328:     public function destroy(User $user)
+
+  348:     public function bulk(Request $request)
+
+  395:     public function import(Request $request)

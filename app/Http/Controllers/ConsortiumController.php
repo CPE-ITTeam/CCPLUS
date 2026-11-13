@@ -2,12 +2,12 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\Consortium;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Artisan;
-use Symfony\Component\Console\Output\StreamOutput;
-use DB;
-use Hash;
-use App\Models\Consortium;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Log;
 
 class ConsortiumController extends BaseController
 {
@@ -15,31 +15,23 @@ class ConsortiumController extends BaseController
     protected string $modelLabel = 'Instance';
 
     /**
-     * Return a (JSON) array of known consortia, including inactive ones.
-     *
-     * @param  \Illuminate\Http\Request  $request
-     * @return \Illuminate\Http\JsonResponse
+     * Return a JSON array of known consortia, including inactive ones.
      */
     public function index(Request $request)
     {
-        // 🔍 FIXED: Removed the ->where('is_active', true) constraint so inactive records load into the dataset viewer
         $consortia = Consortium::orderBy('name', 'asc')->get();
 
-        $defaultName  = "Server Administrator";
+        $defaultName  = 'Server Administrator';
         $defaultEmail = config('ccplus.server_admin');
 
-        // Precompile subquery fragment for performance and clarity
         $adminSubqueryMatch = " where UR.inst_id = 1 and UU.id = UR.user_id and RR.id = UR.role_id and RR.name = 'Admin') is not null";
 
         foreach ($consortia as $consortium) {
-            // Safely default admin details in case tenant database queries fail or contain no records
             $adminName  = $defaultName;
             $adminEmail = $defaultEmail;
+            $tenantDb   = 'ccplus_' . $consortium->ccp_key;
 
             try {
-                // Dynamically build cross-database connection target
-                $tenantDb = "ccplus_" . $consortium->ccp_key;
-
                 $query  = "select name, email from {$tenantDb}.users as UU where UU.inst_id = 1 and ";
                 $query .= "(select UR.user_id from {$tenantDb}.user_roles as UR ";
                 $query .= "left join {$tenantDb}.roles as RR on RR.id = UR.role_id";
@@ -51,214 +43,167 @@ class ConsortiumController extends BaseController
                     $adminEmail = $result[0]->email;
                 }
             } catch (\Exception $e) {
-                // 🛡️ SAFELY CONTAINED: Prevents a missing/unmigrated inactive tenant database from crashing the loop
-                \Log::warning("Could not fetch admin details for tenant database [{$tenantDb}]: " . $e->getMessage());
+                Log::warning("Could not fetch admin details for tenant database [{$tenantDb}]: " . $e->getMessage());
             }
 
-            // Append calculated properties to the collection record
             $consortium->admin_name  = $adminName;
             $consortium->admin_email = $adminEmail;
-            $consortium->status      = $consortium->is_active ? "Active" : "Inactive";
+            $consortium->status      = $consortium->is_active ? 'Active' : 'Inactive';
         }
 
         return response()->json(['records' => $consortia, 'result' => true], 200);
     }
 
-
     /**
      * Store a newly created resource in storage.
-     *
-     * @param  \Illuminate\Http\Request  $request
-     * @return JSON
      */
     public function store(Request $request)
     {
-        // Validate request and put fields into $input
         $this->validate($request, [
-            // 1. Checks that it's required, max 10 chars
-            // 2. Checks the master 'consortia' table to guarantee the ccp_key is UNIQUE
-            'ccp_key' => 'required|max:10|unique:globaldb.consortia,ccp_key',
-            'name' => 'required',
-            'email' => 'required|email',
-            'admin_user' => 'required',
-            'admin_pass' => 'required',
+            'ccp_key'            => 'required|max:10|unique:globaldb.consortia,ccp_key',
+            'name'               => 'required',
+            'email'              => 'required|email',
+            'admin_user'         => 'required',
+            'admin_pass'         => 'required',
             'admin_confirm_pass' => 'required|same:admin_pass',
         ], [
-            // Links the unique constraint failure straight to your Lang definition file!
             'ccp_key.unique' => __('validation.duplicate_ccp_key', ['value' => $request->input('ccp_key')]),
         ]);
 
         $input = $request->all();
 
-        // ─── DEFENSIVE DATABASE PRESENCE CHECK ───
-        // Just in case the database folder exists but the consortium table record was deleted
-        $conso_db = "ccplus_" . $input['ccp_key'];
-        $count = DB::table('information_schema.tables')->where("TABLE_SCHEMA", "=", $conso_db)->count();
+        $conso_db = 'ccplus_' . $input['ccp_key'];
+        $count = DB::table('information_schema.tables')->where('TABLE_SCHEMA', '=', $conso_db)->count();
         if ($count > 0) {
-            // Returning a 422 status code forces your Vue/Axios script straight into its catch block
             return response()->json([
-                'errors' => ['ccp_key' => [__('validation.duplicate_ccp_key', ['value' => $input['ccp_key']])]]
+                'errors' => ['ccp_key' => [__('validation.duplicate_ccp_key', ['value' => $input['ccp_key']])]],
             ], 422);
         }
 
-        // Get server admin credential
         $server_admin = config('ccplus.server_admin');
         $server_admin_pass = config('ccplus.server_admin_pass');
-        if (strlen($server_admin) == 0 || strlen($server_admin_pass) == 0) {
-            return response()->json(['result' => false, 'msg' => 'Server Admin credential is not properly defined!']);
+        if (strlen((string) $server_admin) === 0 || strlen((string) $server_admin_pass) === 0) {
+            return $this->respondError(__('users.conso_admin_undefined'));
         }
 
-        // Get global and template database table names and connection details
-        $global_db   = \Config::get('database.connections.globaldb.database');
-        $template_db = \Config::get('database.connections.con_template.database');
-        $_host = \Config::get('database.connections.con_template.host');
-        $_cset = \Config::get('database.connections.con_template.charset');
-        $_coll = \Config::get('database.connections.con_template.collation');
-        $db_admin_user = \Config::get('database.connections.globaldb.username');
-        $db_admin_pass = \Config::get('database.connections.globaldb.password');
-        $db_conso_user = \Config::get('database.connections.consodb.username');
-        $db_conso_pass = \Config::get('database.connections.consodb.password');
+        $_host         = config('database.connections.con_template.host');
+        $db_admin_user = config('database.connections.globaldb.username');
+        $db_conso_user = config('database.connections.consodb.username');
 
-        // Create the database safely
         try {
             DB::statement("CREATE DATABASE `{$conso_db}`");
         } catch (\Exception $dbError) {
-            return response()->json(['result' => false, 'msg' => 'Failed to create database space: ' . $dbError->getMessage()], 500);
+            return $this->respondError(__('users.conso_db_create_failed', ['error' => $dbError->getMessage()]), 500);
         }
 
-        // Set configuration to use the new database as consodb
         config(['database.connections.consodb.database' => $conso_db]);
         session(['ccp_key' => $input['ccp_key']]);
         DB::reconnect('consodb');
 
-        // Create tables in the new database based on the template database
-        $migration_path = base_path() . "/database/migrations/con_template/*.*";
-        $table_names = array();
+        $migration_path = base_path() . '/database/migrations/con_template/*.*';
+        $table_names = [];
         foreach (glob($migration_path) as $file) {
-            $name_beg = strpos($file, "_create_") + 8;
+            $name_beg = strpos($file, '_create_') + 8;
             if ($name_beg > 8) {
-                $name_end = strpos($file, "_table.") - 1;
+                $name_end = strpos($file, '_table.') - 1;
                 $table_names[] = substr($file, $name_beg, $name_end - $name_beg + 1);
             }
         }
 
-        // Retrieve the CREATE TABLE commands for each table and create them in the new database
-        $_qry1 = "SHOW CREATE TABLE ccplus_con_template.ZZZZ";
-        $_qry2 = "INSERT INTO ZZZZ SELECT * FROM ccplus_con_template.ZZZZ";
-        $ctField = "Create Table";
+        $_qry1 = 'SHOW CREATE TABLE ccplus_con_template.ZZZZ';
+        $_qry2 = 'INSERT INTO ZZZZ SELECT * FROM ccplus_con_template.ZZZZ';
+        $ctField = 'Create Table';
 
         foreach ($table_names as $table) {
             $show_query = str_replace('ZZZZ', $table, $_qry1);
             $result = DB::select($show_query);
             $raw_command = $result[0]->$ctField;
-            $pos = strpos($raw_command, "`");
-            if ($pos == false) {
-                return response()->json(['result' => false, 'msg' => 'Database cloning failed! Cannot build clone commands for: ' . $table]);
+            if (strpos($raw_command, '`') === false) {
+                return $this->respondError(__('users.conso_clone_failed', ['table' => $table]));
             }
 
-            // Zap any AUTO_INCREMENT value in the create command
-            $command = preg_replace("/ AUTO_INCREMENT=(\d+)/", "", $raw_command);
+            $command = preg_replace('/ AUTO_INCREMENT=(\d+)/', '', $raw_command);
             $data_query = str_replace('ZZZZ', $table, $_qry2);
 
-            if ($table == "users") {
-                $data_query .= " WHERE id=1";
+            if ($table === 'users') {
+                $data_query .= ' WHERE id=1';
             }
 
             try {
                 DB::connection('consodb')->statement($command);
                 DB::connection('consodb')->statement($data_query);
             } catch (\Exception $e) {
-                // FIX: Replaced dd() trap with clean API JSON output back to your Vue app
-                return response()->json([
-                    'result' => false,
-                    'msg' => 'Schema replication failed for table "' . $table . '": ' . $e->getMessage()
-                ], 422);
+                return $this->respondError(__('users.conso_schema_failed', [
+                    'table' => $table,
+                    'error' => $e->getMessage(),
+                ]), 422);
             }
         }
 
-        // Run seeds on the new database
         $exitCode = Artisan::call('db:seed');
-        if ($exitCode != 0) {
-            return response()->json(['result' => false, 'msg' => 'Database seeding failed with status code: ' . $exitCode]);
+        if ($exitCode !== 0) {
+            return $this->respondError(__('users.conso_seed_failed', ['code' => $exitCode]));
         }
 
-        // FIX: Cleaned GRANT privileges mapping to support modern MySQL syntax blocks safely
         try {
             DB::statement("GRANT ALL PRIVILEGES ON `{$conso_db}`.* TO '{$db_admin_user}'@'{$_host}'");
             DB::statement("GRANT SELECT ON `{$conso_db}`.* TO '{$db_conso_user}'@'{$_host}'");
             DB::statement("GRANT UPDATE ON `{$conso_db}`.users TO '{$db_conso_user}'@'{$_host}'");
-            DB::statement("FLUSH PRIVILEGES");
+            DB::statement('FLUSH PRIVILEGES');
         } catch (\Exception $grantError) {
-            return response()->json(['result' => false, 'msg' => 'Database user mapping permissions allocation failed: ' . $grantError->getMessage()], 500);
+            return $this->respondError(__('users.conso_grant_failed', ['error' => $grantError->getMessage()]), 500);
         }
 
-        // FIX: Force state to Active (1) on instantiation records
         $consortiumData = $request->only('ccp_key', 'name', 'email');
         $consortiumData['is_active'] = 1;
 
-        // Create the new consortium records
         $consortium = Consortium::create($consortiumData);
 
-        // Create the Administrator account in the new consortium users table using input values
-        DB::table($conso_db . ".users")->insert([
+        DB::table($conso_db . '.users')->insert([
             [
-                'id' => 2,
-                'name' => 'CC-Plus Administrator',
-                'password' => Hash::make($input['admin_pass']),
-                'email' => $input['admin_user'],
-                'inst_id' => 1,
-                'is_active' => 1
-            ]
+                'id'        => 2,
+                'name'      => 'CC-Plus Administrator',
+                'password'  => Hash::make($input['admin_pass']),
+                'email'     => $input['admin_user'],
+                'inst_id'   => 1,
+                'is_active' => 1,
+            ],
         ]);
 
-        // Set role for 'Administrator'
-        DB::table($conso_db . ".role_user")->insert(['role_id' =>  99, 'user_id' => 2]);
+        DB::table($conso_db . '.role_user')->insert(['role_id' => 99, 'user_id' => 2]);
 
         return response()->json([
-            'result' => true,
+            'result'     => true,
             'consortium' => $consortium,
-            'msg' => 'New consortium : ' . $consortium->name . ' Successfully Created.',
+            'msg'        => __('users.conso_created', ['name' => $consortium->name]),
         ]);
     }
 
     /**
      * Display the specified resource.
-     *
-     * @param  int  $id
-     * @return JSON
      */
     public function show($id)
     {
-        $consortium = Consortium::findOrFail($id); //Find consortium w/ id = $id
+        $consortium = Consortium::findOrFail($id);
         return response()->json(['consortium' => $consortium], 200);
     }
 
     /**
      * Update the specified resource in storage.
-     *
-     * @param  \Illuminate\Http\Request  $request
-     * @param  int  $id
-     * @return JSON
      */
     public function update(Request $request, $id)
     {
-        // Get the consortium record
         $consortium = Consortium::findOrFail($id);
 
-        // 🔍 FIXED: Changed ->has() to ->exists() so passing a boolean false/zero isn't dropped as missing
         if (!$request->exists('is_active')) {
-            return response()->json(['result' => false, 'msg' => 'Missing arguments! - no update applied.']);
+            return $this->respondError(__('users.conso_missing_args'));
         }
 
         $input = $request->all();
-        // Cast cleanly to an integer state for globaldb storage compatibility
         $consortium->is_active = filter_var($input['is_active'], FILTER_VALIDATE_BOOLEAN) ? 1 : 0;
 
-        // If more than just is_active was requested
         if (count($input) > 1) {
-            // Check for properties while tolerating the active state flag footprint
             if (!array_key_exists('name', $input) || !array_key_exists('email', $input)) {
-                // If those keys aren't present but they were editing other fields, evaluate constraints safely
                 if ($request->has(['name', 'email'])) {
                     $consortium->name = $request->input('name');
                     $consortium->email = $request->input('email');
@@ -269,14 +214,12 @@ class ConsortiumController extends BaseController
             }
         }
 
-        // Save the record
         $consortium->save();
 
-        // Return the updated object
         return response()->json([
-            'result' => true,
+            'result'     => true,
             'consortium' => $consortium,
-            'msg' => 'Consortium : ' . $consortium->name . ' Successfully Updated.',
+            'msg'        => __('users.conso_updated', ['name' => $consortium->name]),
         ]);
     }
 }

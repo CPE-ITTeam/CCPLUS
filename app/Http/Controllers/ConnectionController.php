@@ -2,54 +2,57 @@
 
 namespace App\Http\Controllers;
 
-use App\Models\GlobalProvider;
 use App\Models\Connection;
-use App\Models\Report;
+use App\Models\GlobalProvider;
 use App\Models\Institution;
 use App\Models\InstitutionGroup;
+use App\Models\Report;
 use Illuminate\Http\Request;
+use Illuminate\Support\Arr;
 
 class ConnectionController extends BaseController
 {
     /**
-     * Return provider connection data as JSON request
-     *
-     * @return \Illuminate\Http\Response
+     * Return provider connection data as JSON response.
      */
     public function index(Request $request)
     {
         $thisUser = auth()->user();
         $consoAdmin = $thisUser->isConsoAdmin();
 
-        // Requesting user needs to be consoAdmin or an admin of a group or multiple insts
         $groupIds = [];
-        $instIds = [];
         if (!$thisUser->isAdmin()) {
-            return response()->json(['result' => false, 'msg' => 'Request failed (403) - Forbidden']);
+            return $this->respondError(__('connections.forbidden_request'));
         }
         if (!$consoAdmin) {
             $groupIds = $thisUser->adminGroups();
-            $instIds = $thisUser->adminInsts();
         }
 
-        // Get all active Global Providers
-        $globals = GlobalProvider::with("connections","connections.reports")->where('is_active',1)
-                                 ->orderBy('name', 'ASC')->get();
+        $globals = GlobalProvider::with('connections', 'connections.reports')
+            ->where('is_active', 1)
+            ->orderBy('name', 'ASC')
+            ->get();
 
-        // Keep track of the last error values for the filter options
         $nh_count = 0;
-        $seen_codes = array(0); // pretend we've seen success
-        // Map in report connections
-        $connections = array();
+        $seen_codes = array(0);
+        $connections = [];
+
         foreach ($globals as $global) {
-            $rec = array('id' => $global->id, 'platform' => $global->name, 'can_edit' => false, 'can_delete' => false,
-                         'reports' => $global->master_reports(), 'result' => null);
-            // Get last_harvest data if one exists
+            $rec = [
+                'id'         => $global->id,
+                'platform'   => $global->name,
+                'can_edit'   => false,
+                'can_delete' => false,
+                'reports'    => $global->master_reports(),
+                'result'     => null,
+            ];
+
             $lastHarvest = $global->lastHarvest();
             if ($lastHarvest) {
-                $rec['result'] = ($lastHarvest->status == 'Success' || $lastHarvest->error_id==0)
-                                 ? 'Success' : $lastHarvest->error_id;
-                if ($lastHarvest->error_id>0 && !in_array($lastHarvest->error_id,$seen_codes)) {
+                $rec['result'] = ($lastHarvest->status === 'Success' || $lastHarvest->error_id == 0)
+                    ? 'Success'
+                    : $lastHarvest->error_id;
+                if ($lastHarvest->error_id > 0 && !in_array($lastHarvest->error_id, $seen_codes)) {
                     $seen_codes[] = $lastHarvest->error_id;
                 }
             } else {
@@ -57,9 +60,6 @@ class ConnectionController extends BaseController
                 $rec['result'] = 'No Harvests';
             }
 
-            // can_delete depends on there being at least ONE connection, and the ability to delete
-            // ANY existing (inst or group) connections related to the global. The destroy() method
-            // (below) only deletes connections allowed by users' role(s)
             if ($global->connections->count() > 0) {
                 if ($consoAdmin) {
                     $rec['can_delete'] = true;
@@ -73,66 +73,57 @@ class ConnectionController extends BaseController
                 }
             }
 
-            // Set report flags for available and conso and add sortval
             $enabledReports = $global->enabledReports();
             foreach ($enabledReports as $name => $rpt) {
-                // set export-variable values
                 $prefix = strtolower($name);
-                if ($rpt['conso'] || in_array(1,$rpt['insts'])) {
-                    $rec[$prefix.'_insts'] = [1];
-                    $rec[$prefix.'_groups'] = [];
+                if ($rpt['conso'] || in_array(1, $rpt['insts'])) {
+                    $rec[$prefix . '_insts'] = array(1);
+                    $rec[$prefix . '_groups'] = [];
                 } else {
-                    $rec[$prefix.'_insts'] = $rpt['insts'];
-                    $rec[$prefix.'_groups'] = $rpt['groups'];
+                    $rec[$prefix . '_insts'] = $rpt['insts'];
+                    $rec[$prefix . '_groups'] = $rpt['groups'];
                 }
+
                 $rec[$name] = $rpt;
-                // Requested is true if report is assigned to any group or institution (other than conso)
                 $cnxCount = count($rpt['insts']) + count($rpt['groups']);
                 $rec[$name]['requested'] = ($cnxCount > 0);
-                // Set sortval ( 1=conso, 2=available, 3=requested, 4=not-available )
+
                 if (!$rec[$name]['available']) {
                     $rec[$name]['sortval'] = 4;
-                } else if ($rec[$name]['conso']) {
+                } elseif ($rec[$name]['conso']) {
                     $rec[$name]['sortval'] = 1;
                 } else {
-                    $rec[$name]['sortval'] = ($rec[$name]['requested']) ? 3 : 2;
+                    $rec[$name]['sortval'] = $rec[$name]['requested'] ? 3 : 2;
                 }
             }
+
             $connections[] = $rec;
         }
 
-        // Setup results for filter options
-        $options = array('results' => array());
+        $options = ['results' => []];
         sort($seen_codes);
         foreach ($seen_codes as $code) {
-            $_val = ($code>0) ? $code : 'Success';
-            $options['results'][] = array('result' => $_val);
+            $options['results'][] = ['result' => ($code > 0) ? $code : 'Success'];
         }
         if ($nh_count > 0) {
-            $options['results'][] = array('result' => 'No Harvests');
+            $options['results'][] = ['result' => 'No Harvests'];
         }
 
-        // Add institutions and groups, depending on role(s) to provider select options in the reportDialog
         if ($consoAdmin) {
-            $options['institutions'] = Institution::where('is_active',1)->get(['id','name']);
-            $options['groups'] = InstitutionGroup::get(['id','name']);
+            $options['institutions'] = Institution::where('is_active', 1)->get(['id', 'name']);
+            $options['groups'] = InstitutionGroup::get(['id', 'name']);
         } else {
             $inst_ids = $thisUser->adminInsts();
-            $options['institutions'] = Institution::where('is_active',1)->whereIn('id',$inst_ids)->get(['id','name']);
-            $options['groups'] = InstitutionGroup::whereIn('id',$groupIds)->get(['id','name']);
+            $options['institutions'] = Institution::where('is_active', 1)->whereIn('id', $inst_ids)->get(['id', 'name']);
+            $options['groups'] = InstitutionGroup::whereIn('id', $groupIds)->get(['id', 'name']);
         }
-        $options['reports'] = Report::where('parent_id',0)->orderBy('dorder','ASC')->get(['id','name']);
+        $options['reports'] = Report::where('parent_id', 0)->orderBy('dorder', 'ASC')->get(['id', 'name']);
 
-        // Return the data array
         return response()->json(['records' => $connections, 'options' => $options, 'result' => true], 200);
     }
 
     /**
-     * Set/update report access/availability
-     * (POST method handles store() and update() operations)
-     *
-     * @param  \Illuminate\Http\Request  $request
-     * @return \Illuminate\Http\Response
+     * Set/update report access and availability.
      */
     public function access(Request $request)
     {
@@ -142,118 +133,108 @@ class ConnectionController extends BaseController
         $this->validate($request, ['id' => 'required', 'rept' => 'required', 'flags' => 'required']);
         $input = $request->all();
 
-        // Validate flag and report values
         $flags = $input['flags'];
         if (!isset($flags['conso']) || !isset($flags['available'])) {
-            return response()->json(['result' => false, 'msg' => 'Invalid input access values']);
+            return $this->respondError(__('connections.invalid_access_values'));
         }
-        $report = Report::where('name',$input['rept'])->first(['id','name']);
+
+        $report = Report::where('name', $input['rept'])->first(['id', 'name']);
         if (!$report) {
-            return response()->json(['result' => false, 'msg' => 'Unknown report requested']);
+            return $this->respondError(__('connections.unknown_report'));
         }
 
-        // Get global provider; throw error if not found, or not available
-        $gp = GlobalProvider::with('connections','connections.reports')->where('id',$input['id'])->first();
+        $gp = GlobalProvider::with('connections', 'connections.reports')->where('id', $input['id'])->first();
         if (!$gp) {
-            return response()->json(['result' => false, 'msg' => 'Global Platform reference error']);
+            return $this->respondError(__('connections.platform_ref_error'));
         }
 
-        // If consoAdmin requests conso-wide, update/create it first
-        $newCnx = array('global_id' => $gp->id, 'is_active' => $gp->is_active, 'inst_id' => null, 'group_id' => null);
-        $consoCnx = $gp->connections->where('inst_id',1)->first(); 
-        $conso_ids = ($consoCnx) ? $consoCnx->reports->pluck('id')->toArray() : array();
+        $newCnx = ['global_id' => $gp->id, 'is_active' => $gp->is_active, 'inst_id' => null, 'group_id' => null];
+        $consoCnx = $gp->connections->where('inst_id', 1)->first();
+        $conso_ids = $consoCnx ? $consoCnx->reports->pluck('id')->toArray() : [];
+        $adminInsts = $thisUser->adminInsts();
+        $adminGroups = $thisUser->adminGroups();
+
         if ($consoAdmin && $flags['conso']) {
-            if ( !$consoCnx ) {
+            if (!$consoCnx) {
                 $newCnx['inst_id'] = 1;
                 $consoCnx = Connection::create($newCnx);
             }
-            if ( !in_array($report->id,$conso_ids) ) {
+            if (!in_array($report->id, $conso_ids)) {
                 $consoCnx->reports()->attach($report->id);
                 $conso_ids = $consoCnx->reports->pluck('id')->toArray();
             }
-            // Remove the report from all other connections with this report defined
-            $res = $gp->updateReports($conso_ids, "detach");
+            $gp->updateReports($conso_ids, 'detach');
 
-            $flags['insts'] = array(1); // force these to cause existing connections to be reset
-            $flags['groups'] = array();
+            $flags['insts'] = array(1);
+            $flags['groups'] = [];
         } else {
-            // Create new (inst) connections as needed, based on role(s)
-            $adminInsts = $thisUser->adminInsts();
             foreach ($flags['insts'] as $inst) {
-                if ($consoAdmin || in_array($inst,$adminInsts)) {
-                    $cnx = $gp->connections->where('inst_id',$inst)->first();
+                if ($consoAdmin || in_array($inst, $adminInsts)) {
+                    $cnx = $gp->connections->where('inst_id', $inst)->first();
                     if (!$cnx) {
                         $newCnx['inst_id'] = $inst;
                         $cnx = Connection::create($newCnx);
                     }
-                    if ( !in_array($report->id,$cnx->reports->pluck('id')->toArray()) ) {
+                    if (!in_array($report->id, $cnx->reports->pluck('id')->toArray())) {
                         $cnx->reports()->attach($report->id);
                     }
                 }
             }
-            // Create new (group) connections as needed, based on role(s)
+
             $newCnx['inst_id'] = null;
-            $adminGroups = $thisUser->adminGroups();
             foreach ($flags['groups'] as $group) {
-                if ($consoAdmin || in_array($group,$adminGroups)) {
-                    $cnx = $gp->connections->where('group_id',$group)->first();
+                if ($consoAdmin || in_array($group, $adminGroups)) {
+                    $cnx = $gp->connections->where('group_id', $group)->first();
                     if (!$cnx) {
                         $newCnx['group_id'] = $group;
                         $cnx = Connection::create($newCnx);
                     }
-                    if ( !in_array($report->id,$cnx->reports->pluck('id')->toArray()) ) {
+                    if (!in_array($report->id, $cnx->reports->pluck('id')->toArray())) {
                         $cnx->reports()->attach($report->id);
                     }
                 }
             }
         }
+
         $flags['requested'] = (!$flags['conso'] && (count($flags['insts']) + count($flags['groups'])) > 0);
 
-        // Remove inst/group assignment from connection->reports, depending on role(s)
-        // Insts or groups are treated as a request to remove access (user had to click them off)
         $current_insts = $gp->connectedInstitutions();
         $current_groups = $gp->connectedGroups();
-        // Setup arrays of current inst and group IDs to remove the report from, depending on role(s)
-        // (if $gp was made conso-wide, above, $flags['insts'] now == [1] )
-        $del_insts = ($consoAdmin) ? array_diff($current_insts,$flags['insts'])
-                                   : array_diff($adminInsts,$flags['insts']);
-        $del_groups = ($consoAdmin) ? array_diff($current_groups,$flags['groups']) 
-                                    : array_diff($adminGroups,$flags['groups']);
-        // Loop through all the provider connections, update one-at-a-time
+        $del_insts = $consoAdmin ? array_diff($current_insts, $flags['insts']) : array_diff($adminInsts, $flags['insts']);
+        $del_groups = $consoAdmin ? array_diff($current_groups, $flags['groups']) : array_diff($adminGroups, $flags['groups']);
+
         foreach ($gp->connections as $cnx) {
-            if (!$cnx->canManage()) continue;
-            if ( !is_null($cnx->inst_id) ) {
-                if (in_array($cnx->inst_id,$del_insts)) {
-                    // If detaching Conso-wide, attach the report to all other connections first
-                    if ($cnx->inst_id == 1)  $res = $gp->updateReports([$report->id], "attach");
+            if (!$cnx->canManage()) {
+                continue;
+            }
+            if (!is_null($cnx->inst_id)) {
+                if (in_array($cnx->inst_id, $del_insts)) {
+                    if ($cnx->inst_id == 1) {
+                        $gp->updateReports([$report->id], 'attach');
+                    }
                     $cnx->reports()->detach($report->id);
                 }
-            } else if ( !is_null($cnx->group_id) ) {
-                if (in_array($cnx->group_id,$del_groups)) {
+            } elseif (!is_null($cnx->group_id)) {
+                if (in_array($cnx->group_id, $del_groups)) {
                     $cnx->reports()->detach($report->id);
                 }
             }
-            // Delete connection record if it now has no reports
-            if ( $cnx->reports()->count() == 0 ) {
+            if ($cnx->reports()->count() === 0) {
                 $cnx->delete();
             }
         }
-        // Return success with the flags
-        return response()->json(['result' => true, 'msg' => 'Access updated successfully', 'record' => $flags]);
+
+        return $this->respondSuccess(__('connections.access_updated'), $flags);
     }
 
     /**
-     * Remove connections to a given platform
-     *
-     * @param  \App\Models\GlobalProvider $id
-     * @return JSON
+     * Remove connections to a given platform.
      */
     public function destroy($id)
     {
         $thisUser = auth()->user();
         abort_unless($thisUser->hasAnyRole(['Admin']), 403);
 
-        // Get platform and related connections
         $platform = GlobalProvider::with('connections')->findOrFail($id);
 
         $num_deleted = 0;
@@ -264,21 +245,17 @@ class ConnectionController extends BaseController
             }
         }
 
-        // Return result
-        if ($num_deleted == 0) {
-            return response()->json(['result' => false, 'msg' => 'No Connections deleted - confirm your role(s)']);
-        } else {
-            $prefix = ($num_deleted == 1) ? "Connection " : $num_deleted . " connections ";
-            return response()->json(['result' => true, 'msg' => $prefix . 'successfully deleted']);
+        if ($num_deleted === 0) {
+            return $this->respondError(__('connections.none_deleted'));
         }
+
+        $msg = ($num_deleted === 1)
+            ? __('connections.deleted_single')
+            : __('connections.deleted_multiple', ['count' => $num_deleted]);
+
+        return $this->respondSuccess($msg);
     }
 
-    /**
-     * Import connections from a CSV file to the database.
-     *
-     * @param  \Illuminate\Http\Request  $request
-     * @return \Illuminate\Http\Response
-     */
     /**
      * Import connections from a CSV to the database.
      */
@@ -296,30 +273,24 @@ class ConnectionController extends BaseController
         $consoAdmin = $thisUser->isConsoAdmin();
         $adminInsts = $thisUser->adminInsts();
         $adminGroups = $thisUser->adminGroups();
-
-        // Get all global platforms and master_reports
         $all_platforms = GlobalProvider::get(['id', 'name', 'master_reports']);
         $rpt_columns = [3 => 2, 2 => 4, 1 => 6, 4 => 8];
-
         $cnx_skipped = 0;
         $cnx_updated = 0;
         $cnx_created = 0;
         $cnx_deleted = 0;
-
         foreach ($rows as $row) {
-            $_id = trim($row ?? '');
+            $_id = trim(Arr::get($row, 0, ''));
             if ($_id === '' || !is_numeric($_id)) {
                 $cnx_skipped++;
                 continue;
             }
-
             $platId = intval($_id);
             $platform = $all_platforms->where('id', $platId)->first();
             if (!$platform) {
                 $cnx_skipped++;
                 continue;
             }
-
             $connections = Connection::with('reports')
                 ->where('global_id', $platId)
                 ->when(!$consoAdmin, function ($qry) use ($adminInsts, $adminGroups) {
@@ -327,31 +298,28 @@ class ConnectionController extends BaseController
                         ->orWhereIn('group_id', $adminGroups);
                 })
                 ->get();
-
             $keep_insts = [];
             $keep_groups = [];
             $_created = false;
             $_updated = false;
-
             foreach ($rpt_columns as $master_id => $col) {
                 $rpt_connections = $connections->map(function ($conn) use ($master_id) {
                     if (in_array($master_id, $conn->reports->pluck('id')->toArray())) {
                         return ['id' => $conn->id, 'inst_id' => $conn->inst_id, 'group_id' => $conn->group_id];
                     }
+                    return null;
                 })->filter()->toArray();
-
                 if (!in_array($master_id, $platform->master_reports())) {
                     continue;
                 }
-
-                $insts = preg_split('/,/', preg_replace('/, /', ',', $row[$col] ?? ''));
+                $rawInsts = Arr::get($row, $col, '');
+                $insts = preg_split('/,/', preg_replace('/, /', ',', $rawInsts));
                 if (count($insts) > 0) {
                     $conso = false;
                     if (in_array(1, $insts) && $consoAdmin) {
-                        $insts =;
+                        $insts = array(1);
                     }
                     $keep_insts = array_unique(array_merge($keep_insts, $insts));
-
                     foreach ($insts as $_inst) {
                         if ($_inst === '') {
                             continue;
@@ -378,13 +346,12 @@ class ConnectionController extends BaseController
                         continue;
                     }
                 }
-
-                $groups = preg_split('/,/', preg_replace('/, /', ',', $row[$col + 1] ?? ''));
+                $rawGroups = Arr::get($row, $col + 1, '');
+                $groups = preg_split('/,/', preg_replace('/, /', ',', $rawGroups));
                 if (count($groups) === 0) {
                     continue;
                 }
                 $keep_groups = array_unique(array_merge($keep_groups, $groups));
-
                 foreach ($groups as $_group) {
                     if ($_group === '') {
                         continue;
@@ -404,7 +371,6 @@ class ConnectionController extends BaseController
                         }
                     }
                 }
-
                 foreach ($rpt_connections as $rcnx) {
                     $cnx = $connections->where('id', $rcnx['id'])->first();
                     if ($cnx && !in_array($cnx['inst_id'], $insts) && !in_array($cnx['group_id'], $groups)) {
@@ -412,10 +378,8 @@ class ConnectionController extends BaseController
                     }
                 }
             }
-
             $cnx_created += $_created ? 1 : 0;
             $cnx_updated += ($_updated && !$_created) ? 1 : 0;
-
             foreach ($connections as $cnx) {
                 if (
                     $cnx->reports->count() === 0 ||
@@ -427,16 +391,13 @@ class ConnectionController extends BaseController
                 }
             }
         }
-
         $msg = $this->formatImportSummary(
-            'Import successful, Connections',
+            __('connections.import_success'),
             $cnx_updated,
             $cnx_created,
             $cnx_deleted,
             $cnx_skipped
         );
-
         return $this->respondSuccess($msg);
     }
-
 }

@@ -23,21 +23,21 @@ trait ImportsCsvData
         $this->validate($request, $rules);
 
         if (!$request->hasFile('csvfile')) {
-            return ['error' => 'Error accessing CSV import file'];
+            return ['error' => __('messages.import_file_error')];
         }
 
         $importType = null;
         if (!empty($allowedTypes)) {
             $importType = $request->input('type');
             if (!in_array($importType, $allowedTypes, true)) {
-                return ['error' => 'Error - unrecognized import type.'];
+                return ['error' => __('messages.import_type_invalid')];
             }
         }
 
         $path = $request->file('csvfile')->getRealPath();
         $csvData = file_get_contents($path);
         if ($csvData === false || trim($csvData) === '') {
-            return ['error' => 'Import file is empty, no changes applied.'];
+            return ['error' => __('messages.import_empty')];
         }
 
         // Strip UTF-8 BOM if present
@@ -45,7 +45,7 @@ trait ImportsCsvData
         $rows = array_map('str_getcsv', preg_split('/\r\n|\r|\n/', trim($csvData)));
 
         if (count($rows) < 1) {
-            return ['error' => 'Import file is empty, no changes applied.'];
+            return ['error' => __('messages.import_empty')];
         }
 
         return [
@@ -55,25 +55,25 @@ trait ImportsCsvData
     }
 
     /**
-     * Formats a consistent import summary message.
+     * Formats a consistent localized import summary message.
      */
     protected function formatImportSummary(string $prefix, int $updated = 0, int $created = 0, int $deleted = 0, int $skipped = 0, string $extra = ''): string
     {
         $parts = [];
         if ($deleted > 0) {
-            $parts[] = "{$deleted} removed";
+            $parts[] = __('messages.import_removed', ['count' => $deleted]);
         }
         if ($updated > 0) {
-            $parts[] = "{$updated} updated";
+            $parts[] = __('messages.import_updated', ['count' => $updated]);
         }
         if ($created > 0) {
-            $parts[] = "{$created} added";
+            $parts[] = __('messages.import_added', ['count' => $created]);
         }
         if ($skipped > 0) {
-            $parts[] = "{$skipped} skipped";
+            $parts[] = __('messages.import_skipped', ['count' => $skipped]);
         }
 
-        $detail = !empty($parts) ? implode(', ', $parts) : '0 changes';
+        $detail = !empty($parts) ? implode(', ', $parts) : __('messages.import_no_changes');
         return "{$prefix} : {$detail}{$extra}";
     }
 }

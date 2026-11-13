@@ -14,7 +14,7 @@ trait ManagesDatasetRecords
     public function destroy($id)
     {
         if (!property_exists($this, 'modelClass') || empty($this->modelClass)) {
-            return $this->respondError('Model class not configured on controller.', 500);
+            return $this->respondError(__('messages.model_not_configured'), 500);
         }
 
         $query = $this->modelClass::query();
@@ -27,12 +27,12 @@ trait ManagesDatasetRecords
         $label = $this->modelLabel ?? class_basename($this->modelClass);
 
         if (!$record) {
-            return $this->respondError("{$label} not found.");
+            return $this->respondError(__('messages.not_found', ['item' => $label]));
         }
 
         $authCheck = $this->canDeleteRecord($record);
         if ($authCheck !== true) {
-            $msg = is_string($authCheck) ? $authCheck : "Delete failed (403) - Forbidden";
+            $msg = is_string($authCheck) ? $authCheck : __('messages.delete_forbidden');
             return $this->respondError($msg);
         }
 
@@ -64,18 +64,21 @@ trait ManagesDatasetRecords
     protected function deleteModelRecord(?Model $record, string $label = 'Record', bool $canDelete = true)
     {
         if (!$record) {
-            return $this->respondError("{$label} not found.");
+            return $this->respondError(__('messages.not_found', ['item' => $label]));
         }
 
         if (!$canDelete) {
-            return $this->respondError("Delete failed (403) - Forbidden or {$label} has dependent records.");
+            return $this->respondError(__('messages.delete_dependent', ['item' => $label]));
         }
 
         try {
             $record->delete();
-            return $this->respondSuccess("{$label} successfully deleted.");
+            return $this->respondSuccess(__('messages.deleted', ['item' => $label]));
         } catch (Exception $e) {
-            return $this->respondError("Unable to delete {$label}: " . $e->getMessage());
+            return $this->respondError(__('messages.delete_failed', [
+                'item'  => $label,
+                'error' => $e->getMessage(),
+            ]));
         }
     }
 
@@ -84,10 +87,9 @@ trait ManagesDatasetRecords
      */
     public function bulk(Request $request)
     {
-
         $user = auth()->user();
         if (!$this->canBulkManage($user)) {
-            return $this->respondError('Request failed (403) - Forbidden');
+            return $this->respondError(__('messages.forbidden_request'));
         }
 
         $this->validate($request, ['ids' => 'required', 'action' => 'required']);
@@ -95,7 +97,7 @@ trait ManagesDatasetRecords
         $action = $request->input('action');
 
         if (!property_exists($this, 'modelClass') || empty($this->modelClass)) {
-            return $this->respondError('Model class not configured on controller.', 500);
+            return $this->respondError(__('messages.model_not_configured'), 500);
         }
 
         // Scope query to records this user is allowed to modify
@@ -131,7 +133,7 @@ trait ManagesDatasetRecords
             return response()->json(['result' => true, 'msg' => '', 'affectedIds' => $allowedIds], 200);
         }
 
-        return $this->respondError('Unrecognized bulk action requested');
+        return $this->respondError(__('messages.bulk_unrecognized'));
     }
 
     /**
@@ -168,13 +170,13 @@ trait ManagesDatasetRecords
         }
 
         if (empty($ids)) {
-            return $this->respondError("No {$pluralLabel} selected.");
+            return $this->respondError(__('messages.bulk_none_selected', ['items' => $pluralLabel]));
         }
 
         $isActive = ($action === 'Set Active') ? 1 : 0;
         $modelClass::whereIn('id', $ids)->update(['is_active' => $isActive]);
 
-        $stateLabel = $isActive ? 'activated' : 'deactivated';
-        return $this->respondSuccess("Selected {$pluralLabel} successfully {$stateLabel}.");
+        $key = $isActive ? 'messages.bulk_activated' : 'messages.bulk_deactivated';
+        return $this->respondSuccess(__($key, ['items' => $pluralLabel]));
     }
 }

@@ -1,0 +1,95 @@
+# Query: extends controller
+# Including: app/Http/Controllers/*.php
+# ContextLines: 1
+
+18 results - 18 files
+
+app/Http/Controllers/AlertSettingController.php:
+  10  
+  11: class AlertSettingController extends Controller
+  12  {
+
+app/Http/Controllers/BaseController.php:
+  8  
+  9: class BaseController extends Controller
+  10  {
+
+app/Http/Controllers/ConnectionController.php:
+  11  
+  12: class ConnectionController extends Controller
+  13  {
+
+app/Http/Controllers/CounterRegistryController.php:
+  15  
+  16: class CounterRegistryController extends Controller
+  17  {
+
+app/Http/Controllers/CredentialController.php:
+  22  
+  23: class CredentialController extends Controller
+  24  {
+
+app/Http/Controllers/FailedHarvestController.php:
+  12  
+  13: class FailedHarvestController extends Controller
+  14  {
+
+app/Http/Controllers/GlobalProviderController.php:
+  15  
+  16: class GlobalProviderController extends Controller
+  17  {
+
+app/Http/Controllers/GlobalSettingController.php:
+  8  
+  9: class GlobalSettingController extends Controller
+  10  {
+
+app/Http/Controllers/HarvestLogController.php:
+  27  
+  28: class HarvestLogController extends Controller
+  29  {
+
+app/Http/Controllers/InstitutionController.php:
+  21  
+  22: class InstitutionController extends Controller
+  23  
+
+app/Http/Controllers/InstitutionGroupController.php:
+  12  
+  13: class InstitutionGroupController extends Controller
+  14  {
+
+app/Http/Controllers/InstitutionTypeController.php:
+  10  
+  11: class InstitutionTypeController extends Controller
+  12  {
+
+app/Http/Controllers/ReportController.php:
+  31  
+  32: class ReportController extends Controller
+  33  {
+
+app/Http/Controllers/RoleController.php:
+  13  
+  14: class RoleController extends Controller
+  15  {
+
+app/Http/Controllers/SavedReportController.php:
+  21  
+  22: class SavedReportController extends Controller
+  23  {
+
+app/Http/Controllers/SessionController.php:
+  5  
+  6: class SessionController extends Controller
+  7  {
+
+app/Http/Controllers/SystemAlertController.php:
+  7  
+  8: class SystemAlertController extends Controller
+  9  {
+
+app/Http/Controllers/UserController.php:
+  21  
+  22: class UserController extends Controller
+  23  {

@@ -23,7 +23,7 @@ class InstitutionTypeController extends BaseController
             ->orderBy('name', 'ASC')
             ->get();
 
-        $types = $data->map(fn($type) => $this->formatRecord($type, $consoAdmin));
+        $types = $data->map(fn ($type) => $this->formatRecord($type, $consoAdmin));
 
         return response()->json(['records' => $types], 200);
     }
@@ -34,30 +34,31 @@ class InstitutionTypeController extends BaseController
     public function store(Request $request)
     {
         if (!auth()->user()->isConsoAdmin()) {
-            return $this->respondError('Not Authorized');
+            return $this->respondError(__('institutions.not_authorized'));
         }
 
         $this->validate($request, ['name' => 'required']);
 
         if (InstitutionType::where('name', $request->input('name'))->exists()) {
-            return $this->respondError('An existing type with that name already exists');
+            return $this->respondError(__('institutions.type_duplicate'));
         }
 
         $type = InstitutionType::create(['name' => $request->input('name')]);
         $type->setRelation('institutions', collect());
 
         return $this->respondSuccess(
-            'New institution type successfully created',
+            __('institutions.type_created'),
             $this->formatRecord($type, true)
         );
     }
+
     /**
      * Update the specified resource in storage.
      */
     public function update(Request $request, $id)
     {
         if (!auth()->user()->isConsoAdmin()) {
-            return $this->respondError('Not Authorized');
+            return $this->respondError(__('institutions.not_authorized'));
         }
 
         $type = InstitutionType::findOrFail($id);
@@ -69,14 +70,14 @@ class InstitutionTypeController extends BaseController
             ->exists();
 
         if ($duplicate) {
-            return $this->respondError('Another type with that name already exists');
+            return $this->respondError(__('institutions.type_duplicate'));
         }
 
         $type->update(['name' => $request->input('name')]);
         $type->load('institutions:id,name,type_id');
 
         return $this->respondSuccess(
-            'Institution type successfully updated',
+            __('institutions.type_updated'),
             $this->formatRecord($type, true)
         );
     }
@@ -87,11 +88,11 @@ class InstitutionTypeController extends BaseController
     protected function canDeleteRecord(Model $type): bool|string
     {
         if (!auth()->user()->isConsoAdmin()) {
-            return 'Not Authorized';
+            return __('institutions.not_authorized');
         }
 
         if ($type->id == 1) {
-            return 'Cannot delete the default Institution Type.';
+            return __('institutions.type_default_protected');
         }
 
         return true;
@@ -111,7 +112,7 @@ class InstitutionTypeController extends BaseController
     public function import(Request $request)
     {
         if (!auth()->user()->isConsoAdmin()) {
-            return $this->respondError('Not Authorized');
+            return $this->respondError(__('institutions.not_authorized'));
         }
 
         $parsed = $this->parseCsvUpload($request, ['Full Replacement', 'Additions & Updates']);
@@ -181,9 +182,9 @@ class InstitutionTypeController extends BaseController
             }
         }
 
-        $extra = ($num_skipped > 0) ? " ({$num_skipped} existing names skipped)" : '';
+        $extra = ($num_skipped > 0) ? __('institutions.type_import_skipped', ['count' => $num_skipped]) : '';
         $msg = $this->formatImportSummary(
-            'Institution Types imported successfully',
+            __('institutions.type_import_success'),
             $num_updated,
             $num_created,
             $num_deleted,
