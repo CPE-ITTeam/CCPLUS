@@ -1,4 +1,7 @@
 // resources/js/config/dataTableConfig.js
+import i18n from '@/plugins/i18n';
+
+const t = (key) => i18n.global.t(key);
 
 // ─────────────────────────────────────────────────────────────────────────
 // STEP 1: THE DEFAULTS DEFINITION (Add cols: 12 to the map)
@@ -46,118 +49,162 @@ const rawTableSetup = {
     // NOTE:: Fields may need helperText, per the DataForm editting component
     //        Add 'icon' prop to type=text||textarea||select||multiselect)
     //
+
+    consortia: {
+      urlRoot: '/api/consortia',
+      get title() { return t('datasets.consortia.title'); },
+      dataset: 'consortia',
+
+      required: [
+        'name',
+        'ccp_key',
+        'email',
+        'admin_user',
+        'admin_pass',
+        'admin_confirm_pass',
+      ],
+
+      fields: [
+        { name: 'status',      get label() { return t('fields.status'); },          options: 'fromURL', header: 'center', searchable: false },
+        { name: 'name',        get label() { return t('fields.consortium_name'); }, cols: 9 },
+        { name: 'ccp_key',     get label() { return t('fields.database_key'); },    cols: 3 },
+        { name: 'admin_name',  get label() { return t('fields.admin_contact'); } },
+        { name: 'email',       get label() { return t('fields.email_address'); } },
+
+        // Form-only visibility fields required by your backend controller
+        { name: 'admin_user',         get label() { return t('fields.admin_username_email'); }, type: 'text',     header: null },
+        { name: 'admin_pass',         get label() { return t('fields.admin_password'); },       type: 'password', header: null },
+        { name: 'admin_confirm_pass', get label() { return t('fields.confirm_password'); },     type: 'passconf', header: null },
+
+        { name: 'displayName', get label() { return t('fields.display_name'); }, header: null },
+        { name: 'firstName',   get label() { return t('fields.first_name'); },   header: null },
+        { name: 'lastName',    get label() { return t('fields.last_name'); },    header: null },
+      ],
+      static: [],
+      bulkOptions: ['Set Active', 'Set Inactive', 'Delete'],
+      sortby: 'name',
+    },
+
     institutions: {
-      urlRoot: '/api/institutions', title: 'Institution',
+      urlRoot: '/api/institutions',
+      get title() { return t('datasets.institutions.title'); },
       fields: [
         // 1. SYSTEM KEYS
-        { name: 'id',           label: 'CC+ System ID',             type: 'number',   editable: false, visible: ['Edit'], header: null, searchable: false },
-        { name: 'status',       label: 'Status',                    type: 'toggle',   options: 'fromURL', addValue: 'Active', header: 'center', searchable: false },
+        { name: 'id',           get label() { return t('fields.ccplus_system_id'); }, type: 'number',   editable: false, visible: ['Edit'], header: null, searchable: false },
+        { name: 'status',       get label() { return t('fields.status'); },           type: 'toggle',   options: 'fromURL', addValue: 'Active', header: 'center', searchable: false },
 
         // 2. PRIMARY TEXT DESCRIPTORS
-        { name: 'name',         label: 'Institution',               cols: 8 },
-        { name: 'local_id',     label: 'Local ID',                  cols: 4,          header: null },
-        // 3. COMPLEX RELATIONAL PIPELINES
-        { name: 'type',         label: 'Type',                      type: 'select',  options: 'fromURL', optVal: 'id', optTxt: 'name', isFilter: true, filterCol: 'type_id' },
-        { name: 'type_id',      label: 'Type ID',                   type: 'number',  editable: false, visible: false, header: null, searchable: false },
+        { name: 'name',         get label() { return t('fields.institution'); },      cols: 8 },
+        { name: 'local_id',     get label() { return t('fields.local_id'); },         cols: 4,          header: null },
 
-        { name: 'group_string', label: 'Groups',                                     editable: false, visible: false },
-        { name: 'group_ids',    label: 'Group Assignment(s)',       type: 'array',   editable: false, visible: false, header: null, searchable: false },
-        { name: 'groups',       label: 'Group Assignment(s)',       type: 'mselect', options: 'fromURL', optVal: 'id', optTxt: 'name', isFilter: true, filterCol: 'group_ids', header: null, searchable: false },
-        
+        // 3. COMPLEX RELATIONAL PIPELINES
+        { name: 'type',         get label() { return t('fields.type'); },             type: 'select',   options: 'fromURL', optVal: 'id', optTxt: 'name', isFilter: true, filterCol: 'type_id' },
+        { name: 'type_id',      get label() { return t('fields.type_id'); },          type: 'number',   editable: false, visible: false, header: null, searchable: false },
+
+        { name: 'group_string', get label() { return t('fields.groups'); },                             editable: false, visible: false },
+        { name: 'group_ids',    get label() { return t('fields.group_assignments'); }, type: 'array',   editable: false, visible: false, header: null, searchable: false },
+        { name: 'groups',       get label() { return t('fields.group_assignments'); }, type: 'mselect', options: 'fromURL', optVal: 'id', optTxt: 'name', isFilter: true, filterCol: 'group_ids', header: null, searchable: false },
+
         // 4. METRICS, TEXTAREAS & OPT-INS
-        { name: 'fte',          label: 'FTE',                       type: 'number',  header: null, searchable: false },
-        { name: 'notes',        label: 'Notes',                     type: 'textarea', header: null },
-        { name: 'creds',        label: 'Add Credential Placeholders', type: 'toggle', options: ['Inactive','Active'], addValue: 'Active', visible: ['Add'], header: null, searchable: false },
+        { name: 'fte',          get label() { return t('fields.fte'); },              type: 'number',   header: null, searchable: false },
+        { name: 'notes',        get label() { return t('fields.notes'); },            type: 'textarea', header: null },
+        { name: 'creds',        get label() { return t('fields.add_cred_placeholders'); }, type: 'toggle', options: ['Inactive', 'Active'], addValue: 'Active', visible: ['Add'], header: null, searchable: false },
       ],
 
       required: ['status', 'name', 'local_id', 'fte', 'type', 'creds'],
       bulkOptions: ['Set Active', 'Set Inactive', 'Assign Type', 'Create New Group', 'Add to Existing Group', 'Delete'],
-      exportFields: ['id','local_id','name','status','fte','group_ids','notes'],
+      exportFields: ['id', 'local_id', 'name', 'status', 'fte', 'group_ids', 'notes'],
       sortby: 'name',
     },
 
     types: {
-      urlRoot: '/api/types', title: 'Institution Type',
+      urlRoot: '/api/types',
+      get title() { return t('datasets.types.title'); },
       fields: [
-        { name: 'id',   label: 'ID',               type: 'number', header: null, editable: false, searchable: false },
-        { name: 'name', label: 'Institution Type' }
+        { name: 'id',   get label() { return t('fields.id'); },               type: 'number', header: null, editable: false, searchable: false },
+        { name: 'name', get label() { return t('fields.institution_type'); } },
       ],
 
       required: ['name'],
       static: ['id'],
-      bulkOptions: ['Set Active', 'Set Inactive', 'Delete'], 
-      exportFields: ['id','name'],
+      bulkOptions: ['Set Active', 'Set Inactive', 'Delete'],
+      exportFields: ['id', 'name'],
       sortby: 'name',
     },
+
     groups: {
-      urlRoot: '/api/groups', title: 'Institution Group',
+      urlRoot: '/api/groups',
+      get title() { return t('datasets.groups.title'); },
       fields: [
-        { name: 'id',           label: 'ID',                                 type: 'number',   header: null, editable: false, searchable: false },
-        { name: 'name',         label: 'Group' },
-        
-        { name: 'institutions', label: 'Member Institutions',                type: 'mselect',  options: 'fromURL', optVal: 'id', optTxt: 'name', header: null, searchable: false },
-        { name: 'member_ids',   label: 'Members',                            type: 'array',    header: null, editable: false, searchable: false },
-        { name: 'count',        label: 'Member Count',                                         header: 'center', editable: false },
-        
-        { name: 'type_string',  label: 'Institution Type Restriction',                         editable: false },
-        { name: 'types',        label: 'Institution Type Restriction',       type: 'select',   options: 'fromURL', optVal: 'id', optTxt: 'name', isFilter: true, filterCol: 'type_id', header: null },
-        { name: 'type_id',      label: 'Type ID',                            type: 'number',   addValue: 1, header: null, editable: false, searchable: false },
+        { name: 'id',           get label() { return t('fields.id'); },                        type: 'number',  header: null, editable: false, searchable: false },
+        { name: 'name',         get label() { return t('fields.group'); } },
+
+        { name: 'institutions', get label() { return t('fields.member_institutions'); },       type: 'mselect', options: 'fromURL', optVal: 'id', optTxt: 'name', header: null, searchable: false },
+        { name: 'member_ids',   get label() { return t('fields.members'); },                   type: 'array',   header: null, editable: false, searchable: false },
+        { name: 'count',        get label() { return t('fields.member_count'); },                               header: 'center', editable: false },
+
+        { name: 'type_string',  get label() { return t('fields.inst_type_restriction'); },                      editable: false },
+        { name: 'types',        get label() { return t('fields.inst_type_restriction'); },     type: 'select',  options: 'fromURL', optVal: 'id', optTxt: 'name', isFilter: true, filterCol: 'type_id', header: null },
+        { name: 'type_id',      get label() { return t('fields.type_id'); },                   type: 'number',  addValue: 1, header: null, editable: false, searchable: false },
       ],
 
-      required: ['name','institutions'],
-      static: ['id','type_id','type_string','member_ids'],
-      bulkOptions: ['Set Active', 'Set Inactive', 'Delete'], 
-      exportFields: ['id','name','member_ids'],
+      required: ['name', 'institutions'],
+      static: ['id', 'type_id', 'type_string', 'member_ids'],
+      bulkOptions: ['Set Active', 'Set Inactive', 'Delete'],
+      exportFields: ['id', 'name', 'member_ids'],
       sortby: 'name',
     },
+
     users: {
-      urlRoot: '/api/users', title: 'User',
+      urlRoot: '/api/users',
+      get title() { return t('datasets.users.title'); },
       fields: [
         // 1. IDENTITY & PRIMARY USER FIELDS
-        { name: 'id',               label: 'ID',                  type: 'number',   header: null, editable: false, searchable: false },
-        { name: 'status',           label: 'Status',              type: 'toggle',   options: 'fromURL', addValue: 'Active', header: 'center', searchable: false },
-        { name: 'name',             label: 'User Name' },
-        { name: 'email',            label: 'Email Address' },
-        { name: 'phone',            label: 'Phone Number',                                          header: null },
+        { name: 'id',               get label() { return t('fields.id'); },               type: 'number',   header: null, editable: false, searchable: false },
+        { name: 'status',           get label() { return t('fields.status'); },           type: 'toggle',   options: 'fromURL', addValue: 'Active', header: 'center', searchable: false },
+        { name: 'name',             get label() { return t('fields.user_name'); } },
+        { name: 'email',            get label() { return t('fields.email_address'); } },
+        { name: 'phone',            get label() { return t('fields.phone_number'); },                                        header: null },
 
         // 2. INSTITUTIONAL LINK RELATIONSHIPS
-        { name: 'institution.name', label: 'Home Institution',                                                      editable: false },
-        { name: 'institutions',     label: 'Home Institution',         type: 'select',   options: 'fromURL', optVal: 'id', optTxt: 'name', isFilter: true, filterCol: 'inst_id', header: null, searchable: false },
-        { name: 'inst_id',          label: 'Institution ID',      type: 'number',   header: null, editable: false, searchable: false },
+        { name: 'institution.name', get label() { return t('fields.home_institution'); },                                                    editable: false },
+        { name: 'institutions',     get label() { return t('fields.home_institution'); }, type: 'select',   options: 'fromURL', optVal: 'id', optTxt: 'name', isFilter: true, filterCol: 'inst_id', header: null, searchable: false },
+        { name: 'inst_id',          get label() { return t('fields.institution_id'); },   type: 'number',   header: null, editable: false, searchable: false },
 
         // 3. SECURE AUTH & OPERATING PARAMETERS
-        { name: 'user_role',        label: 'Role',                                                                  editable: false },
-        { name: 'uroles',           label: 'Role',                type: 'select',   options: 'fromURL', optVal: 'id', optTxt: 'name', isFilter: true, filterCol: 'user_role', header: null, searchable: false },
-        { name: 'inst_roles',       label: 'Institutional Role(s)',type: 'array',    header: null, editable: false, searchable: false },
-        { name: 'group_roles',      label: 'Group Role(s)',       type: 'array',    header: null, editable: false, searchable: false },
-        
+        { name: 'user_role',        get label() { return t('fields.role'); },                                                                editable: false },
+        { name: 'uroles',           get label() { return t('fields.role'); },             type: 'select',   options: 'fromURL', optVal: 'id', optTxt: 'name', isFilter: true, filterCol: 'user_role', header: null, searchable: false },
+        { name: 'inst_roles',       get label() { return t('fields.inst_roles'); },       type: 'array',    header: null, editable: false, searchable: false },
+        { name: 'group_roles',      get label() { return t('fields.group_roles'); },      type: 'array',    header: null, editable: false, searchable: false },
+
         // 4. METADATA & RE-AUTHENTICATION STRINGS
-        { name: 'password',         label: 'Password',            type: 'password', header: null, searchable: false },
-        { name: 'confirm_pass',     label: 'Confirm Password',    type: 'passconf', header: null, searchable: false },
-// Inside your dataTableConfig.js file:
-{ 
-  name: 'fiscalYr', 
-  label: 'Fiscal Year Start', 
-  type: 'select', 
-  options: 'fromURL',       // 👈 Tells the setup loader to populate options dynamically
-  optVal: 'id',             // 👈 Bind the option value to the integer ID (1-12)
-  optTxt: 'name',           // 👈 Render the readable month string text on screen ("January")
-  header: 'left',           // 👈 CHANGE THIS from null to display it in the table view grid!
-  editable: true, 
-  searchable: false 
-},
-        { name: 'last_login',       label: 'Last Login',          type: 'date',     header: 'center', editable: false, searchable: false },
+        { name: 'password',         get label() { return t('fields.password'); },         type: 'password', header: null, searchable: false },
+        { name: 'confirm_pass',     get label() { return t('fields.confirm_password'); }, type: 'passconf', header: null, searchable: false },
+        {
+          name: 'fiscalYr',
+          get label() { return t('fields.fiscal_year_start'); },
+          type: 'select',
+          options: 'fromURL',
+          optVal: 'id',
+          optTxt: 'name',
+          header: 'left',
+          editable: true,
+          searchable: false,
+        },
+        { name: 'last_login',       get label() { return t('fields.last_login'); },       type: 'date',     header: 'center', editable: false, searchable: false },
       ],
 
       required: ['status', 'name', 'email', 'institutions', 'password', 'confirm_pass'],
       static: ['id', 'institution.name', 'inst_id', 'uroles', 'inst_roles', 'group_roles'],
       bulkOptions: ['Set Active', 'Set Inactive', 'Delete'],
-      exportFields: ['id','email','password','name','phone','status','inst_id','inst_roles','group_roles'],
+      exportFields: ['id', 'email', 'password', 'name', 'phone', 'status', 'inst_id', 'inst_roles', 'group_roles'],
       sortby: 'email',
     },
+
     roles: {
-      urlRoot: '/api/roles', title: 'Permissions',
-       fields: [
+      urlRoot: '/api/roles',
+      get title() { return t('datasets.roles.title'); },
+      fields: [
         // 1. PRIMARY SYSTEM ID CROSS-REFERENCES
         { name: 'role_id',     label: 'role_id',             type: 'number',   header: null, editable: false, searchable: false },
         { name: 'user_id',     label: 'user_id',             type: 'number',   header: null, editable: false, searchable: false },
@@ -165,18 +212,18 @@ const rawTableSetup = {
         { name: 'group_id',    label: 'group_id',            type: 'number',   header: null, editable: false, searchable: false },
 
         // 2. READ-ONLY PROFILE MONITORING STRINGS (Implicitly searchable)
-        { name: 'name',        label: 'Username',                                            editable: false },
-        { name: 'email',       label: 'Email Address',                                       editable: false },
-        { name: 'role_string', label: 'Role',                                                editable: false },
-        { name: 'scope',       label: 'Scope',                                               editable: false },
+        { name: 'name',        get label() { return t('fields.username'); },                                             editable: false },
+        { name: 'email',       get label() { return t('fields.email_address'); },                                        editable: false },
+        { name: 'role_string', get label() { return t('fields.role'); },                                                 editable: false },
+        { name: 'scope',       get label() { return t('fields.scope'); },                                                editable: false },
 
         // 3. EDITABLE ASSIGNMENT RELATIONSHIPS & FILTERS
-        { name: 'role',        label: 'Role',                type: 'select',   options: 'fromURL', isFilter: true, filterCol: 'role_string', header: null, searchable: false },
-        { name: 'user_role',   label: 'Role',                type: 'select',   options: 'fromURL', header: null, searchable: false },
-        { name: 'user',        label: 'User',                type: 'select',   options: 'fromURL', optVal: 'id', optTxt: 'name', isFilter: true, filterCol: 'user_id', header: null, searchable: false },
-        { name: 'conso',       label: 'Entire Consortium',   type: 'toggle',   options: ['Inactive','Active'], addValue: 'Inactive', header: null, searchable: false },
-        { name: 'institution', label: 'Institution',         type: 'select',   options: 'fromURL', optVal: 'id', optTxt: 'name', isFilter: true, filterCol: 'inst_id', header: null, searchable: false },
-        { name: 'group',       label: 'Group',               type: 'select',   options: 'fromURL', optVal: 'id', optTxt: 'name', isFilter: true, filterCol: 'group_id', header: null, searchable: false },
+        { name: 'role',        get label() { return t('fields.role'); },              type: 'select',   options: 'fromURL', isFilter: true, filterCol: 'role_string', header: null, searchable: false },
+        { name: 'user_role',   get label() { return t('fields.role'); },              type: 'select',   options: 'fromURL', header: null, searchable: false },
+        { name: 'user',        get label() { return t('fields.user'); },              type: 'select',   options: 'fromURL', optVal: 'id', optTxt: 'name', isFilter: true, filterCol: 'user_id', header: null, searchable: false },
+        { name: 'conso',       get label() { return t('fields.entire_consortium'); }, type: 'toggle',   options: ['Inactive', 'Active'], addValue: 'Inactive', header: null, searchable: false },
+        { name: 'institution', get label() { return t('fields.institution'); },       type: 'select',   options: 'fromURL', optVal: 'id', optTxt: 'name', isFilter: true, filterCol: 'inst_id', header: null, searchable: false },
+        { name: 'group',       get label() { return t('fields.group'); },             type: 'select',   options: 'fromURL', optVal: 'id', optTxt: 'name', isFilter: true, filterCol: 'group_id', header: null, searchable: false },
       ],
 
       required: ['user_role', 'user', 'conso', 'institution', 'group'],
@@ -185,205 +232,284 @@ const rawTableSetup = {
       exportFields: [],
       sortby: 'email',
     },
-    connections: {
-      urlRoot: '/api/connections', title: 'Connection',
+
+    platforms: {
+      urlRoot: '/api/platforms',
+      get title() { return t('datasets.platforms.title'); },
       fields: [
-        // 1. PRIMARY PLATFORM IDENTITY KEYS
-        { name: 'id',           label: 'ID',                                 type: 'number',   header: null, editable: false, searchable: false },
-        { name: 'platform',     label: 'Platform Name',                                                      editable: false },
+        // 1. PRIMARY SYSTEM CODES & TOGGLES
+        { name: 'id',              get label() { return t('fields.id'); },                    type: 'number',   header: null, editable: false, searchable: false },
+        { name: 'status',          get label() { return t('fields.status'); },                type: 'toggle',   options: '', addValue: 'Active', header: 'center', searchable: false },
+        { name: 'is_selected',     get label() { return t('fields.status'); },                type: 'toggle',   options: '', header: null, searchable: false },
 
-        // 2. COUNTER SUITE REPORT CLUSTERS (Grouped by target mapping block)
-        { name: 'PR',           label: 'PR Report',                          type: 'toggle',   header: 'center', searchable: false },
-        { name: 'pr_insts',     label: 'PR Institution ID(s)',               type: 'array',    header: null },
-        { name: 'pr_groups',    label: 'PR Group ID(s)',                     type: 'array',    header: null },
+        // 2. CORE VIEWABLE LOG DESCRIPTORS (Implicitly text and searchable)
+        { name: 'name',            get label() { return t('fields.platform_name'); },         cols: 8 },
+        { name: 'abbrev',          get label() { return t('fields.abbreviation'); },          header: 'center', cols: 4 },
+        { name: 'cur_release',     get label() { return t('fields.release'); },               header: 'center' },
+        { name: 'data_host',       get label() { return t('fields.data_host'); } },
+        { name: 'day_of_month',    get label() { return t('fields.harvest_day'); },           type: 'number',   header: 'center' },
+        { name: 'instance_count',  get label() { return t('fields.connected_instances'); },   header: 'center', editable: false },
+        { name: 'updated',         get label() { return t('fields.last_updated'); },          type: 'date',     editable: false },
 
-        { name: 'DR',           label: 'DR Report',                          type: 'toggle',   header: 'center', searchable: false },
-        { name: 'dr_insts',     label: 'DR Institution ID(s)',               type: 'array',    header: null },
-        { name: 'dr_groups',    label: 'DR Group ID(s)',                     type: 'array',    header: null },
+        // 3. DIALOG DATA ARRAYS & CONFIGURATION REPOSITORIES
+        { name: 'reg_releases',    get label() { return t('fields.counter_releases'); },      type: 'array',    header: null },
+        { name: 'connector_state', get label() { return t('fields.connection_fields'); },     type: 'array',    header: null },
+        { name: 'report_state',    get label() { return t('fields.supported_reports'); },     type: 'array',    header: null },
+        { name: 'service_url',     get label() { return t('fields.service_url'); },           header: null },
+        { name: 'platform_parm',   get label() { return t('fields.platform_parameter'); },    header: null },
+        { name: 'registry_id',     get label() { return t('fields.registry_id'); },           header: null, searchable: false },
+        { name: 'refreshable',     get label() { return t('fields.refreshable'); },           type: 'toggle',   addValue: 'Inactive', header: null, searchable: false },
 
-        { name: 'TR',           label: 'TR Report',                          type: 'toggle',   header: 'center', searchable: false },
-        { name: 'tr_insts',     label: 'TR Institution ID(s)',               type: 'array',    header: null },
-        { name: 'tr_groups',    label: 'TR Group ID(s)',                     type: 'array',    header: null },
+        // 4. SUSHI CREDENTIAL PATHING OVERLAY STRINGS
+        { name: 'customer_id',     get label() { return t('fields.customer_id'); },           header: null, searchable: false },
+        { name: 'requestor_id',    get label() { return t('fields.requestor_id'); },          header: null, searchable: false },
+        { name: 'api_key',         get label() { return t('fields.api_key'); },               header: null, searchable: false },
 
-        { name: 'IR',           label: 'IR Report',                          type: 'toggle',   header: 'center', searchable: false },
-        { name: 'ir_insts',     label: 'IR Institution ID(s)',               type: 'array',    header: null },
-        { name: 'ir_groups',    label: 'IR Group ID(s)',                     type: 'array',    header: null },
+        // 5. TRANSIENT DIAGNOSTIC LOGS & REFRESH STATUS METADATA
+        { name: 'refresh_result',  get label() { return t('fields.refresh_result'); },        header: null, editable: false },
+        { name: 'refresh_text',    get label() { return t('fields.refresh_result_tooltip'); }, header: null, editable: false },
+        { name: 'refresh_icon',    get label() { return t('fields.refresh_result_icon'); },   header: null, editable: false },
+        { name: 'refresh_color',   get label() { return t('fields.refresh_result_color'); },  header: null, editable: false },
 
-        // 3. DATA HARVEST MONITORING METRICS & CONFIG FILTERS
-        { name: 'result',       label: 'Last Harvest',                                                       editable: false },
-        { name: 'results',      label: 'Last Harvest',                       type: 'mselect',  options: 'fromURL', optVal: 'result', optTxt: 'result', isFilter: true, filterCol: 'result', header: null, searchable: false },
-        { name: 'conso',        label: 'Entire Consortium',                  type: 'toggle',   options: ['Inactive','Active'], addValue: 'Inactive', header: null, searchable: false },
-        { name: 'institutions', label: 'Institution(s)',                     type: 'mselect',  options: 'fromURL', optVal: 'id', optTxt: 'name', header: null, searchable: false },
-        { name: 'groups',       label: 'Group(s)',                           type: 'mselect',  options: 'fromURL', optVal: 'id', optTxt: 'name', header: null, searchable: false },
+        // 6. SHARED TABLE FILTER MULTI-SELECT MAPPINGS
+        { name: 'releases',        get label() { return t('fields.counter_releases'); },      type: 'mselect',  options: 'fromURL', isFilter: true, filterCol: 'reg_releases', header: null },
+        { name: 'results',         get label() { return t('fields.filter_refresh_result'); }, type: 'mselect',  options: 'fromURL', optVal: 'id', optTxt: 'value', isFilter: true, filterCol: 'refresh_result', header: null },
+        { name: 'statuses',        get label() { return t('fields.filter_status'); },         type: 'mselect',  options: 'fromURL', isFilter: true, filterCol: 'status', header: null },
       ],
 
+      required: ['name', 'status', 'abbrev', 'cur_release', 'service_url', 'connector_state', 'report_state', 'platform_parm',
+                 'day_of_month', 'refreshable', 'registry_id'],
+      static: ['id', 'instance_count', 'updated', 'PR', 'DR', 'TR', 'IR', 'is_selected', 'reg_releases', 'customer_id',
+               'requestor_id', 'api_key', 'connector_state', 'report_state', 'data_host', 'refresh_result', 'refresh_text',
+               'refresh_icon', 'refresh_color'],
+      bulkOptions: ['Set Active', 'Set Inactive', 'Refresh Registry', 'Delete'],
+      // These are set by GlobalProviderController export() method
+      exportFields: ['registry_id', 'name', 'release', 'status', 'service_url', 'refreshable', 'day_of_month', 'PR', 'DR', 'TR', 'IR',
+                     'customer_id', 'requestor_id', 'api_key', 'platform_parm'],
+      sortby: 'name',
+    },
+
+    connections: {
+      urlRoot: '/api/connections',
+      get title() { return t('datasets.connections.title'); },
+      fields: [
+        // 1. PRIMARY PLATFORM IDENTITY KEYS
+        { name: 'id',           get label() { return t('fields.id'); },                type: 'number',   header: null, editable: false, searchable: false },
+        { name: 'platform',     get label() { return t('fields.platform_name'); },                                   editable: false },
+
+        // 2. COUNTER SUITE REPORT CLUSTERS (Grouped by target mapping block)
+        { name: 'PR',           get label() { return t('fields.pr_report'); },         type: 'toggle',   header: 'center', searchable: false },
+        { name: 'pr_insts',     get label() { return t('fields.pr_inst_ids'); },       type: 'array',    header: null },
+        { name: 'pr_groups',    get label() { return t('fields.pr_group_ids'); },      type: 'array',    header: null },
+
+        { name: 'DR',           get label() { return t('fields.dr_report'); },         type: 'toggle',   header: 'center', searchable: false },
+        { name: 'dr_insts',     get label() { return t('fields.dr_inst_ids'); },       type: 'array',    header: null },
+        { name: 'dr_groups',    get label() { return t('fields.dr_group_ids'); },      type: 'array',    header: null },
+
+        { name: 'TR',           get label() { return t('fields.tr_report'); },         type: 'toggle',   header: 'center', searchable: false },
+        { name: 'tr_insts',     get label() { return t('fields.tr_inst_ids'); },       type: 'array',    header: null },
+        { name: 'tr_groups',    get label() { return t('fields.tr_group_ids'); },      type: 'array',    header: null },
+
+        { name: 'IR',           get label() { return t('fields.ir_report'); },         type: 'toggle',   header: 'center', searchable: false },
+        { name: 'ir_insts',     get label() { return t('fields.ir_inst_ids'); },       type: 'array',    header: null },
+        { name: 'ir_groups',    get label() { return t('fields.ir_group_ids'); },      type: 'array',    header: null },
+
+        // 3. DATA HARVEST MONITORING METRICS & CONFIG FILTERS
+        { name: 'result',       get label() { return t('fields.last_harvest'); },                                    editable: false },
+        { name: 'results',      get label() { return t('fields.last_harvest'); },      type: 'mselect',  options: 'fromURL', optVal: 'result', optTxt: 'result', isFilter: true, filterCol: 'result', header: null, searchable: false },
+        { name: 'conso',        get label() { return t('fields.entire_consortium'); }, type: 'toggle',   options: ['Inactive', 'Active'], addValue: 'Inactive', header: null, searchable: false },
+        { name: 'institutions', get label() { return t('fields.institutions'); },      type: 'mselect',  options: 'fromURL', optVal: 'id', optTxt: 'name', header: null, searchable: false },
+        { name: 'groups',       get label() { return t('fields.groups_multi'); },      type: 'mselect',  options: 'fromURL', optVal: 'id', optTxt: 'name', header: null, searchable: false },
+      ],
 
       required: ['id'],
-      static: ['id', 'results','institutions', 'groups', 'pr_insts', 'pr_groups', 'dr_insts', 'dr_groups',
+      static: ['id', 'results', 'institutions', 'groups', 'pr_insts', 'pr_groups', 'dr_insts', 'dr_groups',
                'tr_insts', 'tr_groups', 'ir_insts', 'ir_groups'],
       bulkOptions: [],
       exportFields: ['id', 'platform', 'pr_insts', 'pr_groups', 'dr_insts', 'dr_groups',
                      'tr_insts', 'tr_groups', 'ir_insts', 'ir_groups'],
       sortby: 'platform',
     },
+
     credentials: {
-      urlRoot: '/api/credentials', title: 'Credentials',
-      // Report columns are type=select to offer options based on user's role
+      urlRoot: '/api/credentials',
+      get title() { return t('datasets.credentials.title'); },
       fields: [
         // 1. PRIMARY CREATIVE RECORDS & IDENTITY TRACKERS
-        { name: 'status',           label: 'Status',                    type: 'toggle',   options: '', addValue: 'Enabled', header: 'center', searchable: false },
-        { name: 'statuses',         label: 'Status',                    type: 'mselect',  options: 'fromURL', isFilter: true, filterCol: 'status', header: null, searchable: false },
+        { name: 'status',       get label() { return t('fields.status'); },        type: 'toggle',   options: '', addValue: 'Enabled', header: 'center', searchable: false },
+        { name: 'statuses',     get label() { return t('fields.status'); },        type: 'mselect',  options: 'fromURL', isFilter: true, filterCol: 'status', header: null, searchable: false },
 
         // 2. INSTITUTIONAL LINK PAIRINGS
-        { name: 'institution',      label: 'Institution',                                                 editable: false },
-        { name: 'institutions',     label: 'Institution',               type: 'select',   options: 'fromURL', optVal: 'id', optTxt: 'name', isFilter: true, filterCol: 'inst_id', header: null, searchable: false },
-        { name: 'inst_id',          label: 'Institution ID',            type: 'number',   header: null, editable: false, searchable: false },
-        { name: 'local_id',         label: 'Local ID',                                                    header: null },
+        { name: 'institution',  get label() { return t('fields.institution'); },                                 editable: false },
+        { name: 'institutions', get label() { return t('fields.institution'); },   type: 'select',   options: 'fromURL', optVal: 'id', optTxt: 'name', isFilter: true, filterCol: 'inst_id', header: null, searchable: false },
+        { name: 'inst_id',      get label() { return t('fields.institution_id'); },type: 'number',   header: null, editable: false, searchable: false },
+        { name: 'local_id',     get label() { return t('fields.local_id'); },                                    header: null },
 
         // 3. PLATFORM & GROUP LINK PAIRINGS
-        { name: 'platform',         label: 'Platform',                                                    editable: false },
-        { name: 'platforms',        label: 'Platform',                  type: 'select',   options: 'fromURL', optVal: 'id', optTxt: 'name', isFilter: true, filterCol: 'prov_id', header: null, searchable: false },
-        { name: 'prov_id',          label: 'Platform ID',               type: 'number',   header: null, editable: false, searchable: false },
-        { name: 'groups',           label: 'Group(s)',                  type: 'mselect',  options: 'fromURL', optVal: 'id', optTxt: 'name', header: null, searchable: false },
+        { name: 'platform',     get label() { return t('fields.platform'); },                                    editable: false },
+        { name: 'platforms',    get label() { return t('fields.platform'); },      type: 'select',   options: 'fromURL', optVal: 'id', optTxt: 'name', isFilter: true, filterCol: 'prov_id', header: null, searchable: false },
+        { name: 'prov_id',      get label() { return t('fields.platform_id'); },   type: 'number',   header: null, editable: false, searchable: false },
+        { name: 'groups',       get label() { return t('fields.groups_multi'); },  type: 'mselect',  options: 'fromURL', optVal: 'id', optTxt: 'name', header: null, searchable: false },
 
-        // 4. SUSHI CREDENTIALS STRINGS (Implicitly text, start, editable, and searchable)
-        { name: 'customer_id',      label: 'Customer ID' },
-        { name: 'requestor_id',     label: 'Requestor ID' },
-        { name: 'api_key',          label: 'API Key' },
+        // 4. SUSHI CREDENTIALS STRINGS
+        { name: 'customer_id',  get label() { return t('fields.customer_id'); } },
+        { name: 'requestor_id', get label() { return t('fields.requestor_id'); } },
+        { name: 'api_key',      get label() { return t('fields.api_key'); } },
 
         // 5. INDIVIDUAL SUSHI HARVESTER REPORT TOGGLES
-        { name: 'PR',               label: 'PR Report',                 type: 'toggle',   header: 'center', searchable: false },
-        { name: 'DR',               label: 'DR Report',                 type: 'toggle',   header: 'center', searchable: false },
-        { name: 'TR',               label: 'TR Report',                 type: 'toggle',   header: 'center', searchable: false },
-        { name: 'IR',               label: 'IR Report',                 type: 'toggle',   header: 'center', searchable: false },
+        { name: 'PR',           get label() { return t('fields.pr_report'); },     type: 'toggle',   header: 'center', searchable: false },
+        { name: 'DR',           get label() { return t('fields.dr_report'); },     type: 'toggle',   header: 'center', searchable: false },
+        { name: 'TR',           get label() { return t('fields.tr_report'); },     type: 'toggle',   header: 'center', searchable: false },
+        { name: 'IR',           get label() { return t('fields.ir_report'); },     type: 'toggle',   header: 'center', searchable: false },
 
         // 6. HARVEST COMPLIANCE LOGS & FILTERS
-        { name: 'result',           label: 'Last Harvest',              type: 'date',                          editable: false },
-        { name: 'results',          label: 'Last Harvest',              type: 'mselect',  options: 'fromURL', optVal: 'result', optTxt: 'result', isFilter: true, filterCol: 'result', header: null, searchable: false },
+        { name: 'result',       get label() { return t('fields.last_harvest'); },  type: 'date',                          editable: false },
+        { name: 'results',      get label() { return t('fields.last_harvest'); },  type: 'mselect',  options: 'fromURL', optVal: 'result', optTxt: 'result', isFilter: true, filterCol: 'result', header: null, searchable: false },
       ],
 
-      required: ['institutions','platforms','customer_id', 'requestor_id', 'api_key'],
+      required: ['institutions', 'platforms', 'customer_id', 'requestor_id', 'api_key'],
       static: ['groups', 'statuses', 'results', 'inst_id', 'prov_id', 'local_id'],
       bulkOptions: ['Enable', 'Disable', 'Delete'],
       exportFields: ['inst_id', 'local_id', 'institution', 'prov_id', 'platform', 'customer_id', 'requestor_id', 'api_key'],
       sortby: 'platform',
     },
+
     audit: {
-      urlRoot: '/api/audit', title: '',
+      urlRoot: '/api/audit',
+      title: '',
       fields: [
         // 1. PRIMARY PLATFORM DEFINITION & RECONCILIATION MATRICES
-        { name: 'plat_name',    label: 'Platform',                                                    editable: false },
-        { name: 'plat_id',      label: 'Platform ID',               type: 'number',   header: null, editable: false, searchable: false },
-        { name: 'plat_valid',   label: 'Platform Valid',            type: 'toggle',   header: 'center', searchable: false },
-        { name: 'platforms',    label: 'Platform(s)',               type: 'mselect',  options: 'fromURL', optVal: 'id', optTxt: 'name', isFilter: true, filterCol: 'plat_id', header: null, searchable: false },
-        { name: 'json_item',    label: 'JSON Platform Item',                                          editable: false },
-        { name: 'json_host',    label: 'Data Host',                                                   editable: false },
+        { name: 'plat_name',    get label() { return t('fields.platform'); },                  editable: false },
+        { name: 'plat_id',      get label() { return t('fields.platform_id'); },               type: 'number',   header: null, editable: false, searchable: false },
+        { name: 'plat_valid',   get label() { return t('fields.platform_valid'); },            type: 'toggle',   header: 'center', searchable: false },
+        { name: 'platforms',    get label() { return t('fields.platforms'); },                 type: 'mselect',  options: 'fromURL', optVal: 'id', optTxt: 'name', isFilter: true, filterCol: 'plat_id', header: null, searchable: false },
+        { name: 'json_item',    get label() { return t('fields.json_platform_item'); },        editable: false },
+        { name: 'json_host',    get label() { return t('fields.data_host'); },                 editable: false },
 
         // 2. INSTITUTIONAL DEFINITION & RECONCILIATION MATRICES
-        { name: 'inst_name',    label: 'Institution',                                                 editable: false },
-        { name: 'inst_id',      label: 'Institution ID',            type: 'number',   header: null, editable: false, searchable: false },
-        { name: 'inst_valid',   label: 'Institution Valid',         type: 'toggle',   header: 'center', searchable: false },
-        { name: 'institutions', label: 'Institution(s)',            type: 'mselect',  options: 'fromURL', optVal: 'id', optTxt: 'name', isFilter: true, filterCol: 'inst_id', header: null, searchable: false },
-        { name: 'json_inst',    label: 'JSON Institution',                                            editable: false },
+        { name: 'inst_name',    get label() { return t('fields.institution'); },               editable: false },
+        { name: 'inst_id',      get label() { return t('fields.institution_id'); },            type: 'number',   header: null, editable: false, searchable: false },
+        { name: 'inst_valid',   get label() { return t('fields.institution_valid'); },         type: 'toggle',   header: 'center', searchable: false },
+        { name: 'institutions', get label() { return t('fields.institutions'); },              type: 'mselect',  options: 'fromURL', optVal: 'id', optTxt: 'name', isFilter: true, filterCol: 'inst_id', header: null, searchable: false },
+        { name: 'json_inst',    get label() { return t('fields.json_institution'); },          editable: false },
 
         // 3. GROUP ASSOCIATIONS
-        { name: 'group_ids',    label: 'Group IDs',                 type: 'array',    header: null, editable: false, searchable: false },
-        { name: 'groups',       label: 'Groups',                    type: 'mselect',  options: 'fromURL', optVal: 'id', optTxt: 'name', isFilter: true, filterCol: 'group_ids', header: null, searchable: false },
+        { name: 'group_ids',    get label() { return t('fields.group_ids'); },                 type: 'array',    header: null, editable: false, searchable: false },
+        { name: 'groups',       get label() { return t('fields.groups'); },                    type: 'mselect',  options: 'fromURL', optVal: 'id', optTxt: 'name', isFilter: true, filterCol: 'group_ids', header: null, searchable: false },
 
         // 4. COMPLEX DATA HARVEST VIEW FILTERS & METRICS
-        { name: 'valid_types',  label: 'Validation',                type: 'select',   options: 'fromURL', isFilter: true, filterCol: 'valid_state', header: null, searchable: false },
-        { name: 'conso_only',   label: 'Consortium Only',           type: 'toggle',   options: ['Inactive','Active'], isFilter: true, filterCol: 'is_conso', header: null, searchable: false },
-        { name: 'no_inst',      label: 'Hide No JSON Institution',  type: 'toggle',   options: ['Inactive','Active'], isFilter: true, filterCol: 'inst_set', header: null, searchable: false },
-        { name: 'no_plat',      label: 'Hide No JSON Platform',     type: 'toggle',   options: ['Inactive','Active'], isFilter: true, filterCol: 'plat_set', header: null, searchable: false },
-        { name: 'no_host',      label: 'Hide No JSON DataHost',     type: 'toggle',   options: ['Inactive','Active'], isFilter: true, filterCol: 'host_set', header: null, searchable: false },
+        { name: 'valid_types',  get label() { return t('fields.validation'); },                type: 'select',   options: 'fromURL', isFilter: true, filterCol: 'valid_state', header: null, searchable: false },
+        { name: 'conso_only',   get label() { return t('fields.consortium_only'); },           type: 'toggle',   options: ['Inactive', 'Active'], isFilter: true, filterCol: 'is_conso', header: null, searchable: false },
+        { name: 'no_inst',      get label() { return t('fields.hide_no_json_inst'); },         type: 'toggle',   options: ['Inactive', 'Active'], isFilter: true, filterCol: 'inst_set', header: null, searchable: false },
+        { name: 'no_plat',      get label() { return t('fields.hide_no_json_plat'); },         type: 'toggle',   options: ['Inactive', 'Active'], isFilter: true, filterCol: 'plat_set', header: null, searchable: false },
+        { name: 'no_host',      get label() { return t('fields.hide_no_json_host'); },         type: 'toggle',   options: ['Inactive', 'Active'], isFilter: true, filterCol: 'host_set', header: null, searchable: false },
       ],
 
       required: [],
       static: ['inst_id', 'plat_id', 'statuses', 'valid_types', 'group_ids'],
-      bulkOptions: ['Set Institution Validated', 'Set Platform Validated','Clear Validation'],
-      exportFields: ['plat_name','inst_name','json_host','json_item','json_inst'],
+      bulkOptions: ['Set Institution Validated', 'Set Platform Validated', 'Clear Validation'],
+      exportFields: ['plat_name', 'inst_name', 'json_host', 'json_item', 'json_inst'],
       sortby: 'platform',
     },
+
     jobs: {
-      urlRoot: '/api/jobs', title:'',
+      urlRoot: '/api/jobs',
+      title: '',
       fields: [
-        // 1. PRIMARY TIMESTAMPS & RECORD CODES (Implicitly text, start, and searchable)
-        { name: 'created',      label: 'Created',                  type: 'date',              editable: false },
-        { name: 'harvest_id',   label: 'Harvest ID',                                          editable: false },
-        { name: 'd_status',     label: 'Status',                                              editable: false },
+        // 1. PRIMARY TIMESTAMPS & RECORD CODES
+        { name: 'created',      get label() { return t('fields.created'); },                   type: 'date',     editable: false },
+        { name: 'harvest_id',   get label() { return t('fields.harvest_id'); },                editable: false },
+        { name: 'd_status',     get label() { return t('fields.status'); },                    editable: false },
 
         // 2. DESCRIPTIVE CORE LOG COLUMNS
-        { name: 'prov_name',    label: 'Platform',                  options: 'fromURL',       editable: false },
-        { name: 'inst_name',    label: 'Institution',               options: 'fromURL',       editable: false },
-        { name: 'report_name',  label: 'Report',                    options: 'fromURL',       editable: false },
-        { name: 'yearmon',      label: 'Usage Date',                options: 'fromURL',       editable: false },
+        { name: 'prov_name',    get label() { return t('fields.platform'); },                  options: 'fromURL', editable: false },
+        { name: 'inst_name',    get label() { return t('fields.institution'); },               options: 'fromURL', editable: false },
+        { name: 'report_name',  get label() { return t('fields.report'); },                    options: 'fromURL', editable: false },
+        { name: 'yearmon',      get label() { return t('fields.usage_date'); },                options: 'fromURL', editable: false },
 
         // 3. BACKGROUND METADATA STRINGS
-        { name: 'rawfile',      label: 'Raw Datafile',                                        header: null, editable: false },
-        { name: 'retryUrl',     label: 'Retry URL',                                           header: null, editable: false },
+        { name: 'rawfile',      get label() { return t('fields.raw_datafile'); },              header: null, editable: false },
+        { name: 'retryUrl',     get label() { return t('fields.retry_url'); },                 header: null, editable: false },
 
-        // 4. COMPLEX HARVEST GRAPH DATA FILTERS (Grouped by tracking target mappings)
-        { name: 'platforms',    label: 'Platform(s)',               type: 'mselect',  options: 'fromURL', optVal: 'id', optTxt: 'name', isFilter: true, filterCol: 'prov_id', header: null, searchable: false },
-        { name: 'institutions', label: 'Institution(s)',            type: 'mselect',  options: 'fromURL', optVal: 'id', optTxt: 'name', isFilter: true, filterCol: 'inst_id', header: null, searchable: false },
-        { name: 'reports',      label: 'Report(s)',                 type: 'mselect',  options: 'fromURL', optVal: 'id', optTxt: 'name', isFilter: true, filterCol: 'report_id', header: null, searchable: false },
-        { name: 'codes',        label: 'Error Code(s)',             type: 'mselect',  options: 'fromURL', optVal: 'id', optTxt: 'name', isFilter: true, filterCol: 'error_id', header: null, searchable: false },
-        { name: 'statuses',     label: 'Status(es)',                type: 'mselect',  options: 'fromURL', optVal: 'value', optTxt: 'text', isFilter: true, filterCol: 'status', header: null, searchable: false },
+        // 4. COMPLEX HARVEST GRAPH DATA FILTERS
+        { name: 'platforms',    get label() { return t('fields.platforms'); },                 type: 'mselect',  options: 'fromURL', optVal: 'id', optTxt: 'name', isFilter: true, filterCol: 'prov_id', header: null, searchable: false },
+        { name: 'institutions', get label() { return t('fields.institutions'); },              type: 'mselect',  options: 'fromURL', optVal: 'id', optTxt: 'name', isFilter: true, filterCol: 'inst_id', header: null, searchable: false },
+        { name: 'reports',      get label() { return t('fields.reports'); },                   type: 'mselect',  options: 'fromURL', optVal: 'id', optTxt: 'name', isFilter: true, filterCol: 'report_id', header: null, searchable: false },
+        { name: 'codes',        get label() { return t('fields.error_codes'); },               type: 'mselect',  options: 'fromURL', optVal: 'id', optTxt: 'name', isFilter: true, filterCol: 'error_id', header: null, searchable: false },
+        { name: 'statuses',     get label() { return t('fields.statuses'); },                  type: 'mselect',  options: 'fromURL', optVal: 'value', optTxt: 'text', isFilter: true, filterCol: 'status', header: null, searchable: false },
       ],
 
       required: [],
-      static: ['id','rawfile','retryUrl'],
+      static: ['id', 'rawfile', 'retryUrl'],
       bulkOptions: ['Pause', 'Restart', 'Kill'],
       exportFields: [],
       sortby: 'created',
     },
+
     harvests: {
-      urlRoot: '/api/harvests', title:'',
+      urlRoot: '/api/harvests',
+      title: '',
       fields: [
         // 1. PRIMARY TIMESTAMPS & DESCRIPTIVE CORE LOG COLUMNS
-        { name: 'updated',     label: 'Result Date',                                         editable: false },
-        { name: 'prov_name',   label: 'Platform',                                            editable: false },
-        { name: 'release',     label: 'Release',                                             header: 'center', editable: false },
-        { name: 'inst_name',   label: 'Institution',                                         editable: false },
-        { name: 'report_name', label: 'Report',                                              header: 'center', editable: false },
-        { name: 'yearmon',     label: 'Usage Date',                                          header: 'end', editable: false },
-        { name: 'harvest_id',  label: 'Harvest ID',                                          header: 'end', editable: false },
-        { name: 'error',       label: 'Result',                                              editable: false },
-        { name: 'statusDot',   label: 'Status',                                              header: 'center', editable: false, searchable: false },
+        { name: 'updated',     get label() { return t('fields.result_date'); },          editable: false },
+        { name: 'prov_name',   get label() { return t('fields.platform'); },             editable: false },
+        { name: 'release',     get label() { return t('fields.release'); },              header: 'center', editable: false },
+        { name: 'inst_name',   get label() { return t('fields.institution'); },          editable: false },
+        { name: 'report_name', get label() { return t('fields.report'); },               header: 'center', editable: false },
+        { name: 'yearmon',     get label() { return t('fields.usage_date'); },           header: 'end', editable: false },
+        { name: 'harvest_id',  get label() { return t('fields.harvest_id'); },           header: 'end', editable: false },
+        { name: 'error',       get label() { return t('fields.result'); },               editable: false },
+        { name: 'statusDot',   get label() { return t('fields.status'); },               header: 'center', editable: false, searchable: false },
 
         // 2. BACKGROUND METADATA STRINGS
-        { name: 'rawfile',     label: 'Raw Datafile',                                        header: null, editable: false },
-        { name: 'retryUrl',    label: 'Retry URL',                                           header: null, editable: false },
+        { name: 'rawfile',     get label() { return t('fields.raw_datafile'); },         header: null, editable: false },
+        { name: 'retryUrl',    get label() { return t('fields.retry_url'); },            header: null, editable: false },
 
-        // 3. COMPLEX HARVEST FILTER VIEWS (Grouped by tracking target mappings)
-        { name: 'platforms',    label: 'Platform(s)',               type: 'mselect',  options: 'fromURL', optVal: 'id', optTxt: 'name', isFilter: true, filterCol: 'prov_id', header: null, searchable: false },
-        { name: 'institutions', label: 'Institution(s)',            type: 'mselect',  options: 'fromURL', optVal: 'id', optTxt: 'name', isFilter: true, filterCol: 'inst_id', header: null, searchable: false },
-        { name: 'groups',       label: 'Institution Group(s)',       type: 'mselect',  options: 'fromURL', optVal: 'id', optTxt: 'name', isFilter: true, filterCol: 'inst_id', header: null, searchable: false },
-        { name: 'reports',      label: 'Report(s)',                 type: 'mselect',  options: 'fromURL', optVal: 'id', optTxt: 'name', isFilter: true, filterCol: 'report_id', header: null, searchable: false },
-        { name: 'updates',      label: 'Updated',                   type: 'mselect',  options: 'fromURL', optVal: 'id', optTxt: 'name', isFilter: true, filterCol: 'timeframes', header: null, searchable: false },
-        { name: 'yymms',        label: 'Usage Date(s)',             type: 'mselect',  options: 'fromURL', optVal: 'id', optTxt: 'name', isFilter: true, filterCol: 'yearmon', header: null, searchable: false },
-        { name: 'codes',        label: 'Error Code(s)',             type: 'mselect',  options: 'fromURL', optVal: 'id', optTxt: 'name', isFilter: true, filterCol: 'error_id', header: null, searchable: false },
-        { name: 'statuses',     label: 'Status(es)',                type: 'mselect',  options: 'fromURL', optVal: 'id', optTxt: 'name', isFilter: true, filterCol: 'd_status', header: null, searchable: false },
+        // 3. COMPLEX HARVEST FILTER VIEWS
+        { name: 'platforms',    get label() { return t('fields.platforms'); },           type: 'mselect',  options: 'fromURL', optVal: 'id', optTxt: 'name', isFilter: true, filterCol: 'prov_id', header: null, searchable: false },
+        { name: 'institutions', get label() { return t('fields.institutions'); },        type: 'mselect',  options: 'fromURL', optVal: 'id', optTxt: 'name', isFilter: true, filterCol: 'inst_id', header: null, searchable: false },
+        { name: 'groups',       get label() { return t('fields.institution_groups'); },  type: 'mselect',  options: 'fromURL', optVal: 'id', optTxt: 'name', isFilter: true, filterCol: 'inst_id', header: null, searchable: false },
+        { name: 'reports',      get label() { return t('fields.reports'); },             type: 'mselect',  options: 'fromURL', optVal: 'id', optTxt: 'name', isFilter: true, filterCol: 'report_id', header: null, searchable: false },
+        { name: 'updates',      get label() { return t('fields.updated'); },             type: 'mselect',  options: 'fromURL', optVal: 'id', optTxt: 'name', isFilter: true, filterCol: 'timeframes', header: null, searchable: false },
+        { name: 'yymms',        get label() { return t('fields.usage_dates'); },         type: 'mselect',  options: 'fromURL', optVal: 'id', optTxt: 'name', isFilter: true, filterCol: 'yearmon', header: null, searchable: false },
+        { name: 'codes',        get label() { return t('fields.error_codes'); },         type: 'mselect',  options: 'fromURL', optVal: 'id', optTxt: 'name', isFilter: true, filterCol: 'error_id', header: null, searchable: false },
+        { name: 'statuses',     get label() { return t('fields.statuses'); },            type: 'mselect',  options: 'fromURL', optVal: 'id', optTxt: 'name', isFilter: true, filterCol: 'd_status', header: null, searchable: false },
       ],
 
       required: [],
-      static: ['id','rawfile','retryUrl'],
+      static: ['id', 'rawfile', 'retryUrl'],
       bulkOptions: ['Restart', 'Restart as r5', 'Restart as r5.1', 'Delete'],
       exportFields: [],
       sortby: 'updated',
     },
+
     savedreports: {
-      urlRoot: '/api/savedreports', title: 'Saved Report',
+      urlRoot: '/api/savedreports',
+      get title() { return t('datasets.savedreports.title'); },
       fields: [
         // 1. PRIMARY REPORT REGISTRY CLONES & LABELS
-        { name: 'id',            label: 'ID',                     type: 'number',   header: null, editable: false, searchable: false },
-        { name: 'title',         label: 'Report Title' },
-        { name: 'report_name',   label: 'Report',                                   options: 'fromURL', editable: false },
-        { name: 'last_harvest',  label: 'Last Run Date',          type: 'date',     editable: false },
+        { name: 'id',            get label() { return t('fields.id'); },            type: 'number', header: null, editable: false, searchable: false },
+        { name: 'title',         get label() { return t('fields.report_title'); } },
+        { name: 'report_name',   get label() { return t('fields.report'); },                      options: 'fromURL', editable: false },
+        { name: 'last_harvest',  get label() { return t('fields.last_run_date'); }, type: 'date',   editable: false },
 
-        // 2. CONFIGURATION SELECTION PARAMETERS (Custom array blocks clustered together)
-        { name: 'date_range',    label: 'Date Range',             type: 'select',   options: [ { title: 'Fiscal YTD', value: 'fYTD' }, { title: 'Prior FY', value: 'priorFy' }, { title: 'Calendar YTD', value: 'cYTD' }, { title: 'Custom', value: 'Custom' } ], isFilter: true },
-        { name: 'format',        label: 'Format',                 type: 'select',   options: ['Compact', 'COUNTER'], isFilter: true },
-        { name: 'exclude_zeros', label: 'Include Zeros',          type: 'select',   options: ['true', 'false'] },
+        // 2. CONFIGURATION SELECTION PARAMETERS
+        {
+          name: 'date_range',
+          get label() { return t('fields.date_range'); },
+          type: 'select',
+          get options() {
+            return [
+              { title: t('options.date_range.fYTD'), value: 'fYTD' },
+              { title: t('options.date_range.priorFy'), value: 'priorFy' },
+              { title: t('options.date_range.cYTD'), value: 'cYTD' },
+              { title: t('options.date_range.Custom'), value: 'Custom' },
+            ];
+          },
+          isFilter: true,
+        },
+        { name: 'format',        get label() { return t('fields.format'); },        type: 'select', options: ['Compact', 'COUNTER'], isFilter: true },
+        { name: 'exclude_zeros', get label() { return t('fields.include_zeros'); }, type: 'select', options: ['true', 'false'] },
       ],
 
       required: [],
@@ -392,120 +518,32 @@ const rawTableSetup = {
       exportFields: [],
       sortby: 'title',
     },
-    consortia: {
-      urlRoot: '/api/consortia', 
-      title: 'Consortium', 
-      dataset: 'consortia',
 
-      // 💡 KEPT STANDARD: Matches 'required' like every other array in your config!
-      required: [
-        'name', 
-        'ccp_key', 
-        'email', 
-        'admin_user', 
-        'admin_pass', 
-        'admin_confirm_pass'
-      ],
-
-      fields: [
-        { name: 'status',      label: 'Status',         options: 'fromURL', header: 'center', searchable: false },
-        { name: 'name',        label: 'Consortium Name', cols: 9 },
-        { name: 'ccp_key',     label: 'Database Key', cols: 3 },
-        { name: 'admin_name',  label: 'Admin Contact' },
-        { name: 'email',       label: 'Email Address' }, // Aligned to your controller rule
-
-        // Form-only visibility fields required by your backend controller
-        { name: 'admin_user',         label: 'Admin Username/Email', type: 'text',     header: null },
-        { name: 'admin_pass',         label: 'Admin Password',       type: 'password', header: null },
-        { name: 'admin_confirm_pass', label: 'Confirm Password',     type: 'passconf', header: null },
-
-        { name: 'displayName', label: 'Display Name',   header: null },
-        { name: 'firstName',   label: 'First Name',     header: null },
-        { name: 'lastName',    label: 'Last Name',      header: null },
-      ],
-      static: [],
-      bulkOptions: ['Set Active', 'Set Inactive', 'Delete'], 
-      sortby: 'name',
-    },
-
-    platforms: {
-      urlRoot: '/api/platforms', title: 'Platform',
-      fields: [
-        // 1. PRIMARY SYSTEM CODES & TOGGLES
-        { name: 'id',              label: 'ID',                         type: 'number',   header: null, editable: false, searchable: false },
-        { name: 'status',          label: 'Status',                     type: 'toggle',   options: '', addValue: 'Active', header: 'center', searchable: false },
-        { name: 'is_selected',     label: 'Status',                     type: 'toggle',   options: '', header: null, searchable: false },
-
-        // 2. CORE VIEWABLE LOG DESCRIPTORS (Implicitly text and searchable)
-        { name: 'name',            label: 'Platform Name' , cols: 8  },
-        { name: 'abbrev',          label: 'Abbreviation',                                 header: 'center' , cols: 4 },
-        { name: 'cur_release',     label: 'Release',                                      header: 'center' },
-        { name: 'data_host',       label: 'Data Host' },
-        { name: 'day_of_month',    label: 'Harvest Day',                type: 'number',   header: 'center' },
-        { name: 'instance_count',  label: 'Connected Instances',                          header: 'center' , editable: false },
-        { name: 'updated',         label: 'Last Updated',               type: 'date',     editable: false },
-
-        // 3. DIALOG DATA ARRAYS & CONFIGURATION REPOSITORIES
-        { name: 'reg_releases',    label: 'COUNTER Releases',           type: 'array',    header: null },
-        { name: 'connector_state', label: 'Connection Fields',          type: 'array',    header: null },
-        { name: 'report_state',    label: 'Supported Reports',          type: 'array',    header: null },
-        { name: 'service_url',     label: 'Service URL',                                  header: null },
-        { name: 'platform_parm',   label: 'Platform Parameter',                           header: null },
-        { name: 'registry_id',     label: 'Registry ID',                                  header: null, searchable: false },
-        { name: 'refreshable',     label: 'Refreshable',                type: 'toggle',   addValue: 'Inactive', header: null, searchable: false },
-
-        // 4. SUSHI CREDENTIAL PATHING OVERLAY STRINGS
-        { name: 'customer_id',     label: 'Customer ID',                                  header: null, searchable: false },
-        { name: 'requestor_id',    label: 'Requestor ID',                                 header: null, searchable: false },
-        { name: 'api_key',         label: 'API Key',                                      header: null, searchable: false },
-
-        // 5. TRANSIENT DIAGNOSTIC LOGS & REFRESH STATUS METADATA
-        { name: 'refresh_result',  label: 'Refresh Result',                               header: null, editable: false },
-        { name: 'refresh_text',    label: 'Refresh Result Tooltip',                       header: null, editable: false },
-        { name: 'refresh_icon',    label: 'Refresh Result Icon',                          header: null, editable: false },
-        { name: 'refresh_color',   label: 'Refresh ResultColor',                          header: null, editable: false },
-
-        // 6. SHARED TABLE FILTER MULTI-SELECT MAPPINGS
-        { name: 'releases',        label: 'COUNTER Releases',           type: 'mselect',  options: 'fromURL', isFilter: true, filterCol: 'reg_releases', header: null },
-        { name: 'results',         label: 'Filter Refresh Result',      type: 'mselect',  options: 'fromURL', optVal: 'id', optTxt: 'value', isFilter: true, filterCol: 'refresh_result', header: null },
-        { name: 'statuses',        label: 'Filter Status',              type: 'mselect',  options: 'fromURL', isFilter: true, filterCol: 'status', header: null },
-      ],
-
-      required: ['name', 'status', 'abbrev', 'cur_release', 'service_url', 'connector_state', 'report_state', 'platform_parm',
-                 'day_of_month', 'refreshable', 'registry_id'],
-      static: ['id','instance_count','updated','PR','DR','TR','IR','is_selected','reg_releases','customer_id',
-               'requestor_id','api_key','connector_state','report_state','data_host','refresh_result','refresh_text',
-               'refresh_icon','refresh_color'],
-      bulkOptions: ['Set Active', 'Set Inactive', 'Refresh Registry', 'Delete'],
-      // These are set by GlobalProviderController export() method
-      exportFields: ['registry_id','name','release','status','service_url','refreshable','day_of_month','PR','DR','TR','IR',
-                     'customer_id','requestor_id','api_key','platform_parm'],
-      sortby: 'name',
-    }
 };
+
 // ─────────────────────────────────────────────────────────────────────────
 // STEP 4: THE AUTOMATED LOOPER
 // ─────────────────────────────────────────────────────────────────────────
-// This single loop processes all tables at build time and exports the complete map.
-// Your other components can still import { tableSetup } with zero syntax changes!
 export const tableSetup = Object.keys(rawTableSetup).reduce((acc, datasetKey) => {
   const dataset = rawTableSetup[datasetKey];
-  
-  const mergedFields = dataset.fields.map(field => ({
-    ...FIELD_DEFAULTS,
-    ...field
-  }));
+
+  const mergedFields = dataset.fields.map((field) => {
+    const merged = { ...FIELD_DEFAULTS };
+    Object.defineProperties(merged, Object.getOwnPropertyDescriptors(field));
+    return merged;
+  });
 
   // Auto-derive `static` if omitted so DatasetViewer.vue never crashes
   const derivedStatic = dataset.static ?? mergedFields
-    .filter(f => f.editable === false || f.visible === false)
-    .map(f => f.name);
+    .filter((f) => f.editable === false || f.visible === false)
+    .map((f) => f.name);
 
-  acc[datasetKey] = {
-    ...dataset,
-    fields: mergedFields,
-    static: derivedStatic
-  };
-  
+  const mergedDataset = {};
+  Object.defineProperties(mergedDataset, Object.getOwnPropertyDescriptors(dataset));
+  mergedDataset.fields = mergedFields;
+  mergedDataset.static = derivedStatic;
+
+  acc[datasetKey] = mergedDataset;
+
   return acc;
 }, {});

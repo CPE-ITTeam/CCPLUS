@@ -1,3 +1,4 @@
+
 <?php
 
 return [
@@ -6,13 +7,18 @@ return [
     |--------------------------------------------------------------------------
     | Authentication Language Lines
     |--------------------------------------------------------------------------
+    |
+    | The following language lines are used during authentication for various
+    | messages that we need to display to the user. You are free to modify
+    | these language lines according to your application's requirements.
+    |
     */
 
-    'failed'            => 'Antamasi tunnistetiedot eivät täsmää tietoihimme.',
-    'password'          => 'Annettu salasana on virheellinen.',
-    'throttle'          => 'Liian monta kirjautumisyritystä. Yritä uudelleen :seconds sekunnin kuluttua.',
-    'authenticated'     => 'Käyttäjä tunnistettu onnistuneesti.',
-    'not_authorized'    => 'Virhe – Ei käyttöoikeutta.',
-    'token_create_fail' => 'Käyttöavaimen luonti epäonnistui: :error',
+    'failed'            => 'These credentials do not match our records.',
+    'password'          => 'The provided password is incorrect.',
+    'throttle'          => 'Too many login attempts. Please try again in :seconds seconds.',
+    'authenticated'     => 'User successfully authenticated.',
+    'not_authorized'    => 'Error - Not authorized.',
+    'token_create_fail' => 'Create access token failed: :error',
 
 ];

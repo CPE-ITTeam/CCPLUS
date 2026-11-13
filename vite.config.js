@@ -10,9 +10,10 @@ export default defineConfig({
     server: {
         host: '0.0.0.0', // Listens on all local network interfaces
         port: 5173,
+        cors: true, // Allows Laravel on your LAN IP/domain to load Vite modules
         hmr: {
-            host: '192.168.0.202' // Forces Vite to use your real computer IP for assets
-        }
+            host: '192.168.0.202', // Forces Vite to use your real computer IP for assets
+        },
     },
 
     // ─── ADD THIS SPECIFIC BLOCK FOR THE SANDBOX OPTIMIZATION ───

@@ -3,6 +3,14 @@ import "vuetify/dist/vuetify-labs.css";
 import "@mdi/font/css/materialdesignicons.css";
 import { createVuetify } from "vuetify";
 
+import { createVueI18nAdapter } from "vuetify/locale/adapters/vue-i18n";
+import { useI18n } from "vue-i18n";
+import { en as vuetifyEn, fi as vuetifyFi } from "vuetify/locale";
+import i18n from "./i18n";
+
+i18n.global.mergeLocaleMessage("en", { $vuetify: vuetifyEn });
+i18n.global.mergeLocaleMessage("fi", { $vuetify: vuetifyFi });
+
 // ─── REUSABLE INPUT CONFIGURATION GROUP ───
 const sharedInputDefaults = {
   hideDetails: "auto", // Hides bottom spacing unless an active error shows
@@ -13,6 +21,9 @@ const sharedInputDefaults = {
 };
 
 export default createVuetify({
+  locale: {
+    adapter: createVueI18nAdapter({ i18n, useI18n }),
+  },
   // ─── NATIVE FRAMEWORK GLOBAL OVERRIDES ───
   defaults: {
     // ─── SHARED INPUT DEFAULTS SELECTION GROUP ───

@@ -38,6 +38,7 @@ return Application::configure(basePath: dirname(__DIR__))
             StartSession::class,
         ]);
         $middleware->appendToGroup('web', [
+            SetLocale::class,
             \Illuminate\Http\Middleware\AddLinkHeadersForPreloadedAssets::class,
         ]);
 
