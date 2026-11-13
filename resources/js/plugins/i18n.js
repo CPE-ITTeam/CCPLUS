@@ -1,16 +1,18 @@
-// resources/js/plugins/i18n.js
 import { createI18n } from 'vue-i18n';
 import en from '@/locales/en.js';
 import fi from '@/locales/fi.js';
+import es from '@/locales/es.js';
+import fr from '@/locales/fr.js';
+import de from '@/locales/de.js';
+import hu from '@/locales/hu.js';
 
-const supportedLocales = ['en', 'fi'];
+const supportedLocales = ['en', 'fi', 'es', 'fr', 'de', 'hu'];
 
 function detectLocale() {
   const saved = localStorage.getItem('ccplus_locale');
   if (saved && supportedLocales.includes(saved)) {
     return saved;
   }
-  // Always default to English unless the user explicitly selected another locale
   return 'en';
 }
 
@@ -21,6 +23,10 @@ const i18n = createI18n({
   messages: {
     en,
     fi,
+    es,
+    fr,
+    de,
+    hu,
   },
 });
 

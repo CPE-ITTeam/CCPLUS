@@ -5,11 +5,23 @@ import { createVuetify } from "vuetify";
 
 import { createVueI18nAdapter } from "vuetify/locale/adapters/vue-i18n";
 import { useI18n } from "vue-i18n";
-import { en as vuetifyEn, fi as vuetifyFi } from "vuetify/locale";
+import {
+  en as vuetifyEn,
+  fi as vuetifyFi,
+  es as vuetifyEs,
+  fr as vuetifyFr,
+  de as vuetifyDe,
+  hu as vuetifyHu,
+} from "vuetify/locale";
 import i18n from "./i18n";
 
 i18n.global.mergeLocaleMessage("en", { $vuetify: vuetifyEn });
 i18n.global.mergeLocaleMessage("fi", { $vuetify: vuetifyFi });
+i18n.global.mergeLocaleMessage("es", { $vuetify: vuetifyEs });
+i18n.global.mergeLocaleMessage("fr", { $vuetify: vuetifyFr });
+i18n.global.mergeLocaleMessage("de", { $vuetify: vuetifyDe });
+i18n.global.mergeLocaleMessage("hu", { $vuetify: vuetifyHu });
+
 
 // ─── REUSABLE INPUT CONFIGURATION GROUP ───
 const sharedInputDefaults = {
