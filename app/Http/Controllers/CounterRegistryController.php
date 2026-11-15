@@ -139,11 +139,11 @@ class CounterRegistryController extends BaseController
         $gpCount = count($global_providers);
         $ids_to_update = $global_providers->pluck('registry_id')->toArray();
 
-        if ($gpCount === 1) {
+          if ($gpCount == 1) {
             $_gp = $global_providers->first();
-            $_url = 'https://countermetrics.org' . $_gp->registry_id . '/?format=json';
+            $_url = "https://registry.countermetrics.org/api/v1/platform/" . $_gp->registry_id . "/?format=json";
         } else {
-            $_url = 'https://countermetrics.org?format=json';
+            $_url = "https://registry.countermetrics.org/api/v1/platform/?format=json";
         }
 
         $json = $this->requestURI($_url);
