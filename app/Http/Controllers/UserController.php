@@ -222,7 +222,7 @@ class UserController extends BaseController
         }
 
         $fields = [];
-        if (isset($request->password)) {
+        if (!empty($request->password)) {
             $fields['password'] = 'same:confirm_pass';
         }
         if (isset($request->email) && $request->email !== 'Administrator') {
@@ -247,35 +247,62 @@ class UserController extends BaseController
         }
 
         if (isset($input['fiscalYr'])) {
-            $months = [
-                'January',
-                'February',
-                'March',
-                'April',
-                'May',
-                'June',
-                'July',
-                'August',
-                'September',
-                'October',
-                'November',
-                'December',
-            ];
-            if (!in_array($input['fiscalYr'], $months, true) || $input['fiscalYr'] === config('ccplus.fiscalYr')) {
+            if (is_numeric($input['fiscalYr']) && $input['fiscalYr'] >= 1 && $input['fiscalYr'] <= 12) {
+                $input['fiscalYr'] = \Carbon\Carbon::create(null, (int) $input['fiscalYr'], 1)->format('F');
+            }
+            $parsed = date_parse($input['fiscalYr']);
+            if ($parsed['error_count'] > 0 || empty($parsed['month']) || $input['fiscalYr'] === config('ccplus.fiscalYr')) {
                 $input['fiscalYr'] = null;
             }
         }
 
         $all_roles = Role::orderBy('id', 'ASC')->get(['name', 'id']);
+
+        // Normalize incoming roles from either 'roles' array or DatasetViewer's 'uroles' field
+        $new_roles = null;
         if (isset($input['roles'])) {
             $new_roles = $input['roles'];
+        } elseif (!empty($input['uroles']) && $input['uroles'] !== 'None') {
+            $rawRoles = is_array($input['uroles']) ? $input['uroles'] : [$input['uroles']];
+            $new_roles = [];
+            foreach ($rawRoles as $rawRole) {
+                $matched = null;
+                $roleInstId = $targetInstId;
+
+                if (is_numeric($rawRole)) {
+                    $matched = $all_roles->firstWhere('id', (int) $rawRole);
+                } elseif (is_string($rawRole)) {
+                    $clean = trim($rawRole);
+                    if ($clean === 'Consortium Admin') {
+                        $matched = $all_roles->firstWhere('name', 'Admin');
+                        $roleInstId = 1;
+                    } else {
+                        $matched = $all_roles->firstWhere('name', $clean);
+                    }
+                } elseif (is_array($rawRole)) {
+                    $new_roles[] = $rawRole;
+                    continue;
+                }
+
+                if ($matched) {
+                    $new_roles[] = [
+                        'role_id' => $matched->id,
+                        'name'    => $matched->name,
+                        'inst_id' => $roleInstId,
+                    ];
+                }
+            }
+        }
+
+        if ($new_roles !== null) {
             $current_user_roles = UserRole::where('user_id', $user->id)->get();
 
             $skipped_insts = [];
             foreach ($new_roles as $r_new) {
-                $roleId = $r_new['role_id'] ?? $r_new['id'] ?? null;
-                $roleInstId = $r_new['inst_id'] ?? $user->inst_id;
-                $roleName = $r_new['name'] ?? $all_roles->where('id', $roleId)->value('name');
+                $roleId = $r_new['role_id'] ?? $r_new['id'] ?? $r_new['role']['id'] ?? null;
+                $roleInstId = $r_new['inst_id'] ?? $targetInstId;
+                $roleGroupId = $r_new['group_id'] ?? null;
+                $roleName = $r_new['name'] ?? $r_new['role']['name'] ?? $all_roles->where('id', $roleId)->value('name');
 
                 if (!$roleId || !$roleName) {
                     continue;
@@ -287,23 +314,25 @@ class UserController extends BaseController
                 }
                 if (!$user->hasRole($roleName, $roleInstId)) {
                     UserRole::create([
-                        'user_id' => $user->id,
-                        'inst_id' => $roleInstId,
-                        'role_id' => $roleId,
+                        'user_id'  => $user->id,
+                        'inst_id'  => $roleInstId,
+                        'group_id' => $roleGroupId,
+                        'role_id'  => $roleId,
                     ]);
                 }
             }
             foreach ($current_user_roles as $role) {
                 $stillPresent = collect($new_roles)->first(function ($r) use ($role) {
-                    $rId = $r['role_id'] ?? $r['id'] ?? null;
-                    return ($rId == $role->role_id && ($r['inst_id'] ?? null) == $role->inst_id);
+                    $rId = $r['role_id'] ?? $r['id'] ?? $r['role']['id'] ?? null;
+                    return ($rId == $role->role_id && ($r['inst_id'] ?? null) == $role->inst_id && ($r['group_id'] ?? null) == $role->group_id);
                 });
                 if (!$stillPresent && !in_array($role->inst_id, $skipped_insts)) {
                     UserRole::where('id', $role->id)->delete();
                 }
             }
-            $input = Arr::except($input, ['roles']);
+            $input = Arr::except($input, ['roles', 'uroles', 'inst_roles', 'group_roles']);
         }
+
         $user->update($input);
         $user->load(['institution:id,name', 'roles']);
         $inst_roles = [];
@@ -322,12 +351,14 @@ class UserController extends BaseController
         $updated_user['inst_name'] = $user->institution->name;
         $updated_user['fiscalYr'] = $user->fiscalYr ?: config('ccplus.fiscalYr');
         $updated_user['user_role'] = $user->fullRoleName();
+        $updated_user['uroles'] = $user->fullRoleName();
         $updated_user['inst_roles'] = $inst_roles;
         $updated_user['group_roles'] = $group_roles;
         $updated_user['can_edit'] = $user->canManage();
         $updated_user['can_delete'] = $user->canManage();
         return $this->respondSuccess(__('users.updated'), $updated_user);
     }
+
     /**
      * Enforce authorization and self-deletion guards before BaseController deletes the user.
      */

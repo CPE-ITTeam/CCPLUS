@@ -222,4 +222,52 @@ class ConsortiumController extends BaseController
             'msg'        => __('users.conso_updated', ['name' => $consortium->name]),
         ]);
     }
+
+    /**
+     * Return the active tenant's Consortium record for Consortium Admins.
+     */
+    public function current(Request $request)
+    {
+        if (!auth()->user() || !auth()->user()->isConsoAdmin()) {
+            return $this->respondError(__('users.update_forbidden'), 403);
+        }
+
+        $ccpKey = $request->header('X-Tenant') ?: session('ccp_key');
+        $consortium = Consortium::where('ccp_key', $ccpKey)->firstOrFail();
+
+        return response()->json([
+            'result'     => true,
+            'consortium' => $consortium,
+        ], 200);
+    }
+
+    /**
+     * Update the active tenant's Consortium name and email (Consortium Admin only).
+     */
+    public function updateCurrent(Request $request)
+    {
+        if (!auth()->user() || !auth()->user()->isConsoAdmin()) {
+            return $this->respondError(__('users.update_forbidden'), 403);
+        }
+
+        $this->validate($request, [
+            'name'  => 'required|string|max:255',
+            'email' => 'required|email|max:255',
+        ]);
+
+        $ccpKey = $request->header('X-Tenant') ?: session('ccp_key');
+        $consortium = Consortium::where('ccp_key', $ccpKey)->firstOrFail();
+
+        $consortium->name = $request->input('name');
+        $consortium->email = $request->input('email');
+        $consortium->save();
+
+        return response()->json([
+            'result'     => true,
+            'consortium' => $consortium,
+            'msg'        => __('users.conso_updated', ['name' => $consortium->name]),
+        ], 200);
+    }
+
+
 }

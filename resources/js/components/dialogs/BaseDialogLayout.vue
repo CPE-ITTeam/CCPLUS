@@ -11,7 +11,7 @@
       <template #append>
         <v-btn
           icon="mdi-close"
-          aria-label="Close dialog"
+          :aria-label="$t('dialogs.close_dialog_aria')"
           @click="$emit('close')"
         />
       </template>

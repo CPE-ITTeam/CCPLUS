@@ -11,49 +11,68 @@ defineEmits(['close', 'confirm']);
 </script>
 
 <template>
-  <!-- Keep your custom form submit and card-specific style overrides on the layout if needed -->
-  <BaseDialogLayout 
+  <BaseDialogLayout
     content-class="pt-6 pb-2 text-center text-sm-left"
-    elevation="3" 
+    elevation="3"
     style="--v-shadow-color: var(--v-theme-info);"
     @close="$emit('close')"
   >
     <!-- Header Title Slot -->
     <template #title>
-      Confirm Delete
+      {{ $t('dialogs.confirm_delete') }}
     </template>
 
-    <!-- Content Slot (Wrapped in form for native submission) -->
+    <!-- Content Slot -->
     <v-form @submit.prevent="$emit('confirm')">
-      <div v-if="props.dataset === 'connections'" class="text-subtitle-1 mb-4">
-        You are about to delete <strong class="text-error text-uppercase">all connections</strong> to <strong>{{ item.platform }}</strong>
-      </div>
-      <div v-else class="text-subtitle-1 mb-4">
-        You are about to delete <strong>{{ item.name }}</strong> from <strong>{{ props.dataset }}</strong>
-      </div>
+      <i18n-t
+        v-if="props.dataset === 'connections'"
+        keypath="dialogs.delete_connections_warning"
+        tag="div"
+        class="text-subtitle-1 mb-4"
+      >
+        <template #target>
+          <strong class="text-error text-uppercase">{{ $t('dialogs.all_connections') }}</strong>
+        </template>
+        <template #platform>
+          <strong>{{ item.platform }}</strong>
+        </template>
+      </i18n-t>
 
-      <h3 class="text-h6 font-weight-bold mb-4">Are you sure?</h3>
-      
-      <!-- Hidden submit button so hitting 'Enter' inside the form still triggers submit -->
+      <i18n-t
+        v-else
+        keypath="dialogs.delete_item_warning"
+        tag="div"
+        class="text-subtitle-1 mb-4"
+      >
+        <template #item>
+          <strong>{{ item.name }}</strong>
+        </template>
+        <template #dataset>
+          <strong>{{ props.dataset }}</strong>
+        </template>
+      </i18n-t>
+
+      <h3 class="text-h6 font-weight-bold mb-4">{{ $t('dialogs.are_you_sure_short') }}</h3>
+
       <button type="submit" class="d-none" aria-hidden="true"></button>
     </v-form>
 
     <!-- Footer Actions Slot -->
     <template #actions>
       <div class="px-4 pb-4 w-100 d-flex justify-start">
-        <v-btn 
-          color="error" 
+        <v-btn
+          color="error"
           variant="flat"
           @click="$emit('confirm')"
         >
-          Yes, Delete it
+          {{ $t('dialogs.yes_delete_it') }}
         </v-btn>
-        <v-btn 
-          variant="text" 
-          class="ml-2" 
+        <v-btn
+          variant="text"
+          class="ml-2"
           @click="$emit('close')"
         >
-          Cancel
+          {{ $t('common.cancel') }}
         </v-btn>
       </div>
     </template>

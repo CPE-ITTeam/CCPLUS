@@ -228,15 +228,36 @@ class User extends Authenticatable
 
     public function hasRole($role, $inst = null, $group = null)
     {
-        if ($this->roles->where("role.name", "ServerAdmin")->first()) return true;
+        if ($this->isServerAdmin()) return true;
+        if ($this->isConsoAdmin()) return true;
+
         if (!is_null($inst)) {
-            if ($this->roles->where("role.name", $role)->where("inst_id", $inst)->first()) return true;
-        } else if (!is_null($group)) {
-            if ($this->roles->where("role.name", $role)->where("group_id", $group)->first()) return true;
-        } else {
-            return (!is_null($this->roles->where("role.name", "Admin")->first()));
+            if ($role === 'Admin') {
+                return in_array($inst, $this->adminInsts());
+            }
+            if ($role === 'Viewer') {
+                return in_array(1, $this->viewerInsts()) || in_array($inst, $this->viewerInsts());
+            }
+            return !is_null($this->roles->where("role.name", $role)->where("inst_id", $inst)->first());
         }
+
+        if (!is_null($group)) {
+            if ($role === 'Admin') {
+                return in_array($group, $this->adminGroups());
+            }
+            if ($role === 'Viewer') {
+                return in_array($group, $this->viewerGroups());
+            }
+            return !is_null($this->roles->where("role.name", $role)->where("group_id", $group)->first());
+        }
+
+        if ($role === 'Viewer') {
+            return !is_null($this->roles->whereIn("role.name", ["Admin", "Viewer"])->first());
+        }
+
+        return !is_null($this->roles->where("role.name", $role)->first());
     }
+
 
     public function getFY()
     {

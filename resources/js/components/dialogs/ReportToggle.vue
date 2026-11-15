@@ -1,9 +1,12 @@
-<!-- components/dialogs/ReportToggle.vue (Script) -->
+<!-- components/dialogs/ReportToggle.vue -->
 <script setup>
 import { onMounted, ref, computed } from 'vue';
+import { useI18n } from 'vue-i18n';
 import { useAuthStore } from '@/stores/useAuthStore.js';
 import BaseDialogLayout from './BaseDialogLayout.vue';
 import ToggleIcon from '@/components/ui/ToggleIcon.vue';
+
+const { t } = useI18n();
 
 const props = defineProps({
   item: { type: Object, required: true },
@@ -25,7 +28,7 @@ const mutable_item = { ...props.item };
 
 const insts = props.options.institutions.filter(ii => ii.id > 1);
 const groups = [...props.options.groups];
-const requiredRule = (v) => !!v || 'This field is required';
+const requiredRule = (v) => !!v || t('validation.field_required');
 const emit = defineEmits(['submit', 'cancel']);
 
 const consoFlag = computed(() => consoStr.value === 'Active');
@@ -128,80 +131,56 @@ onMounted(() => {
 });
 </script>
 
-<!-- components/dialogs/ReportToggle.vue (Template) -->
+
+<!-- components/dialogs/ReportToggle.vue -->
 <template>
   <BaseDialogLayout @close="emit('cancel')">
     <template #title>
-      {{ props.item.type === 'Add' ? 'Connect Report' : 'Manage Connections' }}
+      {{ props.item.type === 'Add' ? $t('connections.connect_report') : $t('connections.manage_connections') }}
     </template>
 
     <v-form @submit.prevent="submitForm">
       <v-container class="pa-0">
         <v-row v-if="is_conso_admin" class="d-flex align-center mb-4" no-gutters>
           <v-col class="d-flex align-center">
-            <span class="text-subtitle-1 font-weight-bold mr-4">Enable For Entire Consortium</span>
+            <span class="text-subtitle-1 font-weight-bold mr-4">{{ $t('connections.enable_for_consortium') }}</span>
             <ToggleIcon v-model="consoStr" toggleable :size="36" @update:modelValue="updateConsoFlag" />
           </v-col>
         </v-row>
 
         <v-row v-if="props.item.type == 'Add'" class="d-flex mb-2" no-gutters>
           <v-col class="d-flex">
-            <v-autocomplete 
-              v-model="selectedPlatform" 
-              :items="props.item.connections" 
-              label="Platform"
-              return-object 
-              item-title="platform" 
-              item-value="id" 
-              variant="outlined"
-              density="compact"
-              :rules="[requiredRule]"
-              @update:modelValue="updatePlatform"
-            />
+            <v-autocomplete v-model="selectedPlatform" :items="props.item.connections" :label="$t('fields.platform')"
+              return-object item-title="platform" item-value="id" variant="outlined" density="compact"
+              :rules="[requiredRule]" @update:modelValue="updatePlatform" />
           </v-col>
         </v-row>
 
         <v-row v-if="props.item.type == 'Add' && report_options.length > 0" class="d-flex mb-2" no-gutters>
           <v-col class="d-flex">
-            <v-select 
-              v-model="selectedReport" 
-              :items="report_options" 
-              label="Report to Connect" 
-              variant="outlined"
-              density="compact"
-              :rules="[requiredRule]"
-              @update:modelValue="updateReport"
-            />
+            <v-select v-model="selectedReport" :items="report_options" :label="$t('connections.report_to_connect')"
+              variant="outlined" density="compact" :rules="[requiredRule]" @update:modelValue="updateReport" />
           </v-col>
         </v-row>
 
         <v-row v-if="showSelectors" class="d-flex mb-2" no-gutters>
           <v-col v-if="insts.length > 0" class="d-flex" cols="12">
-            <v-autocomplete 
-              v-model="selectedInsts" 
-              :items="insts" 
-              label="Enable Institution(s)"
-              multiple 
-              return-object 
-              item-title="name" 
-              item-value="id"
-              variant="outlined"
-              density="compact"
-              @update:modelValue="changeInsts"
-            >
+            <v-autocomplete v-model="selectedInsts" :items="insts" :label="$t('connections.enable_institutions')"
+              multiple return-object item-title="name" item-value="id" variant="outlined" density="compact"
+              @update:modelValue="changeInsts">
               <template #prepend-item>
                 <v-list-item @click="updateAllInsts">
                   <v-list-item-title class="font-weight-bold color-primary">
-                    {{ allInsts ? 'Clear Selections' : 'All Institutions' }}
+                    {{ allInsts ? $t('connections.clear_selections') : $t('connections.all_institutions') }}
                   </v-list-item-title>
                 </v-list-item>
                 <v-divider class="mt-1" />
               </template>
               <template #selection="{ item, index }">
-                <span v-if="index === 0 && allInsts">All Institutions</span>
+                <span v-if="index === 0 && allInsts">{{ $t('connections.all_institutions') }}</span>
                 <span v-else-if="index === 0 && !allInsts">{{ selectedInsts[0]?.name }}</span>
                 <span v-else-if="index === 1 && !allInsts" class="text-grey text-caption align-self-center ml-1">
-                  +{{ selectedInsts.length - 1 }} more
+                  {{ $t('connections.more_selected', { count: selectedInsts.length - 1 }) }}
                 </span>
               </template>
             </v-autocomplete>
@@ -210,31 +189,22 @@ onMounted(() => {
 
         <v-row v-if="showSelectors" class="d-flex mb-2" no-gutters>
           <v-col v-if="groups.length > 0" class="d-flex" cols="12">
-            <v-autocomplete 
-              v-model="selectedGroups" 
-              :items="groups" 
-              label="Enable Group(s)"
-              multiple 
-              return-object 
-              item-title="name" 
-              item-value="id"
-              variant="outlined"
-              density="compact"
-              @update:modelValue="changeGroups"
-            >
+            <v-autocomplete v-model="selectedGroups" :items="groups" :label="$t('connections.enable_groups')" multiple
+              return-object item-title="name" item-value="id" variant="outlined" density="compact"
+              @update:modelValue="changeGroups">
               <template v-if="groups.length === 1" #prepend-item>
                 <v-list-item @click="updateAllGroups">
                   <v-list-item-title class="font-weight-bold color-primary">
-                    {{ allGroups ? 'Clear Selections' : 'All Groups' }}
+                    {{ allGroups ? $t('connections.clear_selections') : $t('connections.all_groups') }}
                   </v-list-item-title>
                 </v-list-item>
                 <v-divider class="mt-1" />
               </template>
               <template #selection="{ item, index }">
-                <span v-if="index === 0 && allGroups">All Groups</span>
+                <span v-if="index === 0 && allGroups">{{ $t('connections.all_groups') }}</span>
                 <span v-else-if="index === 0 && !allGroups">{{ selectedGroups[0]?.name }}</span>
                 <span v-else-if="index === 1 && !allGroups" class="text-grey text-caption align-self-center ml-1">
-                  +{{ selectedGroups.length - 1 }} more
+                  {{ $t('connections.more_selected', { count: selectedGroups.length - 1 }) }}
                 </span>
               </template>
             </v-autocomplete>
@@ -244,15 +214,21 @@ onMounted(() => {
         <v-divider v-if="selectedInsts.length > 0 || selectedGroups.length > 0" class="my-4" />
 
         <div v-if="selectedInsts.length > 0" class="mb-4">
-          <h5 class="text-subtitle-2 font-weight-bold mb-2 text-medium-emphasis">Connected Institutions</h5>
-          <div v-for="inst in selectedInsts" :key="inst.id" class="text-body-2 py-1 px-2 bg-grey-lighten-4 rounded mb-1">
+          <h5 class="text-subtitle-2 font-weight-bold mb-2 text-medium-emphasis">
+            {{ $t('connections.connected_institutions') }}
+          </h5>
+          <div v-for="inst in selectedInsts" :key="inst.id"
+            class="text-body-2 py-1 px-2 bg-grey-lighten-4 rounded mb-1">
             {{ inst.name }}
           </div>
         </div>
 
         <div v-if="selectedGroups.length > 0" class="mb-4">
-          <h5 class="text-subtitle-2 font-weight-bold mb-2 text-medium-emphasis">Connected Institution Groups</h5>
-          <div v-for="group in selectedGroups" :key="group.id" class="text-body-2 py-1 px-2 bg-grey-lighten-4 rounded mb-1">
+          <h5 class="text-subtitle-2 font-weight-bold mb-2 text-medium-emphasis">
+            {{ $t('connections.connected_groups') }}
+          </h5>
+          <div v-for="group in selectedGroups" :key="group.id"
+            class="text-body-2 py-1 px-2 bg-grey-lighten-4 rounded mb-1">
             {{ group.name }}
           </div>
         </div>
@@ -260,7 +236,7 @@ onMounted(() => {
         <template v-if="selectedInsts.length === 0 && selectedGroups.length === 0">
           <v-divider class="my-4" />
           <div class="text-body-1 font-weight-bold py-2">
-            {{ consoFlag ? 'Connected Consortium-Wide' : 'No Active Connections' }}
+            {{ consoFlag ? $t('connections.connected_consortium_wide') : $t('connections.no_active_connections') }}
           </div>
         </template>
       </v-container>
@@ -269,8 +245,8 @@ onMounted(() => {
 
     <template #actions>
       <v-spacer />
-      <v-btn color="primary" variant="flat" @click="submitForm">Save</v-btn>
-      <v-btn variant="text" @click="emit('cancel')">Cancel</v-btn>
+      <v-btn color="primary" variant="flat" @click="submitForm">{{ $t('common.save') }}</v-btn>
+      <v-btn variant="text" @click="emit('cancel')">{{ $t('common.cancel') }}</v-btn>
     </template>
   </BaseDialogLayout>
 </template>

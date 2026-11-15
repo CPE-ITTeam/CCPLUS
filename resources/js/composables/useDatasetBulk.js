@@ -1,7 +1,10 @@
 // resources/js/composables/useDatasetBulk.js
-import { ref } from 'vue';
-import api from '@/services/api.js';
-import Swal from 'sweetalert2';
+import { ref } from "vue";
+import api from "@/services/api.js";
+import Swal from "sweetalert2";
+import i18n from "@/plugins/i18n.js";
+
+const t = (key) => i18n.global.t(key);
 
 export function useDatasetBulk({
   urlRoot,
@@ -13,31 +16,35 @@ export function useDatasetBulk({
   dtKey,
   updateItems,
   startRegistryProgress,
-  stopRegistryProgress
+  stopRegistryProgress,
 }) {
   const isBulkProcessing = ref(false);
 
   async function executeBulkAction(data) {
     // 1. Intercept UI dialog trigger overrides
-    if (data.action === 'Assign Type') {
+    if (data.action === "Assign Type") {
       newType.id = null;
-      newType.name = '';
+      newType.name = "";
       typeDialog.value = true;
       return { handledByUi: true };
     }
 
-    const isRegistryRefresh = (data.action === 'Refresh Registry' || data.action === 'Full Refresh');
-    const bulkUrl = urlRoot.value + (isRegistryRefresh ? '/refresh' : '/bulk');
-    
+    const isRegistryRefresh =
+      data.action === "Refresh Registry" || data.action === "Full Refresh";
+    const bulkUrl = urlRoot.value + (isRegistryRefresh ? "/refresh" : "/bulk");
+
     // Aggregate ID array arguments safely
-    let args = (data.action !== 'Full Refresh') 
-      ? { ids: selectedRows.value.map(ii => ii.id) } 
-      : { ids: 'ALL' };
-      
-    Object.keys(data).forEach((key) => { args[key] = data[key]; });
+    const args =
+      data.action !== "Full Refresh"
+        ? { ids: selectedRows.value.map((ii) => ii.id) }
+        : { ids: "ALL" };
+
+    Object.keys(data).forEach((key) => {
+      args[key] = data[key];
+    });
 
     // Handle background polling triggers natively via bridge hooks
-    if (isRegistryRefresh && typeof startRegistryProgress === 'function') {
+    if (isRegistryRefresh && typeof startRegistryProgress === "function") {
       startRegistryProgress();
     }
 
@@ -47,69 +54,78 @@ export function useDatasetBulk({
       const resData = response.data || response;
 
       if (resData.result && allItems.length > 0) {
-        
         // ─── TRANSFORMATION ENGINE SWITCHES ───
-        if (data.action === 'Set Active' || data.action === 'Set Inactive') {
+        if (data.action === "Set Active" || data.action === "Set Inactive") {
           if (resData.affectedIds?.length > 0) {
-            allItems.filter(aitm => resData.affectedIds.includes(aitm.id)).forEach(itm => {
-              if (typeof itm.is_active !== 'undefined') itm.is_active = (data.action === 'Set Active') ? 1 : 0;
-              if (typeof itm.status !== 'undefined') itm.status = (data.action === 'Set Active') ? 'Active' : 'Inactive';
-            });
+            allItems
+              .filter((aitm) => resData.affectedIds.includes(aitm.id))
+              .forEach((itm) => {
+                if (typeof itm.is_active !== "undefined")
+                  itm.is_active = data.action === "Set Active" ? 1 : 0;
+                if (typeof itm.status !== "undefined")
+                  itm.status =
+                    data.action === "Set Active" ? "Active" : "Inactive";
+              });
           }
-        } 
-        
-        else if (data.action === 'Create New Group' || data.action === 'Add to Existing Group') {
-          // Note: Handled on the parent since filterOptions references live on the layout layer
+        } else if (
+          data.action === "Create New Group" ||
+          data.action === "Add to Existing Group"
+        ) {
           return { success: true, delegateGroupUi: true, resData, data };
-        } 
-        
-        else if (data.action === 'Enable') {
+        } else if (data.action === "Enable") {
           if (resData.affectedItems?.length > 0) {
-            resData.affectedItems.forEach(ritm => {
-              var idx = allItems.findIndex(itm => itm.id == ritm.id);
-              if (idx >= 0) allItems[idx]['status'] = ritm.status;
+            resData.affectedItems.forEach((ritm) => {
+              const idx = allItems.findIndex((itm) => itm.id == ritm.id);
+              if (idx >= 0) allItems[idx]["status"] = ritm.status;
             });
           }
-        } 
-        
-        else if (data.action === 'Disable') {
+        } else if (data.action === "Disable") {
           if (resData.affectedIds?.length > 0) {
-            allItems.filter(aitm => resData.affectedIds.includes(aitm.id)).forEach(itm => { itm.status = 'Disabled'; });
+            allItems
+              .filter((aitm) => resData.affectedIds.includes(aitm.id))
+              .forEach((itm) => {
+                itm.status = "Disabled";
+              });
           }
-        } 
-        
-        else if (data.action === 'Delete' || data.action === 'Kill') {
+        } else if (data.action === "Delete" || data.action === "Kill") {
           if (resData.affectedIds?.length > 0) {
-            resData.affectedIds.forEach(itemId => {
-              let aIdx = allItems.findIndex(ii => ii.id == itemId);
+            resData.affectedIds.forEach((itemId) => {
+              const aIdx = allItems.findIndex((ii) => ii.id == itemId);
               if (aIdx >= 0) allItems.splice(aIdx, 1);
-              let fIdx = filteredItems.findIndex(ii => ii.id == itemId);
+              const fIdx = filteredItems.findIndex((ii) => ii.id == itemId);
               if (fIdx >= 0) filteredItems.splice(fIdx, 1);
             });
             dtKey.value++;
           }
-        } 
-        
-        else if (data.action === 'Refresh Registry' || data.action === 'Full Refresh') {
+        } else if (
+          data.action === "Refresh Registry" ||
+          data.action === "Full Refresh"
+        ) {
           if (resData.affectedItems?.length > 0) {
             let new_platforms = false;
-            resData.affectedItems.forEach(plat => {
-              let _idx = allItems.findIndex(itm => itm.id == plat.id);
+            resData.affectedItems.forEach((plat) => {
+              const _idx = allItems.findIndex((itm) => itm.id == plat.id);
               if (_idx < 0) {
                 allItems.push(plat);
                 new_platforms = true;
               } else {
                 allItems.splice(_idx, 1, plat);
-                
-                // 🚀 NATIVE DOM INJECTION: Find and update row cell dates instantly
-                const targetDate = plat.updated || (plat.updated_at ? plat.updated_at.substring(0, 16).replace('T', ' ') : '');
+
+                const targetDate =
+                  plat.updated ||
+                  (plat.updated_at
+                    ? plat.updated_at.substring(0, 16).replace("T", " ")
+                    : "");
                 if (targetDate) {
-                  const rows = document.querySelectorAll('tr');
-                  rows.forEach(row => {
+                  const rows = document.querySelectorAll("tr");
+                  rows.forEach((row) => {
                     if (row.innerText.includes(plat.name)) {
-                      const cells = row.querySelectorAll('td');
-                      cells.forEach(cell => {
-                        if (cell.innerText.includes('-') && cell.innerText.includes(':')) {
+                      const cells = row.querySelectorAll("td");
+                      cells.forEach((cell) => {
+                        if (
+                          cell.innerText.includes("-") &&
+                          cell.innerText.includes(":")
+                        ) {
                           cell.innerText = targetDate;
                         }
                       });
@@ -118,64 +134,76 @@ export function useDatasetBulk({
                 }
               }
             });
-            
+
             if (resData.summary !== "") {
-              Swal.fire({ title: 'Refresh Results', html: resData.summary, icon: 'info', confirmButtonText: 'Close' });
+              Swal.fire({
+                title: t("dialogs.refresh_results"),
+                html: resData.summary,
+                icon: "info",
+                confirmButtonText: t("common.close"),
+              });
             }
             if (new_platforms) {
-              allItems.sort((a, b) => a.name.toLowerCase().localeCompare(b.name.toLowerCase()));
+              allItems.sort((a, b) =>
+                a.name.toLowerCase().localeCompare(b.name.toLowerCase()),
+              );
             }
           }
-          if (typeof updateItems === 'function') updateItems();
-        } 
-        
-        else if (data.action === 'Assign Type' || data.action === 'Set Institution Type') {
+          if (typeof updateItems === "function") updateItems();
+        } else if (
+          data.action === "Assign Type" ||
+          data.action === "Set Institution Type"
+        ) {
           const targetTypeId = newType?.id ?? resData?.newType?.id;
           const targetTypeName = newType?.name ?? resData?.newType?.name;
 
           if (resData.affectedIds?.length > 0 && targetTypeId != null) {
-            allItems.filter(aitm => resData.affectedIds.includes(aitm.id)).forEach(itm => {
-              itm.type = targetTypeName;
-              itm.type_id = targetTypeId;
-            });
-            
-            typeDialog.value = false; // Closes dialog panels seamlessly
-            
-            // 💡 FIX: Force Vue's virtual DOM structure tracker to instantly repaint the datatable cells
-            if (dtKey && typeof dtKey.value !== 'undefined') {
+            allItems
+              .filter((aitm) => resData.affectedIds.includes(aitm.id))
+              .forEach((itm) => {
+                itm.type = targetTypeName;
+                itm.type_id = targetTypeId;
+              });
+
+            typeDialog.value = false;
+
+            if (dtKey && typeof dtKey.value !== "undefined") {
               dtKey.value++;
             }
           }
-        }
-
-
-        else if (data.action === 'Restart' || data.action === 'Pause') {
-          resData.affectedItems?.forEach(newItem => {
-            let idx = allItems.findIndex(ii => ii.id == newItem.id);
+        } else if (data.action === "Restart" || data.action === "Pause") {
+          resData.affectedItems?.forEach((newItem) => {
+            const idx = allItems.findIndex((ii) => ii.id == newItem.id);
             if (idx >= 0) allItems.splice(idx, 1, newItem);
           });
-          if (typeof updateItems === 'function') updateItems();
+          if (typeof updateItems === "function") updateItems();
           dtKey.value++;
-        } 
-        
-        else if (data.action.includes(' Validat')) {
-          allItems.filter(aitm => resData.affectedIds.includes(aitm.id)).forEach(itm => {
-            Object.entries(resData.data).forEach(([col, value]) => {
-              itm[col] = (value == null) ? 'Inactive' : 'Active';
+        } else if (data.action.includes(" Validat")) {
+          allItems
+            .filter((aitm) => resData.affectedIds.includes(aitm.id))
+            .forEach((itm) => {
+              Object.entries(resData.data).forEach(([col, value]) => {
+                itm[col] = value == null ? "Inactive" : "Active";
+              });
             });
-          });
         }
-        
+
         return { success: true, msg: resData.msg };
       } else {
-        return { success: false, msg: resData.msg || "The bulk action configuration failed." };
+        return {
+          success: false,
+          msg: resData.msg || t("messages.bulk_action_failed"),
+        };
       }
     } catch (error) {
-      console.error('[BulkActions Engine] Error processing bulk request: ', error);
-      return { success: false, msg: "Server exception thrown during bulk state execution." };
+      console.error(
+        "[BulkActions Engine] Error processing bulk request: ",
+        error,
+      );
+      return { success: false, msg: t("messages.bulk_server_exception") };
     } finally {
       isBulkProcessing.value = false;
-      if (typeof stopRegistryProgress === 'function') {
+      if (typeof stopRegistryProgress === "function") {
         stopRegistryProgress();
       }
     }
@@ -183,6 +211,6 @@ export function useDatasetBulk({
 
   return {
     isBulkProcessing,
-    executeBulkAction
+    executeBulkAction,
   };
 }

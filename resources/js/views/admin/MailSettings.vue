@@ -1,179 +1,258 @@
-<!--/views/admin/MailSettings.vue-->
-<!-- Mail Settings Panel -->
+<!-- views/admin/MailSettings.vue -->
 <script setup>
-  import { ref, watch, onMounted } from 'vue'
-  import { useAuthStore } from '@/stores/useAuthStore.js';
-  const { ccGet, ccPost } = useAuthStore();
-  import { useValidationRules } from '@/composables/useValidationRules.js'
-  import FlexCol from '@/components/ui/FlexCol.vue'
+import { ref, computed, watch, onMounted } from 'vue';
+import { useI18n } from 'vue-i18n';
+import api from '@/services/api.js';
+import { useValidationRules } from '@/composables/useValidationRules.js';
+import SettingsPanelShell from '@/components/ui/SettingsPanelShell.vue';
 
-  const { required, numberRule, emailRule } = useValidationRules()
-  const presetItems = [
-    {text: 'SMTP with STARTTLS (Port 587)', 'data': {mailer:'smtp-starttls',encryption:'TLS',port:587}},
-    {text: 'SMTP over SSL (Port 465)', data: {mailer:'smtps',encryption:'SSL',port:465}},
-    {text: 'SMTP (Plain, Port 25)', data: {mailer:'SMTP (Plain, port 25)',encryption:null,port:25}},
-    {text: 'Custom', data: {mailer:'custom',encryption:null,port:null}},
-  ];
-  const success = ref('');
-  const failure = ref('');
-  const mailers = ['smtp', 'smtp-starttls', 'smtps', 'esmtp'];
-  const crypts = ['None', 'SSL', 'TLS'];
-  const mailSettings = ref([]);
-  const mailFormValid = ref(true);
-  const pw_show = ref(false);
-  var mailPreset = ref({text:null, data:{mailer:null}});
+const { t } = useI18n();
+const { required, numberRule, emailRule } = useValidationRules();
 
-  // Get mail settings
-  const getSettings = async () => {
-    try {
-      const { data } = await ccGet("/api/settings/get/mail");
-      mailSettings.value = {...data.records};
-      // check for match against presets and if not, set as custom
-      var matched;
-      presetItems.forEach( (preset) => {
-        matched = true;
-        Object.keys(preset.data).forEach ( (key) => {
-          if (preset.data[key] != mailSettings.value[key]) {
-            matched = false;
-            return;
-          }
-        });
-        if (matched) {
-          mailPreset.value = Object.assign({},preset);
-          return;
-        }
-        matched = false;
-      });
-      if (!matched) {
-        mailPreset.value = {
-          text: 'Custom',
-          data: {
-            mailer: mailSettings.value['mailer'],
-            encryption: mailSettings.value['encryption'],
-            port: mailSettings.value['port']
-          }
-        }
-      }
-    } catch (error) {
-      console.log('Error fetching settings: '+error.message);
+const presetItems = computed(() => [
+  { id: 'starttls', text: t('mail.preset_starttls_587'), data: { mailer: 'smtp-starttls', encryption: 'TLS', port: 587 } },
+  { id: 'ssl', text: t('mail.preset_ssl_465'), data: { mailer: 'smtp', encryption: 'SSL', port: 465 } },
+  { id: 'plain', text: t('mail.preset_plain_25'), data: { mailer: 'SMTP (Plain, port 25)', encryption: null, port: 25 } },
+  { id: 'custom', text: t('mail.preset_custom'), data: { mailer: 'custom', encryption: null, port: null } },
+]);
+
+const success = ref('');
+const failure = ref('');
+const mailers = ['smtp', 'smtp-starttls', 'smtps', 'esmtp'];
+const crypts = computed(() => [
+  { title: t('mail.encryption_none'), value: 'None' },
+  { title: 'SSL', value: 'SSL' },
+  { title: 'TLS', value: 'TLS' },
+]);
+
+const mailSettings = ref({});
+const mailFormValid = ref(true);
+const pw_show = ref(false);
+const mailPresetId = ref(null);
+
+const mailPreset = computed(() => {
+  return presetItems.value.find((p) => p.id === mailPresetId.value) || { id: null, text: '', data: {} };
+});
+
+const getSettings = async () => {
+  try {
+    const response = await api.get('/api/settings/get/mail');
+    const records = response?.data?.records || response?.records || {};
+    const rawEncryption = records.encryption ? String(records.encryption) : '';
+    const normalizedEncryption =
+      rawEncryption.toLowerCase() === 'ssl'
+        ? 'SSL'
+        : rawEncryption.toLowerCase() === 'tls'
+          ? 'TLS'
+          : rawEncryption || null;
+
+    mailSettings.value = {
+      mailer: records.mailer || null,
+      port: records.port ?? '',
+      encryption: normalizedEncryption,
+      host: records.host || '',
+      mail_username: records.mail_username || '',
+      mail_password: records.mail_password || '',
+      from_name: records.from_name || '',
+      from_address: records.from_address || '',
+    };
+
+    if (!mailSettings.value.mailer && !mailSettings.value.port) {
+      mailPresetId.value = null;
+      return;
     }
+
+    const matched = presetItems.value.find((preset) => {
+      if (preset.id === 'custom') return false;
+      const mailerMatch =
+        preset.id === 'ssl'
+          ? ['smtp', 'smtps'].includes(String(mailSettings.value.mailer).toLowerCase())
+          : String(preset.data.mailer).toLowerCase() === String(mailSettings.value.mailer).toLowerCase();
+      return (
+        mailerMatch &&
+        preset.data.encryption == mailSettings.value.encryption &&
+        preset.data.port == mailSettings.value.port
+      );
+    });
+
+    mailPresetId.value = matched ? matched.id : 'custom';
+  } catch (error) {
+    console.error('Error fetching settings:', error.message);
   }
-  function updatePreset() {
-    if (typeof(mailPreset.value.data) != 'undefined') {
-      Object.keys(mailPreset.value.data).forEach( (key) => {
-        mailSettings[key] = mailPreset.value.data[key];
-      });
+};
+
+function updatePreset(newId) {
+  mailPresetId.value = newId;
+  const selected = presetItems.value.find((p) => p.id === newId);
+  if (selected?.data && selected.id !== 'custom') {
+    Object.keys(selected.data).forEach((key) => {
+      mailSettings.value[key] = selected.data[key];
+    });
+  }
+}
+
+async function formSubmit() {
+  try {
+    const response = await api.post('/api/settings/store', { settings: mailSettings.value });
+    const resData = response?.data !== undefined ? response.data : response;
+    if (resData?.result) {
+      success.value = resData.msg;
+    } else {
+      failure.value = resData?.msg || t('mail.save_error');
     }
+  } catch (error) {
+    console.error('Error saving settings:', error.message);
+    failure.value = t('mail.save_error');
   }
-  async function formSubmit() {
-    try {
-      const response = await ccPost("/api/settings/store", { settings: mailSettings.value });
-      if (response.result) {
-        success.value = response.msg
-      } else {
-        failure.value = response.msg
-      }
-    } catch (error) {
-      console.log('Error saving settings: '+error.message);
-    }
-  }
-  // Watch for changes in settings to clear messages
-  watch(mailSettings, () =>
-    { success.value = '';
-      failure.value = '';
-    }, { deep: true }
-  );
-  onMounted(() => {
-    getSettings();
-  });
+}
+
+watch(
+  mailSettings,
+  () => {
+    success.value = '';
+    failure.value = '';
+  },
+  { deep: true }
+);
+
+onMounted(() => {
+  getSettings();
+});
 </script>
+
 <template>
-  <v-form @submit.prevent="formSubmit" v-model="mailFormValid">
-    <v-sheet>
-      <v-row>
-        <FlexCol>
-          <v-label>Mail Configuration</v-label>
-          <v-row class="mt-2">
-            <v-col>
-              <v-select label="Mail Protocol & Encryption" :items="presetItems" v-model="mailPreset" 
-                        @change="updatePreset()" placeholder="Select a mail configuration" item-title="text"
-                        item-value="text"   class="mb-2" />
-            </v-col>
-          </v-row>
-          <v-row v-if="mailPreset.text=='Custom'">
-            <v-col>
-              <v-select label="Protocol" :items="mailers" v-model="mailSettings.mailer" placeholder="Select protocol"
-                      :rules="[required]"   class="mb-2" />
-            </v-col>
-          </v-row>
-          <v-row v-if="mailPreset.text=='Custom'">
-            <v-col>
-              <v-text-field label="Port" v-model="mailSettings.port" placeholder="e.g. 587"
-                      :rules="[numberRule]"   class="mb-2" />
-            </v-col>
-          </v-row>
-          <v-row v-if="mailPreset.text=='Custom'">
-            <v-col>
-              <v-select label="Encryption" :items="crypts" v-model="mailSettings.encryption" placeholder="Select encryption type"
-                      :rules="[required]"   class="mb-2" />
-            </v-col>
-          </v-row>
-        </FlexCol>
-        <FlexCol>
-          <v-label>Mail Configuration</v-label>
-          <v-row class="mt-2">
-            <v-col>
-              <v-text-field label="Host Name" v-model="mailSettings.host" placeholder="e.g. smtp.example.com"
-                      class="mb-2" />
-            </v-col>
-          </v-row>
-          <v-row>
-            <v-col>
-              <v-text-field label="User Name" v-model="mailSettings.mail_username" placeholder="Enter username"
-                      class="mb-2" />
-            </v-col>
-          </v-row>
-          <v-row>
-            <v-col>
-              <v-text-field label="Password" v-model="mailSettings.mail_password" :type="pw_show ? 'text' : 'password'"
-                    :append-icon="pw_show ? 'mdi-eye' : 'mdi-eye-off'" @click:append="pw_show = !pw_show"
-                    placeholder="Enter Password"   class="mb-2" />
-            </v-col>
-          </v-row>
-        </FlexCol>
-        <FlexCol>
-          <v-label>Sender Info</v-label>
-          <v-row class="mt-2">
-            <v-col>
-              <v-text-field label="From Name" v-model="mailSettings.from_name" placeholder="e.g. Admin"
-                      class="mb-2" />
-            </v-col>
-          </v-row>
-          <v-row>
-            <v-col>
-              <v-text-field label="From Email" v-model="mailSettings.from_address" placeholder="e.g. admin@example.com"
-                    :rules="[emailRule]"   class="mb-2" />
-            </v-col>
-          </v-row>
-        </FlexCol>
-        <FlexCol>
-          <v-label>More Settings</v-label>
-          <p>&nbsp;</p><p>Reserved for future use.</p>
-        </FlexCol>
-      </v-row>
-      <div class="status-message" v-if="success || failure">
-          <span v-if="failure" class="d-flex mx-1 redNotice">{{ failure }}</span>
-          <span v-else-if="success" class="d-flex mx-1 greenNotice">{{ success }}</span>
-      </div>
-      <v-row>
-        <FlexCol>
-          <v-btn type="submit" color="primary" class="mt-4">Save Mail Settings</v-btn>
-        </FlexCol>
-      </v-row>
-    </v-sheet>
-  </v-form>
+  <SettingsPanelShell
+    v-model:valid="mailFormValid"
+    :title="$t('routes.mail_settings')"
+    icon="mdi-email-cog-outline"
+    :submit-label="$t('mail.save_mail_settings')"
+    :success="success"
+    :failure="failure"
+    @submit="formSubmit"
+  >
+    <v-row class="ga-y-4">
+      <!-- Group 1: Mail Protocol & Encryption -->
+      <v-col cols="12" sm="6" lg="3">
+        <fieldset class="border-0 pa-0 ma-0">
+          <legend class="text-title-large font-weight-semibold text-primary mb-5 d-flex align-center">
+            <v-icon start size="22" class="me-2" aria-hidden="true">mdi-email-lock-outline</v-icon>
+            {{ $t('mail.mail_configuration') }}
+          </legend>
+
+          <v-select
+            v-model="mailPresetId"
+            :label="$t('mail.mail_protocol_encryption')"
+            :items="presetItems"
+            :placeholder="$t('mail.select_mail_config')"
+            item-title="text"
+            item-value="id"
+            class="mb-5"
+            @update:modelValue="updatePreset"
+          />
+
+          <template v-if="mailPreset.id === 'custom'">
+            <v-select
+              v-model="mailSettings.mailer"
+              :label="$t('mail.protocol')"
+              :items="mailers"
+              :placeholder="$t('mail.select_protocol')"
+              :rules="[required]"
+              class="mb-5"
+            />
+
+            <v-text-field
+              v-model="mailSettings.port"
+              :label="$t('mail.port')"
+              :placeholder="$t('mail.placeholder_port')"
+              :rules="[numberRule]"
+              class="mb-5"
+            />
+
+            <v-select
+              v-model="mailSettings.encryption"
+              :label="$t('mail.encryption')"
+              :items="crypts"
+              item-title="title"
+              item-value="value"
+              :placeholder="$t('mail.select_encryption')"
+              :rules="[required]"
+            />
+          </template>
+        </fieldset>
+      </v-col>
+
+      <!-- Group 2: Server & Authentication -->
+      <v-col cols="12" sm="6" lg="3">
+        <fieldset class="border-0 pa-0 ma-0">
+          <legend class="text-title-large font-weight-semibold text-primary mb-5 d-flex align-center">
+            <v-icon start size="22" class="me-2" aria-hidden="true">mdi-server-network</v-icon>
+            {{ $t('mail.server_authentication') }}
+          </legend>
+
+          <v-text-field
+            v-model="mailSettings.host"
+            :label="$t('mail.host_name')"
+            :placeholder="$t('mail.placeholder_host')"
+            class="mb-5"
+          />
+
+          <v-text-field
+            v-model="mailSettings.mail_username"
+            :label="$t('fields.user_name')"
+            :placeholder="$t('mail.placeholder_username')"
+            autocomplete="off"
+            class="mb-5"
+          />
+
+          <v-text-field
+            v-model="mailSettings.mail_password"
+            :label="$t('fields.password')"
+            :type="pw_show ? 'text' : 'password'"
+            autocomplete="new-password"
+            :append-inner-icon="pw_show ? 'mdi-eye' : 'mdi-eye-off'"
+            :placeholder="$t('mail.placeholder_password')"
+            @click:append-inner="pw_show = !pw_show"
+          />
+        </fieldset>
+      </v-col>
+
+      <!-- Group 3: Sender Info -->
+      <v-col cols="12" sm="6" lg="3">
+        <fieldset class="border-0 pa-0 ma-0">
+          <legend class="text-title-large font-weight-semibold text-primary mb-5 d-flex align-center">
+            <v-icon start size="22" class="me-2" aria-hidden="true">mdi-card-account-mail-outline</v-icon>
+            {{ $t('mail.sender_info') }}
+          </legend>
+
+          <v-text-field
+            v-model="mailSettings.from_name"
+            :label="$t('mail.from_name')"
+            :placeholder="$t('mail.placeholder_from_name')"
+            class="mb-5"
+          />
+
+          <v-text-field
+            v-model="mailSettings.from_address"
+            :label="$t('mail.from_email')"
+            :placeholder="$t('mail.placeholder_email')"
+            :rules="[emailRule]"
+          />
+        </fieldset>
+      </v-col>
+
+      <!-- Group 4: More Settings -->
+      <v-col cols="12" sm="6" lg="3">
+        <fieldset class="border-0 pa-0 ma-0">
+          <legend class="text-title-large font-weight-semibold text-primary mb-5 d-flex align-center">
+            <v-icon start size="22" class="me-2" aria-hidden="true">mdi-cog-outline</v-icon>
+            {{ $t('mail.more_settings') }}
+          </legend>
+
+          <p class="text-body-2 text-medium-emphasis">
+            {{ $t('mail.reserved_future_use') }}
+          </p>
+        </fieldset>
+      </v-col>
+    </v-row>
+  </SettingsPanelShell>
 </template>
-<style scoped>
- .redNotice { color: #ee0000; }
- .greenNotice { color: #339933; }
-</style>

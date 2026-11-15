@@ -1,17 +1,21 @@
 <!-- components/ui/LockTip.vue -->
-<script>
-  export default {
-    name: 'LockTip',
-    props: {
-      text: { type: [String], default: 'Field is Read-Only' },
-    }
-  }
+<script setup>
+defineProps({
+  text: { type: String, default: '' },
+});
 </script>
 
 <template>
-  <v-tooltip :text="text">
-    <template v-slot:activator="{ props }">
-      <v-icon v-bind="props">mdi-lock-outline</v-icon>
+  <v-tooltip :text="text || $t('common.field_read_only')">
+    <template #activator="{ props: tooltipProps }">
+      <v-icon
+        v-bind="tooltipProps"
+        size="small"
+        color="medium-emphasis"
+        style="pointer-events: auto; cursor: help;"
+      >
+        mdi-lock-outline
+      </v-icon>
     </template>
   </v-tooltip>
 </template>

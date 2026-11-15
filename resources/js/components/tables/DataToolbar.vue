@@ -1,12 +1,11 @@
 <!-- components/tables/DataToolbar.vue -->
 <template>
   <v-card class="pa-4 mb-4" border>
-    
     <!-- TIER 0: LABELS -->
     <div class="d-flex flex-wrap align-center ga-3 w-100 mb-1">
       <div v-if="!consoOnly || is_serveradmin" style="width: 280px;" class="flex-shrink-0">
         <span class="text-caption text-uppercase font-weight-bold tracking-wider text-medium-emphasis">
-          Search
+          {{ $t('tables.search') }}
         </span>
       </div>
     </div>
@@ -23,13 +22,13 @@
       <div v-for="(row, index) in filter_options" :key="index" class="d-flex flex-column ga-1 flex-grow-1">
         <div v-if="index === 0" class="d-flex align-center ga-3 mb-1">
           <span class="text-caption text-uppercase font-weight-bold tracking-wider text-medium-emphasis">
-            {{ filter_options.flatMap(r => Object.keys(r)).length > 1 ? 'Filters' : 'Filter' }}
+            {{ $t('tables.filter', filter_options.flatMap(r => Object.keys(r)).length) }}
           </span>
           <v-btn v-if="anyFilterSet" prepend-icon="mdi-close-circle-outline" color="error" @click="$emit('setFilter', { key: 'reset' })">
-            Clear All
+            {{ $t('tables.clear_all') }}
           </v-btn>
           <v-btn v-if="needsRefreshButton && consoKey != ''" prepend-icon="mdi-refresh" class="ms-2" @click="$emit('refreshRecords')">
-            Refresh Records
+            {{ $t('tables.refresh_records') }}
           </v-btn>
         </div>
         <ToolbarFilters :filters="filter_options[index]" @setFilter="handleFilter($event)" />
@@ -48,7 +47,16 @@
       </div>
 
       <div class="d-flex align-center flex-wrap ga-2 ms-auto">
-        <ExportAndImport v-if="showExportImport" :showRefresh="props.dataset == 'platforms'" :exportOnly="(props.dataset == 'audit')" :hideExport="props.hideExport" @export="$emit('export')" @import="importDialog = true" @add="$emit('add')" @refresh="$emit('bulkAction', { action: 'Full Refresh' })" />
+        <ExportAndImport
+          v-if="showExportImport"
+          :showRefresh="props.dataset == 'platforms'"
+          :exportOnly="props.dataset == 'audit'"
+          :hideExport="props.hideExport"
+          @export="$emit('export')"
+          @import="importDialog = true"
+          @add="$emit('add')"
+          @refresh="$emit('bulkAction', { action: 'Full Refresh' })"
+        />
       </div>
     </div>
 
@@ -85,24 +93,20 @@ const is_serveradmin = authStore.is_serveradmin;
 const consoKey = ref(authStore.ccp_key);
 const importDialog = ref(false);
 
-const serverTab = computed(() => {
-  return (props.dataset == 'consortia' || props.dataset == 'platforms');
-});
-
 const consoOnly = computed(() => {
-  return (consoKey.value == '' && is_serveradmin);
+  return consoKey.value == '' && is_serveradmin;
 });
 
 const needsRefreshButton = computed(() => {
-  return (props.dataset == 'harvests' || props.dataset == 'jobs' || props.dataset == 'audit');
+  return props.dataset == 'harvests' || props.dataset == 'jobs' || props.dataset == 'audit';
 });
 
 const showExportImport = computed(() => {
-  return (props.dataset == 'consortia' || (!consoOnly.value && props.dataset != 'harvests' && props.dataset != 'jobs'));
+  return props.dataset == 'consortia' || (!consoOnly.value && props.dataset != 'harvests' && props.dataset != 'jobs');
 });
 
 const flat_filter_options = computed(() => {
-  let _options = {};
+  const _options = {};
   filter_options.value.forEach((row, idx) => {
     for (const key of Object.keys(row)) {
       _options[key] = { ...filter_options.value[idx][key] };
@@ -116,11 +120,11 @@ const anyFilterSet = computed(() => {
   for (const key of Object.keys(flat_filter_options.value)) {
     const filter = flat_filter_options.value[key];
     if (!filter.show) continue;
-    
+
     if (Array.isArray(filter.value)) {
       if (filter.value.length > 0) is_set = true;
     } else if (filter.type == 'toggle') {
-      is_set = (filter.value == 'Active');
+      is_set = filter.value == 'Active';
     } else {
       const val = filter.value;
       if (val !== null && val !== undefined && val !== '' && val !== 0 && val !== '0' && val !== 'all' && val !== 'All') {
@@ -135,7 +139,7 @@ const anyFilterSet = computed(() => {
 function handleFilter(filt) {
   let updated = false;
   filter_options.value.forEach((row, idx) => {
-    if (updated || typeof (filter_options.value[idx][filt.key]) == 'undefined') return;
+    if (updated || typeof filter_options.value[idx][filt.key] == 'undefined') return;
     filter_options.value[idx][filt.key]['value'] = filt.value;
     updated = true;
   });
@@ -156,6 +160,6 @@ const emit = defineEmits([
   'imported',
   'setFilter',
   'bulkAction',
-  'refreshRecords'
+  'refreshRecords',
 ]);
 </script>

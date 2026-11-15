@@ -31,6 +31,8 @@ const is_admin = authStore.is_admin;
 const is_conso_admin = authStore.is_conso_admin;
 const { setConso } = authStore;
 
+const { t, locale } = useI18n();
+
 const ccGet = (url) => api.get(url);
 const ccPost = (url, content) => api.post(url, content);
 
@@ -268,9 +270,9 @@ const loadDataset = async (datasetKey) => {
 
         return {
           id: Number(index + 1),
-          name: month, 
-          label: month, 
-          fullName: fullMonthName, 
+          name: month,
+          label: month,
+          fullName: fullMonthName,
           value: month,
           title: month
         };
@@ -399,7 +401,7 @@ async function handleImported(data) {
   if (data && data.length > 0) {
     success.value = data;
   }
-  
+
   // 1. Clear any stale row checkbox selection states from the last view state
   selectedRows.value = [];
 
@@ -419,7 +421,7 @@ async function handleImported(data) {
 function handleEdit(item) {
   const config = datasetConfig[props.datasetKey];
   formDialogType.value = "Edit";
-  formDialogTitle.value = "Edit " + config.title;
+  formDialogTitle.value = t('dialogs.edit_item', { item: config.title });
 
   // Clone the item right away to prevent mutating data table grid records inline!
   let localizedItem = { ...item };
@@ -487,7 +489,7 @@ function handleAddItem() {
     return;
   }
   formDialogType.value = "Add";
-  formDialogTitle.value = "Add New " + config.title;
+  formDialogTitle.value = t('dialogs.add_new_item', { item: config.title });
   editingItem.value = {};
 
   config.fields.forEach((fld) => {
@@ -685,10 +687,11 @@ async function handleBulk(data) {
       updateItems();
       dtKey.value++;
     }
-    success.value = result.msg || "Bulk assignment completed successfully.";
+    success.value = result.msg || t('messages.bulk_assign_success');
   } else if (result && !result.handledByUi) {
-    failure.value = result.msg || "Bulk configuration parameters failed.";
+    failure.value = result.msg || t('messages.bulk_assign_failed');
   }
+
 
   dtLoading.value = false;
 }
@@ -741,14 +744,14 @@ function updateItems() {
     filteredItems.splice(0, filteredItems.length);
     return;
   }
-  
+
   var filterResult = [...allItems];
-  
+
   for (const key of Object.keys(filterOptions)) {
     const filter = filterOptions[key];
     if (!filter.show) continue;
     if (filterResult.length == 0) break;
-    
+
     if (Array.isArray(filter.value)) {
       if (filter.value.length == 0) continue;
     } else if (!filter.value) {
@@ -764,20 +767,20 @@ function updateItems() {
     } else if (filter.type == 'toggle') {
       if (filter.value == 'Active') {
         filterResult = filterResult.filter(item => (item[filter.col]));
-      } 
+      }
       if (filter.col == 'is_conso' && typeof (filterOptions.platforms) != 'undefined') {
         filterOptions.platforms.items = (filter.value == 'Active')
           ? filterOptions.platforms.items.filter(itm => itm.is_conso) : [...allOptions.platforms];
       }
     } else if (filter.type == 'mselect' || filter.type == 'mtext') {
       // ─── DEFENSIVE MULTI-SELECT FILTERING ───
-      const targetFilterValues = Array.isArray(filter.value) 
-        ? filter.value.map(v => String(v).trim().toLowerCase()) 
+      const targetFilterValues = Array.isArray(filter.value)
+        ? filter.value.map(v => String(v).trim().toLowerCase())
         : [String(filter.value).trim().toLowerCase()];
 
       filterResult = filterResult.filter(item => {
         let itemValues = [];
-        
+
         // 1. Unpack arrays or strings safely into strings to handle all column shapes
         if (Array.isArray(item[filter.col])) {
           itemValues = item[filter.col].map(v => String(v).trim().toLowerCase());
@@ -790,7 +793,7 @@ function updateItems() {
           let fallbackIds = Array.isArray(item.group_ids)
             ? item.group_ids.map(v => String(v).trim())
             : (item.group_ids ? String(item.group_ids).split(',').map(v => v.trim()) : []);
-          
+
           if (fallbackIds.some(id => targetFilterValues.includes(id))) return true;
         }
 
@@ -853,8 +856,6 @@ function handleFormCancel() {
 // ============================================================================
 // PART 8: LIFECYCLE WATCHERS & TRIGGERS
 // ============================================================================
-const { locale } = useI18n();
-
 onBeforeMount(() => {
   loadDataset(props.datasetKey);
 });
@@ -903,12 +904,12 @@ watch(locale, () => {
 </script>
 
 
-<!-- components/shared/DatasetViewer.vue -->
+<!-- components/tables/DatasetViewer.vue -->
 <template>
   <div class="ma-2">
     <v-sheet class="bg-transparent">
 
-      <!-- 1. Toolbar Filters Wrapper (💡 FIXED: Restored all missing event pipelines) -->
+      <!-- 1. Toolbar Filters Wrapper -->
       <DataToolbar v-model="toolbarFilters" :search="search" :dataset="props.datasetKey" :bulkOptions="bulkOptions"
         :selectedRows="selectedRows" :showSelectedOnly="showSelectedOnly"
         :hideExport="!exportable || filteredItems.length == 0" @updateConso="handleChangeConso" @export="handleExport"
@@ -920,15 +921,14 @@ watch(locale, () => {
       <v-alert v-if="refreshProgress.active" type="info" variant="tonal" class="my-3 rounded-lg" aria-live="polite">
         <div class="d-flex align-center justify-space-between mb-2">
           <span>
-            Refreshing COUNTER Registry:
+            {{ $t('tables.refreshing_registry') }}
             <strong>{{ refreshProgress.current }} / {{ refreshProgress.total || '...' }}</strong>
             <span v-if="refreshProgress.name" class="text-caption ml-2">({{ refreshProgress.name }})</span>
           </span>
           <v-btn size="small" color="error" variant="tonal" class="rounded-xl px-3"
-            :disabled="refreshProgress.cancelling" aria-label="Cancel current COUNTER registry refresh process"
-            @click="cancelRegistryRefresh">
+            :disabled="refreshProgress.cancelling" @click="cancelRegistryRefresh">
             <v-icon start class="mr-1">mdi-close-circle-outline</v-icon>
-            {{ refreshProgress.cancelling ? 'Stopping...' : 'Cancel' }}
+            {{ refreshProgress.cancelling ? $t('common.stopping') : $t('common.cancel') }}
           </v-btn>
         </div>
         <v-progress-linear
@@ -936,7 +936,6 @@ watch(locale, () => {
           :indeterminate="!refreshProgress.total" color="primary" height="8" rounded role="progressbar"
           :aria-valuenow="refreshProgress.current" aria-valuemin="0" :aria-valuemax="refreshProgress.total || 100" />
       </v-alert>
-
 
       <!-- 2. Status Messages: Native alerts -->
       <v-alert v-if="success" type="success" class="my-3 mx-4" :text="success" />
@@ -950,7 +949,6 @@ watch(locale, () => {
         :selectedRows="selectedRows" :selectableRows="selectableRows" @edit="handleEdit" @delete="handleDelete"
         @update:report="handleReportToggle" @update:selectedRows="selectedRows = $event"
         @update:toggle="handleToggleUpdate" @update:toggleSelectedOnly="handleToggle" />
-
 
       <!-- 4. Dialog One: Core Item Forms -->
       <v-dialog v-if="editingItem && isEditable" v-model="formDialogOpen">
@@ -966,15 +964,18 @@ watch(locale, () => {
       <v-dialog v-model="reptDialog">
         <BaseDialogLayout @close="handleFormCancel">
           <template #title>
-            {{ reptItem.type == 'Add' ? 'Add Report Connection(s)' : `${reptItem.rept} Report Connection(s)` }}
+            {{
+              reptItem.type == 'Add'
+                ? $t('dialogs.add_report_connections')
+                : $t('dialogs.edit_report_connections', { report: reptItem.rept })
+            }}
           </template>
 
-          <!-- 💡 maps cleanly into the subtitle layout zone -->
           <template v-if="reptItem.type == 'Edit' && reptDialogSubtitle.length > 0" #subtitle>
             <div class="d-flex align-center justify-space-between w-100">
               <strong>{{ reptDialogSubtitle }}</strong>
               <span v-if="reptItem.id !== null" class="text-caption d-flex align-center">
-                <v-icon size="small" class="mr-1">mdi-crosshairs-gps</v-icon> ID: {{ reptItem.id }}
+                <v-icon size="small" class="mr-1">mdi-crosshairs-gps</v-icon> {{ $t('fields.id') }}: {{ reptItem.id }}
               </span>
             </div>
           </template>
@@ -987,22 +988,22 @@ watch(locale, () => {
       <!-- 6. Dialog Three: Bulk Action Type Selection -->
       <v-dialog v-model="typeDialog" max-width="500">
         <BaseDialogLayout content-class="pb-2" @close="typeDialog = false">
-          <template #title>Update Institution Type</template>
+          <template #title>{{ $t('dialogs.update_institution_type') }}</template>
 
           <template #subtitle>
-            <strong>Updating Type For {{ selectedRows.length }} Institutions</strong>
+            <strong>{{ $t('dialogs.updating_type_for_count', { count: selectedRows.length }) }}</strong>
           </template>
 
-          <v-autocomplete v-model="newType" label="Type" :items="allOptions.type || []" item-title="name"
+          <v-autocomplete v-model="newType" :label="$t('fields.type')" :items="allOptions.type || []" item-title="name"
             item-value="id" density="compact" return-object />
 
           <template #actions>
-            <v-btn @click="handleBulk({ action: 'Set Institution Type', type_id: newType.id })">Save</v-btn>
-            <v-btn variant="text" class="ml-2" @click="handleFormCancel">Cancel</v-btn>
+            <v-btn @click="handleBulk({ action: 'Set Institution Type', type_id: newType.id })">{{ $t('common.save')
+            }}</v-btn>
+            <v-btn variant="text" class="ml-2" @click="handleFormCancel">{{ $t('common.cancel') }}</v-btn>
           </template>
         </BaseDialogLayout>
       </v-dialog>
-
 
     </v-sheet>
   </div>

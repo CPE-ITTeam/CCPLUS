@@ -1,10 +1,12 @@
 <!-- components/ui/FlexCol.vue -->
 <template>
   <v-col
+    v-bind="$attrs"
     :cols="cols"
     :sm="sm"
     :md="md"
     :lg="lg"
+    class="d-flex flex-column ga-5"
   >
     <slot />
   </v-col>
@@ -13,7 +15,7 @@
 <script>
   export default {
     name: 'FlexCol',
-    inheritAttrs: false, // 👈 ADD THIS LINE TO PREVENT UNTRACKED ATTRIBUTES FROM FALLING THROUGH
+    inheritAttrs: false,
     props: {
       cols: { type: [Number, String], default: 12 },
       sm: { type: [Number, String], default: 6 },

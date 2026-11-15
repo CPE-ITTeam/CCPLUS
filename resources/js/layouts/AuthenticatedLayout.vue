@@ -20,8 +20,16 @@ const router = useRouter();
 const all_routes = [...router.options.routes];
 
 // Extract specialized static routes safely
-const profileRoute = computed(() => all_routes.find(r => r.path === '/')?.children?.find(r => r.path === '/profile') || { meta: { title: 'Profile' } });
-const apiRoute = computed(() => all_routes.find(r => r.path === '/')?.children?.find(r => r.path === '/apiSettings') || { meta: { title: 'API Settings' } });
+const profileRoute = computed(() => {
+  if (authStore.is_serveradmin) {
+    return all_routes.find(r => r.name === 'ServerSettings') || { path: '/server/settings', meta: { title: t('routes.server_settings') } };
+  }
+  return all_routes.find(r => r.path === '/profile') || { path: '/profile', meta: { title: t('routes.account_settings') } };
+});
+
+const apiRoute = computed(() => {
+  return all_routes.find(r => r.path === '/ccplusApi') || { path: '/ccplusApi', meta: { title: t('routes.ccplus_api') } };
+});
 
 // Pinia DataStores
 const authStore = useAuthStore();
@@ -72,13 +80,14 @@ function onTabChange(newTab) {
 }
 
 // Update page changes from menu(s)
+
 function onPageChange(newPage) {
   if (newPage === 900) {
     activePage.value = 900;
-    router.push('/apiSettings');
+    router.push(apiRoute.value.path);
   } else if (newPage === 999) {
     activePage.value = 999;
-    router.push('/profile');
+    router.push(profileRoute.value.path);
   } else {
     let page = pages.value[newPage];
     if (typeof (page) != 'undefined') {
@@ -91,7 +100,6 @@ function onPageChange(newPage) {
     }
   }
 }
-
 
 async function handleGlobalConsoChange(event) {
   if (event && event.id && event.ccp_key) {
@@ -307,6 +315,13 @@ onMounted(async () => {
             </v-tabs-window>
           </v-card-text>
         </div> <!-- Closes the initial <div v-if="pages && pages[activePage]"> block -->
+
+        <!-- Standalone Header Menu Routes (e.g. /profile, /ccplusApi) -->
+        <div v-else>
+          <v-card-text>
+            <router-view :key="$route.fullPath" @updateConso="forwardConsoSignal" />
+          </v-card-text>
+        </div>
 
       </v-card>
 

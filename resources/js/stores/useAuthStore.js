@@ -122,7 +122,7 @@ export const useAuthStore = defineStore("useAuthStore", {
       if (this.is_serveradmin) {
         this.router.push({ name: "Consortia" });
       } else if (this.is_admin) {
-        this.router.push({ name: "InstitutionsTable" });
+        this.router.push({ name: "Profile" });
       } else {
         this.router.push({ name: "Reports" });
       }

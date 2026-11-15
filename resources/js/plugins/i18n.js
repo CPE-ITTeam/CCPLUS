@@ -13,12 +13,19 @@ function detectLocale() {
   if (saved && supportedLocales.includes(saved)) {
     return saved;
   }
+  const serverDefault = window.ccplusConfig?.default_locale;
+  if (serverDefault && supportedLocales.includes(serverDefault)) {
+    return serverDefault;
+  }
   return 'en';
 }
 
+const initialLocale = detectLocale();
+document.documentElement.setAttribute('lang', initialLocale);
+
 const i18n = createI18n({
   legacy: false,
-  locale: detectLocale(),
+  locale: initialLocale,
   fallbackLocale: 'en',
   messages: {
     en,
@@ -30,10 +37,12 @@ const i18n = createI18n({
   },
 });
 
-export function setAppLocale(locale) {
+export function setAppLocale(locale, persist = true) {
   if (!supportedLocales.includes(locale)) return;
   i18n.global.locale.value = locale;
-  localStorage.setItem('ccplus_locale', locale);
+  if (persist) {
+    localStorage.setItem('ccplus_locale', locale);
+  }
   document.documentElement.setAttribute('lang', locale);
 }
 

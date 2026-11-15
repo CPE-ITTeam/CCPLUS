@@ -2,6 +2,7 @@ import "vuetify/styles"; // Framework layout grids mount natively here
 import "vuetify/dist/vuetify-labs.css";
 import "@mdi/font/css/materialdesignicons.css";
 import { createVuetify } from "vuetify";
+import { VSheet } from 'vuetify/components/VSheet';
 
 import { createVueI18nAdapter } from "vuetify/locale/adapters/vue-i18n";
 import { useI18n } from "vue-i18n";
@@ -22,7 +23,6 @@ i18n.global.mergeLocaleMessage("fr", { $vuetify: vuetifyFr });
 i18n.global.mergeLocaleMessage("de", { $vuetify: vuetifyDe });
 i18n.global.mergeLocaleMessage("hu", { $vuetify: vuetifyHu });
 
-
 // ─── REUSABLE INPUT CONFIGURATION GROUP ───
 const sharedInputDefaults = {
   hideDetails: "auto", // Hides bottom spacing unless an active error shows
@@ -33,6 +33,10 @@ const sharedInputDefaults = {
 };
 
 export default createVuetify({
+  aliases: {
+    CodeBlock: VSheet,
+    SectionHeading: VSheet,
+  },
   locale: {
     adapter: createVueI18nAdapter({ i18n, useI18n }),
   },
@@ -43,6 +47,7 @@ export default createVuetify({
     VCheckbox: { ...sharedInputDefaults },
     VCombobox: { ...sharedInputDefaults },
     VFileInput: { ...sharedInputDefaults },
+    VNumberInput: { ...sharedInputDefaults },
     VSelect: { ...sharedInputDefaults },
     VSwitch: { ...sharedInputDefaults },
     VTextField: { ...sharedInputDefaults },
@@ -59,6 +64,19 @@ export default createVuetify({
     },
 
     // ─── SYSTEM CORE COMPONENTS ───
+
+    CodeBlock: {
+      color: "grey-lighten-4",
+      rounded: "lg",
+      border: true,
+      class: "pa-3",
+    },
+    SectionHeading: {
+      tag: "h3",
+      color: "transparent",
+      class:
+        "text-title-large font-weight-semibold text-primary mb-3 d-flex align-center",
+    },
     VAppBar: {
       color: "surface",
       flat: true,
@@ -110,10 +128,19 @@ export default createVuetify({
       maxWidth: "600px",
       scrollable: true,
     },
+    VExpansionPanels: {
+      variant: "accordion",
+      rounded: "lg",
+    },
+    VExpansionPanelTitle: {
+      class: "bg-info text-white font-weight-bold",
+      style: "font-size: 1.35rem;",
+    },
     VList: {
       density: "compact",
       border: true,
       rounded: "lg",
+      class: "py-0",
     },
     VTabs: {
       color: "primary",

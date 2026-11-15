@@ -7,16 +7,16 @@ use Illuminate\Session\Middleware\StartSession;
 Route::get('logout', 'App\Http\Controllers\Auth\LoginController@logout');
 Route::post('login', 'App\Http\Controllers\Auth\LoginController@login');
 Route::get('consoList', 'App\Http\Controllers\ConsortiumController@index')->name('consoList');
-Route::post('forgotPass','App\Http\Controllers\Auth\ForgotPasswordController@submitForgotForm')
-        ->name('forgotPass');
-Route::post('resetPass/','App\Http\Controllers\Auth\ForgotPasswordController@submitResetForm')
-        ->name('resetPass');
+Route::post('forgotPass', 'App\Http\Controllers\Auth\ForgotPasswordController@submitForgotForm')
+    ->name('forgotPass');
+Route::post('resetPass/', 'App\Http\Controllers\Auth\ForgotPasswordController@submitResetForm')
+    ->name('resetPass');
 
 // Routes requiring authentication
-Route::middleware('ccplusAuth')->group( function () {
-    Route::post('/updateSession','App\Http\Controllers\SessionController@update')->name('updateSession');
+Route::middleware('ccplusAuth')->group(function () {
+    Route::post('/updateSession', 'App\Http\Controllers\SessionController@update')->name('updateSession');
     Route::get('/user', function (Request $request) {
-       return $request->user();
+        return $request->user();
     });
     // Token routes
     Route::prefix('tokens')->group(function () {
@@ -30,7 +30,10 @@ Route::middleware('ccplusAuth')->group( function () {
         Route::get('/get', 'App\Http\Controllers\ConsortiumController@index')->name('consortia.index');
         Route::post('/store', 'App\Http\Controllers\ConsortiumController@store')->name('consortia.store');
         Route::patch('/update/{consortium}', 'App\Http\Controllers\ConsortiumController@update')->name('consortia.update');
+        Route::get('/current', 'App\Http\Controllers\ConsortiumController@current')->name('consortia.current');
+        Route::patch('/current', 'App\Http\Controllers\ConsortiumController@updateCurrent')->name('consortia.updateCurrent');
     });
+
     Route::prefix('credentials')->group(function () {
         Route::get('/get', 'App\Http\Controllers\CredentialController@index')->name('credentials.index');
         Route::post('/store', 'App\Http\Controllers\CredentialController@store')->name('credentials.store');

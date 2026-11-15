@@ -27,6 +27,7 @@ import Institutions from "@/views/datasets/Institutions.vue";
 import InstitutionTypes from "@/views/datasets/InstitutionTypes.vue";
 import Platforms from "@/views/datasets/Platforms.vue";
 import Roles from "@/views/datasets/Roles.vue";
+import SavedReports from "@/views/datasets/SavedReports.vue";
 import Users from "@/views/datasets/Users.vue";
 
 // 3. SYSTEM INFRASTRUCTURE & SETTINGS PANELS
@@ -363,20 +364,50 @@ const routes = [
       },
     ],
   },
-  {
-    path: "/reports",
-    name: "Reports",
-    meta: {
-      ...AUTH_BASE,
-      role: "Viewer",
-      level: 1,
-      get title() {
-        return t("routes.reports");
-      },
+{
+  path: "/reports",
+  name: "Reports",
+  show: 1,
+  meta: {
+    ...AUTH_BASE,
+    role: "Viewer",
+    level: 1,
+    get title() {
+      return t("routes.reports");
     },
-    children: [],
-    component: markRaw(Reporting),
   },
+  children: [
+    {
+      path: "create",
+      name: "CreateReport",
+      show: 1,
+      meta: {
+        ...AUTH_BASE,
+        role: "Viewer",
+        level: 2,
+        get title() {
+          return t("routes.create_report");
+        },
+      },
+      component: markRaw(Reporting),
+    },
+    {
+      path: "saved",
+      name: "SavedReports",
+      show: 1,
+      meta: {
+        ...AUTH_BASE,
+        role: "Viewer",
+        level: 2,
+        get title() {
+          return t("routes.saved_reports");
+        },
+      },
+      component: markRaw(SavedReports),
+    },
+  ],
+},
+
   // ServerAdmin Config Routes
   {
     path: "/server",
@@ -431,20 +462,6 @@ const routes = [
           },
         },
         component: markRaw(CCPlusApi),
-      },
-      {
-        path: "account",
-        name: "AccountSettings",
-        show: 1,
-        meta: {
-          ...AUTH_BASE,
-          role: "Admin",
-          level: 2,
-          get title() {
-            return t("routes.account_settings");
-          },
-        },
-        component: markRaw(AccountSettings),
       },
     ],
   },
@@ -501,6 +518,7 @@ pinia.use(({ store }) => {
 });
 
 // Structural Navigation Guard
+// Structural Navigation Guard
 router.beforeEach(async (to, from) => {
   const authStore = useAuthStore();
 
@@ -514,11 +532,17 @@ router.beforeEach(async (to, from) => {
     return "/api/login";
   }
 
-  // 3. Intercept and Handle Logout Routines
+  // 3. Redirect ServerAdmin away from tenant Profile to Server Settings
+  if (to.name === "Profile" && authStore.is_serveradmin) {
+    return { name: "ServerSettings" };
+  }
+
+  // 4. Intercept and Handle Logout Routines
   if (to.name === "Logout") {
     await authStore.logout();
   }
 });
+
 
 // Sync Tab Layout Text Post-render
 router.afterEach((to) => {
