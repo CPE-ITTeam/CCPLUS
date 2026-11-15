@@ -578,6 +578,7 @@ export default {
     filter: "Filter | Filter",
     full_registry_refresh: "Vollständige Registry-Aktualisierung",
     import: "Importieren",
+    items_selected: "{count} ausgewählt",
     last_updated: "Zuletzt aktualisiert: {date}",
     manual_retry_aria: "Manuelle Wiederholung oder Bestätigungslink",
     manual_retry_title: "Manuelle Wiederholung / Bestätigungslink",

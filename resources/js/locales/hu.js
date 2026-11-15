@@ -576,6 +576,7 @@ export default {
     filter: "Szűrő | Szűrők",
     full_registry_refresh: "Teljes nyilvántartás frissítése",
     import: "Importálás",
+    items_selected: "{count} kijelölve",
     last_updated: "Utoljára frissítve: {date}",
     manual_retry_aria: "Kézi újrapróbálkozás vagy megerősítő hivatkozás",
     manual_retry_title: "Kézi újrapróbálkozás / Megerősítő hivatkozás",

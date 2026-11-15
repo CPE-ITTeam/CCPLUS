@@ -578,6 +578,7 @@ export default {
     filter: "Filtre | Filtres",
     full_registry_refresh: "Actualisation complète du registre",
     import: "Importer",
+    items_selected: "{count} sélectionné(s)",
     last_updated: "Dernière mise à jour : {date}",
     manual_retry_aria: "Nouvelle tentative manuelle ou lien de confirmation",
     manual_retry_title: "Nouvelle tentative manuelle / Lien de confirmation",

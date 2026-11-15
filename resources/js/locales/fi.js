@@ -571,6 +571,7 @@ export default {
     filter: "Suodatin | Suodattimet",
     full_registry_refresh: "Täysi rekisteripäivitys",
     import: "Tuo",
+    items_selected: "{count} valittu",
     last_updated: "Viimeksi päivitetty: {date}",
     manual_retry_aria: "Manuaalinen uudelleenyritys tai vahvistuslinkki",
     manual_retry_title: "Manuaalinen uudelleenyritys / vahvistuslinkki",

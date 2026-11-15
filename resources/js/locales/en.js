@@ -572,6 +572,7 @@ export default {
     filter: "Filter | Filters",
     full_registry_refresh: "Full Registry Refresh",
     import: "Import",
+    items_selected: "{count} selected",
     last_updated: "Last Updated: {date}",
     manual_retry_aria: "Manual Retry or Confirm Link",
     manual_retry_title: "Manual Retry/Confirm Link",
