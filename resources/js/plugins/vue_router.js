@@ -31,12 +31,15 @@ import SavedReports from "@/views/datasets/SavedReports.vue";
 import Users from "@/views/datasets/Users.vue";
 
 // 3. SYSTEM INFRASTRUCTURE & SETTINGS PANELS
-import AccountSettings from "@/views/admin/AccountSettings.vue";
-import CCPlusApi from "@/views/admin/CCPlusApi.vue";
+// 3. SYSTEM INFRASTRUCTURE & SETTINGS PANELS
 import MailSettings from "@/views/admin/MailSettings.vue";
 import ManualHarvest from "@/views/admin/ManualHarvest.vue";
 import Reporting from "@/views/admin/Reporting.vue";
 import ServerSettings from "@/views/admin/ServerSettings.vue";
+import ApiSettingsPanel from "@/components/panels/ApiSettingsPanel.vue";
+
+// 4. USER ACCOUNT VIEWS
+import AccountSettings from "@/views/account/AccountSettings.vue";
 
 // Pinia Datastore Pipeline
 import { createPinia } from "pinia";
@@ -364,50 +367,49 @@ const routes = [
       },
     ],
   },
-{
-  path: "/reports",
-  name: "Reports",
-  show: 1,
-  meta: {
-    ...AUTH_BASE,
-    role: "Viewer",
-    level: 1,
-    get title() {
-      return t("routes.reports");
+  {
+    path: "/reports",
+    name: "Reports",
+    show: 1,
+    meta: {
+      ...AUTH_BASE,
+      role: "Viewer",
+      level: 1,
+      get title() {
+        return t("routes.reports");
+      },
     },
+    children: [
+      {
+        path: "create",
+        name: "CreateReport",
+        show: 1,
+        meta: {
+          ...AUTH_BASE,
+          role: "Viewer",
+          level: 2,
+          get title() {
+            return t("routes.create_report");
+          },
+        },
+        component: markRaw(Reporting),
+      },
+      {
+        path: "saved",
+        name: "SavedReports",
+        show: 1,
+        meta: {
+          ...AUTH_BASE,
+          role: "Viewer",
+          level: 2,
+          get title() {
+            return t("routes.saved_reports");
+          },
+        },
+        component: markRaw(SavedReports),
+      },
+    ],
   },
-  children: [
-    {
-      path: "create",
-      name: "CreateReport",
-      show: 1,
-      meta: {
-        ...AUTH_BASE,
-        role: "Viewer",
-        level: 2,
-        get title() {
-          return t("routes.create_report");
-        },
-      },
-      component: markRaw(Reporting),
-    },
-    {
-      path: "saved",
-      name: "SavedReports",
-      show: 1,
-      meta: {
-        ...AUTH_BASE,
-        role: "Viewer",
-        level: 2,
-        get title() {
-          return t("routes.saved_reports");
-        },
-      },
-      component: markRaw(SavedReports),
-    },
-  ],
-},
-
   // ServerAdmin Config Routes
   {
     path: "/server",
@@ -451,7 +453,7 @@ const routes = [
       },
       {
         path: "api",
-        name: "CCPlusApi",
+        name: "ServerApi",
         show: 1,
         meta: {
           ...AUTH_BASE,
@@ -461,49 +463,88 @@ const routes = [
             return t("routes.api_management");
           },
         },
-        component: markRaw(CCPlusApi),
+        component: markRaw(ApiSettingsPanel),
       },
     ],
   },
+
 ];
 
-// Separate routes that AuthenticatedLayout tacks onto the application routes in the top navigation bar
-const profileRoute = {
-  path: "/profile",
-  name: "Profile",
+// Account Route Group with Subtabs (Profile, Home Institution, API)
+const accountRoute = {
+  path: "/account",
+  name: "Account",
+  redirect: "/account/profile",
   meta: {
+    ...AUTH_BASE,
+    role: "Viewer",
+    level: 1,
     get title() {
       return t("routes.account_settings");
     },
-    layout: AuthenticatedLayout,
-    role: "Viewer",
-    key: 0,
-    level: 0,
   },
-  component: markRaw(AccountSettings),
+  children: [
+    {
+      path: "profile",
+      name: "Profile",
+      show: 1,
+      meta: {
+        ...AUTH_BASE,
+        role: "Viewer",
+        level: 2,
+        tab: "profile",
+        get title() {
+          return t("routes.my_profile");
+        },
+      },
+      component: markRaw(AccountSettings),
+    },
+    {
+      path: "institution",
+      name: "HomeInstitution",
+      show: 1,
+      meta: {
+        ...AUTH_BASE,
+        role: "Viewer",
+        level: 2,
+        tab: "institution",
+        get title() {
+          return t("routes.home_institution");
+        },
+      },
+      component: markRaw(AccountSettings),
+    },
+    {
+      path: "api",
+      name: "API",
+      show: 1,
+      meta: {
+        ...AUTH_BASE,
+        role: "Viewer",
+        level: 2,
+        tab: "api",
+        get title() {
+          return t("routes.ccplus_api");
+        },
+      },
+      component: markRaw(AccountSettings),
+    },
+  ],
 };
 
-const apiRoute = {
-  path: "/ccplusApi",
-  name: "API",
-  meta: {
-    get title() {
-      return t("routes.ccplus_api");
-    },
-    layout: AuthenticatedLayout,
-    role: "Viewer",
-    key: 0,
-    level: 0,
-  },
-  component: markRaw(CCPlusApi),
-};
+// Backward-compatible redirects for legacy routes
+const legacyAccountRedirects = [
+  { path: "/profile", redirect: "/account/profile" },
+  { path: "/ccplusApi", redirect: "/account/api" },
+  { path: "/server/api", redirect: "/account/api" },
+];
 
 export const router = createRouter({
   history: createWebHistory(),
   routes: [
     ...routes,
-    profileRoute,
-    apiRoute,
+    accountRoute,
+    ...legacyAccountRedirects,
     {
       path: "/:pathMatch(.*)*",
       name: "NotFound",
@@ -518,7 +559,6 @@ pinia.use(({ store }) => {
 });
 
 // Structural Navigation Guard
-// Structural Navigation Guard
 router.beforeEach(async (to, from) => {
   const authStore = useAuthStore();
 
@@ -532,8 +572,8 @@ router.beforeEach(async (to, from) => {
     return "/api/login";
   }
 
-  // 3. Redirect ServerAdmin away from tenant Profile to Server Settings
-  if (to.name === "Profile" && authStore.is_serveradmin) {
+  // 3. Redirect ServerAdmin away from tenant Account tabs to Server Settings
+  if (to.matched.some((r) => r.name === "Account") && authStore.is_serveradmin) {
     return { name: "ServerSettings" };
   }
 
@@ -542,7 +582,6 @@ router.beforeEach(async (to, from) => {
     await authStore.logout();
   }
 });
-
 
 // Sync Tab Layout Text Post-render
 router.afterEach((to) => {

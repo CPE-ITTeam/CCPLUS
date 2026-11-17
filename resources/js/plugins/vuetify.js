@@ -2,7 +2,7 @@ import "vuetify/styles"; // Framework layout grids mount natively here
 import "vuetify/dist/vuetify-labs.css";
 import "@mdi/font/css/materialdesignicons.css";
 import { createVuetify } from "vuetify";
-import { VSheet } from 'vuetify/components/VSheet';
+import { VSheet } from "vuetify/components/VSheet";
 
 import { createVueI18nAdapter } from "vuetify/locale/adapters/vue-i18n";
 import { useI18n } from "vue-i18n";
@@ -31,6 +31,34 @@ const sharedInputDefaults = {
   clearable: true, // GLOBAL DEFAULT: Adds the "X" clear icon to all inputs
   persistentPlaceholder: true, // Keeps placeholder text always visible on empty fields
 };
+
+// ─── SHARED LIGHT THEME TOKENS ───
+const BASE_LIGHT_COLORS = {
+  secondary: "#757575", // Neutral gray for secondary layout actions
+  surface: "#ffffff", // Solid white for cards and input backgrounds
+  background: "#f1f5f9", // Modern light slate gray page background canvas
+  success: "#4caf50", // Bright material green for toggle checkmarks
+  warning: "#ff9800", // Vivid orange for incomplete rows
+  error: "#f44336", // Scarlet red for destructive alerts/deletes
+  "on-primary": "#ffffff",
+  "on-info": "#ffffff", // Forces text to white inside solid consortium blue blocks
+  "on-secondary": "#ffffff", // Forces text to white inside solid gray layout elements
+  "on-success": "#ffffff",
+  "on-warning": "#212121", // Forces dark charcoal text inside orange alerts for visibility
+  "on-error": "#ffffff",
+};
+
+const BASE_LIGHT_VARIABLES = {
+  "font-family": "sans-serif",
+};
+
+export const CONSORTIUM_THEMES = [
+  { id: "light", primary: "#0066a1", info: "#3686b4" },
+  { id: "emerald", primary: "#0f6e56", info: "#2a8c73" },
+  { id: "indigo", primary: "#3730a3", info: "#5550c4" },
+  { id: "plum", primary: "#7a2048", info: "#9e3b67" },
+  { id: "slate", primary: "#334155", info: "#52637a" },
+];
 
 export default createVuetify({
   aliases: {
@@ -64,7 +92,6 @@ export default createVuetify({
     },
 
     // ─── SYSTEM CORE COMPONENTS ───
-
     CodeBlock: {
       color: "grey-lighten-4",
       rounded: "lg",
@@ -172,29 +199,47 @@ export default createVuetify({
       light: {
         dark: false,
         colors: {
-          // ─── ⚓ CORE BRAND ARCHITECTURE ───
+          ...BASE_LIGHT_COLORS,
           primary: "#0066a1", // Exact dark blue logo token
           info: "#3686b4", // Medium consortium blue drives system info/accents
-          secondary: "#757575", // Neutral gray for secondary layout actions
-          surface: "#ffffff", // Solid white for cards and input backgrounds
-          background: "#f1f5f9", // Modern light slate gray page background canvas
-
-          // ─── 🎨 VIBRANT HIGH-VISIBILITY FEEDBACK COLORS ───
-          success: "#4caf50", // Bright material green for toggle checkmarks
-          warning: "#ff9800", // Vivid orange for incomplete rows
-          error: "#f44336", // Scarlet red for destructive alerts/deletes
-
-          // ─── 🎨 FOREGROUND TEXT CONTRAST ENGINES ───
-          "on-primary": "#ffffff",
-          "on-info": "#ffffff", // Forces text to white inside solid consortium blue blocks
-          "on-secondary": "#ffffff", // Forces text to white inside solid gray layout elements
-          "on-success": "#ffffff",
-          "on-warning": "#212121", // Forces dark charcoal text inside orange alerts for visibility
-          "on-error": "#ffffff",
         },
-        variables: {
-          "font-family": "sans-serif",
+        variables: BASE_LIGHT_VARIABLES,
+      },
+      emerald: {
+        dark: false,
+        colors: {
+          ...BASE_LIGHT_COLORS,
+          primary: "#0f6e56",
+          info: "#2a8c73",
         },
+        variables: BASE_LIGHT_VARIABLES,
+      },
+      indigo: {
+        dark: false,
+        colors: {
+          ...BASE_LIGHT_COLORS,
+          primary: "#3730a3",
+          info: "#5550c4",
+        },
+        variables: BASE_LIGHT_VARIABLES,
+      },
+      plum: {
+        dark: false,
+        colors: {
+          ...BASE_LIGHT_COLORS,
+          primary: "#7a2048",
+          info: "#9e3b67",
+        },
+        variables: BASE_LIGHT_VARIABLES,
+      },
+      slate: {
+        dark: false,
+        colors: {
+          ...BASE_LIGHT_COLORS,
+          primary: "#334155",
+          info: "#52637a",
+        },
+        variables: BASE_LIGHT_VARIABLES,
       },
     },
   },

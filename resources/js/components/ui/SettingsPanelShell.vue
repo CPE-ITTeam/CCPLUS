@@ -1,4 +1,4 @@
-<!-- resources/js/components/ui/SettingsPanelLayout.vue -->
+<!-- resources/js/components/ui/SettingsPanelShell.vue -->
 <script setup>
 defineProps({
   title: { type: String, required: true },

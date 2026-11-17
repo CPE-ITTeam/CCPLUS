@@ -38,8 +38,9 @@ class ConsortiumController extends BaseController
         $isServerAdmin = auth()->check() && auth()->user()->isServerAdmin();
         $consortia = Consortium::orderBy('name', 'asc')->get();
 
-        $defaultName  = 'Server Administrator';
-        $defaultEmail = config('ccplus.server_admin');
+        $defaultName     = 'Server Administrator';
+        $defaultEmail    = config('ccplus.server_admin');
+        $defaultLanguage = config('ccplus.language', config('app.locale', 'en'));
 
         foreach ($consortia as $consortium) {
             $adminName  = $defaultName;
@@ -66,14 +67,39 @@ class ConsortiumController extends BaseController
             $consortium->admin_name  = $adminName;
             $consortium->admin_email = $adminEmail;
             $consortium->fiscalYr    = $consortium->effectiveFiscalYr();
+            $consortium->language    = $consortium->language ?: $defaultLanguage;
+            $consortium->theme       = $consortium->theme ?: 'light';
             $consortium->status      = $consortium->is_active ? 'Active' : 'Inactive';
             $consortium->can_edit    = $isServerAdmin;
             $consortium->can_delete  = $isServerAdmin;
         }
 
+        $months = collect(range(1, 12))->map(function ($m) {
+            $name = \Carbon\Carbon::create(2024, $m, 1)->format('F');
+            return ['id' => $name, 'name' => $name];
+        })->values()->all();
+
+        $languages = collect(['en', 'de', 'es', 'fi', 'fr', 'hu'])->map(fn ($code) => [
+            'id'   => $code,
+            'name' => strtoupper($code),
+        ])->values()->all();
+
+        $themes = [
+            ['id' => 'light',   'name' => 'Classic Blue (Default)'],
+            ['id' => 'emerald', 'name' => 'Forest Teal'],
+            ['id' => 'indigo',  'name' => 'Academic Indigo'],
+            ['id' => 'plum',    'name' => 'Burgundy Plum'],
+            ['id' => 'slate',   'name' => 'Warm Charcoal'],
+        ];
+
         return response()->json([
             'records' => $consortia,
-            'options' => ['defaultFiscalYr' => config('ccplus.fiscalYr')],
+            'options' => [
+                'defaultFiscalYr' => config('ccplus.fiscalYr'),
+                'fiscalYr'        => $months,
+                'language'        => $languages,
+                'theme'           => $themes,
+            ],
             'result'  => true,
         ], 200);
     }
@@ -90,6 +116,8 @@ class ConsortiumController extends BaseController
             'email'              => 'required|email',
             'admin_pass'         => 'required',
             'admin_confirm_pass' => 'required|same:admin_pass',
+            'language'           => 'nullable|string|max:10',
+            'theme'              => 'nullable|string|in:light,emerald,indigo,plum,slate',
         ], [
             'ccp_key.unique' => __('validation.duplicate_ccp_key', ['value' => $request->input('ccp_key')]),
         ]);
@@ -181,8 +209,11 @@ class ConsortiumController extends BaseController
             return $this->respondError(__('users.conso_grant_failed', ['error' => $grantError->getMessage()]), 500);
         }
 
+        $defaultLanguage = config('ccplus.language', config('app.locale', 'en'));
         $consortiumData = $request->only('ccp_key', 'name', 'email');
         $consortiumData['fiscalYr']  = $this->normalizeFiscalYr($input['fiscalYr'] ?? null);
+        $consortiumData['language']  = trim((string) ($input['language'] ?? '')) ?: $defaultLanguage;
+        $consortiumData['theme']     = trim((string) ($input['theme'] ?? '')) ?: 'light';
         $consortiumData['is_active'] = 1;
 
         $consortium = Consortium::create($consortiumData);
@@ -236,6 +267,12 @@ class ConsortiumController extends BaseController
             return $this->respondError(__('connections.forbidden_request'), 403);
         }
 
+        $this->validate($request, [
+            'email'    => 'nullable|email',
+            'language' => 'nullable|string|max:10',
+            'theme'    => 'nullable|string|in:light,emerald,indigo,plum,slate',
+        ]);
+
         $consortium = Consortium::findOrFail($id);
 
         if ($request->has('status')) {
@@ -249,12 +286,21 @@ class ConsortiumController extends BaseController
         }
 
         if ($request->filled('email')) {
-            $this->validate($request, ['email' => 'email']);
             $consortium->email = trim((string) $request->input('email'));
         }
 
         if ($request->has('fiscalYr')) {
             $consortium->fiscalYr = $this->normalizeFiscalYr($request->input('fiscalYr'));
+        }
+
+        if ($request->has('language')) {
+            $lang = trim((string) $request->input('language'));
+            $consortium->language = strlen($lang) > 0 ? $lang : null;
+        }
+
+        if ($request->has('theme')) {
+            $theme = trim((string) $request->input('theme'));
+            $consortium->theme = strlen($theme) > 0 ? $theme : 'light';
         }
 
         // Never allow ccp_key to be changed after creation
@@ -275,8 +321,11 @@ class ConsortiumController extends BaseController
             }
         }
 
+        $defaultLanguage = config('ccplus.language', config('app.locale', 'en'));
         $consortium->admin_name = $adminName ?? 'CC-Plus Administrator';
         $consortium->fiscalYr   = $consortium->effectiveFiscalYr();
+        $consortium->language   = $consortium->language ?: $defaultLanguage;
+        $consortium->theme      = $consortium->theme ?: 'light';
         $consortium->status     = $consortium->is_active ? 'Active' : 'Inactive';
         $consortium->can_edit   = true;
         $consortium->can_delete = true;
@@ -303,10 +352,25 @@ class ConsortiumController extends BaseController
         $consortium = Consortium::where('ccp_key', $ccpKey)->firstOrFail();
         $consortium->fiscalYr = $consortium->effectiveFiscalYr();
 
+        // Ensure status string ('Active' / 'Inactive') is present for the UI switch
+        if (!isset($consortium->status) && isset($consortium->is_active)) {
+            $consortium->status = $consortium->is_active ? 'Active' : 'Inactive';
+        }
+
+        $defaultLanguage = config('ccplus.language', config('app.locale', 'en'));
+        if (empty($consortium->language)) {
+            $consortium->language = $defaultLanguage;
+        }
+
+        if (empty($consortium->theme)) {
+            $consortium->theme = 'light';
+        }
+
         return response()->json([
             'result'          => true,
             'consortium'      => $consortium,
             'defaultFiscalYr' => config('ccplus.fiscalYr'),
+            'defaultLanguage' => $defaultLanguage,
         ], 200);
     }
 
@@ -316,13 +380,17 @@ class ConsortiumController extends BaseController
      */
     public function updateCurrent(Request $request)
     {
-        if (!auth()->user() || !auth()->user()->isConsoAdmin()) {
+        $user = auth()->user();
+        if (!$user || !$user->isConsoAdmin()) {
             return $this->respondError(__('users.update_forbidden'), 403);
         }
 
         $this->validate($request, [
-            'name'  => 'required|string|max:255',
-            'email' => 'required|email|max:255',
+            'name'       => 'required|string|max:255',
+            'admin_name' => 'nullable|string|max:255',
+            'email'      => 'required|email|max:255',
+            'language'   => 'nullable|string|max:10',
+            'theme'      => 'nullable|string|in:light,emerald,indigo,plum,slate',
         ]);
 
         $ccpKey = $request->header('X-Tenant') ?: session('ccp_key');
@@ -331,12 +399,39 @@ class ConsortiumController extends BaseController
         $consortium->name = trim((string) $request->input('name'));
         $consortium->email = trim((string) $request->input('email'));
 
+        if ($request->has('admin_name')) {
+            $consortium->admin_name = trim((string) $request->input('admin_name')) ?: null;
+        }
+
         if ($request->has('fiscalYr')) {
             $consortium->fiscalYr = $this->normalizeFiscalYr($request->input('fiscalYr'));
         }
 
+        if ($request->has('language')) {
+            $lang = trim((string) $request->input('language'));
+            $consortium->language = strlen($lang) > 0 ? $lang : null;
+        }
+
+        if ($request->has('theme')) {
+            $theme = trim((string) $request->input('theme'));
+            $consortium->theme = strlen($theme) > 0 ? $theme : 'light';
+        }
+
+        // Only ServerAdmin may toggle consortium status
+        if ($user->isServerAdmin() && $request->has('status')) {
+            $consortium->is_active = ($request->input('status') === 'Active' || $request->input('status') === true || $request->input('status') == 1) ? 1 : 0;
+        }
+
         $consortium->save();
         $consortium->fiscalYr = $consortium->effectiveFiscalYr();
+
+        if (!isset($consortium->status) && isset($consortium->is_active)) {
+            $consortium->status = $consortium->is_active ? 'Active' : 'Inactive';
+        }
+
+        if (empty($consortium->theme)) {
+            $consortium->theme = 'light';
+        }
 
         return response()->json([
             'result'     => true,
@@ -344,7 +439,5 @@ class ConsortiumController extends BaseController
             'msg'        => __('users.conso_updated', ['name' => $consortium->name]),
         ], 200);
     }
-
-
 
 }

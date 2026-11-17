@@ -1,6 +1,8 @@
 export default {
   account: {
     access_token: "Hozzáférési token",
+    admin_contact: "Adminisztrátori elérhetőség",
+    conso_identity: "Konzorcium azonosító adatai",
     conso_settings_title: "Konzorciumi beállítások",
     conso_update_success:
       "A konzorciumi beállítások sikeresen frissítve.",
@@ -9,11 +11,21 @@ export default {
     destroy_token: "Token törlése",
     expires: "Lejár",
     home_institution_hint: "A konzorcium adminisztrátora által kijelölve.",
+    home_institution_title: "Anyaintézmény beállításai",
+    inst_update_success:
+      "Az intézményi beállítások sikeresen frissítve.",
+    manage_roles: "Szerepkörök kezelése",
     na: "N/A",
     no_roles_assigned: "Nincsenek kijelölt intézményi vagy csoportszerepkörök.",
     organization_and_roles: "Szervezet és jogosultságok",
+    override_active:
+      "Személyes felülbírálás aktív (törölje az alapértelmezett értékhez)",
+    preferences: "Beállítások",
     profile_details: "Profil és beállítások",
+    readonly_field_hint:
+      "Ezt a mezőt csak jogosult adminisztrátor módosíthatja.",
     save_conso_settings: "Konzorciumi beállítások mentése",
+    save_institution_settings: "Intézményi beállítások mentése",
     save_settings: "Beállítások mentése",
     saved_reports_heading: "{user} — Mentett jelentések",
     security_and_api: "Biztonság és API-hozzáférés",
@@ -30,6 +42,7 @@ export default {
     update_failed: "Nem sikerült frissíteni a profilbeállításokat.",
     update_success: "A fiókbeállítások sikeresen elmentve.",
     user_roles: "Felhasználói szerepkör(ök)",
+    using_inherited_default: "Örökölt alapértelmezett érték használata",
   },
 
   api_docs: {
@@ -177,6 +190,7 @@ export default {
     yes_delete_it: "Igen, törlés",
     yes_delete_them: "Igen, összes törlése",
   },
+
   fields: {
     abbreviation: "Rövidítés",
     add_cred_placeholders: "Hitelesítő adatok helyőrzőinek hozzáadása",
@@ -198,6 +212,7 @@ export default {
     data_host: "Adatkiszolgáló",
     database_key: "Adatbáziskulcs",
     date_range: "Dátumtartomány",
+    default_language: "Alapértelmezett nyelv",
     display_name: "Megjelenített név",
     dr_group_ids: "DR csoportazonosító(k)",
     dr_inst_ids: "DR intézményazonosító(k)",

@@ -13,6 +13,7 @@ import { useRegistryProgress } from '@/composables/useRegistryProgress.js';
 import { useDatasetExporter } from '@/composables/useDatasetExporter.js';
 import { useDatasetBulk } from '@/composables/useDatasetBulk.js';
 import { useCCPlusStore } from '@/stores/useCCPlusStore.js';
+import { setAppLocale } from '@/plugins/i18n.js';
 
 import BaseDialogLayout from '@/components/dialogs/BaseDialogLayout.vue';
 import DataToolbar from './DataToolbar.vue';
@@ -32,6 +33,7 @@ const ccPlusStore = useCCPlusStore();
 const is_admin = authStore.is_admin;
 const is_conso_admin = authStore.is_conso_admin;
 const { setConso } = authStore;
+
 
 const { t, locale } = useI18n();
 
@@ -584,11 +586,21 @@ async function handleFormSubmit(updatedValues) {
     const finalizedRecord = {
       ...editingItem.value,
       ...formPayload,
-      ...(result.record || {})
+      ...(result.record || {}),
     };
     updateLocalArrayRecord(targetId, finalizedRecord);
     updateItems();
     dtKey.value++;
+
+    // Immediately repaint active consortium theme & default language if editing the current tenant
+    if (props.datasetKey === 'consortia' && finalizedRecord.ccp_key === authStore.ccp_key) {
+      if (finalizedRecord.theme) {
+        authStore.setTheme(finalizedRecord.theme);
+      }
+      if (finalizedRecord.language && !authStore.user?.language) {
+        setAppLocale(finalizedRecord.language);
+      }
+    }
   } else {
     // Pass props.datasetKey so loadDataset knows which dataset to fetch
     await loadDataset(props.datasetKey);
@@ -924,8 +936,6 @@ watch(locale, () => {
 });
 </script>
 
-
-<!-- components/tables/DatasetViewer.vue -->
 <template>
   <div class="ma-2">
     <v-sheet class="bg-transparent">

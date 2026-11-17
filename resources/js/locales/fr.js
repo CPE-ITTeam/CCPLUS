@@ -1,6 +1,8 @@
 export default {
   account: {
     access_token: "Jeton d'accès",
+    admin_contact: "Contact administrateur",
+    conso_identity: "Identité du consortium",
     conso_settings_title: "Paramètres du consortium",
     conso_update_success:
       "Paramètres du consortium mis à jour avec succès.",
@@ -9,11 +11,21 @@ export default {
     destroy_token: "Supprimer le jeton",
     expires: "Expire le",
     home_institution_hint: "Attribué par l'administrateur de votre consortium.",
+    home_institution_title: "Paramètres de l'institution d'attache",
+    inst_update_success:
+      "Paramètres de l'institution mis à jour avec succès.",
+    manage_roles: "Gérer les rôles",
     na: "S.O.",
     no_roles_assigned: "Aucun rôle institutionnel ou de groupe attribué.",
     organization_and_roles: "Organisation et autorisations",
+    override_active:
+      "Remplacement personnel actif (effacer pour utiliser la valeur par défaut)",
+    preferences: "Préférences",
     profile_details: "Profil et préférences",
+    readonly_field_hint:
+      "Ce champ ne peut être modifié que par un administrateur autorisé.",
     save_conso_settings: "Enregistrer les paramètres du consortium",
+    save_institution_settings: "Enregistrer les paramètres de l'institution",
     save_settings: "Enregistrer les paramètres",
     saved_reports_heading: "{user} — Rapports enregistrés",
     security_and_api: "Sécurité et accès API",
@@ -30,6 +42,7 @@ export default {
     update_failed: "Échec de la mise à jour des paramètres du profil.",
     update_success: "Configuration du compte enregistrée avec succès.",
     user_roles: "Rôle(s) utilisateur",
+    using_inherited_default: "Utilisation de la valeur par défaut héritée",
   },
 
   api_docs: {
@@ -177,6 +190,7 @@ export default {
     yes_delete_it: "Oui, supprimer",
     yes_delete_them: "Oui, les supprimer",
   },
+
   fields: {
     abbreviation: "Abréviation",
     add_cred_placeholders: "Ajouter des espaces réservés pour les identifiants",
@@ -198,6 +212,7 @@ export default {
     data_host: "Hôte de données",
     database_key: "Clé de base de données",
     date_range: "Plage de dates",
+    default_language: "Langue par défaut",
     display_name: "Nom d'affichage",
     dr_group_ids: "ID(s) de groupe DR",
     dr_inst_ids: "ID(s) d'institution DR",

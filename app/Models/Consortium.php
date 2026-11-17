@@ -18,7 +18,7 @@ class Consortium extends Model
      * @var array
      */
     protected $fillable = [
-        'ccp_key', 'name', 'email', 'fiscalYr', 'is_active'
+        'ccp_key', 'name', 'email', 'fiscalYr', 'is_active', 'theme'
     ];
     protected $casts = ['id' => 'integer', 'is_active' => 'integer'];
 

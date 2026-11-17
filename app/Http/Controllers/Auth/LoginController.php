@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Auth;
 
 use DB;
+use App\Models\Consortium;
 use App\Http\Controllers\BaseController;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -48,6 +49,14 @@ class LoginController extends BaseController
             $userPayload = $user->toArray();
             $userPayload['user_FYmm'] = $user->getFY();
 
+            $conso = ($key === 'con_template')
+                ? null
+                : Consortium::where('ccp_key', $key)->first();
+
+            $consoTheme = $conso?->theme ?: 'light';
+            $defaultLang = config('ccplus.language', config('app.locale', 'en'));
+            $effectiveLang = $user->language ?: ($conso?->language ?: $defaultLang);
+
             // Setup return data including the access token, user info, roles, and admin institutions/groups
             $success['token'] = $user->createToken($token_name)->plainTextToken;
             $success['user'] = $userPayload;
@@ -55,6 +64,8 @@ class LoginController extends BaseController
             $success['adminInsts'] = $user->adminInsts();
             $success['adminGroups'] = $user->adminGroups();
             $success['consoKey'] = ($key == 'con_template') ? '' : $key;
+            $success['theme'] = $consoTheme;
+            $success['language'] = $effectiveLang;
 
             return $this->sendResponse($success, __('auth.authenticated'));
         }

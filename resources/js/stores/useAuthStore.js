@@ -1,12 +1,14 @@
-// resources/js/stores/authStore.js
+// resources/js/stores/useAuthStore.js
 import { defineStore } from "pinia";
 import { useLocalStorage } from "@vueuse/core";
 import axios from "axios";
+import { setAppLocale } from "@/plugins/i18n.js";
 
 export const useAuthStore = defineStore("useAuthStore", {
   state: () => ({
     isAuthenticated: false,
     ccp_key: "",
+    theme: "light",
     user: { id: null, name: "", inst_id: null, fiscalYr: "" },
     roles: [],
     adminInsts: [],
@@ -105,6 +107,7 @@ export const useAuthStore = defineStore("useAuthStore", {
     },
 
     // Auth success responses update state and manage routing targets
+    // Auth success responses update state and manage routing targets
     handleLoginSuccess(payload) {
       this.token = payload.token;
       this.user = { ...payload.user };
@@ -112,8 +115,12 @@ export const useAuthStore = defineStore("useAuthStore", {
       this.adminInsts = [...payload.adminInsts];
       this.adminGroups = [...payload.adminGroups];
       this.ccp_key = payload.consoKey || "con_template";
+      this.theme = payload.theme || "light";
+      if (payload.language) {
+        setAppLocale(payload.language);
+      }
       this.isAuthenticated = true;
-      
+
       localStorage.setItem("user-token", this.token);
       this.authErrorMessage = null;
       this.authSuccessMessage = null;
@@ -130,12 +137,18 @@ export const useAuthStore = defineStore("useAuthStore", {
 
     clearToken() {
       this.token = null;
+      this.ccp_key = "";
+      this.theme = "light";
       this.user = { id: null, name: "", inst_id: null, fiscalYr: "" };
       this.roles = []; // Fixed array baseline type prevents layout runtime exceptions
       this.adminInsts = [];
       this.adminGroups = [];
       this.isAuthenticated = false;
       localStorage.removeItem("user-token");
+    },
+
+    setTheme(theme) {
+      this.theme = theme || "light";
     },
 
     logoutStateClear() {
@@ -149,23 +162,25 @@ export const useAuthStore = defineStore("useAuthStore", {
       if (!this.is_serveradmin) return;
       this.ccp_key = ccp_key || "con_template";
     },
-
     setLoginError(message) { this.authErrorMessage = message; },
     clearLoginError() { this.authErrorMessage = null; },
     setSuccessMessage(message) { this.authSuccessMessage = message; },
     clearSuccessMessage() { this.authSuccessMessage = null; },
 
     // Core session context driver tracking active connection tenant databases
-    async setConso(id, ccp_key) {
+    async setConso(id, ccp_key, theme = null) {
       if (!this.is_serveradmin) return false;
       this.ccp_key = ccp_key || "con_template";
+      if (theme) {
+        this.theme = theme;
+      } else if (this.ccp_key === "con_template") {
+        this.theme = "light";
+      }
       try {
         const token = this.token || localStorage.getItem("user-token");
-        
-        // 💡 CHANGED: Passed a flat object payload to keep Laravel session storage from dropping
-        await axios.post(
+        const res = await axios.post(
           "/api/updateSession",
-          { conso_id: id, ccp_key: this.ccp_key }, 
+          { conso_id: id, ccp_key: this.ccp_key },
           {
             headers: {
               Authorization: `Bearer ${token}`,
@@ -174,6 +189,9 @@ export const useAuthStore = defineStore("useAuthStore", {
             withCredentials: true,
           }
         );
+        if (res?.data?.theme) {
+          this.theme = res.data.theme;
+        }
       } catch (error) {
         console.error("Failed to update active tenant database scope:", error);
       }

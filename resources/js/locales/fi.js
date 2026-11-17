@@ -1,6 +1,8 @@
 export default {
   account: {
     access_token: "Käyttöoikeustunnus",
+    admin_contact: "Ylläpitäjän yhteystiedot",
+    conso_identity: "Konsortion tiedot",
     conso_settings_title: "Konsortion asetukset",
     conso_update_success: "Konsortion asetukset päivitetty onnistuneesti.",
     consortium_wide: "Konsortion laajuinen",
@@ -8,11 +10,20 @@ export default {
     destroy_token: "Poista tunnus",
     expires: "Vanhenee",
     home_institution_hint: "Konsortion ylläpitäjän määrittämä.",
+    home_institution_title: "Kotiorganisaation asetukset",
+    inst_update_success: "Organisaation asetukset päivitetty onnistuneesti.",
+    manage_roles: "Hallitse rooleja",
     na: "Ei saatavilla",
     no_roles_assigned: "Ei määritettyjä organisaatio- tai ryhmärooleja.",
     organization_and_roles: "Organisaatio ja käyttöoikeudet",
+    override_active:
+      "Henkilökohtainen asetus käytössä (tyhjennä käyttääksesi oletusta)",
+    preferences: "Asetukset",
     profile_details: "Profiili ja asetukset",
+    readonly_field_hint:
+      "Vain valtuutettu ylläpitäjä voi muokata tätä kenttää.",
     save_conso_settings: "Tallenna konsortion asetukset",
+    save_institution_settings: "Tallenna organisaation asetukset",
     save_settings: "Tallenna asetukset",
     saved_reports_heading: "{user} — Tallennetut raportit",
     security_and_api: "Tietoturva ja API-käyttö",
@@ -28,6 +39,7 @@ export default {
     update_failed: "Profiiliasetusten päivitys epäonnistui.",
     update_success: "Tilin asetukset tallennettu onnistuneesti.",
     user_roles: "Käyttäjärooli(t)",
+    using_inherited_default: "Käytetään perittyä oletusarvoa",
   },
 
   api_docs: {
@@ -175,6 +187,7 @@ export default {
     yes_delete_it: "Kyllä, poista se",
     yes_delete_them: "Kyllä, poista ne",
   },
+
   fields: {
     abbreviation: "Lyhenne",
     add_cred_placeholders: "Lisää tunnistetietojen paikkamerkit",
@@ -196,6 +209,7 @@ export default {
     data_host: "Tietopalvelin",
     database_key: "Tietokanta-avain",
     date_range: "Aikaväli",
+    default_language: "Oletuskieli",
     display_name: "Näyttönimi",
     dr_group_ids: "DR-ryhmätunnukset",
     dr_inst_ids: "DR-organisaatiotunnukset",

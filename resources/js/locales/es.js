@@ -1,6 +1,8 @@
 export default {
   account: {
     access_token: "Token de acceso",
+    admin_contact: "Contacto del administrador",
+    conso_identity: "Identidad del consorcio",
     conso_settings_title: "Configuración del consorcio",
     conso_update_success:
       "Configuración del consorcio actualizada correctamente.",
@@ -9,11 +11,21 @@ export default {
     destroy_token: "Eliminar token",
     expires: "Expira",
     home_institution_hint: "Asignado por el administrador de su consorcio.",
+    home_institution_title: "Configuración de la institución principal",
+    inst_update_success:
+      "Configuración de la institución actualizada correctamente.",
+    manage_roles: "Gestionar roles",
     na: "N/D",
     no_roles_assigned: "No hay roles institucionales o de grupo asignados.",
     organization_and_roles: "Organización y permisos",
+    override_active:
+      "Anulación personal activa (borre para usar el valor predeterminado)",
+    preferences: "Preferencias",
     profile_details: "Perfil y preferencias",
+    readonly_field_hint:
+      "Este campo solo puede ser modificado por un administrador autorizado.",
     save_conso_settings: "Guardar configuración del consorcio",
+    save_institution_settings: "Guardar configuración de la institución",
     save_settings: "Guardar configuración",
     saved_reports_heading: "{user} — Informes guardados",
     security_and_api: "Seguridad y acceso API",
@@ -30,6 +42,7 @@ export default {
     update_failed: "Error al actualizar la configuración del perfil.",
     update_success: "Configuración de la cuenta guardada correctamente.",
     user_roles: "Rol(es) de usuario",
+    using_inherited_default: "Usando el valor predeterminado heredado",
   },
 
   api_docs: {
@@ -177,6 +190,7 @@ export default {
     yes_delete_it: "Sí, eliminarlo",
     yes_delete_them: "Sí, eliminarlos",
   },
+
   fields: {
     abbreviation: "Abreviatura",
     add_cred_placeholders: "Añadir marcadores de credenciales",
@@ -198,6 +212,7 @@ export default {
     data_host: "Servidor de datos",
     database_key: "Clave de base de datos",
     date_range: "Rango de fechas",
+    default_language: "Idioma predeterminado",
     display_name: "Nombre para mostrar",
     dr_group_ids: "ID(s) de grupo DR",
     dr_inst_ids: "ID(s) de institución DR",

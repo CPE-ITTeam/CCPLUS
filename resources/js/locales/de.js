@@ -1,6 +1,8 @@
 export default {
   account: {
     access_token: "Zugriffstoken",
+    admin_contact: "Administratorkontakt",
+    conso_identity: "Konsortiumsdaten",
     conso_settings_title: "Konsortiumseinstellungen",
     conso_update_success: "Konsortiumseinstellungen erfolgreich aktualisiert.",
     consortium_wide: "Konsortiumsweit",
@@ -8,12 +10,21 @@ export default {
     destroy_token: "Token löschen",
     expires: "Läuft ab am",
     home_institution_hint: "Von Ihrem Konsortiumsadministrator zugewiesen.",
+    home_institution_title: "Einstellungen der Heimatinstitution",
+    inst_update_success: "Institutionseinstellungen erfolgreich aktualisiert.",
+    manage_roles: "Rollen verwalten",
     na: "K. A.",
     no_roles_assigned:
       "Keine spezifischen Institutions- oder Gruppenrollen zugewiesen.",
     organization_and_roles: "Organisation und Berechtigungen",
+    override_active:
+      "Persönliche Überschreibung aktiv (löschen, um Standard zu verwenden)",
+    preferences: "Präferenzen",
     profile_details: "Profil und Einstellungen",
+    readonly_field_hint:
+      "Dieses Feld kann nur von einem autorisierten Administrator geändert werden.",
     save_conso_settings: "Konsortiumseinstellungen speichern",
+    save_institution_settings: "Institutionseinstellungen speichern",
     save_settings: "Einstellungen speichern",
     saved_reports_heading: "{user} — Gespeicherte Berichte",
     security_and_api: "Sicherheit und API-Zugriff",
@@ -30,6 +41,7 @@ export default {
     update_failed: "Profileinstellungen konnten nicht aktualisiert werden.",
     update_success: "Kontokonfiguration erfolgreich gespeichert.",
     user_roles: "Benutzerrolle(n)",
+    using_inherited_default: "Verwendet geerbten Standardwert",
   },
 
   api_docs: {
@@ -200,6 +212,7 @@ export default {
     data_host: "Datenhost",
     database_key: "Datenbankschlüssel",
     date_range: "Datumsbereich",
+    default_language: "Standardsprache",
     display_name: "Anzeigename",
     dr_group_ids: "DR-Gruppen-ID(s)",
     dr_inst_ids: "DR-Institutions-ID(s)",
@@ -373,6 +386,7 @@ export default {
       "Benutzerimporte erfolgen ausschließlich als Aktualisierungen. Bestehende Datensätze werden nicht gelöscht.",
     users_title: "Benutzer importieren",
   },
+
   mail: {
     encryption: "Verschlüsselung",
     encryption_none: "Keine",

@@ -1,5 +1,7 @@
 // resources/js/config/dataTableConfig.js
 import i18n from "@/plugins/i18n";
+import { fyMonths } from "@/stores/useCCPlusStore.js";
+import { CONSORTIUM_THEMES } from "@/plugins/vuetify.js";
 
 const t = (key) => i18n.global.t(key);
 
@@ -10,6 +12,8 @@ const FIELD_DEFAULTS = {
   type: "text",
   header: "start",
   editable: true, // Accepts: true | false | ['Add'] | ['Edit']
+  editableBy: null, // Accepts: null | ['ConsoAdmin', 'ServerAdmin'] | ['ServerAdmin']
+  readOnlyFormat: null, // Accepts: null | 'lines'
   visible: true, // Accepts: true | false | ['Add'] | ['Edit']
   searchable: true,
   icon: "",
@@ -17,6 +21,7 @@ const FIELD_DEFAULTS = {
   options: null,
   cols: 12,
 };
+
 
 // ─────────────────────────────────────────────────────────────────────────
 // STEP 2: SCHEMA PERMISSION HELPERS
@@ -58,6 +63,7 @@ const rawTableSetup = {
         type: "toggle",
         options: "fromURL",
         addValue: "Active",
+        editableBy: ["ServerAdmin"],
         header: "center",
         searchable: false,
         cols: 12,
@@ -92,18 +98,55 @@ const rawTableSetup = {
         type: "email",
         cols: 6,
       },
-      {
-        name: "fiscalYr",
-        get label() {
-          return t("fields.fiscal_year_start");
-        },
-        type: "select",
-        options: "fromURL",
-        optVal: "id",
-        optTxt: "name",
-        searchable: false,
-        cols: 12,
-      },
+    {
+     name: "fiscalYr",
+     get label() {
+       return t("fields.fiscal_year_start");
+     },
+     type: "select",
+     options: fyMonths.map((m) => {
+       const val = typeof m === "object" ? m.value : m;
+       return { id: val, name: val };
+     }),
+     optVal: "id",
+     optTxt: "name",
+     searchable: false,
+     cols: 4,
+   },
+   {
+     name: "language",
+     get label() {
+       return t("fields.default_language");
+     },
+     type: "select",
+     options: ["en", "de", "es", "fi", "fr", "hu"].map((code) => ({
+       id: code,
+       name: code.toUpperCase(),
+     })),
+     optVal: "id",
+     optTxt: "name",
+     searchable: false,
+     cols: 4,
+   },
+   {
+     name: "theme",
+     get label() {
+       return t("fields.color_theme");
+     },
+     type: "select",
+     options: CONSORTIUM_THEMES.map((item) => ({
+       id: item.id,
+       get name() {
+         return t(`account.theme_${item.id}`);
+       },
+     })),
+     optVal: "id",
+     optTxt: "name",
+     addValue: "light",
+     searchable: false,
+     cols: 4,
+   },
+
       {
         name: "admin_pass",
         get label() {
@@ -157,6 +200,7 @@ const rawTableSetup = {
         type: "toggle",
         options: "fromURL",
         addValue: "Active",
+        editableBy: ["ConsoAdmin", "ServerAdmin"],
         header: "center",
         searchable: false,
         cols: 6,
@@ -202,6 +246,7 @@ const rawTableSetup = {
         options: "fromURL",
         optVal: "id",
         optTxt: "name",
+        editableBy: ["ConsoAdmin", "ServerAdmin"],
         isFilter: true,
         filterCol: "type_id",
         cols: 8,
@@ -257,6 +302,8 @@ const rawTableSetup = {
         options: "fromURL",
         optVal: "id",
         optTxt: "name",
+        editableBy: ["ConsoAdmin", "ServerAdmin"],
+        readOnlyFormat: "lines",
         isFilter: true,
         filterCol: "group_ids",
         header: null,
@@ -296,6 +343,7 @@ const rawTableSetup = {
     ],
     sortby: "name",
   },
+
 
   types: {
     urlRoot: "/api/types",

@@ -23,11 +23,42 @@
           />
         </template>
 
-        <v-list width="200">
+        <v-list width="220">
+          <!-- Tenant User Links -->
           <v-list-item
-            to="/profile"
+            v-if="!authStore.is_serveradmin"
+            to="/account/profile"
             prepend-icon="mdi-account-edit-outline"
             :title="$t('nav.my_profile')"
+          />
+
+          <v-list-item
+            v-if="!authStore.is_serveradmin"
+            to="/account/institution"
+            :prepend-icon="authStore.is_conso_admin ? 'mdi-lan' : 'mdi-domain'"
+            :title="authStore.is_conso_admin ? $t('routes.consortium_settings') : $t('routes.home_institution')"
+          />
+
+          <v-list-item
+            v-if="!authStore.is_serveradmin"
+            to="/account/api"
+            prepend-icon="mdi-api"
+            :title="$t('nav.api_settings')"
+          />
+
+          <!-- ServerAdmin Links -->
+          <v-list-item
+            v-if="authStore.is_serveradmin"
+            to="/server/settings"
+            prepend-icon="mdi-cog-outline"
+            :title="$t('routes.server_settings')"
+          />
+
+          <v-list-item
+            v-if="authStore.is_serveradmin"
+            to="/server/mailsettings"
+            prepend-icon="mdi-email-outline"
+            :title="$t('routes.mail_settings')"
           />
 
           <v-list-item
@@ -47,6 +78,8 @@
             @click="apiLogout"
           />
         </v-list>
+
+
       </v-menu>
 
       <!-- System External COUNTER Links Menu -->

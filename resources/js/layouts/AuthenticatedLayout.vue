@@ -1,12 +1,17 @@
 <!-- layouts/AuthenticatedLayout.vue -->
-
 <script setup>
 import { ref, onMounted, onBeforeMount, watch, computed } from 'vue';
 import { useRouter, useRoute } from 'vue-router';
+import { useI18n } from 'vue-i18n';
+import { useTheme } from 'vuetify';
 import { storeToRefs } from 'pinia';
 import { useAuthStore } from '@/stores/useAuthStore.js';
 import { useCCPlusStore } from '@/stores/useCCPlusStore.js';
 import AppHeader from '@/components/navigation/AppHeader.vue';
+
+const { t } = useI18n();
+const vuetifyTheme = useTheme();
+const VALID_THEMES = ['light', 'emerald', 'indigo', 'plum', 'slate'];
 
 // Local UI & Navigation States
 const activePage = ref(0);
@@ -19,28 +24,45 @@ const this_route = useRoute();
 const router = useRouter();
 const all_routes = [...router.options.routes];
 
-// Extract specialized static routes safely
-const profileRoute = computed(() => {
-  if (authStore.is_serveradmin) {
-    return all_routes.find(r => r.name === 'ServerSettings') || { path: '/server/settings', meta: { title: t('routes.server_settings') } };
-  }
-  return all_routes.find(r => r.path === '/profile') || { path: '/profile', meta: { title: t('routes.account_settings') } };
-});
-
-const apiRoute = computed(() => {
-  return all_routes.find(r => r.path === '/ccplusApi') || { path: '/ccplusApi', meta: { title: t('routes.ccplus_api') } };
-});
-
 // Pinia DataStores
 const authStore = useAuthStore();
 const ccPlusStore = useCCPlusStore();
 const { consortia } = storeToRefs(ccPlusStore);
+
+// Sync Vuetify theme with the active consortium's saved theme
+watch(
+  () => authStore.theme,
+  (newTheme) => {
+    const target = VALID_THEMES.includes(newTheme) ? newTheme : 'light';
+    if (typeof vuetifyTheme.change === 'function') {
+      vuetifyTheme.change(target);
+    } else {
+      vuetifyTheme.global.name.value = target;
+    }
+  },
+  { immediate: true }
+);
 
 // Role Guards
 const is_admin = authStore.is_admin;
 const is_conso_admin = authStore.is_conso_admin;
 const is_group_admin = authStore.is_group_admin;
 const is_serveradmin = authStore.is_serveradmin;
+
+// Extract specialized static routes safely (used if template references 900/999)
+const profileRoute = computed(() => {
+  if (authStore.is_serveradmin) {
+    return all_routes.find(r => r.name === 'ServerSettings') || { path: '/server/settings', meta: { title: t('routes.server_settings') } };
+  }
+  return all_routes.find(r => r.name === 'Profile') || { path: '/account/profile', meta: { title: t('routes.account_settings') } };
+});
+
+const apiRoute = computed(() => {
+  if (authStore.is_serveradmin) {
+    return all_routes.find(r => r.name === 'ServerApi') || { path: '/server/api', meta: { title: t('routes.api_management') } };
+  }
+  return all_routes.find(r => r.name === 'API') || { path: '/account/api', meta: { title: t('routes.ccplus_api') } };
+});
 
 // Emits interchange config
 const emit = defineEmits(['updateConso']);
@@ -55,16 +77,12 @@ watch(() => this_route.path, (newPath, oldPath) => {
     let newPage = pages.value.findIndex(page => page.path == "/" + newParts[1]);
     if (newPage >= 0) {
       activePage.value = newPage;
-      if (newParts.length > 2) {
+      if (newParts.length > 2 && pages.value[newPage].children) {
         let newTab = pages.value[newPage].children.findIndex(child => child.path == newParts[2]);
         if (newTab >= 0) {
           activeTab.value = newTab;
         }
       }
-    } else if (newPath.includes('apiSettings')) {
-      activePage.value = 900;
-    } else if (newPath.includes('profile')) {
-      activePage.value = 999;
     }
   }
 });
@@ -80,7 +98,6 @@ function onTabChange(newTab) {
 }
 
 // Update page changes from menu(s)
-
 function onPageChange(newPage) {
   if (newPage === 900) {
     activePage.value = 900;
@@ -104,20 +121,18 @@ function onPageChange(newPage) {
 async function handleGlobalConsoChange(event) {
   if (event && event.id && event.ccp_key) {
     try {
-      await authStore.setConso(event.id, event.ccp_key);
-      window.location.reload(); // Hot-reload context bounds to clear tenant models securely
+      await authStore.setConso(event.id, event.ccp_key, event.theme);
+      window.location.reload();
     } catch (err) {
       console.error("Failed to re-route cluster connections:", err);
     }
   }
 }
 
-
 function forwardConsoSignal(event) {
   emit('updateConso', event);
 }
 
-// Sync selection models when asynchronous data hydrates from backend
 watch(consortia, (newList) => {
   if (newList.length > 0 && authStore.ccp_key) {
     const currentActive = newList.find(c => c.ccp_key === authStore.ccp_key);
@@ -131,7 +146,9 @@ onBeforeMount(() => {
     if (topRoute.meta && topRoute.meta.level == 1) {
       var theRoute = { ...topRoute };
       if (is_serveradmin) {
-        pages.value.push({ ...theRoute });
+        if (topRoute.name !== 'Account') {
+          pages.value.push({ ...theRoute });
+        }
       } else if ((is_admin && topRoute.meta.role == "Admin") || topRoute.meta.role == "Viewer") {
         theRoute.children = [];
         if (topRoute.children) {
@@ -156,7 +173,6 @@ onBeforeMount(() => {
   });
 });
 
-
 onMounted(async () => {
   // Sync router tracking highlights with path states
   let parts = this_route.path.split("/");
@@ -167,10 +183,6 @@ onMounted(async () => {
       let curTab = pages.value[curPage].children.findIndex(child => child.path == parts[2]);
       if (curTab >= 0) activeTab.value = curTab;
     }
-  } else if (this_route.path.includes('apiSettings')) {
-    activePage.value = 900;
-  } else if (this_route.path.includes('profile')) {
-    activePage.value = 999;
   }
 
   // Hydrate consortia datasets seamlessly for server admin dropdown allocations

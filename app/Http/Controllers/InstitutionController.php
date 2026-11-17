@@ -179,20 +179,25 @@ class InstitutionController extends BaseController
         $input = $request->all();
         $this->normalizeStatus($input);
 
-        if (!isset($input['is_active'])) {
-            return $this->respondError(__('institutions.status_required'));
+        // Only ConsoAdmin / ServerAdmin can toggle institution status
+        if ($this->thisUser->isConsoAdmin()) {
+            if (!isset($input['is_active'])) {
+                return $this->respondError(__('institutions.status_required'));
+            }
+
+            if (count($input) === 2 && isset($input['is_active'])) {
+                $institution->update(['is_active' => $input['is_active']]);
+                return response()->json(['result' => true]);
+            }
+        } else {
+            unset($input['status'], $input['is_active']);
         }
 
-        if (count($input) === 2 && isset($input['is_active'])) {
-            $institution->update(['is_active' => $input['is_active']]);
-            return response()->json(['result' => true]);
-        }
-
-        if (isset($input['local_id'])) {
-            $newID = trim($input['local_id']);
+        if (array_key_exists('local_id', $input)) {
+            $newID = trim((string) $input['local_id']);
             if ($institution->local_id != $newID) {
                 if (strlen($newID) > 0) {
-                    if (Institution::where('local_id', $newID)->exists()) {
+                    if (Institution::where('local_id', $newID)->where('id', '!=', $institution->id)->exists()) {
                         return $this->respondError(__('institutions.local_id_exists'));
                     }
                     $input['local_id'] = $newID;
@@ -203,7 +208,7 @@ class InstitutionController extends BaseController
         }
 
         if (!$this->thisUser->isConsoAdmin()) {
-            $limitedFields = array_intersect_key($input, array_flip(['name', 'fte', 'notes']));
+            $limitedFields = array_intersect_key($input, array_flip(['name', 'local_id', 'fte', 'notes']));
             if (!empty($limitedFields)) {
                 $institution->update($limitedFields);
             }
@@ -252,6 +257,7 @@ class InstitutionController extends BaseController
         ];
         return $this->respondSuccess(__('institutions.settings_updated'), $inst);
     }
+
 
     /**
      * Remove the specified resource from storage.

@@ -120,17 +120,54 @@ class UserController extends BaseController
             return $this->respondError(__('users.forbidden_request'));
         }
 
-        $user->load('roles', 'institution:id,name');
+        $user->load(
+            'roles',
+            'institution',
+            'institution.institutionType',
+            'institution.institutionGroups:id,name'
+        );
+
         $data = $user->toArray();
-        $data['inst_name'] = $user->institution->name;
-        $data['fiscalYr'] = $user->fiscalYr ?: $this->consortiumFiscalYr();
+        $data['inst_name'] = $user->institution?->name;
+
+        // Keep personal overrides null when inherited
+        $data['fiscalYr'] = $user->fiscalYr ?: null;
+        $data['language'] = $user->language ?: null;
+
+        if ($user->institution) {
+            $inst = $user->institution;
+            $data['institution'] = [
+                'id'           => $inst->id,
+                'name'         => $inst->name,
+                'local_id'     => $inst->local_id,
+                'fte'          => $inst->fte,
+                'notes'        => $inst->notes,
+                'is_active'    => $inst->is_active,
+                'status'       => $inst->is_active ? 'Active' : 'Inactive',
+                'type_id'      => $inst->type_id,
+                'type'         => $inst->institutionType ? $inst->institutionType->name : '(Not classified)',
+                'groups'       => $inst->institutionGroups->map(fn($g) => ['id' => $g->id, 'name' => $g->name]),
+                'group_string' => $inst->institutionGroups->pluck('name')->implode(', '),
+            ];
+        }
 
         $token = $user->tokens()->where('name', 'PAT_User_' . $user->id)->first();
         $data['access_token'] = $token ? Crypt::decryptString($user->enc_api_token) : null;
         $data['token_expires'] = $token ? $token->expires_at : null;
 
-        return response()->json(['records' => $data, 'options' => [], 'result' => true], 200);
+        $inheritedFy = $this->consortiumFiscalYr();
+        $consoLang = \App\Models\Consortium::where('ccp_key', session('ccp_key'))->value('language');
+        $inheritedLang = $consoLang ?: config('ccplus.language', config('app.locale', 'en'));
+
+        return response()->json([
+            'records'         => $data,
+            'defaultFiscalYr' => $inheritedFy,
+            'defaultLanguage' => $inheritedLang,
+            'options'         => [],
+            'result'          => true,
+        ], 200);
     }
+
 
     /**
      * Store a newly created resource in storage.
@@ -278,18 +315,17 @@ class UserController extends BaseController
         return $this->respondSuccess(__('users.created'), $new_user);
     }
 
-
-
     /**
      * Update the specified resource in storage.
      */
     public function update(Request $request, User $user)
     {
         $thisUser = auth()->user();
+        $isSelf = ($thisUser->id === $user->id);
 
         if (
-            !$user->canManage() ||
-            ($user->isServerAdmin() && $user->email === config('ccplus.server_admin'))
+            (!$isSelf && !$user->canManage()) ||
+            (!$isSelf && $user->isServerAdmin() && $user->email === config('ccplus.server_admin'))
         ) {
             return $this->respondError(__('users.update_forbidden'));
         }
@@ -311,6 +347,30 @@ class UserController extends BaseController
         }
         $input = Arr::except($input, ['confirm_pass']);
 
+        // Normalize fiscalYr and language (null = inherit nearest default)
+        $defaultFiscalYr = $this->consortiumFiscalYr($request);
+        if (array_key_exists('fiscalYr', $input)) {
+            $input['fiscalYr'] = $this->normalizeFiscalYr($input['fiscalYr'], $defaultFiscalYr);
+        }
+        if (array_key_exists('language', $input)) {
+            $lang = trim((string) $input['language']);
+            $input['language'] = strlen($lang) > 0 ? $lang : null;
+        }
+
+        // Non-admins updating their own profile may only edit personal fields & preferences
+        if (!$thisUser->isAdmin()) {
+            $userData = array_intersect_key($input, array_flip(['name', 'email', 'password', 'fiscalYr', 'language']));
+            $user->update($userData);
+            $user->load(['institution:id,name', 'roles']);
+
+            $updated_user = $user->toArray();
+            $updated_user['inst_name'] = $user->institution?->name;
+            $updated_user['fiscalYr']  = $user->fiscalYr ?: $defaultFiscalYr;
+            $updated_user['language']  = $user->language;
+
+            return $this->respondSuccess(__('users.updated'), $updated_user);
+        }
+
         if (isset($input['status'])) {
             $input['is_active'] = ($input['status'] === 'Active') ? 1 : 0;
         }
@@ -323,9 +383,9 @@ class UserController extends BaseController
             return $this->respondError(__('users.update_forbidden'));
         }
 
-        $defaultFiscalYr = $this->consortiumFiscalYr($request);
-        if (array_key_exists('fiscalYr', $input)) {
-            $input['fiscalYr'] = $this->normalizeFiscalYr($input['fiscalYr'], $defaultFiscalYr);
+        // Prevent admins from accidentally altering their own roles or home institution via self-profile save
+        if ($isSelf) {
+            unset($input['inst_id'], $input['roles'], $input['uroles']);
         }
 
         $all_roles = Role::orderBy('id', 'ASC')->get(['name', 'id']);
@@ -465,7 +525,6 @@ class UserController extends BaseController
         $monthName = \Carbon\Carbon::create(null, (int) $parsed['month'], 1)->format('F');
         return ($monthName === $default) ? null : $monthName;
     }
-
 
     /**
      * Enforce authorization and self-deletion guards before BaseController deletes the user.

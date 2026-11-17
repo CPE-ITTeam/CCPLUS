@@ -1,4 +1,4 @@
-<!-- views/admin/CCPlusApi.vue -->
+<!-- resources/js/components/panels/ApiSettingsPanel.vue -->
 <script setup>
 import { ref, computed } from 'vue';
 import { useI18n } from 'vue-i18n';
@@ -6,7 +6,15 @@ import api from '@/services/api.js';
 import { useAuthStore } from '@/stores/useAuthStore.js';
 import SettingsPanelShell from '@/components/ui/SettingsPanelShell.vue';
 
-const { t } = useI18n();
+const props = defineProps({
+  accessToken: { type: String, default: null },
+  tokenExpires: { type: String, default: null },
+  failure: { type: String, default: '' },
+});
+
+defineEmits(['make-token', 'destroy-token']);
+
+const { t, locale } = useI18n();
 const authStore = useAuthStore();
 
 const dataDialog = ref(false);
@@ -14,10 +22,13 @@ const action = ref('');
 const title = ref('');
 const getRecords = ref('');
 const copied = ref(false);
+const patShow = ref(false);
+const tokenCopied = ref(false);
 
 const appUrl = import.meta.env.VITE_APP_URL || '/';
 const ccpKey = computed(() => authStore.ccp_key);
 const is_admin = computed(() => authStore.is_admin);
+const is_conso_admin = computed(() => authStore.is_conso_admin);
 const is_serveradmin = computed(() => authStore.is_serveradmin);
 
 const endpoints = computed(() => [
@@ -34,10 +45,10 @@ const endpoints = computed(() => [
   { show: true, label: t('routes.institution_types'), dataset: 'Types', arg: '', path: 'api/types/get', interactive: true },
   { show: is_serveradmin.value, label: t('routes.platforms'), dataset: 'Platforms', arg: '', path: 'api/platforms/get', interactive: true },
   { show: true, label: t('routes.connections'), dataset: 'Connections', arg: '', path: 'api/connections/get', interactive: true },
-  { show: true, label: t('routes.credentials'), dataset: 'Credentials', arg: '', path: 'api/credentials/get', interactive: true },
+  { show: is_admin.value, label: t('routes.credentials'), dataset: 'Credentials', arg: '', path: 'api/credentials/get', interactive: true },
   { show: is_admin.value, label: t('routes.credentials_audit'), dataset: 'Audit', arg: '', path: 'api/audit/get', interactive: true },
-  { show: true, label: t('routes.users'), dataset: 'Users', arg: '', path: 'api/users/get', interactive: true },
-  { show: true, label: t('api_docs.user_roles'), dataset: 'Roles', arg: '', path: 'api/roles/get', interactive: true },
+  { show: is_conso_admin.value || is_admin.value, label: t('routes.users'), dataset: 'Users', arg: '', path: 'api/users/get', interactive: true },
+  { show: is_conso_admin.value || is_admin.value, label: t('api_docs.user_roles'), dataset: 'Roles', arg: '', path: 'api/roles/get', interactive: true },
   { show: true, label: t('api_docs.saved_reports'), dataset: 'SavedReports', arg: '', path: 'api/savedreports/get', interactive: true },
   { show: true, label: t('api_docs.data_for_saved_report'), dataset: '', arg: '', path: 'api/savedreports/execute/<-report_id->', interactive: false },
 ]);
@@ -79,6 +90,15 @@ async function copyJson() {
     copied.value = false;
   }, 2000);
 }
+
+async function copyToken() {
+  if (!props.accessToken) return;
+  await navigator.clipboard.writeText(props.accessToken);
+  tokenCopied.value = true;
+  setTimeout(() => {
+    tokenCopied.value = false;
+  }, 2000);
+}
 </script>
 
 <template>
@@ -86,10 +106,63 @@ async function copyJson() {
     <SettingsPanelShell
       :title="$t('api_docs.title')"
       icon="mdi-api"
+      :failure="failure"
     >
-      <!-- Top Row: Endpoint Format & Required Headers -->
+       <!-- Top Section: Personal Access Token Management (Tenant Users Only) -->
+      <template v-if="!is_serveradmin">
+        <SectionHeading>
+          <v-icon start size="22" class="me-2" aria-hidden="true">mdi-shield-key-outline</v-icon>
+          {{ $t('account.access_token') }}
+        </SectionHeading>
+
+        <div v-if="!accessToken" class="mb-2">
+          <v-btn color="secondary" prepend-icon="mdi-key-plus" @click="$emit('make-token')">
+            {{ $t('account.create_access_token') }}
+          </v-btn>
+        </div>
+
+        <v-row v-else align="center" class="mt-0">
+          <v-col cols="12" md="6" class="pt-0">
+            <v-text-field
+              :model-value="accessToken"
+              :label="$t('account.access_token')"
+              readonly
+              :type="patShow ? 'text' : 'password'"
+              :append-inner-icon="patShow ? 'mdi-eye' : 'mdi-eye-off'"
+              hide-details="auto"
+              @click:append-inner="patShow = !patShow"
+            />
+          </v-col>
+
+          <v-col cols="12" md="6" class="pt-0 d-flex align-center justify-space-between flex-wrap ga-2">
+            <span class="text-body-small text-medium-emphasis">
+              {{ $t('account.expires') }}:
+              {{ tokenExpires ? new Date(tokenExpires).toLocaleString(locale) : $t('account.na') }}
+            </span>
+
+            <div class="d-flex ga-2">
+              <v-btn
+                size="small"
+                variant="tonal"
+                color="primary"
+                :prepend-icon="tokenCopied ? 'mdi-check' : 'mdi-content-copy'"
+                @click="copyToken"
+              >
+                {{ tokenCopied ? $t('api_docs.copied') : $t('common.copy') }}
+              </v-btn>
+              <v-btn size="small" color="error" variant="tonal" @click="$emit('destroy-token')">
+                {{ $t('account.destroy_token') }}
+              </v-btn>
+            </div>
+          </v-col>
+        </v-row>
+
+        <v-divider class="my-5" />
+      </template>
+
+
+      <!-- Middle Row: Endpoint Format & Required Headers -->
       <v-row class="mt-0">
-        <!-- Left Column: Endpoint Format -->
         <v-col cols="12" lg="6" class="pt-0">
           <SectionHeading>
             <v-icon start size="22" class="me-2" aria-hidden="true">mdi-link-variant</v-icon>
@@ -111,7 +184,6 @@ async function copyJson() {
           </CodeBlock>
         </v-col>
 
-        <!-- Right Column: Required Authentication Headers -->
         <v-col cols="12" lg="6" class="pt-0">
           <SectionHeading>
             <v-icon start size="22" class="me-2" aria-hidden="true">mdi-key-variant</v-icon>
@@ -183,7 +255,6 @@ X-Tenant: {{ ccpKey }}</pre>
         </v-col>
       </v-row>
     </SettingsPanelShell>
-
     <!-- JSON Response Preview Dialog -->
     <v-dialog v-model="dataDialog" max-width="800px">
       <v-card>
