@@ -1,4 +1,4 @@
-<!-- views/admin/Reporting.vue -->
+<!-- resources/js/components/panels/ReportingPanel.vue -->
 <script setup>
 import { ref, reactive, watch, computed, onBeforeMount } from 'vue';
 import { useI18n } from 'vue-i18n';
@@ -13,6 +13,8 @@ import FlexCol from '@/components/ui/FlexCol.vue';
 import YmInput from '@/components/ui/YmInput.vue';
 import { exportDatasetToExcel } from '@/utils/excelJsExporter.js';
 
+defineOptions({ name: 'ReportingPanel', inheritAttrs: false });
+
 const { t } = useI18n();
 const authStore = useAuthStore();
 const { fromToDates } = useReportingDates();
@@ -22,7 +24,7 @@ const emit = defineEmits(['updateConso']);
 const consoKey = computed(() => authStore.ccp_key);
 const masterReports = ref([]);
 const reportViews = ref([]);
-const fyMo = ref([]);
+const fyMo = ref(null);
 const toKey = ref(0);
 const dtKey = ref(0);
 const reportFormat = ref('Compact');
@@ -46,6 +48,7 @@ const selectedView = ref(null);
 const masterReport = ref({});
 const optionsKey = ref(0);
 const dateRange = ref('');
+const isApplyingPreset = ref(false);
 const reportDates = reactive({ fromYM: '', toYM: '' });
 
 const reportOptions = computed(() => [
@@ -98,7 +101,7 @@ const initializeOptions = async () => {
     savedReports.value = [...(data.records.saved_reports || [])];
     masterReports.value = [...(data.records.master_reports || [])];
     reportViews.value = [...(data.records.report_views || [])];
-    fyMo.value = data.records.fyMo || [];
+    fyMo.value = data.records.fyMo ?? null;
   } catch (error) {
     console.error('Error loading options:', error.message);
   }
@@ -228,7 +231,6 @@ function selectMaster() {
   enabledInfoFields.value = infoFields.value.map((f) => f.id);
   optionsKey.value++;
 }
-
 function loadPreset(loadType) {
   Object.keys(selectedMetrics).forEach((type) => {
     selectedMetrics[type] = [];
@@ -241,11 +243,16 @@ function loadPreset(loadType) {
   const reportFieldIds = theReport.report_fields.map((fld) => fld.id);
 
   if (loadType === 'saved') {
+    isApplyingPreset.value = true;
     savedTitle.value = theReport.title;
     dateRange.value = theReport.date_range;
+    minYM.value = theReport.ym_from;
     reportDates.fromYM = theReport.ym_from;
     reportDates.toYM = theReport.ym_to;
     toKey.value++;
+    setTimeout(() => {
+      isApplyingPreset.value = false;
+    }, 0);
 
     reportFormat.value = theReport.format;
     RPTonly.value = theReport.rpt_only === 1 ? 'Active' : 'Inactive';
@@ -284,6 +291,7 @@ function loadPreset(loadType) {
     });
   optionsKey.value++;
 }
+
 async function saveConfig(data) {
   if (data.title === '' && data.id === 0) {
     failure.value = t('reports.name_required');
@@ -322,6 +330,7 @@ async function saveConfig(data) {
   }
   saveDialog.value = false;
 }
+
 async function getReportData(runType) {
   success.value = '';
   failure.value = '';
@@ -381,40 +390,69 @@ async function getReportData(runType) {
       exporting.value = false;
     }
   }
-
 }
+
 function changeReportDates() {
-  const dates = fromToDates(dateRange.value);
+  if (!dateRange.value || dateRange.value === 'Custom') return;
+  isApplyingPreset.value = true;
+  const dates = fromToDates(dateRange.value, fyMo.value);
+  minYM.value = dates.from;
   reportDates.fromYM = dates.from;
   reportDates.toYM = dates.to;
+  toKey.value++;
+  setTimeout(() => {
+    isApplyingPreset.value = false;
+  }, 0);
 }
+
 watch(
   () => reportDates.fromYM,
   (yearmon) => {
     toKey.value++;
     minYM.value = yearmon;
+    if (reportDates.toYM && yearmon && reportDates.toYM < yearmon) {
+      reportDates.toYM = yearmon;
+    }
+    if (!isApplyingPreset.value && yearmon && dateRange.value && dateRange.value !== 'Custom') {
+      dateRange.value = 'Custom';
+    }
   }
 );
+
+watch(
+  () => reportDates.toYM,
+  (yearmon) => {
+    if (!isApplyingPreset.value && yearmon && dateRange.value && dateRange.value !== 'Custom') {
+      dateRange.value = 'Custom';
+    }
+  }
+);
+
 watch(selectedFields.institutiontype, () => {
   selectedFields.institutiongroup = [];
   selectedFields.institution = [];
 });
+
 watch(selectedFields.institutiongroup, () => {
   selectedFields.institution = [];
 });
+
 watch(
   () => authStore.ccp_key,
   () => {
     initializeOptions();
   }
 );
+
 onBeforeMount(() => {
-  initializeOptions();});
+  initializeOptions();
+});
 </script>
 
 <template>
   <div>
     <SettingsPanelShell
+      class="mt-4"
       :title="$t('reports.report_scope')"
       icon="mdi-file-chart-outline"
       :loading="loading"
@@ -525,7 +563,6 @@ onBeforeMount(() => {
               />
             </template>
           </FlexCol>
-
 
           <!-- Master Report & Standard View -->
           <FlexCol :lg="3" class="d-flex flex-column ga-3">
@@ -759,18 +796,18 @@ onBeforeMount(() => {
     <!-- Save Configuration Dialog -->
     <v-dialog v-model="saveDialog">
       <v-card>
-        <v-card-title class="pa-4 bg-info text-white d-flex justify-space-between align-center">
-          <span>{{ $t('reports.save_configuration') }}</span>
-          <v-btn
-            icon
-            variant="text"
-            color="white"
-            :aria-label="$t('dialogs.close_dialog_aria')"
-            @click="saveDialog = false"
-          >
-            <v-icon size="18">mdi-close</v-icon>
-          </v-btn>
-        </v-card-title>
+        <v-card-item>
+          <template #title>
+            <span class="text-h6 font-weight-semibold text-white">{{ $t('reports.save_configuration') }}</span>
+          </template>
+          <template #append>
+            <v-btn
+              icon="mdi-close"
+              :aria-label="$t('dialogs.close_dialog_aria')"
+              @click="saveDialog = false"
+            />
+          </template>
+        </v-card-item>
         <v-card-text>
           <SaveReport :saved_reports="savedReports" @save="saveConfig" @cancel="saveDialog = false" />
         </v-card-text>

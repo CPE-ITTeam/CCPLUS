@@ -2,6 +2,8 @@ export default {
   account: {
     access_token: "Käyttöoikeustunnus",
     admin_contact: "Ylläpitäjän yhteystiedot",
+    api_access: "API-käyttöoikeus",
+    color_theme: "Väriteema",
     conso_identity: "Konsortion tiedot",
     conso_settings_title: "Konsortion asetukset",
     conso_update_success: "Konsortion asetukset päivitetty onnistuneesti.",
@@ -31,6 +33,11 @@ export default {
     serveradmin_cli_notice:
       "ServerAdmin-tunnuksia hallitaan Artisan-komentorivityökalulla.",
     serveradmin_cli_refer: "Katso lisätietoja CCPlus-asennusohjeista.",
+    theme_emerald: "Metsänvihreä",
+    theme_indigo: "Akateeminen indigo",
+    theme_light: "Klassinen sininen (Oletus)",
+    theme_plum: "Viininpunainen luumu",
+    theme_slate: "Lämmin hiilenharmaa",
     title: "{name} – Tilin asetukset",
     token_create_failed: "Suojausavaimen luonti epäonnistui.",
     token_destroy_failed: "Tunnisteiden poisto epäonnistui.",
@@ -196,6 +203,7 @@ export default {
     admin_username_email: "Ylläpitäjän käyttäjätunnus/sähköposti",
     api_key: "API-avain",
     ccplus_system_id: "CC+-järjestelmätunnus",
+    color_theme: "Väriteema",
     confirm_password: "Vahvista salasana",
     connected_instances: "Yhdistetyt instanssit",
     connection_fields: "Yhteyskentät",
@@ -493,12 +501,13 @@ export default {
     usage_metrics: "Käyttömittarit",
   },
 
-  routes: {
+    routes: {
     account_settings: "Tilin asetukset",
     api_management: "API-hallinta",
     ccplus_api: "CC-PLUS API",
     connections: "Yhteydet",
     consortia: "Konsortiot",
+    consortium_settings: "Konsortion asetukset",
     create_report: "Luo raportti",
     credentials: "Tunnistetiedot",
     credentials_audit: "Tunnistetietojen tarkastus",
@@ -506,6 +515,7 @@ export default {
     harvest_log: "Keräysloki",
     harvest_queue: "Keräysjono",
     harvests: "Keräykset",
+    home_institution: "Koti-instituutio",
     institution_groups: "Organisaatioryhmät",
     institution_types: "Organisaatiotyypit",
     institutions: "Organisaatiot",
@@ -513,6 +523,7 @@ export default {
     logout: "Uloskirjautuminen",
     mail_settings: "Sähköpostiasetukset",
     manual_harvest: "Manuaalinen keräys",
+    my_profile: "Oma profiili",
     permissions: "Käyttöoikeudet",
     platforms: "Alustat",
     registry: "Rekisteri",
@@ -523,6 +534,7 @@ export default {
     server_settings: "Palvelimen asetukset",
     users: "Käyttäjät",
   },
+
   server: {
     cli_managed_value: "(Hallitaan komentoriviltä)",
     cookie_life: "Evästeen voimassaoloaika (päivää)",

@@ -2,6 +2,8 @@ export default {
   account: {
     access_token: "Hozzáférési token",
     admin_contact: "Adminisztrátori elérhetőség",
+    api_access: "API-hozzáférés",
+    color_theme: "Színtéma",
     conso_identity: "Konzorcium azonosító adatai",
     conso_settings_title: "Konzorciumi beállítások",
     conso_update_success:
@@ -34,6 +36,11 @@ export default {
       "A ServerAdmin hitelesítő adatok kezelése az Artisan parancssori felületen keresztül történik.",
     serveradmin_cli_refer:
       "További információkért tekintse meg a CCPlus telepítési dokumentációját.",
+    theme_emerald: "Erdőzöld",
+    theme_indigo: "Akadémiai indigó",
+    theme_light: "Klasszikus kék (Alapértelmezett)",
+    theme_plum: "Bordó szilva",
+    theme_slate: "Meleg antracit",
     title: "{name} fiókbeállításai",
     token_create_failed: "Nem sikerült létrehozni a biztonsági tokent.",
     token_destroy_failed: "Nem sikerült törölni a hitelesítő adatokat.",
@@ -199,6 +206,7 @@ export default {
     admin_username_email: "Adminisztrátori felhasználónév/e-mail",
     api_key: "API-kulcs",
     ccplus_system_id: "CC+ rendszerazonosító",
+    color_theme: "Színtéma",
     confirm_password: "Jelszó megerősítése",
     connected_instances: "Csatlakoztatott példányok",
     connection_fields: "Kapcsolati mezők",
@@ -384,6 +392,7 @@ export default {
       "A felhasználóimportok kizárólag frissítésként működnek. Meglévő rekordok nem törlődnek.",
     users_title: "Felhasználók importálása",
   },
+
   mail: {
     encryption: "Titkosítás",
     encryption_none: "Nincs",
@@ -505,6 +514,7 @@ export default {
     ccplus_api: "CC-PLUS API",
     connections: "Kapcsolatok",
     consortia: "Konzorciumok",
+    consortium_settings: "Konzorciumi beállítások",
     create_report: "Jelentés létrehozása",
     credentials: "Hitelesítő adatok",
     credentials_audit: "Hitelesítő adatok naplózása",
@@ -512,6 +522,7 @@ export default {
     harvest_log: "Begyűjtési napló",
     harvest_queue: "Begyűjtési várólista",
     harvests: "Begyűjtések",
+    home_institution: "Anyaintézmény",
     institution_groups: "Intézménycsoportok",
     institution_types: "Intézménytípusok",
     institutions: "Intézmények",
@@ -519,6 +530,7 @@ export default {
     logout: "Kijelentkezés",
     mail_settings: "Levelezési beállítások",
     manual_harvest: "Kézi begyűjtés",
+    my_profile: "Saját profil",
     permissions: "Jogosultságok",
     platforms: "Platformok",
     registry: "Nyilvántartás",
@@ -529,6 +541,7 @@ export default {
     server_settings: "Szerverbeállítások",
     users: "Felhasználók",
   },
+
   server: {
     cli_managed_value: "(Parancssorból kezelve)",
     cookie_life: "Süti élettartama (nap)",

@@ -1,10 +1,12 @@
-<!-- views/admin/MailSettings.vue -->
+<!-- resources/js/components/panels/MailSettingsPanel.vue -->
 <script setup>
 import { ref, computed, watch, onMounted } from 'vue';
 import { useI18n } from 'vue-i18n';
 import api from '@/services/api.js';
 import { useValidationRules } from '@/composables/useValidationRules.js';
 import SettingsPanelShell from '@/components/ui/SettingsPanelShell.vue';
+
+defineOptions({ name: 'MailSettingsPanel', inheritAttrs: false });
 
 const { t } = useI18n();
 const { required, numberRule, emailRule } = useValidationRules();
@@ -123,6 +125,7 @@ onMounted(() => {
 <template>
   <SettingsPanelShell
     v-model:valid="mailFormValid"
+    class="mt-4"
     :title="$t('routes.mail_settings')"
     icon="mdi-email-cog-outline"
     :submit-label="$t('mail.save_mail_settings')"

@@ -1,4 +1,4 @@
-<!-- views/admin/ServerSettings.vue -->
+<!-- resources/js/components/panels/ServerSettingsPanel.vue -->
 <script setup>
 import { ref, computed, watch, onMounted } from 'vue';
 import { useI18n } from 'vue-i18n';
@@ -11,6 +11,8 @@ import SettingsPanelShell from '@/components/ui/SettingsPanelShell.vue';
 import LockTip from '@/components/ui/LockTip.vue';
 import YmInput from '@/components/ui/YmInput.vue';
 import NumberStepper from '@/components/ui/NumberStepper.vue';
+
+defineOptions({ name: 'ServerSettingsPanel', inheritAttrs: false });
 
 const { t, locale } = useI18n();
 const { required, numberRule, yearmon } = useValidationRules();
@@ -86,7 +88,6 @@ async function formSubmit() {
   }
 }
 
-
 watch(
   configSettings,
   () => {
@@ -104,6 +105,7 @@ onMounted(() => {
 <template>
   <SettingsPanelShell
     v-model:valid="formValid"
+    class="mt-4"
     :title="$t('server.title')"
     icon="mdi-server-security"
     :submit-label="$t('server.save_server_settings')"

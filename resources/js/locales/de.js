@@ -1,7 +1,9 @@
 export default {
-  account: {
+   account: {
     access_token: "Zugriffstoken",
     admin_contact: "Administratorkontakt",
+    api_access: "API-Zugriff",
+    color_theme: "Farbschema",
     conso_identity: "Konsortiumsdaten",
     conso_settings_title: "Konsortiumseinstellungen",
     conso_update_success: "Konsortiumseinstellungen erfolgreich aktualisiert.",
@@ -33,6 +35,11 @@ export default {
       "ServerAdmin-Anmeldedaten werden über die Artisan-Befehlszeilenschnittstelle verwaltet.",
     serveradmin_cli_refer:
       "Weitere Informationen finden Sie in der CCPlus-Installationsdokumentation.",
+    theme_emerald: "Waldgrün",
+    theme_indigo: "Akademisches Indigo",
+    theme_light: "Klassisches Blau (Standard)",
+    theme_plum: "Burgunderrot",
+    theme_slate: "Warmes Anthrazit",
     title: "Kontoeinstellungen für {name}",
     token_create_failed: "Sicherheitstoken konnte nicht erstellt werden.",
     token_destroy_failed: "Anmeldedaten konnten nicht gelöscht werden.",
@@ -191,6 +198,7 @@ export default {
     yes_delete_it: "Ja, löschen",
     yes_delete_them: "Ja, alle löschen",
   },
+
   fields: {
     abbreviation: "Abkürzung",
     add_cred_placeholders: "Platzhalter für Anmeldedaten hinzufügen",
@@ -199,6 +207,7 @@ export default {
     admin_username_email: "Administrator-Benutzername/E-Mail",
     api_key: "API-Schlüssel",
     ccplus_system_id: "CC+-System-ID",
+    color_theme: "Farbschema",
     confirm_password: "Passwort bestätigen",
     connected_instances: "Verbundene Instanzen",
     connection_fields: "Verbindungsfelder",
@@ -506,6 +515,7 @@ export default {
     ccplus_api: "CC-PLUS-API",
     connections: "Verbindungen",
     consortia: "Konsortien",
+    consortium_settings: "Konsortiumseinstellungen",
     create_report: "Bericht erstellen",
     credentials: "Anmeldedaten",
     credentials_audit: "Anmeldedaten-Audit",
@@ -513,6 +523,7 @@ export default {
     harvest_log: "Abrufprotokoll",
     harvest_queue: "Abrufwarteschlange",
     harvests: "Abrufe",
+    home_institution: "Heimatinstitution",
     institution_groups: "Institutionsgruppen",
     institution_types: "Institutionstypen",
     institutions: "Institutionen",
@@ -520,6 +531,7 @@ export default {
     logout: "Abmelden",
     mail_settings: "E-Mail-Einstellungen",
     manual_harvest: "Manueller Abruf",
+    my_profile: "Mein Profil",
     permissions: "Berechtigungen",
     platforms: "Plattformen",
     registry: "Registry",
@@ -530,6 +542,7 @@ export default {
     server_settings: "Servereinstellungen",
     users: "Benutzer",
   },
+
   server: {
     cli_managed_value: "(Über CLI verwaltet)",
     cookie_life: "Cookie-Lebensdauer (Tage)",

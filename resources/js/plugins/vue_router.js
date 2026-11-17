@@ -31,11 +31,10 @@ import SavedReports from "@/views/datasets/SavedReports.vue";
 import Users from "@/views/datasets/Users.vue";
 
 // 3. SYSTEM INFRASTRUCTURE & SETTINGS PANELS
-// 3. SYSTEM INFRASTRUCTURE & SETTINGS PANELS
-import MailSettings from "@/views/admin/MailSettings.vue";
-import ManualHarvest from "@/views/admin/ManualHarvest.vue";
-import Reporting from "@/views/admin/Reporting.vue";
-import ServerSettings from "@/views/admin/ServerSettings.vue";
+import MailSettingsPanel from "@/components/panels/MailSettingsPanel.vue";
+import ManualHarvestPanel from "@/components/panels/ManualHarvestPanel.vue";
+import Reporting from "@/components/panels/ReportingPanel.vue";
+import ServerSettingsPanel from "@/components/panels/ServerSettingsPanel.vue";
 import ApiSettingsPanel from "@/components/panels/ApiSettingsPanel.vue";
 
 // 4. USER ACCOUNT VIEWS
@@ -335,7 +334,7 @@ const routes = [
             return t("routes.manual_harvest");
           },
         },
-        component: markRaw(ManualHarvest),
+        component: markRaw(ManualHarvestPanel),
       },
       {
         path: "queue",
@@ -435,7 +434,7 @@ const routes = [
             return t("routes.server_settings");
           },
         },
-        component: markRaw(ServerSettings),
+        component: markRaw(ServerSettingsPanel),
       },
       {
         path: "mailsettings",
@@ -449,7 +448,7 @@ const routes = [
             return t("routes.mail_settings");
           },
         },
-        component: markRaw(MailSettings),
+        component: markRaw(MailSettingsPanel),
       },
       {
         path: "api",

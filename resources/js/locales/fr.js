@@ -2,6 +2,8 @@ export default {
   account: {
     access_token: "Jeton d'accès",
     admin_contact: "Contact administrateur",
+    api_access: "Accès API",
+    color_theme: "Thème de couleur",
     conso_identity: "Identité du consortium",
     conso_settings_title: "Paramètres du consortium",
     conso_update_success:
@@ -34,6 +36,11 @@ export default {
       "Les identifiants ServerAdmin sont gérés via l'interface en ligne de commande Artisan.",
     serveradmin_cli_refer:
       "Consultez la documentation d'installation de CCPlus pour plus d'informations.",
+    theme_emerald: "Vert forêt",
+    theme_indigo: "Indigo académique",
+    theme_light: "Bleu classique (Par défaut)",
+    theme_plum: "Prune bordeaux",
+    theme_slate: "Anthracite chaud",
     title: "Paramètres du compte de {name}",
     token_create_failed: "Échec de la création du jeton de sécurité.",
     token_destroy_failed: "Échec de la suppression des identifiants.",
@@ -199,6 +206,7 @@ export default {
     admin_username_email: "Nom d'utilisateur / E-mail administrateur",
     api_key: "Clé API",
     ccplus_system_id: "ID système CC+",
+    color_theme: "Thème de couleur",
     confirm_password: "Confirmer le mot de passe",
     connected_instances: "Instances connectées",
     connection_fields: "Champs de connexion",
@@ -507,6 +515,7 @@ export default {
     ccplus_api: "API CC-PLUS",
     connections: "Connexions",
     consortia: "Consortiums",
+    consortium_settings: "Paramètres du consortium",
     create_report: "Créer un rapport",
     credentials: "Identifiants",
     credentials_audit: "Audit des identifiants",
@@ -514,6 +523,7 @@ export default {
     harvest_log: "Journal de collecte",
     harvest_queue: "File de collecte",
     harvests: "Collectes",
+    home_institution: "Institution d'origine",
     institution_groups: "Groupes d'institutions",
     institution_types: "Types d'institution",
     institutions: "Institutions",
@@ -521,6 +531,7 @@ export default {
     logout: "Déconnexion",
     mail_settings: "Paramètres de messagerie",
     manual_harvest: "Collecte manuelle",
+    my_profile: "Mon profil",
     permissions: "Autorisations",
     platforms: "Plateformes",
     registry: "Registre",
@@ -531,6 +542,7 @@ export default {
     server_settings: "Paramètres du serveur",
     users: "Utilisateurs",
   },
+
   server: {
     cli_managed_value: "(Géré via CLI)",
     cookie_life: "Durée de vie des cookies (jours)",

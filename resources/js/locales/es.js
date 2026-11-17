@@ -2,6 +2,8 @@ export default {
   account: {
     access_token: "Token de acceso",
     admin_contact: "Contacto del administrador",
+    api_access: "Acceso a la API",
+    color_theme: "Tema de color",
     conso_identity: "Identidad del consorcio",
     conso_settings_title: "Configuración del consorcio",
     conso_update_success:
@@ -34,6 +36,11 @@ export default {
       "Las credenciales de ServerAdmin se gestionan mediante la interfaz de línea de comandos Artisan.",
     serveradmin_cli_refer:
       "Consulte la documentación de instalación de CCPlus para obtener más información.",
+    theme_emerald: "Verde bosque",
+    theme_indigo: "Índigo académico",
+    theme_light: "Azul clásico (Predeterminado)",
+    theme_plum: "Ciruela borgoña",
+    theme_slate: "Carbón cálido",
     title: "Configuración de la cuenta de {name}",
     token_create_failed: "Error al crear el token de seguridad.",
     token_destroy_failed: "Error al eliminar las credenciales.",
@@ -199,6 +206,7 @@ export default {
     admin_username_email: "Usuario/Correo del administrador",
     api_key: "Clave API",
     ccplus_system_id: "ID de sistema CC+",
+    color_theme: "Tema de color",
     confirm_password: "Confirmar contraseña",
     connected_instances: "Instancias conectadas",
     connection_fields: "Campos de conexión",
@@ -505,6 +513,7 @@ export default {
     ccplus_api: "API de CC-PLUS",
     connections: "Conexiones",
     consortia: "Consorcios",
+    consortium_settings: "Configuración del consorcio",
     create_report: "Crear informe",
     credentials: "Credenciales",
     credentials_audit: "Auditoría de credenciales",
@@ -512,6 +521,7 @@ export default {
     harvest_log: "Registro de recolección",
     harvest_queue: "Cola de recolección",
     harvests: "Recolecciones",
+    home_institution: "Institución de origen",
     institution_groups: "Grupos de instituciones",
     institution_types: "Tipos de institución",
     institutions: "Instituciones",
@@ -519,6 +529,7 @@ export default {
     logout: "Cerrar sesión",
     mail_settings: "Configuración de correo",
     manual_harvest: "Recolección manual",
+    my_profile: "Mi perfil",
     permissions: "Permisos",
     platforms: "Plataformas",
     registry: "Registro",
@@ -529,6 +540,7 @@ export default {
     server_settings: "Configuración del servidor",
     users: "Usuarios",
   },
+
   server: {
     cli_managed_value: "(Gestionado mediante CLI)",
     cookie_life: "Duración de la cookie (días)",
