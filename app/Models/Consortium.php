@@ -18,9 +18,14 @@ class Consortium extends Model
      * @var array
      */
     protected $fillable = [
-        'ccp_key', 'name', 'email', 'is_active'
+        'ccp_key', 'name', 'email', 'fiscalYr', 'is_active'
     ];
-    protected $casts =['id'=>'integer', 'is_active'=>'integer'];
+    protected $casts = ['id' => 'integer', 'is_active' => 'integer'];
+
+    public function effectiveFiscalYr(): string
+    {
+        return $this->fiscalYr ?: config('ccplus.fiscalYr', 'January');
+    }
 
     public function ingests()
     {

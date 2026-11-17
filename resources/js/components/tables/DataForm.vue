@@ -36,12 +36,29 @@ const formRef = ref();
 const pw_show = ref(false);
 const pwc_show = ref(false);
 const requiredRule = (v) => !!v || t('validation.field_required');
+const emailRule = (v) => {
+  if (!v) return true;
+  const val = String(v).trim();
+  if (val === 'Administrator' || val === 'ServerAdmin') return true;
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(val) || t('validation.email');
+};
 const opType = ref(props.schema.type);
+
 const consoFlag = ref(false);
 
 // Scoped UI Alert Strings
-var dialog_error = ref('');
-var dialog_success = ref('');
+const dialog_error = ref('');
+const dialog_success = ref('');
+
+function clearAlerts() {
+  dialog_error.value = '';
+  dialog_success.value = '';
+  if (ccPlusStore) {
+    ccPlusStore.tableErrorMessage = '';
+    ccPlusStore.tableSuccessMessage = '';
+  }
+}
+
 
 // Set m_schema as a local, mutable copy of the input schema prop
 const m_schema = reactive(JSON.parse(JSON.stringify(props.schema)));
@@ -194,16 +211,17 @@ async function submitForm() {
     }
   });
 
-
   if (formRef.value) {
     const { valid } = await formRef.value.validate();
     if (valid) {
+      clearAlerts();
       emit('submit', formValues);
     }
   }
 }
 
 onMounted(() => {
+  clearAlerts();
   m_schema.fields.forEach((fld) => {
     if (fld.type == 'select' && typeof (m_schema.options[fld.name]) != 'undefined' &&
       typeof (formValues[fld.name]) != 'undefined') {
@@ -226,6 +244,7 @@ onMounted(() => {
     }
   });
 });
+
 </script>
 
 
@@ -363,7 +382,7 @@ onMounted(() => {
               :rules="field.required ? [requiredRule] : []"
             />
 
-            <!-- Universal Fallback text & number inputs -->
+            <!-- Universal Fallback text, email & number inputs -->
             <v-text-field
               v-else-if="field.type != 'passconf'"
               v-model="formValues[field.name]"
@@ -373,8 +392,12 @@ onMounted(() => {
               autocomplete="off"
               :prepend-inner-icon="field.icon"
               :hint="field.helperText"
-              :rules="field.required ? [requiredRule] : []"
+              :rules="[
+                ...(field.required ? [requiredRule] : []),
+                ...(field.type === 'email' ? [emailRule] : []),
+              ]"
             />
+
           </v-col>
 
           <!-- Group Switch Configuration Block -->
@@ -395,17 +418,22 @@ onMounted(() => {
             v-if="dialog_success || ccPlusStore?.tableSuccessMessage"
             type="success"
             variant="tonal"
+            closable
             class="mb-2"
             :text="dialog_success || ccPlusStore.tableSuccessMessage"
+            @click:close="clearAlerts"
           />
 
           <v-alert
             v-if="dialog_error || ccPlusStore?.tableErrorMessage"
             type="error"
             variant="tonal"
+            closable
             :text="dialog_error || ccPlusStore.tableErrorMessage"
+            @click:close="clearAlerts"
           />
         </v-col>
+
 
         <!-- Submissions Controls Row -->
         <v-col cols="12" class="d-flex align-center">

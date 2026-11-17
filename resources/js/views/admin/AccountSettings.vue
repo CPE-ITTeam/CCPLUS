@@ -1,6 +1,6 @@
 <!-- views/admin/AccountSettings.vue -->
 <script setup>
-import { ref, computed, watch, onMounted } from 'vue';
+import { ref, computed, watch, onMounted, nextTick } from 'vue';
 import { useI18n } from 'vue-i18n';
 import api from '@/services/api.js';
 import { useAuthStore } from '@/stores/useAuthStore.js';
@@ -34,6 +34,7 @@ const consoSettings = ref({
   ccp_key: '',
   name: '',
   email: '',
+  fiscalYr: null,
 });
 
 const formValid = ref(true);
@@ -83,19 +84,20 @@ const getConsoSettings = async () => {
   if (!authStore.is_conso_admin) return;
   try {
     const response = await api.get('/api/consortia/current');
-    const consortium = response?.data?.consortium || response?.consortium;
+    const resData = response?.data !== undefined ? response.data : response;
+    const consortium = resData?.consortium;
     if (consortium) {
       consoSettings.value = {
         ccp_key: consortium.ccp_key || '',
         name: consortium.name || '',
         email: consortium.email || '',
+        fiscalYr: consortium.fiscalYr || resData?.defaultFiscalYr || 'January',
       };
     }
   } catch (error) {
     console.error('Error fetching consortium settings:', error.message);
   }
 };
-
 async function userSubmit() {
   success.value = '';
   failure.value = '';
@@ -104,14 +106,14 @@ async function userSubmit() {
     const response = await api.patch(url, acctSettings.value);
     const resData = response?.data !== undefined ? response.data : response;
     if (resData?.result) {
-      success.value = resData.msg || t('account.update_success');
-      acctSettings.value.password = null;
-      acctSettings.value.confirm_pass = null;
+      await getSettings();
       if (authStore.user) {
         authStore.user.name = acctSettings.value.name;
         authStore.user.email = acctSettings.value.email;
         authStore.user.fiscalYr = acctSettings.value.fiscalYr;
       }
+      await nextTick();
+      success.value = resData.msg || t('account.update_success');
     } else {
       failure.value = resData?.msg || t('account.update_failed');
     }
@@ -121,6 +123,7 @@ async function userSubmit() {
   }
 }
 
+
 async function consoSubmit() {
   consoSuccess.value = '';
   consoFailure.value = '';
@@ -128,9 +131,14 @@ async function consoSubmit() {
     const response = await api.patch('/api/consortia/current', {
       name: consoSettings.value.name,
       email: consoSettings.value.email,
+      fiscalYr: consoSettings.value.fiscalYr,
     });
     const resData = response?.data !== undefined ? response.data : response;
     if (resData?.result) {
+      if (resData.consortium?.fiscalYr) {
+        consoSettings.value.fiscalYr = resData.consortium.fiscalYr;
+      }
+      await nextTick();
       consoSuccess.value = resData.msg || t('account.conso_update_success');
     } else {
       consoFailure.value = resData?.msg || t('account.update_failed');
@@ -203,18 +211,13 @@ onMounted(() => {
   getConsoSettings();
 });
 </script>
+
 <template>
   <div v-if="authStore.user">
     <!-- Primary User Profile Panel -->
-    <SettingsPanelShell
-      v-model:valid="formValid"
-      :title="$t('account.title', { name: authStore.user.name })"
-      icon="mdi-account-cog-outline"
-      :submit-label="$t('account.save_settings')"
-      :success="success"
-      :failure="failure"
-      @submit="userSubmit"
-    >
+    <SettingsPanelShell v-model:valid="formValid" :title="$t('account.title', { name: authStore.user.name })"
+      icon="mdi-account-cog-outline" :submit-label="$t('account.save_settings')" :success="success" :failure="failure"
+      @submit="userSubmit">
       <v-row class="mt-0">
         <!-- Column 1: Profile & Fiscal Year Preference -->
         <v-col cols="12" md="6" lg="4" class="pt-0">
@@ -223,28 +226,14 @@ onMounted(() => {
             {{ $t('account.profile_details') }}
           </SectionHeading>
 
-          <v-text-field
-            v-model="acctSettings.name"
-            :label="$t('common.name')"
-            :rules="[required]"
-            class="mb-4"
-          />
+          <v-text-field v-model="acctSettings.name" :label="$t('common.name')" :rules="[required]" class="mb-4" />
 
-          <v-text-field
-            v-model="acctSettings.email"
-            :label="$t('auth.email')"
-            :rules="[required, emailRule]"
-            class="mb-4"
-          />
+          <v-text-field v-model="acctSettings.email" :label="$t('auth.email')" :rules="[required, emailRule]"
+            class="mb-4" />
 
-          <v-select
-            v-model="acctSettings.fiscalYr"
-            :label="$t('fields.fiscal_year_start')"
-            :items="localizedFyMonths"
-            :rules="[required]"
-            item-title="label"
-            item-value="value"
-          />
+          <v-select v-model="acctSettings.fiscalYr" :label="$t('fields.fiscal_year_start')" :items="localizedFyMonths"
+            item-title="label" item-value="value" />
+
         </v-col>
 
         <!-- Column 2: Security & Personal Access Token -->
@@ -254,26 +243,15 @@ onMounted(() => {
             {{ $t('account.security_and_api') }}
           </SectionHeading>
 
-          <v-text-field
-            v-model="acctSettings.password"
-            :label="$t('fields.password')"
-            :type="pw_show ? 'text' : 'password'"
-            autocomplete="new-password"
-            :append-inner-icon="pw_show ? 'mdi-eye' : 'mdi-eye-off'"
-            class="mb-4"
-            @click:append-inner="pw_show = !pw_show"
-          />
+          <v-text-field v-model="acctSettings.password" :label="$t('fields.password')"
+            :type="pw_show ? 'text' : 'password'" autocomplete="new-password"
+            :append-inner-icon="pw_show ? 'mdi-eye' : 'mdi-eye-off'" class="mb-4"
+            @click:append-inner="pw_show = !pw_show" />
 
-          <v-text-field
-            v-model="acctSettings.confirm_pass"
-            :label="$t('fields.confirm_password')"
-            :type="pwc_show ? 'text' : 'password'"
-            autocomplete="new-password"
-            :append-inner-icon="pwc_show ? 'mdi-eye' : 'mdi-eye-off'"
-            :rules="passwordConfirmRules"
-            class="mb-4"
-            @click:append-inner="pwc_show = !pwc_show"
-          />
+          <v-text-field v-model="acctSettings.confirm_pass" :label="$t('fields.confirm_password')"
+            :type="pwc_show ? 'text' : 'password'" autocomplete="new-password"
+            :append-inner-icon="pwc_show ? 'mdi-eye' : 'mdi-eye-off'" :rules="passwordConfirmRules" class="mb-4"
+            @click:append-inner="pwc_show = !pwc_show" />
 
           <!-- Personal Access Token Controls -->
           <div v-if="!acctSettings.access_token">
@@ -283,38 +261,23 @@ onMounted(() => {
           </div>
 
           <div v-else>
-            <v-text-field
-              v-model="acctSettings.access_token"
-              :label="$t('account.access_token')"
-              readonly
-              :type="pat_show ? 'text' : 'password'"
-              :append-inner-icon="pat_show ? 'mdi-eye' : 'mdi-eye-off'"
-              class="mb-2"
-              @click:append-inner="pat_show = !pat_show"
-            />
+            <v-text-field v-model="acctSettings.access_token" :label="$t('account.access_token')" readonly
+              :type="pat_show ? 'text' : 'password'" :append-inner-icon="pat_show ? 'mdi-eye' : 'mdi-eye-off'"
+              class="mb-2" @click:append-inner="pat_show = !pat_show" />
 
             <div class="d-flex align-center justify-space-between flex-wrap ga-2">
               <span class="text-body-small text-medium-emphasis">
                 {{ $t('account.expires') }}:
-                {{ acctSettings.token_expires ? new Date(acctSettings.token_expires).toLocaleString(locale) : $t('account.na') }}
+                {{ acctSettings.token_expires ? new Date(acctSettings.token_expires).toLocaleString(locale) :
+                  $t('account.na') }}
               </span>
 
               <div class="d-flex ga-2">
-                <v-btn
-                  size="small"
-                  variant="tonal"
-                  color="primary"
-                  :prepend-icon="tokenCopied ? 'mdi-check' : 'mdi-content-copy'"
-                  @click="copyToken"
-                >
+                <v-btn size="small" variant="tonal" color="primary"
+                  :prepend-icon="tokenCopied ? 'mdi-check' : 'mdi-content-copy'" @click="copyToken">
                   {{ tokenCopied ? $t('api_docs.copied') : $t('common.copy') }}
                 </v-btn>
-                <v-btn
-                  size="small"
-                  color="error"
-                  variant="tonal"
-                  @click="destroyToken"
-                >
+                <v-btn size="small" color="error" variant="tonal" @click="destroyToken">
                   {{ $t('account.destroy_token') }}
                 </v-btn>
               </div>
@@ -329,13 +292,8 @@ onMounted(() => {
             {{ $t('account.organization_and_roles') }}
           </SectionHeading>
 
-          <v-text-field
-            :model-value="acctSettings.inst_name || $t('account.na')"
-            :label="$t('fields.home_institution')"
-            :clearable="false"
-            readonly
-            class="mb-4"
-          >
+          <v-text-field :model-value="acctSettings.inst_name || $t('account.na')" :label="$t('fields.home_institution')"
+            :clearable="false" readonly class="mb-4">
             <template #append-inner>
               <LockTip :text="$t('account.home_institution_hint')" />
             </template>
@@ -371,47 +329,34 @@ onMounted(() => {
     </SettingsPanelShell>
 
     <!-- Consortium Admin Settings Panel -->
-    <SettingsPanelShell
-      v-if="authStore.is_conso_admin"
-      v-model:valid="consoFormValid"
-      :title="$t('account.conso_settings_title')"
-      icon="mdi-domain"
-      :submit-label="$t('account.save_conso_settings')"
-      :success="consoSuccess"
-      :failure="consoFailure"
-      class="mt-6"
-      @submit="consoSubmit"
-    >
+    <SettingsPanelShell v-if="authStore.is_conso_admin" v-model:valid="consoFormValid"
+      :title="$t('account.conso_settings_title')" icon="mdi-domain" :submit-label="$t('account.save_conso_settings')"
+      :success="consoSuccess" :failure="consoFailure" class="mt-6" @submit="consoSubmit">
       <v-row class="mt-0">
-        <v-col cols="12" sm="4" class="pt-0">
-          <v-text-field
-            v-model="consoSettings.ccp_key"
-            :label="$t('fields.consortium_key')"
-            :clearable="false"
-            readonly
-          >
+        <v-col cols="12" md="4" class="pt-0">
+          <v-text-field v-model="consoSettings.name" :label="$t('fields.consortium_name')" :rules="[required]" />
+        </v-col>
+
+        <v-col cols="12" md="2" class="pt-0">
+          <v-text-field v-model="consoSettings.ccp_key" :label="$t('fields.consortium_key')" :clearable="false"
+            readonly>
             <template #append-inner>
               <LockTip :text="$t('server.readonly_env_hint')" />
             </template>
           </v-text-field>
         </v-col>
 
-        <v-col cols="12" sm="4" class="pt-0">
-          <v-text-field
-            v-model="consoSettings.name"
-            :label="$t('fields.consortium_name')"
-            :rules="[required]"
-          />
+        <v-col cols="12" md="3" class="pt-0">
+          <v-text-field v-model="consoSettings.email" :label="$t('fields.consortium_email')"
+            :rules="[required, emailRule]" />
         </v-col>
 
-        <v-col cols="12" sm="4" class="pt-0">
-          <v-text-field
-            v-model="consoSettings.email"
-            :label="$t('fields.consortium_email')"
-            :rules="[required, emailRule]"
-          />
+        <v-col cols="12" md="3" class="pt-0">
+          <v-select v-model="consoSettings.fiscalYr" :label="$t('fields.fiscal_year_start')" :items="localizedFyMonths"
+            :rules="[required]" item-title="label" item-value="value" />
         </v-col>
       </v-row>
     </SettingsPanelShell>
+
   </div>
 </template>

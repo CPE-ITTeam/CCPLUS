@@ -35,6 +35,102 @@ export const isFieldEditable = (field, mode) => {
 // STEP 3: RAW DATASET CONFIGURATIONS
 // ─────────────────────────────────────────────────────────────────────────
 const rawTableSetup = {
+
+  consortia: {
+    urlRoot: "/api/consortia",
+    get title() {
+      return t("datasets.consortia.title");
+    },
+    dataset: "consortia",
+    required: [
+      "name",
+      "ccp_key",
+      "email",
+      "admin_pass",
+      "admin_confirm_pass",
+    ],
+    fields: [
+      {
+        name: "status",
+        get label() {
+          return t("fields.status");
+        },
+        type: "toggle",
+        options: "fromURL",
+        addValue: "Active",
+        header: "center",
+        searchable: false,
+        cols: 12,
+      },
+      {
+        name: "name",
+        get label() {
+          return t("fields.consortium_name");
+        },
+        cols: 8,
+      },
+      {
+        name: "ccp_key",
+        get label() {
+          return t("fields.database_key");
+        },
+        cols: 4,
+        editable: ["Add"],
+      },
+      {
+        name: "admin_name",
+        get label() {
+          return t("fields.admin_contact");
+        },
+        cols: 6,
+      },
+      {
+        name: "email",
+        get label() {
+          return t("fields.consortium_email");
+        },
+        type: "email",
+        cols: 6,
+      },
+      {
+        name: "fiscalYr",
+        get label() {
+          return t("fields.fiscal_year_start");
+        },
+        type: "select",
+        options: "fromURL",
+        optVal: "id",
+        optTxt: "name",
+        searchable: false,
+        cols: 12,
+      },
+      {
+        name: "admin_pass",
+        get label() {
+          return t("fields.admin_password");
+        },
+        type: "password",
+        visible: ["Add"],
+        header: null,
+        cols: 6,
+      },
+      {
+        name: "admin_confirm_pass",
+        get label() {
+          return t("fields.confirm_password");
+        },
+        type: "passconf",
+        visible: ["Add"],
+        header: null,
+        cols: 6,
+      },
+    ],
+    static: [],
+    bulkOptions: ["Set Active", "Set Inactive", "Delete"],
+    sortby: "name",
+  },
+
+
   institutions: {
     urlRoot: "/api/institutions",
     get title() {
@@ -380,6 +476,7 @@ const rawTableSetup = {
         get label() {
           return t("fields.email_address");
         },
+        type: "email",
         cols: 6,
       },
 
@@ -526,12 +623,7 @@ const rawTableSetup = {
       },
     ],
 
-    required: [
-      "status",
-      "name",
-      "email",
-      "institutions",
-    ],
+    required: ["status", "name", "email", "institutions"],
     static: [
       "id",
       "institution.name",
@@ -720,128 +812,7 @@ const rawTableSetup = {
     exportFields: [],
     sortby: "email",
   },
-  consortia: {
-    urlRoot: "/api/consortia",
-    get title() {
-      return t("datasets.consortia.title");
-    },
-    dataset: "consortia",
-    required: [
-      "name",
-      "ccp_key",
-      "email",
-      "admin_user",
-      "admin_pass",
-      "admin_confirm_pass",
-    ],
-    fields: [
-      // Row 1: Status toggle (FIXED: added type: 'toggle' and addValue: 'Active')
-      {
-        name: "status",
-        get label() {
-          return t("fields.status");
-        },
-        type: "toggle",
-        options: "fromURL",
-        addValue: "Active",
-        header: "center",
-        searchable: false,
-        cols: 12,
-      },
-      // Row 2: Consortium Name & Database Key
-      {
-        name: "name",
-        get label() {
-          return t("fields.consortium_name");
-        },
-        cols: 8,
-      },
-      {
-        name: "ccp_key",
-        get label() {
-          return t("fields.database_key");
-        },
-        cols: 4,
-        editable: ["Add"],
-      },
-      // Row 3: Admin Contact & Email
-      {
-        name: "admin_name",
-        get label() {
-          return t("fields.admin_contact");
-        },
-        cols: 6,
-      },
-      {
-        name: "email",
-        get label() {
-          return t("fields.email_address");
-        },
-        cols: 6,
-      },
-      // Row 4 & 5: Add-only initial Admin Account setup
-      {
-        name: "admin_user",
-        get label() {
-          return t("fields.admin_username_email");
-        },
-        visible: ["Add"],
-        header: null,
-        cols: 12,
-      },
-      {
-        name: "admin_pass",
-        get label() {
-          return t("fields.admin_password");
-        },
-        type: "password",
-        visible: ["Add"],
-        header: null,
-        cols: 6,
-      },
-      {
-        name: "admin_confirm_pass",
-        get label() {
-          return t("fields.confirm_password");
-        },
-        type: "passconf",
-        visible: ["Add"],
-        header: null,
-        cols: 6,
-      },
-      // Row 6: Optional Admin Name breakdown (Add only)
-      {
-        name: "firstName",
-        get label() {
-          return t("fields.first_name");
-        },
-        visible: ["Add"],
-        header: null,
-        cols: 6,
-      },
-      {
-        name: "lastName",
-        get label() {
-          return t("fields.last_name");
-        },
-        visible: ["Add"],
-        header: null,
-        cols: 6,
-      },
-      {
-        name: "displayName",
-        get label() {
-          return t("fields.display_name");
-        },
-        visible: ["Add"],
-        header: null,
-        cols: 12,
-      },
-    ],
-    static: [],
-    bulkOptions: ["Set Active", "Set Inactive", "Delete"],
-    sortby: "name",
-  },
+
   platforms: {
     urlRoot: "/api/platforms",
     get title() {
@@ -1134,6 +1105,7 @@ const rawTableSetup = {
     ],
     sortby: "name",
   },
+
   connections: {
     urlRoot: "/api/connections",
     get title() {
@@ -1344,6 +1316,7 @@ const rawTableSetup = {
     ],
     sortby: "platform",
   },
+
   credentials: {
     urlRoot: "/api/credentials",
     get title() {
@@ -1552,6 +1525,7 @@ const rawTableSetup = {
     ],
     sortby: "platform",
   },
+
   audit: {
     urlRoot: "/api/audit",
     title: "",
@@ -1758,6 +1732,7 @@ const rawTableSetup = {
     ],
     sortby: "platform",
   },
+
   jobs: {
     urlRoot: "/api/jobs",
     title: "",
@@ -1909,6 +1884,7 @@ const rawTableSetup = {
     exportFields: [],
     sortby: "created",
   },
+
   harvests: {
     urlRoot: "/api/harvests",
     title: "",
@@ -2117,6 +2093,7 @@ const rawTableSetup = {
     exportFields: [],
     sortby: "updated",
   },
+
   savedreports: {
     urlRoot: "/api/savedreports",
     get title() {

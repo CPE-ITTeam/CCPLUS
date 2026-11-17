@@ -32,17 +32,15 @@ class UserController extends BaseController
         $data = [];
         $limit_to_insts = [];
         $server_admin = config('ccplus.server_admin');
+        $defaultFiscalYr = $this->consortiumFiscalYr($request);
 
         $filter_options = [
             'statuses' => ['ALL', 'Active', 'Inactive'],
             'roles'    => Role::where('name', '<>', 'ServerAdmin')->get(['id', 'name'])->toArray(),
         ];
 
-        if (!$thisUser->isServerAdmin()) {
-            $limit_to_insts = array_map('intval', (array) $thisUser->adminInsts());
-            if ($limit_to_insts === array(1)) {
-                $limit_to_insts = [];
-            }
+        if (!$thisUser->isConsoAdmin()) {
+            $limit_to_insts = array_filter(array_map('intval', (array) $thisUser->adminInsts()));
         }
 
         $user_data = User::with('roles', 'institution:id,name')
@@ -75,9 +73,10 @@ class UserController extends BaseController
                 'last_login'  => $rec->last_login,
                 'status'      => $rec->is_active ? 'Active' : 'Inactive',
                 'user_role'   => $rec->fullRoleName(),
+                'uroles'      => $rec->fullRoleName(),
                 'inst_roles'  => $inst_roles,
                 'group_roles' => $group_roles,
-                'fiscalYr'    => $rec->fiscalYr ?: config('ccplus.fiscalYr'),
+                'fiscalYr'    => $rec->fiscalYr ?: $defaultFiscalYr,
                 'can_edit'    => $rec->canManage(),
                 'can_delete'  => $rec->canManage(),
             ];
@@ -105,8 +104,11 @@ class UserController extends BaseController
             ? Institution::orderBy('name', 'ASC')->get(['id', 'name'])->toArray()
             : Institution::orderBy('name', 'ASC')->whereIn('id', $instIds)->get(['id', 'name'])->toArray();
 
+        $filter_options['defaultFiscalYr'] = $defaultFiscalYr;
+
         return response()->json(['records' => $data, 'options' => $filter_options, 'result' => true], 200);
     }
+
 
     /**
      * Settings method to return user settings for profile page.
@@ -121,7 +123,7 @@ class UserController extends BaseController
         $user->load('roles', 'institution:id,name');
         $data = $user->toArray();
         $data['inst_name'] = $user->institution->name;
-        $data['fiscalYr'] = $user->fiscalYr ?: config('ccplus.fiscalYr');
+        $data['fiscalYr'] = $user->fiscalYr ?: $this->consortiumFiscalYr();
 
         $token = $user->tokens()->where('name', 'PAT_User_' . $user->id)->first();
         $data['access_token'] = $token ? Crypt::decryptString($user->enc_api_token) : null;
@@ -158,21 +160,89 @@ class UserController extends BaseController
 
         $input['is_active'] = (isset($input['status']) && $input['status'] === 'Active') ? 1 : 0;
 
-        $user = User::create($input);
-
-        $viewer_role_id = Role::where('name', 'Viewer')->value('id');
-        try {
-            UserRole::create([
-                'user_id'  => $user->id,
-                'role_id'  => $viewer_role_id,
-                'inst_id'  => $user->inst_id,
-                'group_id' => null,
-            ]);
-        } catch (\Exception $e) {
-            return $this->respondError(__('users.role_db_error', ['error' => $e->getMessage()]));
+        $defaultFiscalYr = $this->consortiumFiscalYr($request);
+        if (array_key_exists('fiscalYr', $input)) {
+            $input['fiscalYr'] = $this->normalizeFiscalYr($input['fiscalYr'], $defaultFiscalYr);
         }
 
-        $user->load(['institution:id,name']);
+        // Extract role selection before User::create()
+        $rawUroles = $input['uroles'] ?? null;
+        $rawRoles  = $input['roles'] ?? null;
+        $plainPassword = $input['password'];
+        $userData = Arr::except($input, ['confirm_pass', 'status', 'roles', 'uroles', 'institutions', 'inst_roles', 'group_roles']);
+
+        $user = User::create($userData);
+
+        // Assign requested role(s) from uroles/roles, defaulting to Viewer if none specified
+        $all_roles = Role::orderBy('id', 'ASC')->get(['name', 'id']);
+        $new_roles = [];
+
+        if (is_array($rawRoles) && count($rawRoles) > 0) {
+            $new_roles = $rawRoles;
+        } elseif (!empty($rawUroles) && $rawUroles !== 'None') {
+            $items = is_array($rawUroles) ? $rawUroles : [$rawUroles];
+            foreach ($items as $rawRole) {
+                $matched = null;
+                $roleInstId = (int) $user->inst_id;
+
+                if (is_numeric($rawRole)) {
+                    $matched = $all_roles->firstWhere('id', (int) $rawRole);
+                } elseif (is_string($rawRole)) {
+                    $clean = trim($rawRole);
+                    if ($clean === 'Consortium Admin') {
+                        $matched = $all_roles->firstWhere('name', 'Admin');
+                        $roleInstId = 1;
+                    } else {
+                        $matched = $all_roles->firstWhere('name', $clean);
+                    }
+                } elseif (is_array($rawRole)) {
+                    $new_roles[] = $rawRole;
+                    continue;
+                }
+
+                if ($matched) {
+                    $new_roles[] = [
+                        'role_id' => $matched->id,
+                        'name'    => $matched->name,
+                        'inst_id' => $roleInstId,
+                    ];
+                }
+            }
+        }
+
+        if (empty($new_roles)) {
+            $viewerRole = $all_roles->firstWhere('name', 'Viewer');
+            if ($viewerRole) {
+                $new_roles[] = [
+                    'role_id' => $viewerRole->id,
+                    'name'    => $viewerRole->name,
+                    'inst_id' => (int) $user->inst_id,
+                ];
+            }
+        }
+
+        foreach ($new_roles as $r_new) {
+            $roleId = $r_new['role_id'] ?? $r_new['id'] ?? $r_new['role']['id'] ?? null;
+            $roleInstId = $r_new['inst_id'] ?? (int) $user->inst_id;
+            $roleGroupId = $r_new['group_id'] ?? null;
+
+            if (!$roleId || $thisUser->maxRole($roleInstId) < $roleId) {
+                continue;
+            }
+
+            try {
+                UserRole::create([
+                    'user_id'  => $user->id,
+                    'inst_id'  => $roleInstId,
+                    'group_id' => $roleGroupId,
+                    'role_id'  => $roleId,
+                ]);
+            } catch (\Exception $e) {
+                return $this->respondError(__('users.role_db_error', ['error' => $e->getMessage()]));
+            }
+        }
+
+        $user->load(['institution:id,name', 'roles']);
 
         $consortia = Consortium::where('is_active', 1)->get();
         $con_name = '';
@@ -182,11 +252,11 @@ class UserController extends BaseController
         }
 
         try {
-            Mail::to($input['email'])->send(new \App\Mail\NewUser($con_name, [
+            Mail::to($user->email)->send(new \App\Mail\NewUser($con_name, [
                 'name'     => $user->name,
-                'password' => $input['password'],
+                'password' => $plainPassword,
             ]));
-        } catch (\Exception $e) {
+        } catch (\Throwable $e) {
             // Fail silently if mail transport is not configured
         }
 
@@ -199,13 +269,16 @@ class UserController extends BaseController
             'last_login'  => null,
             'status'      => $user->is_active ? 'Active' : 'Inactive',
             'user_role'   => $user->fullRoleName(),
-            'fiscalYr'    => $user->fiscalYr ?: config('ccplus.fiscalYr'),
+            'uroles'      => $user->fullRoleName(),
+            'fiscalYr'    => $user->fiscalYr ?: $defaultFiscalYr,
             'can_edit'    => true,
             'can_delete'  => true,
         ];
 
         return $this->respondSuccess(__('users.created'), $new_user);
     }
+
+
 
     /**
      * Update the specified resource in storage.
@@ -238,6 +311,10 @@ class UserController extends BaseController
         }
         $input = Arr::except($input, ['confirm_pass']);
 
+        if (isset($input['status'])) {
+            $input['is_active'] = ($input['status'] === 'Active') ? 1 : 0;
+        }
+
         $targetInstId = $input['inst_id'] ?? $user->inst_id;
         if (
             !$thisUser->isConsoAdmin() &&
@@ -246,20 +323,14 @@ class UserController extends BaseController
             return $this->respondError(__('users.update_forbidden'));
         }
 
-        if (isset($input['fiscalYr'])) {
-            if (is_numeric($input['fiscalYr']) && $input['fiscalYr'] >= 1 && $input['fiscalYr'] <= 12) {
-                $input['fiscalYr'] = \Carbon\Carbon::create(null, (int) $input['fiscalYr'], 1)->format('F');
-            }
-            $parsed = date_parse($input['fiscalYr']);
-            if ($parsed['error_count'] > 0 || empty($parsed['month']) || $input['fiscalYr'] === config('ccplus.fiscalYr')) {
-                $input['fiscalYr'] = null;
-            }
+        $defaultFiscalYr = $this->consortiumFiscalYr($request);
+        if (array_key_exists('fiscalYr', $input)) {
+            $input['fiscalYr'] = $this->normalizeFiscalYr($input['fiscalYr'], $defaultFiscalYr);
         }
 
         $all_roles = Role::orderBy('id', 'ASC')->get(['name', 'id']);
-
-        // Normalize incoming roles from either 'roles' array or DatasetViewer's 'uroles' field
         $new_roles = null;
+
         if (isset($input['roles'])) {
             $new_roles = $input['roles'];
         } elseif (!empty($input['uroles']) && $input['uroles'] !== 'None') {
@@ -267,7 +338,7 @@ class UserController extends BaseController
             $new_roles = [];
             foreach ($rawRoles as $rawRole) {
                 $matched = null;
-                $roleInstId = $targetInstId;
+                $roleInstId = (int) $targetInstId;
 
                 if (is_numeric($rawRole)) {
                     $matched = $all_roles->firstWhere('id', (int) $rawRole);
@@ -300,7 +371,7 @@ class UserController extends BaseController
             $skipped_insts = [];
             foreach ($new_roles as $r_new) {
                 $roleId = $r_new['role_id'] ?? $r_new['id'] ?? $r_new['role']['id'] ?? null;
-                $roleInstId = $r_new['inst_id'] ?? $targetInstId;
+                $roleInstId = $r_new['inst_id'] ?? (int) $targetInstId;
                 $roleGroupId = $r_new['group_id'] ?? null;
                 $roleName = $r_new['name'] ?? $r_new['role']['name'] ?? $all_roles->where('id', $roleId)->value('name');
 
@@ -330,11 +401,12 @@ class UserController extends BaseController
                     UserRole::where('id', $role->id)->delete();
                 }
             }
-            $input = Arr::except($input, ['roles', 'uroles', 'inst_roles', 'group_roles']);
         }
 
-        $user->update($input);
+        $userData = Arr::except($input, ['status', 'roles', 'uroles', 'institutions', 'inst_roles', 'group_roles']);
+        $user->update($userData);
         $user->load(['institution:id,name', 'roles']);
+
         $inst_roles = [];
         $group_roles = [];
         foreach ($user->allRoles() as $r) {
@@ -346,18 +418,54 @@ class UserController extends BaseController
                 $group_roles[] = $_name . ':' . $r['group_id'];
             }
         }
+
         $updated_user = $user->toArray();
-        $updated_user['status'] = $user->is_active ? 'Active' : 'Inactive';
-        $updated_user['inst_name'] = $user->institution->name;
-        $updated_user['fiscalYr'] = $user->fiscalYr ?: config('ccplus.fiscalYr');
-        $updated_user['user_role'] = $user->fullRoleName();
-        $updated_user['uroles'] = $user->fullRoleName();
-        $updated_user['inst_roles'] = $inst_roles;
+        $updated_user['status']      = $user->is_active ? 'Active' : 'Inactive';
+        $updated_user['inst_name']   = $user->institution->name;
+        $updated_user['fiscalYr']    = $user->fiscalYr ?: $defaultFiscalYr;
+        $updated_user['user_role']   = $user->fullRoleName();
+        $updated_user['uroles']      = $user->fullRoleName();
+        $updated_user['inst_roles']  = $inst_roles;
         $updated_user['group_roles'] = $group_roles;
-        $updated_user['can_edit'] = $user->canManage();
-        $updated_user['can_delete'] = $user->canManage();
+        $updated_user['can_edit']    = $user->canManage();
+        $updated_user['can_delete']  = $user->canManage();
+
         return $this->respondSuccess(__('users.updated'), $updated_user);
     }
+
+    private function consortiumFiscalYr(?Request $request = null): string
+    {
+        $tenantKey = ($request ? $request->header('X-Tenant') : request()->header('X-Tenant'))
+            ?: session('ccp_key');
+
+        if ($tenantKey) {
+            $conso = Consortium::where('ccp_key', $tenantKey)->first();
+            if ($conso) {
+                return $conso->effectiveFiscalYr();
+            }
+        }
+
+        return config('ccplus.fiscalYr', 'January');
+    }
+
+    private function normalizeFiscalYr($value, ?string $defaultFiscalYr = null): ?string
+    {
+        $default = $defaultFiscalYr ?: $this->consortiumFiscalYr();
+
+        if (is_null($value) || $value === '') {
+            return null;
+        }
+        if (is_numeric($value) && (int) $value >= 1 && (int) $value <= 12) {
+            $value = \Carbon\Carbon::create(null, (int) $value, 1)->format('F');
+        }
+        $parsed = date_parse((string) $value);
+        if ($parsed['error_count'] > 0 || empty($parsed['month'])) {
+            return null;
+        }
+        $monthName = \Carbon\Carbon::create(null, (int) $parsed['month'], 1)->format('F');
+        return ($monthName === $default) ? null : $monthName;
+    }
+
 
     /**
      * Enforce authorization and self-deletion guards before BaseController deletes the user.

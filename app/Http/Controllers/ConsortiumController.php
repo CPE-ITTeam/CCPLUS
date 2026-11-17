@@ -17,14 +17,29 @@ class ConsortiumController extends BaseController
     /**
      * Return a JSON array of known consortia, including inactive ones.
      */
+      private function normalizeFiscalYr($value): ?string
+    {
+        if (is_null($value) || $value === '') {
+            return null;
+        }
+        if (is_numeric($value) && (int) $value >= 1 && (int) $value <= 12) {
+            $value = \Carbon\Carbon::create(null, (int) $value, 1)->format('F');
+        }
+        $parsed = date_parse((string) $value);
+        if ($parsed['error_count'] > 0 || empty($parsed['month'])) {
+            return null;
+        }
+        $monthName = \Carbon\Carbon::create(null, (int) $parsed['month'], 1)->format('F');
+        return ($monthName === config('ccplus.fiscalYr')) ? null : $monthName;
+    }
+
     public function index(Request $request)
     {
+        $isServerAdmin = auth()->check() && auth()->user()->isServerAdmin();
         $consortia = Consortium::orderBy('name', 'asc')->get();
 
         $defaultName  = 'Server Administrator';
         $defaultEmail = config('ccplus.server_admin');
-
-        $adminSubqueryMatch = " where UR.inst_id = 1 and UU.id = UR.user_id and RR.id = UR.role_id and RR.name = 'Admin') is not null";
 
         foreach ($consortia as $consortium) {
             $adminName  = $defaultName;
@@ -32,15 +47,17 @@ class ConsortiumController extends BaseController
             $tenantDb   = 'ccplus_' . $consortium->ccp_key;
 
             try {
-                $query  = "select name, email from {$tenantDb}.users as UU where UU.inst_id = 1 and ";
-                $query .= "(select UR.user_id from {$tenantDb}.user_roles as UR ";
-                $query .= "left join {$tenantDb}.roles as RR on RR.id = UR.role_id";
+                $adminUser = DB::table("{$tenantDb}.users as UU")
+                    ->join("{$tenantDb}.role_user as RU", 'UU.id', '=', 'RU.user_id')
+                    ->where('UU.inst_id', 1)
+                    ->where('RU.role_id', 99)
+                    ->orderBy('UU.id', 'asc')
+                    ->select('UU.name', 'UU.email')
+                    ->first();
 
-                $result = DB::select($query . $adminSubqueryMatch);
-
-                if (!empty($result)) {
-                    $adminName  = $result[0]->name;
-                    $adminEmail = $result[0]->email;
+                if ($adminUser) {
+                    $adminName  = $adminUser->name;
+                    $adminEmail = $adminUser->email;
                 }
             } catch (\Exception $e) {
                 Log::warning("Could not fetch admin details for tenant database [{$tenantDb}]: " . $e->getMessage());
@@ -48,11 +65,19 @@ class ConsortiumController extends BaseController
 
             $consortium->admin_name  = $adminName;
             $consortium->admin_email = $adminEmail;
+            $consortium->fiscalYr    = $consortium->effectiveFiscalYr();
             $consortium->status      = $consortium->is_active ? 'Active' : 'Inactive';
+            $consortium->can_edit    = $isServerAdmin;
+            $consortium->can_delete  = $isServerAdmin;
         }
 
-        return response()->json(['records' => $consortia, 'result' => true], 200);
+        return response()->json([
+            'records' => $consortia,
+            'options' => ['defaultFiscalYr' => config('ccplus.fiscalYr')],
+            'result'  => true,
+        ], 200);
     }
+
 
     /**
      * Store a newly created resource in storage.
@@ -63,7 +88,6 @@ class ConsortiumController extends BaseController
             'ccp_key'            => 'required|max:10|unique:globaldb.consortia,ccp_key',
             'name'               => 'required',
             'email'              => 'required|email',
-            'admin_user'         => 'required',
             'admin_pass'         => 'required',
             'admin_confirm_pass' => 'required|same:admin_pass',
         ], [
@@ -96,6 +120,7 @@ class ConsortiumController extends BaseController
             return $this->respondError(__('users.conso_db_create_failed', ['error' => $dbError->getMessage()]), 500);
         }
 
+        DB::purge('consodb');
         config(['database.connections.consodb.database' => $conso_db]);
         session(['ccp_key' => $input['ccp_key']]);
         DB::reconnect('consodb');
@@ -125,8 +150,10 @@ class ConsortiumController extends BaseController
             $command = preg_replace('/ AUTO_INCREMENT=(\d+)/', '', $raw_command);
             $data_query = str_replace('ZZZZ', $table, $_qry2);
 
-            if ($table === 'users') {
+            if ($table === 'users' || $table === 'institutions') {
                 $data_query .= ' WHERE id=1';
+            } elseif (in_array($table, ['institution_groups', 'sushi_settings', 'harvest_logs', 'saved_reports', 'failed_harvests', 'alerts'], true)) {
+                $data_query .= ' WHERE 1=0';
             }
 
             try {
@@ -155,16 +182,19 @@ class ConsortiumController extends BaseController
         }
 
         $consortiumData = $request->only('ccp_key', 'name', 'email');
+        $consortiumData['fiscalYr']  = $this->normalizeFiscalYr($input['fiscalYr'] ?? null);
         $consortiumData['is_active'] = 1;
 
         $consortium = Consortium::create($consortiumData);
 
+        $adminDisplayName = trim((string) ($input['admin_name'] ?? '')) ?: 'CC-Plus Administrator';
+
         DB::table($conso_db . '.users')->insert([
             [
                 'id'        => 2,
-                'name'      => 'CC-Plus Administrator',
+                'name'      => $adminDisplayName,
                 'password'  => Hash::make($input['admin_pass']),
-                'email'     => $input['admin_user'],
+                'email'     => trim((string) $input['email']),
                 'inst_id'   => 1,
                 'is_active' => 1,
             ],
@@ -172,12 +202,20 @@ class ConsortiumController extends BaseController
 
         DB::table($conso_db . '.role_user')->insert(['role_id' => 99, 'user_id' => 2]);
 
+        $consortium->admin_name  = $adminDisplayName;
+        $consortium->admin_email = trim((string) $input['email']);
+        $consortium->fiscalYr    = $consortium->effectiveFiscalYr();
+        $consortium->status      = 'Active';
+        $consortium->can_edit    = true;
+        $consortium->can_delete  = true;
+
         return response()->json([
             'result'     => true,
             'consortium' => $consortium,
             'msg'        => __('users.conso_created', ['name' => $consortium->name]),
         ]);
     }
+
 
     /**
      * Display the specified resource.
@@ -193,35 +231,64 @@ class ConsortiumController extends BaseController
      */
     public function update(Request $request, $id)
     {
-        $consortium = Consortium::findOrFail($id);
-
-        if (!$request->exists('is_active')) {
-            return $this->respondError(__('users.conso_missing_args'));
+        $thisUser = auth()->user();
+        if (!$thisUser || !$thisUser->isServerAdmin()) {
+            return $this->respondError(__('connections.forbidden_request'), 403);
         }
 
-        $input = $request->all();
-        $consortium->is_active = filter_var($input['is_active'], FILTER_VALIDATE_BOOLEAN) ? 1 : 0;
+        $consortium = Consortium::findOrFail($id);
 
-        if (count($input) > 1) {
-            if (!array_key_exists('name', $input) || !array_key_exists('email', $input)) {
-                if ($request->has(['name', 'email'])) {
-                    $consortium->name = $request->input('name');
-                    $consortium->email = $request->input('email');
-                }
-            } else {
-                $consortium->name = $request->input('name');
-                $consortium->email = $request->input('email');
+        if ($request->has('status')) {
+            $consortium->is_active = ($request->input('status') === 'Active') ? 1 : 0;
+        } elseif ($request->has('is_active')) {
+            $consortium->is_active = $request->boolean('is_active') ? 1 : 0;
+        }
+
+        if ($request->filled('name')) {
+            $consortium->name = trim((string) $request->input('name'));
+        }
+
+        if ($request->filled('email')) {
+            $this->validate($request, ['email' => 'email']);
+            $consortium->email = trim((string) $request->input('email'));
+        }
+
+        if ($request->has('fiscalYr')) {
+            $consortium->fiscalYr = $this->normalizeFiscalYr($request->input('fiscalYr'));
+        }
+
+        // Never allow ccp_key to be changed after creation
+        $consortium->save();
+
+        $tenantDb = 'ccplus_' . $consortium->ccp_key;
+        $adminName = $request->filled('admin_name')
+            ? trim((string) $request->input('admin_name'))
+            : null;
+
+        if ($adminName !== null) {
+            try {
+                DB::table("{$tenantDb}.users")
+                    ->where('id', 2)
+                    ->update(['name' => $adminName]);
+            } catch (\Exception $e) {
+                Log::warning("Could not update admin name for tenant database [{$tenantDb}]: " . $e->getMessage());
             }
         }
 
-        $consortium->save();
+        $consortium->admin_name = $adminName ?? 'CC-Plus Administrator';
+        $consortium->fiscalYr   = $consortium->effectiveFiscalYr();
+        $consortium->status     = $consortium->is_active ? 'Active' : 'Inactive';
+        $consortium->can_edit   = true;
+        $consortium->can_delete = true;
 
         return response()->json([
-            'result'     => true,
-            'consortium' => $consortium,
-            'msg'        => __('users.conso_updated', ['name' => $consortium->name]),
+            'result' => true,
+            'record' => $consortium,
+            'msg'    => __('users.conso_updated', ['name' => $consortium->name]),
         ]);
     }
+
+
 
     /**
      * Return the active tenant's Consortium record for Consortium Admins.
@@ -234,12 +301,15 @@ class ConsortiumController extends BaseController
 
         $ccpKey = $request->header('X-Tenant') ?: session('ccp_key');
         $consortium = Consortium::where('ccp_key', $ccpKey)->firstOrFail();
+        $consortium->fiscalYr = $consortium->effectiveFiscalYr();
 
         return response()->json([
-            'result'     => true,
-            'consortium' => $consortium,
+            'result'          => true,
+            'consortium'      => $consortium,
+            'defaultFiscalYr' => config('ccplus.fiscalYr'),
         ], 200);
     }
+
 
     /**
      * Update the active tenant's Consortium name and email (Consortium Admin only).
@@ -258,9 +328,15 @@ class ConsortiumController extends BaseController
         $ccpKey = $request->header('X-Tenant') ?: session('ccp_key');
         $consortium = Consortium::where('ccp_key', $ccpKey)->firstOrFail();
 
-        $consortium->name = $request->input('name');
-        $consortium->email = $request->input('email');
+        $consortium->name = trim((string) $request->input('name'));
+        $consortium->email = trim((string) $request->input('email'));
+
+        if ($request->has('fiscalYr')) {
+            $consortium->fiscalYr = $this->normalizeFiscalYr($request->input('fiscalYr'));
+        }
+
         $consortium->save();
+        $consortium->fiscalYr = $consortium->effectiveFiscalYr();
 
         return response()->json([
             'result'     => true,
@@ -268,6 +344,7 @@ class ConsortiumController extends BaseController
             'msg'        => __('users.conso_updated', ['name' => $consortium->name]),
         ], 200);
     }
+
 
 
 }

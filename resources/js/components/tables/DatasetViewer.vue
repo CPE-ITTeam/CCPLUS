@@ -12,6 +12,7 @@ import { useDatasetActions } from '@/composables/useDatasetActions.js';
 import { useRegistryProgress } from '@/composables/useRegistryProgress.js';
 import { useDatasetExporter } from '@/composables/useDatasetExporter.js';
 import { useDatasetBulk } from '@/composables/useDatasetBulk.js';
+import { useCCPlusStore } from '@/stores/useCCPlusStore.js';
 
 import BaseDialogLayout from '@/components/dialogs/BaseDialogLayout.vue';
 import DataToolbar from './DataToolbar.vue';
@@ -27,6 +28,7 @@ import { useI18n } from 'vue-i18n';
 // PART 2: ACCOUNT LAYER INITIALIZATION & DECOUPLED BRIDGES
 // ============================================================================
 const authStore = useAuthStore();
+const ccPlusStore = useCCPlusStore();
 const is_admin = authStore.is_admin;
 const is_conso_admin = authStore.is_conso_admin;
 const { setConso } = authStore;
@@ -513,6 +515,17 @@ function handleAddItem() {
       } else {
         editingItem.value[fld.name] = { customer_id: false, requestor_id: false, api_key: false, extra_args: false };
       }
+    } else if (fld.name == 'fiscalYr') {
+      const fyOptions = formSchema.value.options?.['fiscalYr'] || [];
+      const defaultFy = formSchema.value.options?.defaultFiscalYr
+        || formSchema.value.defaultFiscalYr
+        || ccPlusStore?.fiscalYr
+        || authStore?.fiscalYr
+        || 1;
+      const matchedOpt = fyOptions.find(
+        (opt) => opt.id == defaultFy || opt.name === defaultFy
+      );
+      editingItem.value[fld.name] = matchedOpt ? matchedOpt.id : (fyOptions?.id ?? null);
     } else {
       editingItem.value[fld.name] = null;
     }
@@ -532,6 +545,10 @@ import { toRaw } from 'vue'; // Ensure `toRaw` is imported at the top of <script
 async function handleFormSubmit(updatedValues) {
   failure.value = '';
   success.value = '';
+  if (ccPlusStore) {
+    ccPlusStore.tableErrorMessage = '';
+    ccPlusStore.tableSuccessMessage = '';
+  }
 
   // Deep-clone plain values safely (unwraps nested reactive arrays/objects)
   const formPayload = JSON.parse(JSON.stringify(updatedValues));
@@ -551,11 +568,16 @@ async function handleFormSubmit(updatedValues) {
   const result = await saveItem(formPayload, formDialogType.value, targetId);
 
   if (!result.success) {
-    failure.value = result.msg;
+    if (ccPlusStore) {
+      ccPlusStore.tableErrorMessage = result.msg;
+    }
     return;
   }
 
   success.value = result.msg;
+  if (ccPlusStore) {
+    ccPlusStore.tableSuccessMessage = result.msg;
+  }
   formDialogOpen.value = false;
 
   if (isEdit) {
@@ -572,7 +594,6 @@ async function handleFormSubmit(updatedValues) {
     await loadDataset(props.datasetKey);
     dtKey.value++;
   }
-
 }
 
 async function handleToggleUpdate(id, field, value) {

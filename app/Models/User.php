@@ -261,6 +261,26 @@ class User extends Authenticatable
 
     public function getFY()
     {
-        return (is_null($this->fiscalYr)) ? config('ccplus.fiscalYr'): $this->fiscalYr;
+        if (!is_null($this->fiscalYr)) {
+            return $this->fiscalYr;
+        }
+
+        $ccpKey = request()?->header('X-Tenant') ?: session('ccp_key');
+        if (!$ccpKey) {
+            $consoDb = config('database.connections.consodb.database');
+            if (is_string($consoDb) && str_starts_with($consoDb, 'ccplus_')) {
+                $ccpKey = substr($consoDb, 7);
+            }
+        }
+
+        if ($ccpKey) {
+            $conso = Consortium::where('ccp_key', $ccpKey)->first();
+            if ($conso) {
+                return $conso->effectiveFiscalYr();
+            }
+        }
+
+        return config('ccplus.fiscalYr');
     }
+
 }

@@ -1,5 +1,5 @@
 // resources/js/composables/useDatasetBulk.js
-import { ref } from "vue";
+import { ref, unref } from "vue";
 import api from "@/services/api.js";
 import Swal from "sweetalert2";
 import i18n from "@/plugins/i18n.js";
@@ -29,14 +29,19 @@ export function useDatasetBulk({
       return { handledByUi: true };
     }
 
+    const root = unref(urlRoot);
+    const itemsList = unref(allItems) || [];
+    const filteredList = unref(filteredItems) || [];
+    const selectedList = unref(selectedRows) || [];
+
     const isRegistryRefresh =
       data.action === "Refresh Registry" || data.action === "Full Refresh";
-    const bulkUrl = urlRoot.value + (isRegistryRefresh ? "/refresh" : "/bulk");
+    const bulkUrl = root + (isRegistryRefresh ? "/refresh" : "/bulk");
 
     // Aggregate ID array arguments safely
     const args =
       data.action !== "Full Refresh"
-        ? { ids: selectedRows.value.map((ii) => ii.id) }
+        ? { ids: selectedList.map((ii) => ii.id) }
         : { ids: "ALL" };
 
     Object.keys(data).forEach((key) => {
@@ -51,13 +56,13 @@ export function useDatasetBulk({
     try {
       isBulkProcessing.value = true;
       const response = await api.post(bulkUrl, args);
-      const resData = response.data || response;
+      const resData = response?.data !== undefined ? response.data : response;
 
-      if (resData.result && allItems.length > 0) {
+      if (resData?.result && (itemsList.length > 0 || isRegistryRefresh)) {
         // ─── TRANSFORMATION ENGINE SWITCHES ───
         if (data.action === "Set Active" || data.action === "Set Inactive") {
           if (resData.affectedIds?.length > 0) {
-            allItems
+            itemsList
               .filter((aitm) => resData.affectedIds.includes(aitm.id))
               .forEach((itm) => {
                 if (typeof itm.is_active !== "undefined")
@@ -75,13 +80,13 @@ export function useDatasetBulk({
         } else if (data.action === "Enable") {
           if (resData.affectedItems?.length > 0) {
             resData.affectedItems.forEach((ritm) => {
-              const idx = allItems.findIndex((itm) => itm.id == ritm.id);
-              if (idx >= 0) allItems[idx]["status"] = ritm.status;
+              const idx = itemsList.findIndex((itm) => itm.id == ritm.id);
+              if (idx >= 0) itemsList[idx]["status"] = ritm.status;
             });
           }
         } else if (data.action === "Disable") {
           if (resData.affectedIds?.length > 0) {
-            allItems
+            itemsList
               .filter((aitm) => resData.affectedIds.includes(aitm.id))
               .forEach((itm) => {
                 itm.status = "Disabled";
@@ -90,10 +95,10 @@ export function useDatasetBulk({
         } else if (data.action === "Delete" || data.action === "Kill") {
           if (resData.affectedIds?.length > 0) {
             resData.affectedIds.forEach((itemId) => {
-              const aIdx = allItems.findIndex((ii) => ii.id == itemId);
-              if (aIdx >= 0) allItems.splice(aIdx, 1);
-              const fIdx = filteredItems.findIndex((ii) => ii.id == itemId);
-              if (fIdx >= 0) filteredItems.splice(fIdx, 1);
+              const aIdx = itemsList.findIndex((ii) => ii.id == itemId);
+              if (aIdx >= 0) itemsList.splice(aIdx, 1);
+              const fIdx = filteredList.findIndex((ii) => ii.id == itemId);
+              if (fIdx >= 0) filteredList.splice(fIdx, 1);
             });
             dtKey.value++;
           }
@@ -104,12 +109,12 @@ export function useDatasetBulk({
           if (resData.affectedItems?.length > 0) {
             let new_platforms = false;
             resData.affectedItems.forEach((plat) => {
-              const _idx = allItems.findIndex((itm) => itm.id == plat.id);
+              const _idx = itemsList.findIndex((itm) => itm.id == plat.id);
               if (_idx < 0) {
-                allItems.push(plat);
+                itemsList.push(plat);
                 new_platforms = true;
               } else {
-                allItems.splice(_idx, 1, plat);
+                itemsList.splice(_idx, 1, plat);
 
                 const targetDate =
                   plat.updated ||
@@ -135,7 +140,7 @@ export function useDatasetBulk({
               }
             });
 
-            if (resData.summary !== "") {
+            if (resData.summary) {
               Swal.fire({
                 title: t("dialogs.refresh_results"),
                 html: resData.summary,
@@ -144,7 +149,7 @@ export function useDatasetBulk({
               });
             }
             if (new_platforms) {
-              allItems.sort((a, b) =>
+              itemsList.sort((a, b) =>
                 a.name.toLowerCase().localeCompare(b.name.toLowerCase()),
               );
             }
@@ -158,7 +163,7 @@ export function useDatasetBulk({
           const targetTypeName = newType?.name ?? resData?.newType?.name;
 
           if (resData.affectedIds?.length > 0 && targetTypeId != null) {
-            allItems
+            itemsList
               .filter((aitm) => resData.affectedIds.includes(aitm.id))
               .forEach((itm) => {
                 itm.type = targetTypeName;
@@ -173,13 +178,13 @@ export function useDatasetBulk({
           }
         } else if (data.action === "Restart" || data.action === "Pause") {
           resData.affectedItems?.forEach((newItem) => {
-            const idx = allItems.findIndex((ii) => ii.id == newItem.id);
-            if (idx >= 0) allItems.splice(idx, 1, newItem);
+            const idx = itemsList.findIndex((ii) => ii.id == newItem.id);
+            if (idx >= 0) itemsList.splice(idx, 1, newItem);
           });
           if (typeof updateItems === "function") updateItems();
           dtKey.value++;
         } else if (data.action.includes(" Validat")) {
-          allItems
+          itemsList
             .filter((aitm) => resData.affectedIds.includes(aitm.id))
             .forEach((itm) => {
               Object.entries(resData.data).forEach(([col, value]) => {
@@ -192,7 +197,7 @@ export function useDatasetBulk({
       } else {
         return {
           success: false,
-          msg: resData.msg || t("messages.bulk_action_failed"),
+          msg: resData?.msg || t("messages.bulk_action_failed"),
         };
       }
     } catch (error) {
