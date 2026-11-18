@@ -1,11 +1,14 @@
 <!-- components/ui/AuthShell.vue -->
 <script setup>
 import AppLogo from '@/components/ui/AppLogo.vue';
+import StatusAlerts from '@/components/ui/StatusAlerts.vue';
 
 defineProps({
   errorMessage: { type: String, default: '' },
   successMessage: { type: String, default: '' },
 });
+
+defineEmits(['update:errorMessage', 'update:successMessage']);
 </script>
 
 <template>
@@ -23,13 +26,14 @@ defineProps({
     <div v-if="errorMessage || successMessage" class="mt-4">
       <v-divider class="mb-4" />
 
-      <v-alert v-if="errorMessage" type="error">
-        {{ errorMessage }}
-      </v-alert>
-
-      <v-alert v-else-if="successMessage" type="success">
-        {{ successMessage }}
-      </v-alert>
+      <StatusAlerts
+        mode="page"
+        container-class="mb-0"
+        :success="successMessage"
+        :failure="errorMessage"
+        @update:success="$emit('update:successMessage', '')"
+        @update:failure="$emit('update:errorMessage', '')"
+      />
     </div>
   </v-card>
 </template>

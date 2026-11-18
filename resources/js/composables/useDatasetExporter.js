@@ -1,6 +1,7 @@
 // resources/js/composables/useDatasetExporter.js
 import { computed } from 'vue';
 import { exportDatasetToExcel } from '@/utils/excelJsExporter.js';
+import { sortDatasetItems } from '@/utils/datasetSort.js';
 
 export function useDatasetExporter({
   props,
@@ -117,6 +118,18 @@ export function useDatasetExporter({
       });
     }
 
+    exportItems = sortDatasetItems(exportItems, config.sortby);
+
+    if (exportItems.length === 0) {
+      const templateRow = config.exportFields.reduce((newRow, col) => {
+        const fld = config.fields.find(f => f.name === col);
+        const label = fld ? fld.label : col;
+        newRow[label] = '';
+        return newRow;
+      }, {});
+      return [templateRow];
+    }
+
     return exportItems.map(row => {
       return config.exportFields.reduce((newRow, col) => {
         let fld = config.fields.find(f => f.name === col);
@@ -137,6 +150,7 @@ export function useDatasetExporter({
       }, {});
     });
   });
+
 
   async function triggerExcelExport(titleConfig) {
     await exportDatasetToExcel({

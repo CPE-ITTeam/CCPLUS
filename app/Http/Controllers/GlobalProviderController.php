@@ -53,6 +53,7 @@ class GlobalProviderController extends BaseController
             $provider = [
                 'id'            => $gp->id,
                 'name'          => $gp->name,
+                'content_provider' => $gp->content_provider,
                 'abbrev'        => $gp->abbrev,
                 'day_of_month'  => $gp->day_of_month,
                 'platform_parm' => $gp->platform_parm,
@@ -189,6 +190,7 @@ class GlobalProviderController extends BaseController
     {
         $this->validate($request, [
             'name'        => 'required',
+            'content_provider' => $gp->content_provider,
             'status'      => 'required',
             'service_url' => 'required',
             'cur_release' => 'required',
@@ -347,6 +349,7 @@ class GlobalProviderController extends BaseController
         $record = [
             'id'            => $provider->id,
             'name'          => $provider->name,
+            'content_provider' => $provider->content_provider,
             'abbrev'        => $provider->abbrev,
             'day_of_month'  => $provider->day_of_month,
             'platform_parm' => $provider->platform_parm,
@@ -497,6 +500,7 @@ class GlobalProviderController extends BaseController
         $providers = [];
         foreach ($gp_data as $gp) {
             $provider = [
+                'id'            => $gp->id,
                 'registry_id'   => (is_null($gp->registry_id) || $gp->registry_id === '') ? null : $gp->registry_id,
                 'name'          => $gp->name,
                 'day_of_month'  => $gp->day_of_month,
@@ -518,6 +522,7 @@ class GlobalProviderController extends BaseController
         }
         return response()->json(['records' => $providers], 200);
     }
+
     /**
      * Import providers from a CSV file to the database.
      */
@@ -526,110 +531,138 @@ class GlobalProviderController extends BaseController
         if (!auth()->user()->isServerAdmin()) {
             return $this->respondError(__('connections.forbidden_request'));
         }
-        $parsed = $this->parseCsvUpload($request);
+
+        $parsed = $this->parseMappedCsvUpload($request, [
+            'registry_id'   => ['Registry ID', 'fields.registry_id'],
+            'name'          => ['Platform Name', 'Platform', 'Name', 'fields.platform', 'fields.platform_name'],
+            'release'       => ['Release', 'COUNTER Release', 'fields.release'],
+            'status'        => ['Status', 'fields.status'],
+            'service_url'   => ['Service URL', 'SUSHI URL', 'URL', 'fields.service_url'],
+            'refreshable'   => ['Refreshable', 'fields.refreshable'],
+            'day_of_month'  => ['Day of Month', 'Harvest Day', 'fields.day_of_month'],
+            'pr'            => ['PR', 'Platform Report'],
+            'dr'            => ['DR', 'Database Report'],
+            'tr'            => ['TR', 'Title Report'],
+            'ir'            => ['IR', 'Item Report'],
+            'customer_id'   => ['Customer ID', 'fields.customer_id'],
+            'requestor_id'  => ['Requestor ID', 'fields.requestor_id'],
+            'api_key'       => ['API Key', 'fields.api_key'],
+            'platform_parm' => ['Platform Parameter', 'Platform Parm', 'fields.platform_parm'],
+            'extra_args'    => ['Extra Args', 'Extra Arguments', 'fields.extra_args'],
+        ]);
+
         if (isset($parsed['error'])) {
             return $this->respondError($parsed['error']);
         }
-        $rows = $parsed['rows'];
+
         $global_providers = GlobalProvider::with('registries')->orderBy('name', 'ASC')->get();
         $this->getMasterReports();
         $this->getConnectionFields();
-        $col_defaults = [
-            3  => 'Active',
-            4  => '',
-            5  => 'Y',
-            6  => 15,
-            7  => 'Y',
-            8  => 'N',
-            9  => 'N',
-            10 => 'N',
-            11 => 'Y',
-            12 => 'N',
-            13 => 'N',
-            14 => null,
+
+        $defaults = [
+            'status'       => 'Active',
+            'service_url'  => '',
+            'refreshable'  => 'Y',
+            'day_of_month' => '15',
+            'pr'           => 'Y',
+            'dr'           => 'N',
+            'tr'           => 'N',
+            'ir'           => 'N',
+            'customer_id'  => 'Y',
+            'requestor_id' => 'N',
+            'api_key'      => 'N',
+            'extra_args'   => 'N',
         ];
-        $rpt_columns = [3 => 7, 2 => 8, 1 => 9, 4 => 10];
-        $cnx_columns = [1 => 11, 2 => 12, 3 => 13, 4 => 15];
+
+        $rpt_columns = [3 => 'pr', 2 => 'dr', 1 => 'tr', 4 => 'ir'];
+        $cnx_columns = [1 => 'customer_id', 2 => 'requestor_id', 3 => 'api_key', 4 => 'extra_args'];
+
         $prov_skipped = 0;
         $prov_updated = 0;
         $prov_created = 0;
-        foreach ($rows as $row) {
-            if (count($row) < 5) {
-                continue;
-            }
-            $_regid       = trim((string) Arr::get($row, 0, ''));
-            $_name        = trim((string) Arr::get($row, 1, ''));
-            $_release     = trim((string) Arr::get($row, 2, ''));
-            $_service_url = trim((string) Arr::get($row, 4, ''));
-            if ($_regid === 'Registry ID' || $_name === 'Platform Name') {
-                continue;
-            }
+
+        foreach ($parsed['rows'] as $row) {
+            $_regid       = $row['registry_id'] ?? '';
+            $_name        = $row['name'] ?? '';
+            $_release     = $row['release'] ?? '';
+            $_service_url = $row['service_url'] ?? '';
+
             if (($_regid === '' && $_name === '') || $_release === '' || $_service_url === '') {
                 $prov_skipped++;
                 continue;
             }
+
             $platform = null;
-            if (strlen($_regid) > 0) {
+            if (mb_strlen($_regid) > 0) {
                 $platform = $global_providers->where('registry_id', $_regid)->first();
             }
             if ($platform) {
-                if (strlen($_name) < 1 || $global_providers->where('name', $_name)->first()) {
+                if (mb_strlen($_name) < 1 || $global_providers->first(fn ($p) => strcasecmp($p->name, $_name) === 0 && $p->id !== $platform->id)) {
                     $_name = trim($platform->name);
                 }
             } else {
-                $platform = $global_providers->where('name', $_name)->first();
+                $platform = $global_providers->first(fn ($p) => strcasecmp($p->name, $_name) === 0);
                 if ($platform) {
                     $_name = trim($platform->name);
                 }
             }
-            if (strlen($_name) < 1 || (strlen($_regid) === 0 && strlen($_service_url) === 0)) {
+
+            if (mb_strlen($_name) < 1 || (mb_strlen($_regid) === 0 && mb_strlen($_service_url) === 0)) {
                 $prov_skipped++;
                 continue;
             }
-            foreach ($col_defaults as $_col => $_val) {
-                if (!isset($row[$_col]) || strlen(trim((string) $row[$_col])) < 1) {
-                    $row[$_col] = $_val;
+
+            foreach ($defaults as $key => $val) {
+                if (!isset($row[$key]) || trim((string) $row[$key]) === '') {
+                    $row[$key] = $val;
                 }
             }
-            $_active = (trim((string) Arr::get($row, 3, 'Active')) === 'Active') ? 1 : 0;
-            $rawDay  = trim((string) Arr::get($row, 6, '15'));
-            $_day    = ($rawDay === '') ? 15 : intval($rawDay);
+
+            $_active = (strcasecmp(trim((string) $row['status']), 'Active') === 0) ? 1 : 0;
+            $rawDay  = trim((string) $row['day_of_month']);
+            $_day    = ($rawDay === '' || !is_numeric($rawDay)) ? 15 : intval($rawDay);
             if ($_day < 0 || $_day > 28) {
                 $_day = 15;
             }
+
             $_prov = [
                 'name'         => $_name,
                 'is_active'    => $_active,
                 'day_of_month' => $_day,
             ];
-            $rawParm = Arr::get($row, 14);
-            if (!is_null($rawParm)) {
-                $_prov['platform_parm'] = trim((string) $rawParm);
+
+            if (array_key_exists('platform_parm', $row) && $row['platform_parm'] !== '') {
+                $_prov['platform_parm'] = $row['platform_parm'];
             }
+
             if ($platform) {
                 $_prov['id'] = $platform->id;
                 $platform->update($_prov);
                 $prov_updated++;
             } else {
-                if (strlen($_regid) === 0) {
+                if (mb_strlen($_regid) === 0) {
                     $_prov['refreshable'] = 0;
                 }
                 $platform = GlobalProvider::create($_prov);
+                $platform->setRelation('registries', collect());
                 $global_providers->push($platform);
                 $prov_created++;
             }
+
             $reports = [];
-            foreach ($rpt_columns as $id => $col) {
-                if (Arr::get($row, $col) === 'Y') {
+            foreach ($rpt_columns as $id => $key) {
+                if (strcasecmp(trim((string) ($row[$key] ?? '')), 'Y') === 0) {
                     $reports[] = $id;
                 }
             }
+
             $connectors = [];
-            foreach ($cnx_columns as $id => $col) {
-                if (Arr::get($row, $col) === 'Y') {
+            foreach ($cnx_columns as $id => $key) {
+                if (strcasecmp(trim((string) ($row[$key] ?? '')), 'Y') === 0) {
                     $connectors[] = $id;
                 }
             }
+
             $registry = $platform->registries->where('release', $_release)->first();
             if ($registry) {
                 $registry->service_url = $_service_url;
@@ -637,15 +670,17 @@ class GlobalProviderController extends BaseController
                 $registry->connectors = $connectors;
                 $registry->save();
             } else {
-                CounterRegistry::create([
+                $newReg = CounterRegistry::create([
                     'global_id'      => $platform->id,
                     'release'        => $_release,
                     'service_url'    => $_service_url,
                     'master_reports' => $reports,
                     'connectors'     => $connectors,
                 ]);
+                $platform->registries->push($newReg);
             }
         }
+
         $msg = $this->formatImportSummary(
             __('connections.platform_import_success'),
             $prov_updated,
@@ -653,8 +688,10 @@ class GlobalProviderController extends BaseController
             0,
             $prov_skipped
         );
+
         return $this->respondSuccess($msg);
     }
+
     /**
      * Pull and re-order master reports.
      */

@@ -511,44 +511,75 @@ class CredentialController extends BaseController
     {
         $thisUser = auth()->user();
         abort_unless($thisUser->hasAnyRole(['Admin']), 403);
-        $parsed = $this->parseCsvUpload($request);
+
+        $parsed = $this->parseMappedCsvUpload($request, [
+            'inst_id'      => ['Institution ID', 'CC+ System ID', 'System ID', 'Inst ID', 'fields.ccplus_system_id'],
+            'local_id'     => ['Local ID', 'fields.local_id'],
+            'institution'  => ['Institution', 'Institution Name', 'fields.institution'],
+            'platform_id'  => ['Platform ID', 'Global ID', 'Prov ID', 'fields.platform_id'],
+            'platform'     => ['Platform', 'Platform Name', 'fields.platform'],
+            'customer_id'  => ['Customer ID', 'fields.customer_id'],
+            'requestor_id' => ['Requestor ID', 'fields.requestor_id'],
+            'api_key'      => ['API Key', 'fields.api_key'],
+            'extra_args'   => ['Extra Args', 'Extra Arguments', 'fields.extra_args'],
+        ]);
+
         if (isset($parsed['error'])) {
             return $this->respondError($parsed['error']);
         }
-        $rows = $parsed['rows'];
+
         $consoAdmin = $thisUser->isConsoAdmin();
         $adminInsts = $thisUser->adminInsts();
-        $institutions = Institution::when(!$consoAdmin, fn($qry) => $qry->whereIn('id', $adminInsts))
+        $institutions = Institution::when(!$consoAdmin, fn ($qry) => $qry->whereIn('id', $adminInsts))
             ->orderBy('name', 'ASC')
             ->get();
-        $all_platforms = GlobalProvider::with('connections')->get(['id', 'name']);
+        $all_platforms = GlobalProvider::with('connections')->get(['id', 'name', 'is_active']);
+
         $updated = 0;
         $skipped = 0;
         $incomplete = 0;
-        foreach ($rows as $rowNum => $row) {
-            $rawInstId = trim(Arr::get($row, 0, ''));
-            $rawLocalId = trim(Arr::get($row, 1, ''));
-            if ($rawInstId === '' && $rawLocalId === '') {
+
+        foreach ($parsed['rows'] as $row) {
+            $rawInstId   = $row['inst_id'] ?? '';
+            $rawLocalId  = $row['local_id'] ?? '';
+            $rawInstName = $row['institution'] ?? '';
+
+            if ($rawInstId === '' && $rawLocalId === '' && $rawInstName === '') {
                 continue;
             }
-            $localID = strlen($rawLocalId) > 0 ? $rawLocalId : null;
-            if (!$localID && ($rawInstId === '' || !is_numeric($rawInstId))) {
-                $skipped++;
-                continue;
+
+            $institution = null;
+            if ($rawLocalId !== '') {
+                $institution = $institutions->where('local_id', $rawLocalId)->first();
             }
-            $institution = $localID
-                ? $institutions->where('local_id', $localID)->first()
-                : ($rawInstId !== '' ? $institutions->where('id', $rawInstId)->first() : null);
+            if (!$institution && $rawInstId !== '' && is_numeric($rawInstId)) {
+                $institution = $institutions->where('id', intval($rawInstId))->first();
+            }
+            if (!$institution && $rawInstName !== '') {
+                $institution = $institutions->first(fn ($i) => strcasecmp($i->name, $rawInstName) === 0);
+            }
+
             if (!$institution) {
                 $skipped++;
                 continue;
             }
-            $rawPlatId = trim(Arr::get($row, 2, ''));
-            $platform = $rawPlatId !== '' ? $all_platforms->where('id', $rawPlatId)->first() : null;
+
+            $rawPlatId   = $row['platform_id'] ?? '';
+            $rawPlatName = $row['platform'] ?? '';
+
+            $platform = null;
+            if ($rawPlatId !== '' && is_numeric($rawPlatId)) {
+                $platform = $all_platforms->where('id', intval($rawPlatId))->first();
+            }
+            if (!$platform && $rawPlatName !== '') {
+                $platform = $all_platforms->first(fn ($p) => strcasecmp($p->name, $rawPlatName) === 0);
+            }
+
             if (!$platform) {
                 $skipped++;
                 continue;
             }
+
             $connectedInstIds = $platform->connectedInstitutions();
             if (!in_array($institution->id, $connectedInstIds) && !in_array(1, $connectedInstIds)) {
                 Connection::create([
@@ -557,10 +588,16 @@ class CredentialController extends BaseController
                     'inst_id'   => $institution->id,
                 ]);
             }
-            $custId = trim(Arr::get($row, 3, ''));
-            $reqId  = trim(Arr::get($row, 4, ''));
-            $apiKey = trim(Arr::get($row, 5, ''));
-            $extra  = trim(Arr::get($row, 6, ''));
+
+            $exists = Credential::where('inst_id', $institution->id)
+                ->where('prov_id', $platform->id)
+                ->first();
+
+            $custId = array_key_exists('customer_id', $row) ? $row['customer_id'] : ($exists?->customer_id ?? '');
+            $reqId  = array_key_exists('requestor_id', $row) ? $row['requestor_id'] : ($exists?->requestor_id ?? '');
+            $apiKey = array_key_exists('api_key', $row) ? $row['api_key'] : ($exists?->api_key ?? '');
+            $extra  = array_key_exists('extra_args', $row) ? $row['extra_args'] : ($exists?->extra_args ?? '');
+
             $_args = [
                 'status'       => 'Enabled',
                 'customer_id'  => $custId !== '' ? $custId : null,
@@ -568,6 +605,7 @@ class CredentialController extends BaseController
                 'api_key'      => $apiKey !== '' ? $apiKey : null,
                 'extra_args'   => $extra !== '' ? $extra : null,
             ];
+
             $missing_count = 0;
             foreach ($platform->connectionFields() as $c) {
                 if (!$c['required']) {
@@ -578,6 +616,7 @@ class CredentialController extends BaseController
                     $missing_count++;
                 }
             }
+
             if ($institution->is_active && $platform->is_active) {
                 if ($missing_count === 0) {
                     $_args['status'] = 'Enabled';
@@ -588,9 +627,7 @@ class CredentialController extends BaseController
             } else {
                 $_args['status'] = 'Suspended';
             }
-            $exists = Credential::where('inst_id', $institution->id)
-                ->where('prov_id', $platform->id)
-                ->first();
+
             if ($exists) {
                 if (
                     $exists->customer_id != $_args['customer_id'] ||
@@ -602,12 +639,14 @@ class CredentialController extends BaseController
                     $_args['inst_valid'] = null;
                 }
             }
+
             Credential::updateOrCreate(
                 ['inst_id' => $institution->id, 'prov_id' => $platform->id],
                 $_args
             );
             $updated++;
         }
+
         $detail = '';
         $detail .= ($updated > 0) ? __('credentials.import_updated', ['count' => $updated]) : '';
         if ($incomplete > 0) {
@@ -617,8 +656,10 @@ class CredentialController extends BaseController
             $skippedStr = __('credentials.import_skipped', ['count' => $skipped]);
             $detail .= ($detail !== '') ? ", {$skippedStr}" : $skippedStr;
         }
+
         return $this->respondSuccess(__('credentials.import_completed', ['detail' => $detail]));
     }
+
     /**
      * Returns filter_options for the UI. Item records returned with auditItems().
      */

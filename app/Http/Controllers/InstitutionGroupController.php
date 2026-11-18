@@ -234,12 +234,17 @@ class InstitutionGroupController extends BaseController
             return $this->respondError(__('institutions.not_authorized'));
         }
 
-        $parsed = $this->parseCsvUpload($request, ['Additions & Updates', 'Full Replacement']);
+        $parsed = $this->parseMappedCsvUpload($request, [
+            'id'         => ['ID', 'CC+ System ID', 'System ID', 'fields.ccplus_system_id', 'fields.id'],
+            'name'       => ['Group Name', 'Institution Group', 'Group', 'Name', 'fields.group_name', 'fields.group'],
+            'type_id'    => ['Type ID', 'fields.type_id'],
+            'member_ids' => ['Member IDs', 'Members', 'Institution IDs', 'Institutions', 'fields.member_ids', 'fields.members', 'fields.group_members'],
+        ], ['Additions & Updates', 'Full Replacement']);
+
         if (isset($parsed['error'])) {
             return $this->respondError($parsed['error']);
         }
 
-        $rows = $parsed['rows'];
         $type = $parsed['type'];
 
         $num_deleted = 0;
@@ -249,59 +254,70 @@ class InstitutionGroupController extends BaseController
 
         $groups = InstitutionGroup::get();
         $institutions = Institution::get();
+        $typesById = \App\Models\InstitutionType::pluck('id', 'id')->all();
         $group_ids_to_keep = [];
 
-        foreach ($rows as $row) {
-            if (!isset($row[0]) || $row[0] === '' || !is_numeric($row[0])) {
-                continue;
-            }
+        foreach ($parsed['rows'] as $row) {
+            $rawId     = $row['id'] ?? '';
+            $_name     = $row['name'] ?? '';
+            $rawTypeId = $row['type_id'] ?? '';
 
-            $_gid = intval($row[0]);
-            $_name = isset($row[1]) ? trim($row[1]) : '';
-
-            if ($type === 'Additions & Updates' && $groups->where('name', $_name)->first()) {
+            if (mb_strlen($_name) < 1) {
                 $num_skipped++;
                 continue;
             }
 
-            if (strlen($_name) < 1) {
+            $_gid = ($rawId !== '' && is_numeric($rawId)) ? intval($rawId) : null;
+            $resolvedTypeId = ($rawTypeId !== '' && is_numeric($rawTypeId) && isset($typesById[intval($rawTypeId)]))
+                ? intval($rawTypeId)
+                : null;
+
+            $byId = $_gid !== null ? $groups->where('id', $_gid)->first() : null;
+            $byName = $groups->first(fn ($g) => strcasecmp($g->name, $_name) === 0);
+
+            if ($type === 'Additions & Updates' && !$byId && $byName) {
                 $num_skipped++;
                 continue;
             }
 
-            $current_group = $groups->where('id', $_gid)->first();
-            if ($current_group) {
-                if ($groups->where('name', $_name)->first()) {
-                    $_name = trim($current_group->name);
-                }
-            } else {
-                $current_group = $groups->where('name', $_name)->first();
-                if ($current_group) {
-                    $_name = trim($current_group->name);
-                }
-            }
+            $current_group = $byId ?: $byName;
 
-            $_data = ['id' => $_gid, 'name' => $_name];
             if (!$current_group) {
-                $current_group = InstitutionGroup::create($_data);
+                $current_group = new InstitutionGroup();
+                if ($_gid !== null) {
+                    $current_group->id = $_gid;
+                }
+                $current_group->name = $_name;
+                $current_group->type_id = $resolvedTypeId ?? 1;
+                $current_group->save();
                 $groups->push($current_group);
                 $num_created++;
             } else {
-                $current_group->update($_data);
+                $updateData = [];
+                if (!$byName || $byName->id === $current_group->id) {
+                    $updateData['name'] = $_name;
+                }
+                if ($resolvedTypeId !== null) {
+                    $updateData['type_id'] = $resolvedTypeId;
+                }
+                if (!empty($updateData)) {
+                    $current_group->update($updateData);
+                }
                 $num_updated++;
             }
+
             $group_ids_to_keep[] = $current_group->id;
 
-            if (isset($row[2]) && $row[2] !== '') {
-                $_ids = preg_split('/\s*,\s*/', trim($row[2]));
-                if (count($_ids) > 0) {
-                    $current_group->institutions()->detach();
-                    foreach ($_ids as $inst_id) {
-                        if ($institutions->where('id', intval($inst_id))->first()) {
-                            $current_group->institutions()->attach($inst_id);
-                        }
+            if (array_key_exists('member_ids', $row) && $row['member_ids'] !== '') {
+                $_ids = preg_split('/\s*,\s*/', $row['member_ids']);
+                $validMemberIds = [];
+                foreach ($_ids as $inst_id) {
+                    $iid = intval($inst_id);
+                    if ($iid > 1 && $institutions->where('id', $iid)->first()) {
+                        $validMemberIds[] = $iid;
                     }
                 }
+                $current_group->institutions()->sync($validMemberIds);
             }
         }
 
@@ -321,4 +337,6 @@ class InstitutionGroupController extends BaseController
 
         return $this->respondSuccess($msg);
     }
+
+
 }

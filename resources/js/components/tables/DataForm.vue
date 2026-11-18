@@ -8,6 +8,7 @@ import ToggleIcon from '@/components/ui/ToggleIcon.vue';
 import { isFieldVisible, isFieldEditable } from '@/config/dataTableConfig.js';
 import { useI18n } from 'vue-i18n';
 const { t } = useI18n();
+import StatusAlerts from '@/components/ui/StatusAlerts.vue';
 
 
 const ccPlusStore = useCCPlusStore();
@@ -280,12 +281,9 @@ onMounted(() => {
               </span>
             </div>
 
-            <div
-              v-else-if="opType == 'Add' && m_schema.dataset == 'credentials' &&
-                (field.name == 'institutions' || field.name == 'platforms') &&
-                m_schema.options[field.name].length == 0"
-              class="text-body-1 py-1"
-            >
+            <div v-else-if="opType == 'Add' && m_schema.dataset == 'credentials' &&
+              (field.name == 'institutions' || field.name == 'platforms') &&
+              m_schema.options[field.name].length == 0" class="text-body-1 py-1">
               <strong>{{ field.label }}:</strong> &nbsp;
               <span class="text-medium-emphasis">
                 {{ $t('tables.no_items_can_be_added', { items: field.label.toLowerCase() }) }}
@@ -294,117 +292,58 @@ onMounted(() => {
 
             <!-- ToggleIcon inputs layout -->
             <div v-else-if="isToggleField(field)" class="d-flex align-center h-100">
-              <ToggleIcon
-                v-model="formValues[field.name]"
-                :toggleable="isToggleEditable(formValues[field.name])"
-                :size="36"
-                @update:modelValue="toggleChanged(field.name)"
-              />
+              <ToggleIcon v-model="formValues[field.name]" :toggleable="isToggleEditable(formValues[field.name])"
+                :size="36" @update:modelValue="toggleChanged(field.name)" />
               <strong class="text-body-2 ms-2 text-medium-emphasis">{{ field.label }}</strong>
             </div>
 
             <!-- Password Fields -->
-            <v-text-field
-              v-else-if="field.type === 'password'"
-              v-model="formValues[field.name]"
-              :label="field.label"
-              :type="pw_show ? 'text' : 'password'"
-              autocomplete="new-password"
-              :append-inner-icon="pw_show ? 'mdi-eye' : 'mdi-eye-off'"
-              @click:append-inner="pw_show = !pw_show"
-              :hint="field.helperText"
-              :rules="field.required ? [requiredRule] : []"
-            />
+            <v-text-field v-else-if="field.type === 'password'" v-model="formValues[field.name]" :label="field.label"
+              :type="pw_show ? 'text' : 'password'" autocomplete="new-password"
+              :append-inner-icon="pw_show ? 'mdi-eye' : 'mdi-eye-off'" @click:append-inner="pw_show = !pw_show"
+              :hint="field.helperText" :rules="field.required ? [requiredRule] : []" />
 
-            <v-text-field
-              v-else-if="field.type === 'passconf' && showConfirm"
-              v-model="formValues[field.name]"
-              :label="field.label"
-              :hint="field.helperText"
-              :type="pwc_show ? 'text' : 'password'"
-              autocomplete="new-password"
-              :append-inner-icon="pwc_show ? 'mdi-eye' : 'mdi-eye-off'"
-              @click:append-inner="pwc_show = !pwc_show"
-              :rules="field.required ? [requiredRule] : []"
-            />
+            <v-text-field v-else-if="field.type === 'passconf' && showConfirm" v-model="formValues[field.name]"
+              :label="field.label" :hint="field.helperText" :type="pwc_show ? 'text' : 'password'"
+              autocomplete="new-password" :append-inner-icon="pwc_show ? 'mdi-eye' : 'mdi-eye-off'"
+              @click:append-inner="pwc_show = !pwc_show" :rules="field.required ? [requiredRule] : []" />
 
             <!-- Textareas -->
-            <v-textarea
-              v-else-if="field.type === 'textarea'"
-              v-model="formValues[field.name]"
-              :label="field.label"
-              :rules="field.required ? [requiredRule] : []"
-              :prepend-inner-icon="field.icon"
-              :hint="field.helperText"
-            />
+            <v-textarea v-else-if="field.type === 'textarea'" v-model="formValues[field.name]" :label="field.label"
+              :rules="field.required ? [requiredRule] : []" :prepend-inner-icon="field.icon" :hint="field.helperText" />
 
             <!-- Standard Select Fields -->
-            <v-select
-              v-else-if="field.type === 'select'"
-              v-model="formValues[field.name]"
-              :label="field.label"
-              :items="m_schema.options[field.name]"
-              :item-title="field.optTxt"
-              :item-value="field.optVal"
-              :prepend-inner-icon="field.icon"
-              :hint="field.helperText"
-              :rules="field.required ? [requiredRule] : []"
-              @update:modelValue="selectChanged(field.name)"
-            />
+            <v-select v-else-if="field.type === 'select'" v-model="formValues[field.name]" :label="field.label"
+              :items="m_schema.options[field.name]" :item-title="field.optTxt" :item-value="field.optVal"
+              :prepend-inner-icon="field.icon" :hint="field.helperText" :rules="field.required ? [requiredRule] : []"
+              @update:modelValue="selectChanged(field.name)" />
 
             <!-- Rich Object Select Strings -->
-            <v-select
-              v-else-if="field.type === 'selectObj'"
-              v-model="formValues[field.name]"
-              :label="field.label"
-              :items="m_schema.options[field.name]"
-              :item-title="field.optTxt"
-              :item-value="field.optVal"
-              :prepend-inner-icon="field.icon"
-              :hint="field.helperText"
-              return-object
-              :rules="field.required ? [requiredRule] : []"
-            />
+            <v-select v-else-if="field.type === 'selectObj'" v-model="formValues[field.name]" :label="field.label"
+              :items="m_schema.options[field.name]" :item-title="field.optTxt" :item-value="field.optVal"
+              :prepend-inner-icon="field.icon" :hint="field.helperText" return-object
+              :rules="field.required ? [requiredRule] : []" />
 
             <!-- Multi-Select Dropdowns -->
-            <v-select
-              v-else-if="field.type === 'mselect'"
-              v-model="formValues[field.name]"
-              :label="field.label"
-              :items="m_schema.options[field.name]"
-              :item-title="field.optTxt"
-              :item-value="field.optVal"
-              :prepend-inner-icon="field.icon"
-              :hint="field.helperText"
-              multiple
-              chips
-              closable-chips
-              :rules="field.required ? [requiredRule] : []"
-            />
+            <v-select v-else-if="field.type === 'mselect'" v-model="formValues[field.name]" :label="field.label"
+              :items="m_schema.options[field.name]" :item-title="field.optTxt" :item-value="field.optVal"
+              :prepend-inner-icon="field.icon" :hint="field.helperText" multiple chips closable-chips
+              :rules="field.required ? [requiredRule] : []" />
 
             <!-- Universal Fallback text, email & number inputs -->
-            <v-text-field
-              v-else-if="field.type != 'passconf'"
-              v-model="formValues[field.name]"
-              :label="field.label"
-              :type="field.type === 'number' ? 'number' : 'text'"
-              :name="`${m_schema.dataset}_${field.name}`"
-              autocomplete="off"
-              :prepend-inner-icon="field.icon"
-              :hint="field.helperText"
-              :rules="[
+            <v-text-field v-else-if="field.type != 'passconf'" v-model="formValues[field.name]" :label="field.label"
+              :type="field.type === 'number' ? 'number' : 'text'" :name="`${m_schema.dataset}_${field.name}`"
+              autocomplete="off" :prepend-inner-icon="field.icon" :hint="field.helperText" :rules="[
                 ...(field.required ? [requiredRule] : []),
                 ...(field.type === 'email' ? [emailRule] : []),
-              ]"
-            />
+              ]" />
 
           </v-col>
 
           <!-- Group Switch Configuration Block -->
           <v-col
             v-if="m_schema.dataset == 'groups' && field.name == 'count' && opType == 'Edit' && formValues['types'] != null"
-            cols="12"
-          >
+            cols="12">
             <v-switch v-model="formValues['reset_type']" :label="$t('tables.clear_restriction')" color="primary" />
           </v-col>
         </template>
@@ -412,26 +351,9 @@ onMounted(() => {
         <!-- Form Status Alerts -->
         <v-col
           v-if="dialog_success || ccPlusStore?.tableSuccessMessage || dialog_error || ccPlusStore?.tableErrorMessage"
-          cols="12"
-        >
-          <v-alert
-            v-if="dialog_success || ccPlusStore?.tableSuccessMessage"
-            type="success"
-            variant="tonal"
-            closable
-            class="mb-2"
-            :text="dialog_success || ccPlusStore.tableSuccessMessage"
-            @click:close="clearAlerts"
-          />
+          cols="12">
+          <StatusAlerts v-model:success="dialog_success" v-model:failure="dialog_error" mode="modal" />
 
-          <v-alert
-            v-if="dialog_error || ccPlusStore?.tableErrorMessage"
-            type="error"
-            variant="tonal"
-            closable
-            :text="dialog_error || ccPlusStore.tableErrorMessage"
-            @click:close="clearAlerts"
-          />
         </v-col>
 
 
@@ -442,11 +364,7 @@ onMounted(() => {
         </v-col>
 
         <!-- Metadata indicator tracking -->
-        <v-col
-          v-if="formValues['updated']?.length > 0"
-          cols="12"
-          class="text-center text-caption text-disabled"
-        >
+        <v-col v-if="formValues['updated']?.length > 0" cols="12" class="text-center text-caption text-disabled">
           {{ $t('tables.last_updated', { date: formValues['updated'] }) }}
         </v-col>
       </v-row>

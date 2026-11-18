@@ -419,29 +419,32 @@ class InstitutionController extends BaseController
         try {
             abort_unless(auth()->user()->hasRole('Admin'), 403);
 
-            $parsed = $this->parseCsvUpload($request);
+            $parsed = $this->parseMappedCsvUpload($request, [
+                'id'        => ['CC+ System ID', 'System ID', 'fields.ccplus_system_id'],
+                'local_id'  => ['Local ID', 'fields.local_id'],
+                'name'      => ['Institution Name', 'Institution', 'fields.institution'],
+                'type_id'   => ['Type ID', 'fields.type_id'],
+                'status'    => ['Status', 'fields.status'],
+                'fte'       => ['FTE', 'fields.fte'],
+                'group_ids' => ['Group Assignment(s)', 'Groups', 'fields.group_assignments', 'fields.groups'],
+                'notes'     => ['Notes', 'fields.notes'],
+            ]);
+
             if (isset($parsed['error'])) {
                 return $this->respondError($parsed['error']);
             }
 
-            $rows = $parsed['rows'];
-            $rawHeaders = array_shift($rows);
-            $headers = array_map(fn($header) => trim(preg_replace('/\s+/', ' ', $header)), $rawHeaders);
-
             $validGroupIds = DB::table('institutiongroups')->pluck('id')->all();
+            $typesById = DB::table('institutiontypes')->pluck('id', 'id')->all();
+
             $skipped = 0;
             $updated = 0;
             $created = 0;
 
             DB::beginTransaction();
 
-            foreach ($rows as $row) {
-                if (empty($row) || count($row) < count($headers)) {
-                    continue;
-                }
-
-                $mappedRow = array_combine($headers, array_slice($row, 0, count($headers)));
-                $parsedRow = $this->extractImportRow($mappedRow);
+            foreach ($parsed['rows'] as $mappedRow) {
+                $parsedRow = $this->extractImportRow($mappedRow, $typesById);
 
                 if (!$parsedRow) {
                     $skipped++;
@@ -460,14 +463,18 @@ class InstitutionController extends BaseController
                 }
 
                 if ($existingId) {
-                    DB::table('institutions')->where('id', $existingId)->update([
+                    $updateData = [
                         'name'       => $parsedRow['name'],
                         'is_active'  => $parsedRow['is_active'],
                         'local_id'   => $localId,
                         'fte'        => $parsedRow['fte'],
                         'notes'      => $parsedRow['notes'],
                         'updated_at' => now(),
-                    ]);
+                    ];
+                    if ($parsedRow['type_id'] !== null) {
+                        $updateData['type_id'] = $parsedRow['type_id'];
+                    }
+                    DB::table('institutions')->where('id', $existingId)->update($updateData);
                     $updated++;
                     $resolvedId = $existingId;
                 } else {
@@ -477,7 +484,7 @@ class InstitutionController extends BaseController
                         'local_id'   => $localId,
                         'fte'        => $parsedRow['fte'],
                         'notes'      => $parsedRow['notes'],
-                        'type_id'    => 1,
+                        'type_id'    => $parsedRow['type_id'] ?? 1,
                         'created_at' => now(),
                         'updated_at' => now(),
                     ];
@@ -491,7 +498,9 @@ class InstitutionController extends BaseController
                     $created++;
                 }
 
-                $this->syncInstitutionGroups($resolvedId, $parsedRow['raw_groups'], $validGroupIds);
+                if (array_key_exists('group_ids', $mappedRow)) {
+                    $this->syncInstitutionGroups($resolvedId, $parsedRow['raw_groups'], $validGroupIds);
+                }
             }
 
             DB::commit();
@@ -510,36 +519,40 @@ class InstitutionController extends BaseController
         }
     }
 
-    /**
-     * Normalize and validate a single CSV row for institution import.
-     */
-    private function extractImportRow(array $mappedRow): ?array
+    private function extractImportRow(array $mappedRow, array $typesById): ?array
     {
-        $rawId     = trim($mappedRow['CC+ System ID'] ?? '');
-        $rawLocal  = trim($mappedRow['Local ID'] ?? '');
-        $rawName   = trim($mappedRow['Institution Name'] ?? '');
-        $rawStatus = trim($mappedRow['Status'] ?? '');
-        $rawFte    = trim($mappedRow['FTE'] ?? '');
-        $rawGroups = trim($mappedRow['Group Assignment(s)'] ?? '');
-        $rawNotes  = trim($mappedRow['Notes'] ?? '');
+        $rawId     = $mappedRow['id'] ?? '';
+        $rawLocal  = $mappedRow['local_id'] ?? '';
+        $rawName   = $mappedRow['name'] ?? '';
+        $rawTypeId = $mappedRow['type_id'] ?? '';
+        $rawStatus = $mappedRow['status'] ?? '';
+        $rawFte    = $mappedRow['fte'] ?? '';
+        $rawGroups = $mappedRow['group_ids'] ?? '';
+        $rawNotes  = $mappedRow['notes'] ?? '';
 
-        $targetId = ($rawId !== '') ? intval($rawId) : null;
+        $targetId = ($rawId !== '' && is_numeric($rawId)) ? intval($rawId) : null;
         $localId  = ($rawLocal !== '') ? $rawLocal : null;
 
-        if ($targetId === 1 || (!$targetId && !$localId) || strlen($rawName) < 1) {
+        if ($targetId === 1 || (!$targetId && !$localId) || mb_strlen($rawName) < 1) {
             return null;
         }
+
+        $resolvedTypeId = ($rawTypeId !== '' && is_numeric($rawTypeId) && isset($typesById[intval($rawTypeId)]))
+            ? intval($rawTypeId)
+            : null;
 
         return [
             'id'         => $targetId,
             'local_id'   => $localId,
             'name'       => $rawName,
-            'is_active'  => ($rawStatus === 'Inactive' || $rawStatus === 'N') ? 0 : 1,
-            'fte'        => ($rawFte === '') ? null : intval($rawFte),
+            'type_id'    => $resolvedTypeId,
+            'is_active'  => (strcasecmp($rawStatus, 'Inactive') === 0 || strcasecmp($rawStatus, 'N') === 0) ? 0 : 1,
+            'fte'        => ($rawFte === '' || !is_numeric($rawFte)) ? null : intval($rawFte),
             'notes'      => ($rawNotes === '') ? null : $rawNotes,
             'raw_groups' => $rawGroups,
         ];
     }
+
 
     /**
      * Replace group pivot assignments for an imported institution.

@@ -14,6 +14,7 @@ import { useDatasetExporter } from '@/composables/useDatasetExporter.js';
 import { useDatasetBulk } from '@/composables/useDatasetBulk.js';
 import { useCCPlusStore } from '@/stores/useCCPlusStore.js';
 import { setAppLocale } from '@/plugins/i18n.js';
+import StatusAlerts from '@/components/ui/StatusAlerts.vue';
 
 import BaseDialogLayout from '@/components/dialogs/BaseDialogLayout.vue';
 import DataToolbar from './DataToolbar.vue';
@@ -942,11 +943,10 @@ watch(locale, () => {
 
       <!-- 1. Toolbar Filters Wrapper -->
       <DataToolbar v-model="toolbarFilters" :search="search" :dataset="props.datasetKey" :bulkOptions="bulkOptions"
-        :selectedRows="selectedRows" :showSelectedOnly="showSelectedOnly"
-        :hideExport="!exportable || filteredItems.length == 0" @updateConso="handleChangeConso" @export="handleExport"
-        @setFilter="handleFilter" @bulkAction="handleBulk" @add="handleAddItem" @update:search="search = $event"
-        @update:showSelectedOnly="handleToggle" @refreshRecords="refreshData(props.datasetKey)"
-        @imported="handleImported" />
+        :selectedRows="selectedRows" :showSelectedOnly="showSelectedOnly" :hideExport="!exportable"
+        @updateConso="handleChangeConso" @export="handleExport" @setFilter="handleFilter" @bulkAction="handleBulk"
+        @add="handleAddItem" @update:search="search = $event" @update:showSelectedOnly="handleToggle"
+        @refreshRecords="refreshData(props.datasetKey)" @imported="handleImported" />
 
       <!-- Live COUNTER Registry Refresh Progress Banner (WCAG Accessible) -->
       <v-alert v-if="refreshProgress.active" type="info" variant="tonal" class="my-3 rounded-lg" aria-live="polite">
@@ -969,8 +969,8 @@ watch(locale, () => {
       </v-alert>
 
       <!-- 2. Status Messages: Native alerts -->
-      <v-alert v-if="success" type="success" class="my-3 mx-4" :text="success" />
-      <v-alert v-else-if="failure" type="error" class="my-3 mx-4" :text="failure" />
+      <StatusAlerts v-model:success="success" v-model:failure="failure" mode="page" />
+
 
       <!-- 3. Primary Data Table Grid -->
       <DataTable v-if="consoKey != '' || props.datasetKey == 'consortia'" :items="filteredItems" :key="dtKey"
@@ -1030,7 +1030,7 @@ watch(locale, () => {
 
           <template #actions>
             <v-btn @click="handleBulk({ action: 'Set Institution Type', type_id: newType.id })">{{ $t('common.save')
-            }}</v-btn>
+              }}</v-btn>
             <v-btn variant="text" class="ml-2" @click="handleFormCancel">{{ $t('common.cancel') }}</v-btn>
           </template>
         </BaseDialogLayout>

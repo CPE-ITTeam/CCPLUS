@@ -104,6 +104,20 @@ export default createVuetify({
       class:
         "text-title-large font-weight-semibold text-primary mb-3 d-flex align-center",
     },
+    VAlert: {
+      VBtn: {
+        color: undefined,
+        variant: "text",
+        rounded: "circle",
+        size: "default",
+        class: "opacity-100",
+        VIcon: {
+          size: 28,
+          class: "opacity-100",
+        },
+      },
+    },
+
     VAppBar: {
       color: "surface",
       flat: true,

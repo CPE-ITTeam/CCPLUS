@@ -115,12 +115,15 @@ class InstitutionTypeController extends BaseController
             return $this->respondError(__('institutions.not_authorized'));
         }
 
-        $parsed = $this->parseCsvUpload($request, ['Full Replacement', 'Additions & Updates']);
+        $parsed = $this->parseMappedCsvUpload($request, [
+            'id'   => ['ID', 'CC+ System ID', 'System ID', 'fields.ccplus_system_id'],
+            'name' => ['Institution Type', 'Type', 'Name', 'fields.type'],
+        ], ['Full Replacement', 'Additions & Updates']);
+
         if (isset($parsed['error'])) {
             return $this->respondError($parsed['error']);
         }
 
-        $rows = $parsed['rows'];
         $importType = $parsed['type'];
 
         $num_deleted = 0;
@@ -144,27 +147,36 @@ class InstitutionTypeController extends BaseController
 
         $current_types = InstitutionType::get();
 
-        foreach ($rows as $row) {
-            if (!isset($row) || $row === '' || !is_numeric($row) || intval($row) <= 1) {
+        foreach ($parsed['rows'] as $row) {
+            $rawId = $row['id'] ?? '';
+            $_name = $row['name'] ?? '';
+
+            if ($_name === '') {
                 continue;
             }
 
-            $_tid = intval($row);
-            $_name = isset($row) ? trim($row) : '';
+            $_tid = ($rawId !== '' && is_numeric($rawId)) ? intval($rawId) : null;
+            if ($_tid !== null && $_tid <= 1) {
+                continue;
+            }
 
-            if ($importType === 'Additions & Updates' && $current_types->where('name', $_name)->first()) {
+            if ($importType === 'Additions & Updates' && $current_types->first(fn ($t) => strcasecmp($t->name, $_name) === 0)) {
                 $num_skipped++;
                 continue;
             }
 
-            $existing_type = $current_types->where('id', $_tid)->first();
+            $existing_type = $_tid !== null ? $current_types->where('id', $_tid)->first() : null;
             if ($existing_type) {
-                if ($_name !== '') {
-                    $existing_type->update(['name' => $_name]);
-                    $num_updated++;
+                $existing_type->update(['name' => $_name]);
+                $num_updated++;
+            } else {
+                $newType = new InstitutionType();
+                if ($_tid !== null) {
+                    $newType->id = $_tid;
                 }
-            } elseif ($_name !== '') {
-                InstitutionType::create(['id' => $_tid, 'name' => $_name]);
+                $newType->name = $_name;
+                $newType->save();
+                $current_types->push($newType);
                 $num_created++;
             }
         }
@@ -195,17 +207,22 @@ class InstitutionTypeController extends BaseController
         return $this->respondSuccess($msg);
     }
 
+
     /**
      * Format an InstitutionType record consistently for the dataset UI.
      */
     private function formatRecord(InstitutionType $type, bool $consoAdmin): array
     {
+        $instCount = $type->institutions->count();
+
         return [
             'id'           => $type->id,
             'name'         => $type->name,
+            'count'        => $instCount,
             'can_edit'     => ($type->id > 1 && $consoAdmin),
-            'can_delete'   => ($type->id > 1 && $consoAdmin && $type->institutions->count() === 0),
+            'can_delete'   => ($type->id > 1 && $consoAdmin && $instCount === 0),
             'institutions' => $type->institutions->toArray(),
         ];
     }
+
 }

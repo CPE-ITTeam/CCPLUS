@@ -5,6 +5,7 @@ import { useI18n } from 'vue-i18n';
 import axios from 'axios';
 import { useAuthStore } from '@/stores/useAuthStore.js';
 import BaseDialogLayout from '@/components/dialogs/BaseDialogLayout.vue';
+import StatusAlerts from '@/components/ui/StatusAlerts.vue';
 
 const props = defineProps({
   dataset: { type: String, required: true },
@@ -209,11 +210,8 @@ async function runImport() {
           {{ datasets[props.dataset].intro }}
         </div>
 
-        <div
-          v-for="(row, idx) in datasets[props.dataset]?.rows"
-          :key="idx"
-          class="text-body-2 text-medium-emphasis mb-3"
-        >
+        <div v-for="(row, idx) in datasets[props.dataset]?.rows" :key="idx"
+          class="text-body-2 text-medium-emphasis mb-3">
           {{ row }}
         </div>
 
@@ -222,46 +220,23 @@ async function runImport() {
         <!-- Input Configurations Row -->
         <v-row no-gutters class="ga-3">
           <v-col cols="12">
-            <v-file-input
-              v-model="csv_upload"
-              show-size
-              :label="$t('imports.csv_file_label')"
-              accept="text/csv"
-              variant="outlined"
-              density="compact"
-              prepend-icon="mdi-file-delimited-outline"
-              hide-details="auto"
-              :rules="[requiredRule]"
-            />
+            <v-file-input v-model="csv_upload" show-size :label="$t('imports.csv_file_label')" accept="text/csv"
+              variant="outlined" density="compact" prepend-icon="mdi-file-delimited-outline" hide-details="auto"
+              :rules="[requiredRule]" />
           </v-col>
 
           <v-col cols="12">
-            <v-select
-              v-model="import_type"
-              :items="datasets[props.dataset]?.import_types || []"
-              item-title="title"
-              item-value="value"
-              :label="$t('imports.import_strategy_label')"
-              variant="outlined"
-              density="compact"
-              hide-details="auto"
-              :readonly="datasets[props.dataset]?.import_types?.length === 1"
+            <v-select v-model="import_type" :items="datasets[props.dataset]?.import_types || []" item-title="title"
+              item-value="value" :label="$t('imports.import_strategy_label')" variant="outlined" density="compact"
+              hide-details="auto" :readonly="datasets[props.dataset]?.import_types?.length === 1"
               :hint="datasets[props.dataset]?.import_types?.length === 1 ? $t('imports.locked_safe_update_hint') : ''"
-              persistent-hint
-              :rules="[requiredRule]"
-            />
+              persistent-hint :rules="[requiredRule]" />
           </v-col>
         </v-row>
 
         <!-- Dynamic Failure Alert Layout Context -->
-        <v-alert
-          v-if="failure"
-          type="error"
-          variant="tonal"
-          density="compact"
-          class="mt-4"
-          :text="failure"
-        />
+        <StatusAlerts v-model:failure="failure" mode="modal" />
+
 
       </v-container>
       <button type="submit" class="d-none" aria-hidden="true"></button>

@@ -22,7 +22,6 @@ const FIELD_DEFAULTS = {
   cols: 12,
 };
 
-
 // ─────────────────────────────────────────────────────────────────────────
 // STEP 2: SCHEMA PERMISSION HELPERS
 // ─────────────────────────────────────────────────────────────────────────
@@ -40,20 +39,13 @@ export const isFieldEditable = (field, mode) => {
 // STEP 3: RAW DATASET CONFIGURATIONS
 // ─────────────────────────────────────────────────────────────────────────
 const rawTableSetup = {
-
   consortia: {
     urlRoot: "/api/consortia",
     get title() {
       return t("datasets.consortia.title");
     },
     dataset: "consortia",
-    required: [
-      "name",
-      "ccp_key",
-      "email",
-      "admin_pass",
-      "admin_confirm_pass",
-    ],
+    required: ["name", "ccp_key", "email", "admin_pass", "admin_confirm_pass"],
     fields: [
       {
         name: "status",
@@ -98,54 +90,54 @@ const rawTableSetup = {
         type: "email",
         cols: 6,
       },
-    {
-     name: "fiscalYr",
-     get label() {
-       return t("fields.fiscal_year_start");
-     },
-     type: "select",
-     options: fyMonths.map((m) => {
-       const val = typeof m === "object" ? m.value : m;
-       return { id: val, name: val };
-     }),
-     optVal: "id",
-     optTxt: "name",
-     searchable: false,
-     cols: 4,
-   },
-   {
-     name: "language",
-     get label() {
-       return t("fields.default_language");
-     },
-     type: "select",
-     options: ["en", "de", "es", "fi", "fr", "hu"].map((code) => ({
-       id: code,
-       name: code.toUpperCase(),
-     })),
-     optVal: "id",
-     optTxt: "name",
-     searchable: false,
-     cols: 4,
-   },
-   {
-     name: "theme",
-     get label() {
-       return t("fields.color_theme");
-     },
-     type: "select",
-     options: CONSORTIUM_THEMES.map((item) => ({
-       id: item.id,
-       get name() {
-         return t(`account.theme_${item.id}`);
-       },
-     })),
-     optVal: "id",
-     optTxt: "name",
-     addValue: "light",
-     searchable: false,
-     cols: 4,
-   },
+      {
+        name: "fiscalYr",
+        get label() {
+          return t("fields.fiscal_year_start");
+        },
+        type: "select",
+        options: fyMonths.map((m) => {
+          const val = typeof m === "object" ? m.value : m;
+          return { id: val, name: val };
+        }),
+        optVal: "id",
+        optTxt: "name",
+        searchable: false,
+        cols: 4,
+      },
+      {
+        name: "language",
+        get label() {
+          return t("fields.default_language");
+        },
+        type: "select",
+        options: ["en", "de", "es", "fi", "fr", "hu"].map((code) => ({
+          id: code,
+          name: code.toUpperCase(),
+        })),
+        optVal: "id",
+        optTxt: "name",
+        searchable: false,
+        cols: 4,
+      },
+      {
+        name: "theme",
+        get label() {
+          return t("fields.color_theme");
+        },
+        type: "select",
+        options: CONSORTIUM_THEMES.map((item) => ({
+          id: item.id,
+          get name() {
+            return t(`account.theme_${item.id}`);
+          },
+        })),
+        optVal: "id",
+        optTxt: "name",
+        addValue: "light",
+        searchable: false,
+        cols: 4,
+      },
 
       {
         name: "admin_pass",
@@ -172,7 +164,6 @@ const rawTableSetup = {
     bulkOptions: ["Set Active", "Set Inactive", "Delete"],
     sortby: "name",
   },
-
 
   institutions: {
     urlRoot: "/api/institutions",
@@ -323,7 +314,7 @@ const rawTableSetup = {
       },
     ],
 
-    required: ["status", "name", "local_id", "fte", "type", "creds"],
+    required: ["status", "name", "local_id", "type", "creds"],
     bulkOptions: [
       "Set Active",
       "Set Inactive",
@@ -336,14 +327,15 @@ const rawTableSetup = {
       "id",
       "local_id",
       "name",
+      "type_id",
+      "group_ids",
       "status",
       "fte",
-      "group_ids",
       "notes",
     ],
-    sortby: "name",
-  },
 
+    sortby: ["type", "group_string", "name"],
+  },
 
   types: {
     urlRoot: "/api/types",
@@ -367,7 +359,17 @@ const rawTableSetup = {
         get label() {
           return t("fields.institution_type");
         },
-        cols: 12,
+        cols: 8,
+      },
+      {
+        name: "count",
+        get label() {
+          return t("fields.member_count");
+        },
+        header: "center",
+        editable: false,
+        visible: ["Edit"],
+        cols: 4,
       },
     ],
 
@@ -476,7 +478,7 @@ const rawTableSetup = {
     required: ["name", "institutions"],
     static: ["id", "type_id", "type_string", "member_ids"],
     bulkOptions: ["Set Active", "Set Inactive", "Delete"],
-    exportFields: ["id", "name", "member_ids"],
+    exportFields: ["id", "name", "type_id", "member_ids"],
     sortby: "name",
   },
 
@@ -933,6 +935,7 @@ const rawTableSetup = {
           return t("fields.harvest_day");
         },
         type: "number",
+        addValue: 15,
         header: "center",
       },
       {
@@ -989,6 +992,16 @@ const rawTableSetup = {
         },
         header: null,
       },
+
+      {
+        name: "content_provider",
+        get label() {
+          return t("fields.content_provider");
+        },
+        header: null,
+        cols: 6,
+      },
+
       {
         name: "registry_id",
         get label() {
@@ -1135,6 +1148,7 @@ const rawTableSetup = {
     ],
     bulkOptions: ["Set Active", "Set Inactive", "Refresh Registry", "Delete"],
     exportFields: [
+      "id",
       "registry_id",
       "name",
       "release",
@@ -1151,6 +1165,7 @@ const rawTableSetup = {
       "api_key",
       "platform_parm",
     ],
+
     sortby: "name",
   },
 

@@ -264,33 +264,57 @@ class ConnectionController extends BaseController
         $thisUser = auth()->user();
         abort_unless($thisUser->hasAnyRole(['Admin']), 403);
 
-        $parsed = $this->parseCsvUpload($request);
+        $parsed = $this->parseMappedCsvUpload($request, [
+            'platform_id' => ['Platform ID', 'ID', 'CC+ System ID', 'Global ID', 'fields.ccplus_system_id', 'fields.platform_id'],
+            'platform'    => ['Platform', 'Platform Name', 'fields.platform'],
+            'pr_insts'    => ['PR Institutions', 'PR Insts', 'fields.pr_insts'],
+            'pr_groups'   => ['PR Groups', 'fields.pr_groups'],
+            'dr_insts'    => ['DR Institutions', 'DR Insts', 'fields.dr_insts'],
+            'dr_groups'   => ['DR Groups', 'fields.dr_groups'],
+            'tr_insts'    => ['TR Institutions', 'TR Insts', 'fields.tr_insts'],
+            'tr_groups'   => ['TR Groups', 'fields.tr_groups'],
+            'ir_insts'    => ['IR Institutions', 'IR Insts', 'fields.ir_insts'],
+            'ir_groups'   => ['IR Groups', 'fields.ir_groups'],
+        ]);
+
         if (isset($parsed['error'])) {
             return $this->respondError($parsed['error']);
         }
 
-        $rows = $parsed['rows'];
         $consoAdmin = $thisUser->isConsoAdmin();
         $adminInsts = $thisUser->adminInsts();
         $adminGroups = $thisUser->adminGroups();
         $all_platforms = GlobalProvider::get(['id', 'name', 'master_reports']);
-        $rpt_columns = [3 => 2, 2 => 4, 1 => 6, 4 => 8];
+
+        $rpt_columns = [
+            3 => ['insts' => 'pr_insts', 'groups' => 'pr_groups'],
+            2 => ['insts' => 'dr_insts', 'groups' => 'dr_groups'],
+            1 => ['insts' => 'tr_insts', 'groups' => 'tr_groups'],
+            4 => ['insts' => 'ir_insts', 'groups' => 'ir_groups'],
+        ];
+
         $cnx_skipped = 0;
         $cnx_updated = 0;
         $cnx_created = 0;
         $cnx_deleted = 0;
-        foreach ($rows as $row) {
-            $_id = trim(Arr::get($row, 0, ''));
-            if ($_id === '' || !is_numeric($_id)) {
-                $cnx_skipped++;
-                continue;
+
+        foreach ($parsed['rows'] as $row) {
+            $_id = $row['platform_id'] ?? '';
+            $_platName = $row['platform'] ?? '';
+
+            $platform = null;
+            if ($_id !== '' && is_numeric($_id)) {
+                $platform = $all_platforms->where('id', intval($_id))->first();
+            } elseif ($_platName !== '') {
+                $platform = $all_platforms->first(fn($p) => strcasecmp($p->name, $_platName) === 0);
             }
-            $platId = intval($_id);
-            $platform = $all_platforms->where('id', $platId)->first();
+
             if (!$platform) {
                 $cnx_skipped++;
                 continue;
             }
+
+            $platId = $platform->id;
             $connections = Connection::with('reports')
                 ->where('global_id', $platId)
                 ->when(!$consoAdmin, function ($qry) use ($adminInsts, $adminGroups) {
@@ -298,39 +322,51 @@ class ConnectionController extends BaseController
                         ->orWhereIn('group_id', $adminGroups);
                 })
                 ->get();
+
             $keep_insts = [];
             $keep_groups = [];
             $_created = false;
             $_updated = false;
-            foreach ($rpt_columns as $master_id => $col) {
+
+            foreach ($rpt_columns as $master_id => $keys) {
+                $hasInstCol = array_key_exists($keys['insts'], $row);
+                $hasGroupCol = array_key_exists($keys['groups'], $row);
+                if (!$hasInstCol && !$hasGroupCol) {
+                    continue;
+                }
+
                 $rpt_connections = $connections->map(function ($conn) use ($master_id) {
                     if (in_array($master_id, $conn->reports->pluck('id')->toArray())) {
                         return ['id' => $conn->id, 'inst_id' => $conn->inst_id, 'group_id' => $conn->group_id];
                     }
                     return null;
                 })->filter()->toArray();
+
                 if (!in_array($master_id, $platform->master_reports())) {
                     continue;
                 }
-                $rawInsts = Arr::get($row, $col, '');
-                $insts = preg_split('/,/', preg_replace('/, /', ',', $rawInsts));
+
+                $rawInsts = $row[$keys['insts']] ?? '';
+                $insts = $rawInsts !== '' ? array_map('intval', preg_split('/\s*,\s*/', $rawInsts)) : [];
+                $insts = array_filter($insts, fn($v) => $v > 0);
+
+                $conso = false;
                 if (count($insts) > 0) {
-                    $conso = false;
                     if (in_array(1, $insts) && $consoAdmin) {
                         $insts = array(1);
                     }
                     $keep_insts = array_unique(array_merge($keep_insts, $insts));
-                    foreach ($insts as $_inst) {
-                        if ($_inst === '') {
-                            continue;
-                        }
-                        $inst_id = intval($_inst);
+                    foreach ($insts as $inst_id) {
                         if ($consoAdmin || in_array($inst_id, $adminInsts)) {
                             $cnx = $connections->where('inst_id', $inst_id)->first();
                             if (!$cnx) {
                                 $cnx = Connection::create(['global_id' => $platId, 'is_active' => 1, 'inst_id' => $inst_id]);
                                 $cnx->reports()->attach($master_id);
+                                $connections->push($cnx);
                                 $_created = true;
+                                if ($inst_id === 1) {
+                                    $conso = true;
+                                }
                                 continue;
                             }
                             if (!in_array($master_id, $cnx->reports->pluck('id')->toArray())) {
@@ -342,45 +378,45 @@ class ConnectionController extends BaseController
                             }
                         }
                     }
-                    if ($conso) {
-                        continue;
-                    }
                 }
-                $rawGroups = Arr::get($row, $col + 1, '');
-                $groups = preg_split('/,/', preg_replace('/, /', ',', $rawGroups));
-                if (count($groups) === 0) {
-                    continue;
-                }
-                $keep_groups = array_unique(array_merge($keep_groups, $groups));
-                foreach ($groups as $_group) {
-                    if ($_group === '') {
-                        continue;
-                    }
-                    $group_id = intval($_group);
-                    if ($consoAdmin || in_array($group_id, $adminGroups)) {
-                        $cnx = $connections->where('group_id', $group_id)->first();
-                        if (!$cnx) {
-                            $cnx = Connection::create(['global_id' => $platId, 'is_active' => 1, 'group_id' => $group_id]);
-                            $cnx->reports()->attach($master_id);
-                            $_created = true;
-                            continue;
-                        }
-                        if (!in_array($master_id, $cnx->reports->pluck('id')->toArray())) {
-                            $cnx->reports()->attach($master_id);
-                            $_updated = true;
+
+                $rawGroups = $row[$keys['groups']] ?? '';
+                $groups = (!$conso && $rawGroups !== '') ? array_map('intval', preg_split('/\s*,\s*/', $rawGroups)) : [];
+                $groups = array_filter($groups, fn($v) => $v > 0);
+
+                if (count($groups) > 0) {
+                    $keep_groups = array_unique(array_merge($keep_groups, $groups));
+                    foreach ($groups as $group_id) {
+                        if ($consoAdmin || in_array($group_id, $adminGroups)) {
+                            $cnx = $connections->where('group_id', $group_id)->first();
+                            if (!$cnx) {
+                                $cnx = Connection::create(['global_id' => $platId, 'is_active' => 1, 'group_id' => $group_id]);
+                                $cnx->reports()->attach($master_id);
+                                $connections->push($cnx);
+                                $_created = true;
+                                continue;
+                            }
+                            if (!in_array($master_id, $cnx->reports->pluck('id')->toArray())) {
+                                $cnx->reports()->attach($master_id);
+                                $_updated = true;
+                            }
                         }
                     }
                 }
+
                 foreach ($rpt_connections as $rcnx) {
                     $cnx = $connections->where('id', $rcnx['id'])->first();
-                    if ($cnx && !in_array($cnx['inst_id'], $insts) && !in_array($cnx['group_id'], $groups)) {
+                    if ($cnx && !in_array($cnx->inst_id, $insts) && !in_array($cnx->group_id, $groups)) {
                         $cnx->reports()->detach($master_id);
                     }
                 }
             }
+
             $cnx_created += $_created ? 1 : 0;
             $cnx_updated += ($_updated && !$_created) ? 1 : 0;
+
             foreach ($connections as $cnx) {
+                $cnx->load('reports');
                 if (
                     $cnx->reports->count() === 0 ||
                     (!is_null($cnx->inst_id) && !in_array($cnx->inst_id, $keep_insts)) ||
@@ -391,6 +427,7 @@ class ConnectionController extends BaseController
                 }
             }
         }
+
         $msg = $this->formatImportSummary(
             __('connections.import_success'),
             $cnx_updated,
@@ -398,6 +435,7 @@ class ConnectionController extends BaseController
             $cnx_deleted,
             $cnx_skipped
         );
+
         return $this->respondSuccess($msg);
     }
 }

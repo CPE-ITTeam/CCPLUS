@@ -1,5 +1,7 @@
 <!-- resources/js/components/ui/SettingsPanelShell.vue -->
 <script setup>
+import StatusAlerts from '@/components/ui/StatusAlerts.vue';
+
 defineProps({
   title: { type: String, required: true },
   icon: { type: String, default: '' },
@@ -27,8 +29,8 @@ defineEmits(['submit']);
         <!-- Status Banners -->
         <v-row v-if="success || failure" class="mt-4" no-gutters>
           <v-col cols="12">
-            <v-alert v-if="failure" type="error" variant="tonal" :text="failure" />
-            <v-alert v-else-if="success" type="success" variant="tonal" :text="success" />
+            <StatusAlerts :success="success" :failure="failure" mode="modal" container-class="mb-0"
+              @update:success="$emit('update:success', $event)" @update:failure="$emit('update:failure', $event)" />
           </v-col>
         </v-row>
 

@@ -2,10 +2,11 @@
 <script setup>
 // 1. CORE DEPENDENCIES IMPORT PIPELINE
 import { ref, reactive, computed } from 'vue';
-import api from '@/services/api.js'; // 🌟 FIXED: Resolves ccPost proxy failures by using your authoritative API layer
+import api from '@/services/api.js';
 import ToggleIcon from '@/components/ui/ToggleIcon.vue';
 import BaseDialogLayout from '@/components/dialogs/BaseDialogLayout.vue';
 import Swal from 'sweetalert2';
+import StatusAlerts from '@/components/ui/StatusAlerts.vue';
 
 // 2. STABLE COMPONENT CONTRACT MAPPINGS
 const props = defineProps({
@@ -38,6 +39,15 @@ var initialSource = typeof props.initialValues === 'string'
   ? { value: props.initialValues }
   : { ...props.initialValues };
 
+if (!initialSource.connector_state) initialSource.connector_state = {};
+if (initialSource.day_of_month == null || initialSource.day_of_month === '') {
+  initialSource.day_of_month = 15;
+}
+if (!initialSource.report_state) initialSource.report_state = {};
+if (initialSource.cur_release != null) {
+  initialSource.cur_release = String(initialSource.cur_release).trim();
+}
+
 var formValues = reactive(initialSource);
 
 // AUTOMATED UI FAILSAFE: Ensures every schema field fallback configuration remains present in template memory
@@ -47,6 +57,13 @@ const formFields = computed(() => {
     fields[fld.name] = { ...fld };
   });
   return fields;
+});
+
+// Combine platform's reg_releases with global schema releases for the Release selector
+const releaseOptions = computed(() => {
+  const itemReleases = Array.isArray(formValues['reg_releases']) ? formValues['reg_releases'] : [];
+  const globalReleases = Array.isArray(props.schema.options?.['releases']) ? props.schema.options['releases'] : [];
+  return [...new Set([...itemReleases, ...globalReleases].map((r) => String(r).trim()).filter(Boolean))];
 });
 
 // 4. SELECTION ACCESSIBILITY RULES MATRIX
@@ -86,6 +103,9 @@ function changeRelease() {
     formValues['connector_state'] = Object.assign({}, registry.connector_state);
     formValues['report_state'] = Object.assign({}, registry.report_state);
     formValues['is_selected'] = registry.is_selected;
+    if (registry.service_url) {
+      formValues['service_url'] = registry.service_url;
+    }
   }
 }
 
@@ -127,8 +147,7 @@ async function submitForm() {
   }
 }
 
-// 🌟 REWRITTEN DYNAMIC REGISTRY REFRESH DATA BINDING
-// 🌟 BULLETPROOF REGISTRY REFRESH DATA BINDING
+// REGISTRY REFRESH DATA BINDING
 async function regRefresh() {
   dialog_error.value = '';
   dialog_success.value = '';
@@ -136,8 +155,6 @@ async function regRefresh() {
   try {
     const response = await api.post('/api/platforms/refresh', args);
 
-    // 1. Adaptive Data Extraction Layer
-    // Safely reads the payload whether api.js returns the raw Axios wrapper or the unwrapped data object
     const payload = (response && response.data && typeof response.data.result !== 'undefined')
       ? response.data
       : response;
@@ -147,12 +164,9 @@ async function regRefresh() {
       return;
     }
 
-    // 2. Adaptive Record Mapping Extraction
-    // Accommodates the structure whether it's keyed as 'record' or falls back to 'affectedItems'
     const updatedRecord = payload.record || (Array.isArray(payload.affectedItems) ? payload.affectedItems[0] : payload.affectedItems);
 
     if (updatedRecord) {
-      // 3. Reactive UI State Mutation Loop
       Object.keys(formValues).forEach((key) => {
         if (typeof updatedRecord[key] !== 'undefined') {
           if (Array.isArray(updatedRecord[key])) {
@@ -163,31 +177,29 @@ async function regRefresh() {
         }
       });
       dialog_success.value = payload.msg || "Selected platform successfully retrieved.";
-
-      // 4. Force state re-evaluation for UI inputs
       changeRelease();
     } else {
       dialog_error.value = "Server returned success but no platform records could be parsed.";
     }
   } catch (error) {
-    console.error("Error running hardware registry refresh:", error);
+    console.error("Error running registry refresh:", error);
     dialog_error.value = "An error occurred while refreshing registry data.";
   }
 }
-
 </script>
 
 <template>
   <!-- Pure form content block. No BaseDialogLayout, no outer v-card -->
   <v-form ref="formRef" @submit.prevent="submitForm">
-    
-    
+
+
     <v-row align="center">
       <v-col :sm="formFields['name'].cols" cols="12">
         <v-text-field v-model="formValues['name']" :label="formFields['name'].label" hide-details />
       </v-col>
       <v-col :sm="formFields['abbrev'].cols" cols="12">
-        <v-text-field v-model="formValues['abbrev']" :label="formFields['abbrev'].label" :hint="formFields['abbrev'].helperText" persistent-hint />
+        <v-text-field v-model="formValues['abbrev']" :label="formFields['abbrev'].label"
+          :hint="formFields['abbrev'].helperText" persistent-hint />
       </v-col>
     </v-row>
 
@@ -195,70 +207,102 @@ async function regRefresh() {
     <v-row align="center" class="mt-2">
       <v-col cols="12">
         <v-row class="align-center ma-0 pa-0">
-          <v-col v-if="opType == 'Add'" class="pa-0">
-            <v-text-field v-model="formValues['cur_release']" :label="formFields['cur_release'].label" :rules="[requiredRule]" />
-          </v-col>
-          <v-col v-else-if="formFields['releases'].options.length <= 1" class="flex-grow-1 pa-0">
-            <v-text-field v-model="formValues['cur_release']" :value="formFields['releases'].options" :label="formFields['cur_release'].label" :rules="[requiredRule]" />
-          </v-col>
-          <v-col v-else-if="formFields['releases'].options.length > 1" class="flex-grow-1 pa-0">
-            <v-select v-model="formValues['cur_release']" :items="formValues['reg_releases']" :label="formFields['cur_release'].label" :rules="[requiredRule]" @update:modelValue="changeRelease" />
+          <v-col cols="auto" class="pa-0">
+            <!-- Add mode: clean text input -->
+            <v-text-field v-if="opType == 'Add'" v-model="formValues['cur_release']"
+              :label="formFields['cur_release'].label" :clearable="false" density="compact" style="width: 140px;"
+              :rules="[requiredRule]" hide-details="auto" />
+
+            <!-- Edit mode: native Vuetify v-select with centered selection & menu items -->
+            <v-select v-else v-model="formValues['cur_release']" :items="releaseOptions"
+              :label="formFields['cur_release'].label" :clearable="false" density="compact" style="width: 140px;"
+              :rules="[requiredRule]" hide-details="auto" @update:modelValue="changeRelease">
+              <template #selection>
+                <span class="text-center d-inline-block" style="width: 84px;">
+                  {{ formValues['cur_release'] }}
+                </span>
+              </template>
+              <template #item="{ props: itemProps }">
+                <v-list-item v-bind="itemProps" class="text-center pe-12" />
+              </template>
+            </v-select>
+
+
           </v-col>
 
-          <v-col v-if="opType == 'Edit'" class="d-flex align-center flex-grow-1 py-0 ps-4 pe-0">
-            <ToggleIcon v-model="formValues['is_selected']" :toggleable="formValues['is_selected'] == 'Inactive'" :size="36" @update:modelValue="changeSelected" />
+          <v-col v-if="opType == 'Edit'" class="d-flex align-center py-0 ps-4 pe-0">
+            <ToggleIcon v-model="formValues['is_selected']" :toggleable="formValues['is_selected'] == 'Inactive'"
+              :size="36" @update:modelValue="changeSelected" />
             <strong class="text-body-2 ms-2">Currently Selected Release</strong>
           </v-col>
         </v-row>
       </v-col>
     </v-row>
 
-    <!-- ROW 3: Endpoint Connectivity Routing -->
+
+    <!-- ROW 3: Endpoint Connectivity Routing & Content Provider -->
     <v-row class="mt-2">
-      <v-col :sm="formFields['service_url'].cols" cols="12">
-        <v-text-field v-model="formValues['service_url']" :label="formFields['service_url'].label" :hint="formFields['service_url'].helperText" :readonly="formValues['refreshable'] == 'Active'" persistent-hint />
+      <v-col cols="12">
+        <v-text-field v-model="formValues['service_url']" :label="formFields['service_url'].label"
+          :hint="formFields['service_url'].helperText" :readonly="formValues['refreshable'] == 'Active'"
+          persistent-hint />
       </v-col>
-      <v-col :sm="formFields['platform_parm'].cols" cols="12">
-        <v-text-field v-model="formValues['platform_parm']" :label="formFields['platform_parm'].label" :hint="formFields['platform_parm'].helperText" persistent-hint />
+      <v-col cols="12" sm="6">
+        <v-text-field v-model="formValues['platform_parm']" :label="formFields['platform_parm'].label"
+          :hint="formFields['platform_parm'].helperText" persistent-hint />
+      </v-col>
+      <v-col cols="12" sm="6">
+        <v-text-field v-model="formValues['content_provider']"
+          :label="formFields['content_provider']?.label || 'Content Provider'" />
       </v-col>
     </v-row>
+
 
     <!-- ROW 4: Relational Matrix Configurations -->
     <v-row class="mt-2">
       <v-col cols="12" sm="6">
-        <v-list density="compact" class="bg-transparent pa-0">
-          <v-list-item class="px-0 py-1">
+        <v-sheet class="border border-opacity-25 rounded bg-transparent pa-3 h-100">
+          <div class="text-center pb-2">
             <strong class="text-subtitle-2 text-primary text-uppercase font-weight-bold">Connection Fields</strong>
-          </v-list-item>
-          <v-list-item v-for="cnx in props.schema.options['all_connectors']" :key="cnx.name" class="px-0 py-0">
-            <v-checkbox v-model="formValues['connector_state'][cnx.name]" :label="cnx.label" density="compact" color="primary" hide-details @change="changeConnector" />
-          </v-list-item>
-        </v-list>
+          </div>
+          <v-divider class="mb-2 border-opacity-25" />
+          <div v-for="cnx in props.schema.options['all_connectors']" :key="cnx.name" class="ps-8">
+            <v-checkbox v-model="formValues['connector_state'][cnx.name]" :label="cnx.label" density="compact"
+              color="primary" hide-details @change="changeConnector" />
+          </div>
+        </v-sheet>
       </v-col>
+
       <v-col cols="12" sm="6">
-        <v-list density="compact" class="bg-transparent pa-0">
-          <v-list-item class="px-0 py-1">
+        <v-sheet class="border border-opacity-25 rounded bg-transparent pa-3 h-100">
+          <div class="text-center pb-2">
             <strong class="text-subtitle-2 text-primary text-uppercase font-weight-bold">Supported Reports</strong>
-          </v-list-item>
-          <v-list-item v-for="rpt in props.schema.options['master_reports']" :key="rpt.name" class="px-0 py-0">
-            <v-checkbox v-model="formValues['report_state'][rpt.name]" :label="rpt.name" density="compact" color="primary" hide-details @change="changeReport" />
-          </v-list-item>
-        </v-list>
+          </div>
+          <v-divider class="mb-2 border-opacity-25" />
+          <div v-for="rpt in props.schema.options['master_reports']" :key="rpt.name" class="ps-8">
+            <v-checkbox v-model="formValues['report_state'][rpt.name]" :label="rpt.name" density="compact"
+              color="primary" hide-details @change="changeReport" />
+          </div>
+        </v-sheet>
       </v-col>
     </v-row>
+
 
     <!-- ROW 5: Orchestration Toggles & Harvest Timing -->
     <v-row align="center" class="mt-4 ga-4">
       <v-col :sm="formFields['day_of_month'].cols" cols="12" class="d-flex align-center">
-        <strong class="text-body-2 text-no-wrap text-medium-emphasis mr-2">Run Harvests Monthly on day:</strong>
-        <v-text-field v-model="formValues['day_of_month']" :label="formFields['day_of_month'].label" input-class="text-center" type="number" :rules="[dayRules.required, dayRules.validDay]" style="max-width: 90px;" hide-details />
+        <strong class="text-body-2 text-no-wrap text-medium-emphasis mr-2">Monthly harvest day:</strong>
+        <v-number-input v-model.number="formValues['day_of_month']" :min="1" :max="28" :clearable="false"
+          control-variant="split" density="compact" :rules="[dayRules.required, dayRules.validDay]"
+          style="max-width: 135px;" hide-details="auto" />
       </v-col>
-      
+
+
       <v-col cols="auto" class="d-flex align-center">
         <ToggleIcon v-model="formValues.status" toggleable :size="36" />
         <strong class="text-body-2 ms-2 text-medium-emphasis">{{ formFields.status.label }}</strong>
       </v-col>
-      
+
       <v-col cols="auto" class="d-flex align-center">
         <ToggleIcon v-model="formValues['refreshable']" toggleable :size="36" />
         <strong class="text-body-2 ms-2 text-medium-emphasis">{{ formFields['refreshable'].label }}</strong>
@@ -282,8 +326,7 @@ async function regRefresh() {
     <!-- ROW 7: In-line Notification Warnings -->
     <v-row v-if="dialog_success || dialog_error" class="mt-2">
       <v-col cols="12">
-        <v-alert v-if="dialog_success" type="success" variant="tonal" class="mb-2" :text="dialog_success" />
-        <v-alert v-if="dialog_error" type="error" variant="tonal" class="mb-2" :text="dialog_error" />
+        <StatusAlerts v-model:success="dialog_success" v-model:failure="dialog_error" mode="modal" />
       </v-col>
     </v-row>
 
@@ -301,3 +344,8 @@ async function regRefresh() {
 
   </v-form>
 </template>
+<style scoped>
+.centered-number :deep(input) {
+  text-align: center;
+}
+</style>
