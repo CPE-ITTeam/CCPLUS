@@ -1859,9 +1859,10 @@ const rawTableSetup = {
         get label() {
           return t("fields.platform");
         },
-        options: "fromURL",
+        truncate: 20,
         editable: false,
       },
+
       {
         name: "inst_name",
         get label() {

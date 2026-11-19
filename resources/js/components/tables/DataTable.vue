@@ -271,26 +271,29 @@ function closeErrorDialog() {
           {{ item[field] }}
         </span>
       </template>
-
-      <!-- 4. INACTIVE RECORD ENTRIES LOOP -->
-      <template v-for="key in ['platform', 'institution']" #[`item.${key}`]="{ item }">
-        <span :class="{ 'text-disabled font-italic': item[key === 'platform' ? 'plat_active' : 'inst_active'] === 0 }">
-          {{ item[key] }}
+      <!-- 4. INACTIVE RECORD ENTRIES & TRUNCATED NAMES LOOP -->
+      <template v-for="key in ['platform', 'prov_name', 'institution']" #[`item.${key}`]="{ item }">
+        <span
+          :title="item[key]"
+          :class="{ 'text-disabled font-italic': (key === 'platform' || key === 'prov_name') ? item.plat_active === 0 : item.inst_active === 0 }"
+        >
+          {{ formatTruncatedDisplay(item[key], 40) }}
         </span>
       </template>
-            <!-- statusDot Key Indicator -->
+
+      <!-- statusDot Key Indicator -->
       <template #item.statusDot="{ item }">
         <v-icon :title="item.d_status" :color="item.error?.color || 'disabled'">mdi-record</v-icon>
       </template>
 
       <!-- Harvest ID Data Field Control Box -->
       <template #item.harvest_id="{ item }">
-        <div class="d-flex align-center ga-1">
-          <span v-if="item.rawfile != null">
-            {<v-btn size="small" density="compact" class="text-primary text-none px-0" :title="item.harvest_id"
-              @click="ccRawJson(item.harvest_id)">{{ $t('tables.download_json') }}</v-btn>}
-          </span>
-          <span v-else>{{ item.harvest_id }}</span>
+        <div class="d-flex align-center justify-end ga-1">
+          <span>{{ item.harvest_id }}</span>
+
+          <v-btn v-if="item.rawfile != null" icon="mdi-code-json" variant="text" size="small"
+            density="comfortable" color="primary" :title="$t('tables.download_json')"
+            :aria-label="$t('tables.download_json')" @click="ccRawJson(item.harvest_id)" />
 
           <v-btn icon="mdi-barley" variant="text" size="small" density="comfortable" color="info"
             :title="$t('tables.manual_retry_title')" :aria-label="$t('tables.manual_retry_aria')"
@@ -318,9 +321,8 @@ function closeErrorDialog() {
       <template v-for="header in computedHeaders.filter(h => h.truncate > 0)" :key="header.key"
         #[`item.${header.key}`]="{ value }">
         <span v-if="value === '-required-'" class="text-warning font-italic">{{ value }}</span>
-        <span v-else>{{ formatTruncatedDisplay(value, header.truncate) }}</span>
+        <span v-else :title="value">{{ formatTruncatedDisplay(value, header.truncate) }}</span>
       </template>
-
 
       <!-- Row Level Operations Action Matrix Column -->
       <template #item.actions="{ item }">

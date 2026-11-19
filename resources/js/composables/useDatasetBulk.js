@@ -176,13 +176,20 @@ export function useDatasetBulk({
               dtKey.value++;
             }
           }
-        } else if (data.action === "Restart" || data.action === "Pause") {
+        } else if (data.action.startsWith("Restart") || data.action === "Pause") {
           resData.affectedItems?.forEach((newItem) => {
             const idx = itemsList.findIndex((ii) => ii.id == newItem.id);
-            if (idx >= 0) itemsList.splice(idx, 1, newItem);
+            if (idx >= 0) {
+              if (root === "/api/harvests" && newItem.status === "Queued") {
+                itemsList.splice(idx, 1);
+              } else {
+                itemsList.splice(idx, 1, newItem);
+              }
+            }
           });
           if (typeof updateItems === "function") updateItems();
           dtKey.value++;
+
         } else if (data.action.includes(" Validat")) {
           itemsList
             .filter((aitm) => resData.affectedIds.includes(aitm.id))

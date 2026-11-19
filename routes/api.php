@@ -112,20 +112,22 @@ Route::middleware('ccplusAuth')->group(function () {
     });
     Route::prefix('harvests')->group(function () {
         Route::get('/get', 'App\Http\Controllers\HarvestLogController@index')->name('harvests.index');
-        Route::post('/getItems', 'App\Http\Controllers\HarvestLogController@getItems')->name('harvests.items');
+        Route::post('/getItems', 'App\Http\Controllers\HarvestLogController@index')->name('harvests.items');
         Route::get('/options', 'App\Http\Controllers\HarvestLogController@create')->name('harvests.options');
         Route::post('/store', 'App\Http\Controllers\HarvestLogController@store')->name('harvests.store');
         Route::delete('/delete/{harvest}', 'App\Http\Controllers\HarvestLogController@destroy')->name('harvests.destroy');
-        Route::post('/bulk', 'App\Http\Controllers\HarvestLogController@bulk')->name('harvests.bulk');
+        Route::post('/bulk', 'App\Http\Controllers\HarvestLogController@bulkAction')->name('harvests.bulk');
         Route::get('/raw/{harvest}', 'App\Http\Controllers\HarvestLogController@downloadRaw')->name('harvests.downloadRaw');
     });
+
     Route::prefix('jobs')->group(function () {
         Route::get('/get', 'App\Http\Controllers\HarvestLogController@harvestQueue')->name('jobs.index');
-        Route::post('/getItems', 'App\Http\Controllers\HarvestLogController@getItems')->name('jobs.items');
+        Route::post('/getItems', 'App\Http\Controllers\HarvestLogController@harvestQueue')->name('jobs.items');
         Route::patch('/update/{harvest}', 'App\Http\Controllers\HarvestLogController@update')->name('jobs.update');
         Route::delete('/delete/{harvest}', 'App\Http\Controllers\HarvestLogController@destroy')->name('jobs.destroy');
-        Route::post('/bulk', 'App\Http\Controllers\HarvestLogController@bulk')->name('jobs.bulk');
+        Route::post('/bulk', 'App\Http\Controllers\HarvestLogController@bulkAction')->name('jobs.bulk');
     });
+
     Route::prefix('savedreports')->group(function () {
         Route::get('/get', 'App\Http\Controllers\SavedReportController@index')->name('savedreports.index');
         Route::post('/store', 'App\Http\Controllers\SavedReportController@store')->name('savedreports.store');

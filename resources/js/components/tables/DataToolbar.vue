@@ -22,41 +22,68 @@
       <div v-for="(row, index) in filter_options" :key="index" class="d-flex flex-column ga-1 flex-grow-1">
         <div v-if="index === 0" class="d-flex align-center ga-3 mb-1">
           <span class="text-caption text-uppercase font-weight-bold tracking-wider text-medium-emphasis">
-            {{ $t('tables.filter', filter_options.flatMap(r => Object.keys(r)).length) }}
+            {{ $t('tables.filter', visibleFilterCount) }}
           </span>
-          <v-btn v-if="anyFilterSet" prepend-icon="mdi-close-circle-outline" color="error" @click="$emit('setFilter', { key: 'reset' })">
+          <v-btn v-if="anyFilterSet" prepend-icon="mdi-close-circle-outline" color="error" @click="clearAllFilters">
             {{ $t('tables.clear_all') }}
           </v-btn>
-          <v-btn v-if="needsRefreshButton && consoKey != ''" prepend-icon="mdi-refresh" class="ms-2" @click="$emit('refreshRecords')">
+          <v-btn v-if="needsRefreshButton && consoKey != ''" prepend-icon="mdi-refresh" class="ms-2"
+            @click="$emit('refreshRecords')">
             {{ $t('tables.refresh_records') }}
           </v-btn>
         </div>
-        <ToolbarFilters :filters="filter_options[index]" @setFilter="handleFilter($event)" />
+        <ToolbarFilters :filters="visibleRowFilters(row)" @setFilter="handleFilter($event)" />
       </div>
     </div>
 
     <!-- TIER 2: ACTIONS PANEL -->
     <v-divider class="my-3" />
     <div class="d-flex flex-wrap align-center justify-space-between ga-4 w-100 pt-1">
-      <div class="d-flex align-center ga-3" style="min-height: 40px; min-width: 360px;">
+      <div class="d-flex align-center ga-3" style="min-height: 40px; min-width: 280px;">
         <v-expand-x-transition>
           <div v-if="props.selectedRows && props.selectedRows.length > 0" class="d-flex align-center ga-3 w-100">
-            <BulkActions v-if="props.bulkOptions?.items?.length > 0" v-model="props.bulkOptions" style="width: 280px;" @bulkAction="$emit('bulkAction', $event)" />
+            <BulkActions v-if="props.bulkOptions?.items?.length > 0" v-model="props.bulkOptions" style="width: 280px;"
+              @bulkAction="$emit('bulkAction', $event)" />
           </div>
         </v-expand-x-transition>
       </div>
 
-      <div class="d-flex align-center flex-wrap ga-2 ms-auto">
-        <ExportAndImport
-          v-if="showExportImport"
-          :showRefresh="props.dataset == 'platforms'"
-          :exportOnly="props.dataset == 'audit'"
-          :hideExport="props.hideExport"
-          @export="$emit('export')"
-          @import="importDialog = true"
-          @add="$emit('add')"
-          @refresh="$emit('bulkAction', { action: 'Full Refresh' })"
-        />
+      <!-- LIVE QUEUE STATUS FILTER BAR (Harvest Queue only, right-aligned in TIER 2) -->
+      <div v-if="props.dataset === 'jobs'" class="d-flex flex-wrap align-center ga-2 ms-auto">
+        <span v-if="lastChecked" class="text-caption text-medium-emphasis me-1">
+          {{ lastChecked }}
+        </span>
+
+        <v-chip size="small" :variant="activeStatusFilters.length === 0 ? 'flat' : 'tonal'" color="primary"
+          class="font-weight-bold cursor-pointer" title="Show all queue statuses" @click="resetStatusChips">
+          Total: {{ liveQueueTotal }}
+        </v-chip>
+
+        <v-chip v-for="item in liveStatusCounts" :key="item.status" size="small"
+          :variant="isStatusSelected(item.label) ? 'flat' : 'outlined'" :color="item.color || 'secondary'"
+          :prepend-icon="isStatusSelected(item.label) ? 'mdi-check' : 'mdi-filter-outline'"
+          class="font-weight-medium cursor-pointer" :title="`Toggle ${item.label} filter`"
+          @click="toggleStatusChip(item.label)">
+          {{ item.label }}: <strong class="ms-1">{{ item.count }}</strong>
+        </v-chip>
+
+        <span v-if="liveStatusCounts.length === 0" class="text-caption text-medium-emphasis px-1">
+          Queue empty
+        </span>
+
+        <v-divider vertical class="mx-1" />
+
+        <v-btn size="x-small" variant="tonal" :color="isPolling ? 'success' : 'secondary'"
+          :prepend-icon="isPolling ? 'mdi-broadcast' : 'mdi-pause-circle-outline'" @click="togglePolling">
+          {{ isPolling ? 'Live' : 'Paused' }}
+        </v-btn>
+      </div>
+
+      <div v-else class="d-flex align-center flex-wrap ga-2 ms-auto">
+        <ExportAndImport v-if="showExportImport" :showRefresh="props.dataset == 'platforms'"
+          :exportOnly="props.dataset == 'audit'" :hideExport="props.hideExport" @export="$emit('export')"
+          @import="importDialog = true" @add="$emit('add')"
+          @refresh="$emit('bulkAction', { action: 'Full Refresh' })" />
       </div>
     </div>
 
@@ -67,10 +94,11 @@
 </template>
 
 <script setup>
-import { ref, computed } from 'vue';
+import { ref, computed, watch, onMounted, onBeforeUnmount } from 'vue';
 import { storeToRefs } from 'pinia';
 import { useAuthStore } from '@/stores/useAuthStore.js';
 import { useCCPlusStore } from '@/stores/useCCPlusStore.js';
+import api from '@/services/api.js';
 import SearchAndSelect from '@/components/ui/SearchAndSelect.vue';
 import ToolbarFilters from './ToolbarFilters.vue';
 import BulkActions from './BulkActions.vue';
@@ -85,6 +113,7 @@ const props = defineProps({
   selectedRows: { type: Array, required: true },
   bulkOptions: { type: Object, required: true },
   hideExport: { type: Boolean, required: true },
+  queueStats: { type: Object, default: () => ({ status_counts: [], queue_total: 0 }) },
 });
 
 const authStore = useAuthStore();
@@ -92,6 +121,128 @@ const { consortia } = storeToRefs(useCCPlusStore());
 const is_serveradmin = authStore.is_serveradmin;
 const consoKey = ref(authStore.ccp_key);
 const importDialog = ref(false);
+
+const liveStatusCounts = ref([]);
+const liveQueueTotal = ref(0);
+const lastChecked = ref('');
+const isPolling = ref(true);
+const activeStatusFilters = ref([]);
+let pollTimer = null;
+
+watch(
+  () => props.queueStats,
+  (val) => {
+    if (val && Array.isArray(val.status_counts)) {
+      liveStatusCounts.value = val.status_counts;
+      liveQueueTotal.value = val.queue_total ?? val.status_counts.reduce((sum, s) => sum + (s.count || 0), 0);
+    }
+  },
+  { immediate: true, deep: true }
+);
+
+function visibleRowFilters(row) {
+  if (props.dataset !== 'jobs') return row;
+  const copy = { ...row };
+  delete copy.statuses;
+  return copy;
+}
+
+const visibleFilterCount = computed(() =>
+  filter_options.value.flatMap((r) => Object.keys(visibleRowFilters(r))).length
+);
+
+function isStatusSelected(label) {
+  return activeStatusFilters.value.includes(label);
+}
+function toggleStatusChip(label) {
+  const idx = activeStatusFilters.value.indexOf(label);
+  if (idx >= 0) {
+    activeStatusFilters.value.splice(idx, 1);
+  } else {
+    activeStatusFilters.value.push(label);
+  }
+  const nextVal = [...activeStatusFilters.value];
+  handleFilter({ key: 'statuses', value: nextVal });
+  emit('setFilter', { key: 'statuses', value: nextVal, refresh: true });
+}
+
+function resetStatusChips() {
+  activeStatusFilters.value = [];
+  handleFilter({ key: 'statuses', value: [] });
+  emit('setFilter', { key: 'statuses', value: [], refresh: true });
+}
+
+function clearAllFilters() {
+  activeStatusFilters.value = [];
+  emit('setFilter', { key: 'reset', refresh: true });
+}
+
+
+async function fetchLiveQueueStatus() {
+  if (props.dataset !== 'jobs' || !isPolling.value) return;
+  try {
+    const res = await api.post('/api/jobs/getItems', { summary_only: true });
+    const data = res?.data !== undefined ? res.data : res;
+    if (data?.result) {
+      const prevTotal = liveQueueTotal.value;
+      const prevSignature = JSON.stringify(liveStatusCounts.value);
+      liveStatusCounts.value = data.status_counts || [];
+      liveQueueTotal.value = data.queue_total ?? 0;
+      lastChecked.value = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+
+      if (prevSignature !== '[]' && (prevTotal !== liveQueueTotal.value || prevSignature !== JSON.stringify(liveStatusCounts.value))) {
+        emit('refreshRecords');
+      }
+    }
+  } catch (e) {
+    // Silent background poll failure
+  }
+}
+
+function startPolling() {
+  stopPolling();
+  if (props.dataset !== 'jobs') return;
+  fetchLiveQueueStatus();
+  pollTimer = setInterval(fetchLiveQueueStatus, 5000);
+}
+
+function stopPolling() {
+  if (pollTimer) {
+    clearInterval(pollTimer);
+    pollTimer = null;
+  }
+}
+
+function togglePolling() {
+  isPolling.value = !isPolling.value;
+  if (isPolling.value) {
+    startPolling();
+  } else {
+    stopPolling();
+  }
+}
+
+watch(
+  () => props.dataset,
+  (ds) => {
+    activeStatusFilters.value = [];
+    if (ds === 'jobs' && isPolling.value) {
+      startPolling();
+    } else {
+      stopPolling();
+    }
+  }
+);
+
+onMounted(() => {
+  if (props.dataset === 'jobs' && isPolling.value) {
+    startPolling();
+  }
+});
+
+onBeforeUnmount(() => {
+  stopPolling();
+});
 
 const consoOnly = computed(() => {
   return consoKey.value == '' && is_serveradmin;
@@ -116,6 +267,7 @@ const flat_filter_options = computed(() => {
 });
 
 const anyFilterSet = computed(() => {
+  if (activeStatusFilters.value.length > 0) return true;
   let is_set = false;
   for (const key of Object.keys(flat_filter_options.value)) {
     const filter = flat_filter_options.value[key];
@@ -135,7 +287,6 @@ const anyFilterSet = computed(() => {
   }
   return is_set;
 });
-
 function handleFilter(filt) {
   let updated = false;
   filter_options.value.forEach((row, idx) => {
@@ -145,12 +296,10 @@ function handleFilter(filt) {
   });
   if (updated) emit('setFilter', filt);
 }
-
 function handleImported(data) {
   emit('imported', data);
   importDialog.value = false;
 }
-
 const emit = defineEmits([
   'updateConso',
   'update:search',

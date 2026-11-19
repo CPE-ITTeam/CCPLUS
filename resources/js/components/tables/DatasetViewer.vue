@@ -124,7 +124,9 @@ const { executeBulkAction, isBulkProcessing } = useDatasetBulk({
   updateItems: () => updateItems(), // 👈 FIXED: Lazily wrapped to prevent TDZ crash!
   startRegistryProgress,
   stopRegistryProgress
-});// ============================================================================
+});
+
+//===========================================================================
 // PART 4: COMPONENT VIEW LAYOUT COMPUTED EXPRESSIONS ONLY
 // ============================================================================
 const isEditable = computed(() => {
@@ -266,111 +268,145 @@ const loadDataset = async (datasetKey) => {
     bulkOptions.value['groups'] = [...allOptions.groups];
   }
 
-  headers.value = [{ title: "", key: "" }];
-  config.fields.forEach((fld, idx) => {
-    if (fld.name == 'fiscalYr') {
-      allOptions['fiscalYr'] = fyMonths.map((month, index) => {
-        const dateObj = new Date(2000, index, 1);
-        const fullMonthName = dateObj.toLocaleString('en-US', { month: 'long' });
+  const buildFiscalYearOptions = () =>
+    fyMonths.map((month, index) => {
+      const fullMonthName = new Date(2000, index, 1).toLocaleString('en-US', { month: 'long' });
+      return {
+        id: Number(index + 1),
+        name: month,
+        label: month,
+        fullName: fullMonthName,
+        value: month,
+        title: month,
+      };
+    });
 
-        return {
-          id: Number(index + 1),
-          name: month,
-          label: month,
-          fullName: fullMonthName,
-          value: month,
-          title: month
-        };
+  const buildHeaderEntry = (fld) => {
+    const entry = {
+      title: fld.label,
+      key: fld.name,
+      align: fld.header,
+      type: fld.type,
+      truncate: fld.truncate,
+    };
+    if (datasetKey === 'harvests' && fld.name === 'error') {
+      entry.sort = (a, b) => Number(a.id) - Number(b.id);
+    }
+    return entry;
+  };
+
+  const resolvePresentOptionItems = (rawOptions, fld) => {
+    if (!Array.isArray(rawOptions) || allItems.length === 0) return [];
+    const presentValues = new Set(
+      allItems.flatMap((itm) => itm[fld.filterCol] ?? []).map((v) => String(v).trim())
+    );
+    return rawOptions
+      .map((opt) => (typeof opt === 'string' ? opt.trim() : opt))
+      .filter((opt) => {
+        const optValue = fld.optVal && typeof opt === 'object' && opt !== null ? opt[fld.optVal] : opt;
+        return presentValues.has(String(optValue).trim());
       });
+  };
 
+  headers.value = [{ title: '', key: '' }];
+
+  config.fields.forEach((fld, idx) => {
+    if (fld.name === 'fiscalYr') {
+      allOptions.fiscalYr = buildFiscalYearOptions();
       fld.optVal = 'label';
       fld.optTxt = 'label';
     }
-    if (fld.header != null) {
-      if (datasetKey == 'harvests' && fld.name == 'error') {
-        headers.value.push({
-          title: fld.label, key: fld.name, align: fld.header, type: fld.type,
-          sort: (a, b) => { return Number(a.id) - Number(b.id); }
-        });
-      } else {
-        headers.value.push({
-          title: fld.label, key: fld.name, align: fld.header, type: fld.type, truncate: fld.truncate
-        });
-      }
+
+    if (fld.header !== null) {
+      headers.value.push(buildHeaderEntry(fld));
     }
 
-    if (fld.name == 'conso' && !is_conso_admin) return;
+    if (fld.name === 'conso' && !is_conso_admin) return;
     config.fields[idx].static = config.static.includes(fld.name);
-    const _options = (typeof (fld.options) != 'undefined') ? fld.options : [];
-    var f_options = (typeof (allOptions[fld.name]) != 'undefined') ? allOptions[fld.name] : _options;
 
-    if ((fld.type == 'select' || fld.type == 'mselect' || fld.type == 'selectObj' || fld.type == 'toggle') &&
-      (fld.options == 'fromURL' || fld.name == 'fiscalYr') && typeof (allOptions[fld.name]) != 'undefined') {
-      let f_options = [];
-      let _showIt = false;
-      let initVal = (fld.type == 'mselect') ? [] : null;
-      const isSinglePrimitive = Array.isArray(allOptions[fld.name]) &&
+    const fallbackOptions = fld.options ?? [];
+    const sourceOptions = allOptions[fld.name] ?? fallbackOptions;
+    const isSelectLike = ['select', 'mselect', 'selectObj', 'toggle'].includes(fld.type);
+
+    if (isSelectLike && (fld.options === 'fromURL' || fld.name === 'fiscalYr') && allOptions[fld.name] !== undefined) {
+      const urlOptions = allOptions[fld.name];
+      const isSinglePrimitive =
+        Array.isArray(urlOptions) &&
         fld.type !== 'mselect' &&
-        ((props.datasetKey == 'roles' && fld.name == 'role') ||
-          typeof (fld.optTxt) == 'undefined' || typeof (fld.optVal) == 'undefined');
+        ((props.datasetKey === 'roles' && fld.name === 'role') ||
+          fld.optTxt === undefined ||
+          fld.optVal === undefined);
+
+      let items = [];
+      let show = false;
 
       if (refreshable.includes(datasetKey)) {
-        f_options = [...allOptions[fld.name]];
-        _showIt = true;
-      } else if (fld.name == 'fiscalYr') {
-        f_options = [...allOptions[fld.name]];
-        _showIt = fld.isFilter;
-      } else if (allItems.length > 0 && Array.isArray(allOptions[fld.name])) {
-        const presentValues = allItems
-          .flatMap(itm => itm[fld.filterCol] ?? [])
-          .map(v => String(v).trim());
-        f_options = allOptions[fld.name]
-          .map(opt => (typeof opt === 'string' ? opt.trim() : opt))
-          .filter((opt) => {
-            const optValue = (fld.optVal && typeof opt === 'object' && opt !== null) ? opt[fld.optVal] : opt;
-            return presentValues.includes(String(optValue).trim());
-          });
-        _showIt = (f_options.length == 0 && !refreshable.includes(datasetKey)) ? false : fld.isFilter;
+        items = [...urlOptions];
+        show = true;
+      } else if (fld.name === 'fiscalYr') {
+        items = [...urlOptions];
+        show = fld.isFilter;
+      } else {
+        items = resolvePresentOptionItems(urlOptions, fld);
+        show = items.length === 0 ? false : fld.isFilter;
       }
 
       filterOptions[fld.name] = {
-        'name': fld.name,
-        'label': fld.label,
-        'type': isSinglePrimitive ? 'text' : fld.type,
-        'val': fld.optVal,
-        'txt': fld.optTxt,
-        'show': isSinglePrimitive ? fld.isFilter : _showIt,
-        'col': fld.filterCol,
-        'items': [...f_options],
-        'value': initVal
+        name: fld.name,
+        label: fld.label,
+        type: isSinglePrimitive ? 'text' : fld.type,
+        val: fld.optVal,
+        txt: fld.optTxt,
+        show: isSinglePrimitive ? fld.isFilter : show,
+        col: fld.filterCol,
+        items,
+        value: fld.type === 'mselect' ? [] : null,
       };
-    } else if (fld.type == 'toggle' && fld.isFilter && f_options.length > 0) {
+    } else if (fld.type === 'toggle' && fld.isFilter && sourceOptions.length > 0) {
       filterOptions[fld.name] = {
-        'name': fld.name, 'label': fld.label, 'type': 'toggle', 'show': fld.isFilter, 'col': fld.filterCol,
-        'items': [...f_options], 'value': f_options
+        name: fld.name,
+        label: fld.label,
+        type: 'toggle',
+        show: fld.isFilter,
+        col: fld.filterCol,
+        items: [...sourceOptions],
+        value: sourceOptions,
       };
-    } else if (fld.isFilter && (fld.type == 'text' || fld.type == 'mtext')) {
-      filterOptions[fld.name] = { 'name': fld.name, 'label': fld.label, 'type': fld.type, 'show': true, 'col': fld.filterCol };
-      filterOptions[fld.name]['value'] = (fld.type == 'text') ? null : [];
-      if (allItems.length > 0 && Array.isArray(allOptions[fld.name])) {
-        f_options = allOptions[fld.name].filter(
-          opt => allItems.flatMap(itm => itm[fld.filterCol]).includes(opt[fld.optVal])
-        );
-      }
-      filterOptions[fld.name]['items'] = (fld.options == 'fromURL' && Array.isArray(allOptions[fld.name]))
-        ? [...allOptions[fld.name]] : [...fld.options];
+    } else if (fld.isFilter && (fld.type === 'text' || fld.type === 'mtext')) {
+      const items =
+        fld.options === 'fromURL' && Array.isArray(allOptions[fld.name])
+          ? [...allOptions[fld.name]]
+          : [...fld.options];
+
+      filterOptions[fld.name] = {
+        name: fld.name,
+        label: fld.label,
+        type: fld.type,
+        show: true,
+        col: fld.filterCol,
+        value: fld.type === 'text' ? null : [],
+        items,
+      };
     } else if (Array.isArray(fld.options)) {
-      if (allItems.length > 0) {
-        f_options = fld.options.filter(
-          opt => allItems.flatMap(itm => itm[fld.filterCol]).includes(opt[fld.optVal])
-        );
-      }
+      const items =
+        allItems.length > 0
+          ? fld.options.filter((opt) => allItems.flatMap((itm) => itm[fld.filterCol]).includes(opt[fld.optVal]))
+          : fld.options;
+
       filterOptions[fld.name] = {
-        'name': fld.name, 'label': fld.label, 'type': fld.type, 'val': fld.optVal, 'txt': fld.optTxt,
-        'show': fld.isFilter, 'col': fld.filterCol, 'items': [...f_options], 'value': null
+        name: fld.name,
+        label: fld.label,
+        type: fld.type,
+        val: fld.optVal,
+        txt: fld.optTxt,
+        show: fld.isFilter,
+        col: fld.filterCol,
+        items: [...items],
+        value: null,
       };
     }
   });
+
 
 
   searchFields.value = config.fields.filter(fld => fld.searchable).map(f => f.name);
@@ -737,116 +773,186 @@ async function handleBulk(data) {
   dtLoading.value = false;
 }
 
-function handleFilter(filt) {
-  if (filt.key == 'reset') {
-    selectedRows.value = [];
-    for (const key of Object.keys(filterOptions)) {
-      if (key.includes('institution')) {
-        if (typeof (filterOptions.group) != 'undefined') filterOptions.group.show = true;
-        if (typeof (filterOptions.groups) != 'undefined') filterOptions.groups.show = true;
-      }
-      if (key.includes('group')) {
-        if (typeof (filterOptions.institution) != 'undefined') filterOptions.institution.show = true;
-        if (typeof (filterOptions.institutions) != 'undefined') filterOptions.institutions.show = true;
-      }
-      if (filterOptions[key]['items'].length == 0) filterOptions[key]['show'] = false;
-      if (!filterOptions[key]['show']) continue;
-      if (Array.isArray(filterOptions[key]['value'])) {
-        filterOptions[key]['value'] = [];
-      } else if (filterOptions[key]['value']) {
-        filterOptions[key]['value'] = (filterOptions[key]['type'] == 'toggle') ? 'Inactive' : null;
-      }
-    }
-    updateItems();
-    dtKey.value++;
-  } else if (typeof (filterOptions[filt.key]['value']) != 'undefined') {
-    filterOptions[filt.key]['value'] = filt.value;
-    if (filt.key.includes('institution') || filt.key.includes('group')) {
-      let cleared = Array.isArray(filterOptions[filt.key]['value'])
-        ? filterOptions[filt.key]['value'].length == 0
-        : (filterOptions[filt.key]['value'] == null || filterOptions[filt.key]['value'] == "");
-      if (filt.key.includes('institution')) {
-        if (typeof (filterOptions.group) != 'undefined') filterOptions.group.show = cleared;
-        if (typeof (filterOptions.groups) != 'undefined') filterOptions.groups.show = cleared;
-      }
-      if (filt.key.includes('group')) {
-        if (typeof (filterOptions.institution) != 'undefined') filterOptions.institution.show = cleared;
-        if (typeof (filterOptions.institutions) != 'undefined') filterOptions.institutions.show = cleared;
-      }
-    }
-    updateItems();
-    dtKey.value++;
-  }
+function syncMutualInstitutionGroupVisibility() {
+  const instVal = filterOptions.institutions?.value ?? filterOptions.institution?.value;
+  const grpVal = filterOptions.groups?.value ?? filterOptions.group?.value;
+
+  const hasInst = Array.isArray(instVal) ? instVal.length > 0 : Boolean(instVal);
+  const hasGrp = Array.isArray(grpVal) ? grpVal.length > 0 : Boolean(grpVal);
+
+  if (filterOptions.group) filterOptions.group.show = !hasInst && (filterOptions.group.items?.length > 0);
+  if (filterOptions.groups) filterOptions.groups.show = !hasInst && (filterOptions.groups.items?.length > 0);
+  if (filterOptions.institution) filterOptions.institution.show = !hasGrp && (filterOptions.institution.items?.length > 0);
+  if (filterOptions.institutions) filterOptions.institutions.show = !hasGrp && (filterOptions.institutions.items?.length > 0);
 }
 
-function updateItems() {
-  if (allItems.length == 0) return;
-  if (props.datasetKey == 'harvests') {
-    filteredItems.splice(0, filteredItems.length);
+function handleFilter(filt) {
+  const shouldServerRefresh =
+    filt.refresh ||
+    props.datasetKey === 'jobs' ||
+    (props.datasetKey === 'harvests' && truncated.value);
+
+  if (filt.key === 'reset') {
+    selectedRows.value = [];
+    for (const key of Object.keys(filterOptions)) {
+      const f = filterOptions[key];
+      if (!f) continue;
+      if (Array.isArray(f.items) && f.items.length === 0) {
+        f.show = false;
+        continue;
+      }
+      if (Array.isArray(f.value)) {
+        f.value = [];
+      } else if (f.value !== null && f.value !== undefined) {
+        f.value = f.type === 'toggle' ? 'Inactive' : null;
+      }
+      f.show = true;
+    }
+    syncMutualInstitutionGroupVisibility();
+    if (shouldServerRefresh) {
+      refreshData(props.datasetKey);
+    } else {
+      updateItems();
+      dtKey.value++;
+    }
     return;
   }
 
-  var filterResult = [...allItems];
+  if (!filterOptions[filt.key] && props.datasetKey === 'jobs' && filt.key === 'statuses') {
+    filterOptions.statuses = {
+      name: 'statuses',
+      type: 'mselect',
+      col: 'd_status',
+      show: false,
+      items: [],
+      value: [],
+    };
+  }
+
+  const target = filterOptions[filt.key];
+  if (!target || target.value === undefined) return;
+
+  target.value = filt.value;
+
+  if (filt.key.includes('institution') || filt.key.includes('group')) {
+    syncMutualInstitutionGroupVisibility();
+  }
+
+  if (shouldServerRefresh) {
+    refreshData(props.datasetKey);
+  } else {
+    updateItems();
+    dtKey.value++;
+  }
+}
+
+
+function matchesFilter(item, filter) {
+  if (!filter || !filter.show) return true;
+  if (Array.isArray(filter.value) && filter.value.length === 0) return true;
+  if (!Array.isArray(filter.value) && !filter.value) return true;
+
+  if (filter.type === 'select' || filter.type === 'text') {
+    if (Array.isArray(item[filter.col])) {
+      return item[filter.col].some((f) => f == filter.value);
+    }
+    return item[filter.col] == filter.value;
+  }
+
+  if (filter.type === 'toggle') {
+    return filter.value === 'Active' ? Boolean(item[filter.col]) : true;
+  }
+
+  if (filter.type === 'mselect' || filter.type === 'mtext') {
+    const targets = Array.isArray(filter.value)
+      ? filter.value.map((v) => String(v).trim().toLowerCase())
+      : [String(filter.value).trim().toLowerCase()];
+
+    let itemValues = [];
+    if (Array.isArray(item[filter.col])) {
+      itemValues = item[filter.col].map((v) => String(v).trim().toLowerCase());
+    } else if (item[filter.col] !== undefined && item[filter.col] !== null) {
+      itemValues = String(item[filter.col]).split(',').map((v) => v.trim().toLowerCase());
+    }
+
+    if (filter.col === 'group_string' || filter.col === 'group_ids') {
+      const fallbackIds = Array.isArray(item.group_ids)
+        ? item.group_ids.map((v) => String(v).trim())
+        : item.group_ids
+          ? String(item.group_ids).split(',').map((v) => v.trim())
+          : [];
+      if (fallbackIds.some((id) => targets.includes(id))) return true;
+    }
+
+    return itemValues.some((val) => targets.includes(val));
+  }
+
+  return true;
+}
+
+function syncFilterOptionItems() {
+  if (allItems.length === 0) return;
 
   for (const key of Object.keys(filterOptions)) {
     const filter = filterOptions[key];
-    if (!filter.show) continue;
-    if (filterResult.length == 0) break;
+    const source = allOptions[key];
+    if (!filter || !Array.isArray(source)) continue;
+    if (props.datasetKey === 'jobs' && key === 'statuses') continue;
 
-    if (Array.isArray(filter.value)) {
-      if (filter.value.length == 0) continue;
-    } else if (!filter.value) {
+    // When the dataset is truncated (>500/2500 rows on server), keep the full server-provided options
+    if (truncated.value) {
+      filter.items = [...source];
+      filter.show = filter.items.length > 0;
       continue;
     }
 
-    if (filter.type == 'select' || filter.type == 'text') {
-      if (Array.isArray(allItems[filter.col])) {
-        filterResult = filterResult.filter(item => item[filter.col] && item[filter.col].some(f => f == filter.value));
-      } else {
-        filterResult = filterResult.filter(item => item[filter.col] == filter.value);
-      }
-    } else if (filter.type == 'toggle') {
-      if (filter.value == 'Active') {
-        filterResult = filterResult.filter(item => (item[filter.col]));
-      }
-      if (filter.col == 'is_conso' && typeof (filterOptions.platforms) != 'undefined') {
-        filterOptions.platforms.items = (filter.value == 'Active')
-          ? filterOptions.platforms.items.filter(itm => itm.is_conso) : [...allOptions.platforms];
-      }
-    } else if (filter.type == 'mselect' || filter.type == 'mtext') {
-      // ─── DEFENSIVE MULTI-SELECT FILTERING ───
-      const targetFilterValues = Array.isArray(filter.value)
-        ? filter.value.map(v => String(v).trim().toLowerCase())
-        : [String(filter.value).trim().toLowerCase()];
+    // Filter allItems by every OTHER active filter so this dropdown self-limits to valid choices
+    const pool = allItems.filter((item) =>
+      Object.keys(filterOptions).every((otherKey) =>
+        otherKey === key ? true : matchesFilter(item, filterOptions[otherKey])
+      )
+    );
 
-      filterResult = filterResult.filter(item => {
-        let itemValues = [];
+    const presentValues = new Set(
+      pool.flatMap((itm) => itm[filter.col] ?? []).map((v) => String(v).trim())
+    );
 
-        // 1. Unpack arrays or strings safely into strings to handle all column shapes
-        if (Array.isArray(item[filter.col])) {
-          itemValues = item[filter.col].map(v => String(v).trim().toLowerCase());
-        } else if (item[filter.col] !== undefined && item[filter.col] !== null) {
-          itemValues = String(item[filter.col]).split(',').map(v => v.trim().toLowerCase());
-        }
-
-        // 2. Failsafe intersection for cross-relational columns like group_ids / group_string
-        if (filter.col === 'group_string' || filter.col === 'group_ids') {
-          let fallbackIds = Array.isArray(item.group_ids)
-            ? item.group_ids.map(v => String(v).trim())
-            : (item.group_ids ? String(item.group_ids).split(',').map(v => v.trim()) : []);
-
-          if (fallbackIds.some(id => targetFilterValues.includes(id))) return true;
-        }
-
-        // 3. Return true if there's any matching value between selected filters and the row item
-        return itemValues.some(val => targetFilterValues.includes(val));
+    filter.items = source
+      .map((opt) => (typeof opt === 'string' ? opt.trim() : opt))
+      .filter((opt) => {
+        const optValue = filter.val && typeof opt === 'object' && opt !== null ? opt[filter.val] : opt;
+        return presentValues.has(String(optValue).trim());
       });
-    }
+
+    filter.show = filter.items.length > 0;
   }
 
-  // Mutate the final visual pool array securely in place
-  filteredItems.splice(0, filteredItems.length, ...filterResult);
+  syncMutualInstitutionGroupVisibility();
 }
+
+
+function updateItems() {
+  if (allItems.length === 0) return;
+
+  const filterResult = allItems.filter((item) =>
+    Object.keys(filterOptions).every((key) => matchesFilter(item, filterOptions[key]))
+  );
+
+  if (
+    filterOptions.is_conso?.type === 'toggle' &&
+    typeof filterOptions.platforms !== 'undefined' &&
+    Array.isArray(allOptions.platforms)
+  ) {
+    filterOptions.platforms.items =
+      filterOptions.is_conso.value === 'Active'
+        ? allOptions.platforms.filter((itm) => itm.is_conso)
+        : [...allOptions.platforms];
+  }
+
+  filteredItems.splice(0, filteredItems.length, ...filterResult);
+  syncFilterOptionItems();
+}
+
 
 async function reportToggleSubmit(data) {
   let a_idx = allItems.findIndex(ii => ii.id == data.id);
@@ -963,10 +1069,12 @@ watch(locale, () => {
           key: fld.name,
           align: fld.header,
           type: fld.type,
+          truncate: fld.truncate,
         });
       }
     }
   });
+
 
   // Also refresh filter labels when locale changes
   Object.keys(filterOptions).forEach((key) => {
@@ -1071,7 +1179,7 @@ watch(locale, () => {
 
           <template #actions>
             <v-btn @click="handleBulk({ action: 'Set Institution Type', type_id: newType.id })">{{ $t('common.save')
-              }}</v-btn>
+            }}</v-btn>
             <v-btn variant="text" class="ml-2" @click="handleFormCancel">{{ $t('common.cancel') }}</v-btn>
           </template>
         </BaseDialogLayout>
