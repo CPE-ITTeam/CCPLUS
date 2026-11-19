@@ -176,7 +176,15 @@ const refreshData = async (datasetKey) => {
   const config = datasetConfig[datasetKey];
   dtLoading.value = true;
   let _filters = {};
-  Object.keys(filterOptions).forEach(key => { _filters[key] = filterOptions[key]['value']; });
+  Object.keys(filterOptions).forEach((key) => {
+    if (filterOptions[key]?.type === 'ymrange') {
+      const val = filterOptions[key].value || {};
+      _filters.fromYM = val.fromYM || '';
+      _filters.toYM = val.toYM || '';
+    } else {
+      _filters[key] = filterOptions[key]['value'];
+    }
+  });
   try {
     if (consoKey.value == '' && datasetKey != 'consortia') return;
     const isGlobalTable = config.urlRoot.includes('/global') ||
@@ -203,6 +211,7 @@ const refreshData = async (datasetKey) => {
   }
   dtLoading.value = false;
 };
+
 
 const loadDataset = async (datasetKey) => {
   const config = datasetConfig[datasetKey];
@@ -316,7 +325,6 @@ const loadDataset = async (datasetKey) => {
       fld.optVal = 'label';
       fld.optTxt = 'label';
     }
-
     if (fld.header !== null) {
       headers.value.push(buildHeaderEntry(fld));
     }
@@ -386,6 +394,16 @@ const loadDataset = async (datasetKey) => {
         col: fld.filterCol,
         value: fld.type === 'text' ? null : [],
         items,
+      };
+    } else if (fld.isFilter && fld.type === 'ymrange') {
+      filterOptions[fld.name] = {
+        name: fld.name,
+        label: fld.label,
+        type: 'ymrange',
+        show: true,
+        col: fld.filterCol,
+        items: [],
+        value: { fromYM: '', toYM: '' },
       };
     } else if (Array.isArray(fld.options)) {
       const items =
@@ -465,6 +483,7 @@ async function handleImported(data) {
     dtKey.value++;
   }
 }
+
 
 function handleEdit(item) {
   const config = datasetConfig[props.datasetKey];
@@ -797,6 +816,11 @@ function handleFilter(filt) {
     for (const key of Object.keys(filterOptions)) {
       const f = filterOptions[key];
       if (!f) continue;
+      if (f.type === 'ymrange') {
+        f.value = { fromYM: '', toYM: '' };
+        f.show = true;
+        continue;
+      }
       if (Array.isArray(f.items) && f.items.length === 0) {
         f.show = false;
         continue;
@@ -829,7 +853,6 @@ function handleFilter(filt) {
     };
   }
 
-
   const target = filterOptions[filt.key];
   if (!target || target.value === undefined) return;
 
@@ -853,6 +876,16 @@ function matchesFilter(item, filter) {
   if (Array.isArray(filter.value) && filter.value.length === 0) return true;
   if (!Array.isArray(filter.value) && !filter.value) return true;
 
+  if (filter.type === 'ymrange') {
+    const fromYM = filter.value?.fromYM || '';
+    const toYM = filter.value?.toYM || '';
+    if (!fromYM && !toYM) return true;
+    const ym = String(item[filter.col] || '');
+    if (fromYM && ym < fromYM) return false;
+    if (toYM && ym > toYM) return false;
+    return true;
+  }
+
   if (filter.type === 'select' || filter.type === 'text') {
     const targetVal =
       typeof filter.value === 'object' && filter.value !== null
@@ -864,7 +897,6 @@ function matchesFilter(item, filter) {
     }
     return String(item[filter.col]) === String(targetVal);
   }
-
 
   if (filter.type === 'toggle') {
     return filter.value === 'Active' ? Boolean(item[filter.col]) : true;
@@ -902,9 +934,15 @@ function syncFilterOptionItems() {
 
   for (const key of Object.keys(filterOptions)) {
     const filter = filterOptions[key];
+    if (!filter) continue;
+    if (filter.type === 'ymrange') {
+      filter.show = true;
+      continue;
+    }
+
     const source = allOptions[key];
-    if (!filter || !Array.isArray(source)) continue;
-    if (props.datasetKey === 'jobs' && key === 'statuses') continue;
+    if (!Array.isArray(source)) continue;
+    if ((props.datasetKey === 'jobs' || props.datasetKey === 'harvests') && key === 'statuses') continue;
 
     // When the dataset is truncated (>500/2500 rows on server), keep the full server-provided options
     if (truncated.value) {
@@ -936,7 +974,6 @@ function syncFilterOptionItems() {
 
   syncMutualInstitutionGroupVisibility();
 }
-
 
 function updateItems() {
   if (allItems.length === 0) {

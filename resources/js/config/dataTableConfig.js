@@ -2184,15 +2184,13 @@ const rawTableSetup = {
         get label() {
           return t("fields.usage_dates");
         },
-        type: "mselect",
-        options: "fromURL",
-        optVal: "id",
-        optTxt: "name",
+        type: "ymrange",
         isFilter: true,
         filterCol: "yearmon",
         header: null,
         searchable: false,
       },
+
       {
         name: "codes",
         get label() {

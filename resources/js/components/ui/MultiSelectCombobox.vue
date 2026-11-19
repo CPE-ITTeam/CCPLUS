@@ -80,8 +80,16 @@ function toggleSelectAll() {
 </script>
 
 <template>
-  <v-combobox v-model="model" :items="items" multiple :return-object="false"
-    :placeholder="$t('common.select_item', { label: data_label })" :item-title="item_title" :item-value="item_value">
+  <v-combobox
+    v-model="model"
+    :items="items"
+    multiple
+    :return-object="false"
+    :placeholder="$t('common.select_item', { label: data_label })"
+    :item-title="item_title"
+    :item-value="item_value"
+    class="flex-grow-0"
+  >    :placeholder="$t('common.select_item', { label: data_label })" :item-title="item_title" :item-value="item_value">
     <template #label>
       {{ data_label }}
     </template>

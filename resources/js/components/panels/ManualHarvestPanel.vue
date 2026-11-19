@@ -1,16 +1,115 @@
 <!-- resources/js/components/panels/ManualHarvestPanel.vue -->
+<template>
+    <SettingsPanelShell v-if="consoKey !== ''" class="mt-4" :title="$t('routes.manual_harvest')"
+        icon="mdi-cloud-download-outline" :loading="loading" :success="success" :failure="failure" @submit="formSubmit">
+        <v-alert v-if="institution_options.length === 0" type="warning" variant="tonal"
+            :text="$t('harvest.no_institutions')" />
+        <v-alert v-else-if="available_platforms.length === 0" type="warning" variant="tonal"
+            :text="$t('harvest.no_platforms')" />
+
+        <v-row v-else class="mt-0">
+            <!-- COLUMN 1: Platforms, then Institutions / Institution Groups -->
+            <v-col cols="12" md="4" class="d-flex flex-column ga-3">
+                <SectionHeading class="mb-1">
+                    <v-icon start size="20" class="me-2" aria-hidden="true">mdi-target</v-icon>
+                    {{ $t('harvest.scope_and_platforms') }}
+                </SectionHeading>
+
+                <MultiSelectCombobox v-model="form.plat" :items="available_platforms" :label="$t('routes.platforms')"
+                    item-value="id" item-title="name" @update:model-value="onPlatChange" />
+
+                <template v-if="institution_options.length > 1">
+                    <MultiSelectCombobox v-if="group_ids.length === 0" v-model="form.inst" :items="institution_options"
+                        :label="$t('routes.institutions')" item-value="id" item-title="name"
+                        @update:model-value="onInstChange" />
+
+                    <MultiSelectCombobox v-if="form.inst.length === 0 && inst_groups.length > 0" v-model="group_ids"
+                        :items="inst_groups" :label="$t('routes.institution_groups')" item-value="id" item-title="name"
+                        @update:model-value="onGroupChange" />
+                </template>
+
+                <v-text-field v-else :model-value="inst_name" :label="$t('fields.institution')" readonly />
+            </v-col>
+
+            <!-- COLUMN 2: Reports and Dates -->
+            <v-col cols="12" md="4" class="d-flex flex-column ga-3">
+                <SectionHeading class="mb-1">
+                    <v-icon start size="20" class="me-2" aria-hidden="true">mdi-calendar-range</v-icon>
+                    {{ $t('harvest.reports_and_period') }}
+                </SectionHeading>
+
+                <v-sheet
+                    class="border border-opacity-25 rounded bg-transparent py-2 px-3 d-flex flex-column justify-center"
+                    style="min-height: 56px;">
+                    <div class="d-flex align-center justify-space-between">
+                        <strong class="text-subtitle-2 text-primary text-uppercase font-weight-bold">
+                            {{ $t('harvest.reports_to_harvest') }}
+                        </strong>
+                        <v-switch v-model="selectAllAvailableReports"
+                            :label="$t('harvest.all_available_reports', 'All Available')" color="primary"
+                            density="compact" hide-details @update:model-value="onToggleAllReportsSwitch" />
+                    </div>
+
+                    <template v-if="!selectAllAvailableReports">
+                        <v-divider class="my-2 border-opacity-25" />
+                        <div class="ps-4">
+                            <v-checkbox v-for="rpt in master_reports" :key="rpt.name" v-model="form.reports"
+                                :label="rpt.legend || rpt.name" :value="rpt.name" density="compact" color="primary"
+                                hide-details />
+                        </div>
+                    </template>
+                </v-sheet>
+
+
+                <YmRangeSelector v-model="harvestDates" :fy-start="fyMo" default-preset="fYTD" />
+            </v-col>
+
+            <!-- COLUMN 3: Queue Options -->
+            <v-col cols="12" md="4" class="d-flex flex-column ga-3">
+                <SectionHeading class="mb-1">
+                    <v-icon start size="20" class="me-2" aria-hidden="true">mdi-cog-play-outline</v-icon>
+                    {{ $t('harvest.queue_options') }}
+                </SectionHeading>
+
+                <div>
+                    <div class="text-label-medium text-uppercase font-weight-bold text-medium-emphasis mb-1">
+                        {{ $t('harvest.queue_timing') }}
+                    </div>
+                    <v-radio-group v-model="form.when" inline hide-details>
+                        <v-radio :label="$t('harvest.now')" value="now" />
+                        <v-radio :label="$t('harvest.overnight')" value="later" />
+                    </v-radio-group>
+                </div>
+
+                <v-switch v-model="form.skip_harvested" :label="$t('harvest.skip_previously_harvested')" color="primary"
+                    :true-value="1" :false-value="0" hide-details />
+            </v-col>
+        </v-row>
+
+        <template v-if="submit_enabled || selections_made" #actions>
+            <v-btn v-if="submit_enabled" type="submit" color="primary" class="px-6" :loading="loading">
+                {{ $t('common.submit') }}
+            </v-btn>
+
+            <v-btn v-if="selections_made" variant="tonal" color="secondary" @click="resetForm">
+                {{ $t('harvest.reset_selections') }}
+            </v-btn>
+        </template>
+    </SettingsPanelShell>
+</template>
+
 <script setup>
 import { ref, computed, watch, onBeforeMount } from 'vue';
 import { useI18n } from 'vue-i18n';
 import api from '@/services/api.js';
 import { useAuthStore } from '@/stores/useAuthStore.js';
-import { useReportingDates } from '@/composables/useReportingDates.js';
 import SettingsPanelShell from '@/components/ui/SettingsPanelShell.vue';
-import YmInput from '@/components/ui/YmInput.vue';
+import YmRangeSelector from '@/components/ui/YmRangeSelector.vue';
+import MultiSelectCombobox from '@/components/ui/MultiSelectCombobox.vue';
 
 const { t } = useI18n();
 const authStore = useAuthStore();
-const { fromToDates } = useReportingDates();
+const group_ids = ref([]);
 
 defineOptions({ name: 'ManualHarvestPanel', inheritAttrs: false });
 const emit = defineEmits(['newHarvests', 'updatedHarvests', 'updateConso']);
@@ -34,18 +133,7 @@ const available_reports = ref([]);
 const fields = ref([]);
 const fyMo = ref(null);
 const group_id = ref(null);
-const dateRange = ref('');
-const minYM = ref('');
-const isApplyingPreset = ref(false);
-
-const reportOptions = computed(() => [
-    { title: t('options.date_range.fYTD'), value: 'fYTD' },
-    { title: t('options.date_range.priorFy'), value: 'priorFy' },
-    { title: t('options.date_range.cYTD'), value: 'cYTD' },
-    { title: t('options.date_range.priorCy'), value: 'priorCy' },
-    { title: t('options.date_range.last12Months'), value: 'last12Months' },
-    { title: t('options.date_range.Custom'), value: 'Custom' },
-]);
+const selectAllAvailableReports = ref(true);
 
 const form = ref({
     inst: [],
@@ -54,9 +142,25 @@ const form = ref({
     reports: [],
     fromYM: '',
     toYM: '',
-    when: 'later',
+    when: 'now',
     skip_harvested: 1,
 });
+
+const harvestDates = computed({
+    get: () => ({ fromYM: form.value.fromYM, toYM: form.value.toYM }),
+    set: (val) => {
+        form.value.fromYM = val?.fromYM || '';
+        form.value.toYM = val?.toYM || '';
+    },
+});
+
+function onToggleAllReportsSwitch(val) {
+    if (val) {
+        form.value.reports = master_reports.value.map((r) => r.name);
+    } else {
+        form.value.reports = [];
+    }
+}
 
 const initializeOptions = async () => {
     try {
@@ -70,6 +174,10 @@ const initializeOptions = async () => {
         master_reports.value = [...(records.master_reports || [])];
         fields.value = [...(records.fields || [])];
         fyMo.value = records.fyMo ?? null;
+
+        if (selectAllAvailableReports.value) {
+            form.value.reports = master_reports.value.map((r) => r.name);
+        }
 
         if (institutions.value.length === 1) {
             inst_name.value = institutions.value[0].name;
@@ -119,48 +227,56 @@ const submit_enabled = computed(
 );
 
 function resetForm() {
+    selectAllAvailableReports.value = true;
     form.value = {
-        inst: institutions.value.length === 1 ? [institutions.value[0].id] : [],
+        inst: institutions.value.length === 1 ? [institutions.value.id] : [],
         inst_group_id: 0,
         plat: [],
-        reports: [],
+        reports: master_reports.value.map((r) => r.name),
         fromYM: '',
         toYM: '',
-        when: 'later',
+        when: 'now',
         skip_harvested: 1,
     };
-    group_id.value = null;
-    dateRange.value = '';
-    minYM.value = '';
+    group_ids.value = [];
     available_reports.value = [];
     allInsts.value = false;
     allPlats.value = false;
     allConsoPlats.value = false;
     available_platforms.value = [...platforms.value];
-    selectedInstitutions.value = institutions.value.length === 1 ? [institutions.value[0].id] : [];
+    selectedInstitutions.value = institutions.value.length === 1 ? [institutions.value.id] : [];
     success.value = '';
     failure.value = '';
 }
 
 function onGroupChange() {
     failure.value = '';
-    form.value.inst_group_id = group_id.value || 0;
+    form.value.inst_group_id = group_ids.value.length === 1 ? group_ids.value : 0;
     form.value.inst = [];
     selectedInstitutions.value = [];
-    if (!group_id.value) {
+
+    if (group_ids.value.length === 0) {
         available_platforms.value = [...platforms.value];
     } else {
-        const group = inst_groups.value.find((g) => g.id === group_id.value);
-        if (group?.institutions) {
-            group.institutions.forEach((inst) => selectedInstitutions.value.push(inst.id));
+        const instSet = new Set();
+        group_ids.value.forEach((gid) => {
+            const group = inst_groups.value.find((g) => g.id === gid);
+            if (group?.institutions) {
+                group.institutions.forEach((inst) => instSet.add(inst.id));
+            }
+        });
+        selectedInstitutions.value = [...instSet];
+        if (group_ids.value.length > 1) {
+            form.value.inst = [...selectedInstitutions.value];
         }
         updatePlatforms();
     }
+    onPlatChange(true);
 }
 
 function onInstChange() {
     failure.value = '';
-    group_id.value = null;
+    group_ids.value = [];
     form.value.inst_group_id = 0;
     allInsts.value = form.value.inst.length === institutions.value.length && institutions.value.length > 0;
     if (allInsts.value) {
@@ -172,6 +288,7 @@ function onInstChange() {
     } else {
         updatePlatforms();
     }
+    onPlatChange(true);
 }
 
 function updatePlatforms() {
@@ -184,7 +301,7 @@ function updatePlatforms() {
     }
 }
 
-function onPlatChange() {
+function onPlatChange(preserveChecked = false) {
     failure.value = '';
     const conso_list = platforms.value.filter((p) => p.institutions.some((id) => id === 1)).map((p2) => p2.id);
     allPlats.value = platforms.value.length === form.value.plat.length && form.value.plat.length > 0;
@@ -196,9 +313,12 @@ function onPlatChange() {
             ? [...conso_list]
             : [...form.value.plat];
 
-    form.value.reports = [];
+    const prevReports = preserveChecked ? [...form.value.reports] : [];
+    form.value.reports = selectAllAvailableReports.value ? master_reports.value.map((r) => r.name) : [];
     available_reports.value = [];
     if (plat_list.length === 0) return;
+
+    const hasInstSelection = selectedInstitutions.value.length > 0;
 
     plat_list.forEach((pid) => {
         const cur_plat = platforms.value.find((p) => p.id === pid);
@@ -208,10 +328,16 @@ function onPlatChange() {
             const rptMeta = cur_plat.reports[rpt.name];
             const add =
                 rptMeta.conso ||
-                (Array.isArray(rptMeta.insts) && rptMeta.insts.some((inst) => selectedInstitutions.value.includes(inst)));
+                (!hasInstSelection && Array.isArray(rptMeta.insts) && rptMeta.insts.length > 0) ||
+                (hasInstSelection && Array.isArray(rptMeta.insts) && rptMeta.insts.some((inst) => selectedInstitutions.value.includes(inst)));
             if (add) available_reports.value.push(rpt);
         });
     });
+
+    if (!selectAllAvailableReports.value && preserveChecked && prevReports.length > 0) {
+        const validNames = new Set(available_reports.value.map((r) => r.name));
+        form.value.reports = prevReports.filter((name) => validNames.has(name));
+    }
 }
 
 async function formSubmit() {
@@ -282,40 +408,8 @@ function updateAllInsts() {
     }
     selectedInstitutions.value = [...form.value.inst];
     updatePlatforms();
+    onPlatChange(true);
 }
-
-function changeHarvestDates() {
-    if (!dateRange.value || dateRange.value === 'Custom') return;
-    isApplyingPreset.value = true;
-    const dates = fromToDates(dateRange.value, fyMo.value);
-    minYM.value = dates.from;
-    form.value.fromYM = dates.from;
-    form.value.toYM = dates.to;
-    setTimeout(() => {
-        isApplyingPreset.value = false;
-    }, 0);
-}
-watch(
-    () => form.value.fromYM,
-    (yearmon) => {
-        minYM.value = yearmon;
-        if (form.value.toYM && yearmon && form.value.toYM < yearmon) {
-            form.value.toYM = yearmon;
-        }
-        if (!isApplyingPreset.value && yearmon && dateRange.value && dateRange.value !== 'Custom') {
-            dateRange.value = 'Custom';
-        }
-    }
-);
-
-watch(
-    () => form.value.toYM,
-    (yearmon) => {
-        if (!isApplyingPreset.value && yearmon && dateRange.value && dateRange.value !== 'Custom') {
-            dateRange.value = 'Custom';
-        }
-    }
-);
 
 watch(
     () => authStore.ccp_key,
@@ -329,141 +423,3 @@ onBeforeMount(() => {
     initializeOptions();
 });
 </script>
-
-<template>
-    <SettingsPanelShell v-if="consoKey !== ''" class="mt-4" :title="$t('routes.manual_harvest')"
-        icon="mdi-cloud-download-outline" :loading="loading" :success="success" :failure="failure" @submit="formSubmit">
-        <v-alert v-if="institution_options.length === 0" type="warning" variant="tonal"
-            :text="$t('harvest.no_institutions')" />
-        <v-alert v-else-if="available_platforms.length === 0" type="warning" variant="tonal"
-            :text="$t('harvest.no_platforms')" />
-
-        <template v-else>
-            <SectionHeading>
-                <v-icon start size="22" class="me-2" aria-hidden="true">mdi-target</v-icon>
-                {{ $t('harvest.scope_and_platforms') }}
-            </SectionHeading>
-
-            <v-row class="mt-0">
-                <template v-if="institution_options.length > 1">
-                    <v-col v-if="form.inst_group_id === 0" cols="12" md="4" class="pt-0">
-                        <v-autocomplete v-model="form.inst" :items="institution_options"
-                            :label="$t('routes.institutions')" item-value="id" item-title="name" multiple
-                            @update:model-value="onInstChange">
-                            <template #prepend-item>
-                                <v-list-item @click="updateAllInsts">
-                                    <span>{{ allInsts ? $t('harvest.clear_selections') : $t('harvest.all_institutions')
-                                        }}</span>
-                                </v-list-item>
-                                <v-divider class="mt-1" />
-                            </template>
-                            <template #selection="{ index }">
-                                <span v-if="index === 0">{{ instSelectionString }}</span>
-                            </template>
-                        </v-autocomplete>
-                    </v-col>
-
-                    <v-col v-if="form.inst.length === 0" cols="12" md="4" class="pt-0">
-                        <v-autocomplete v-model="group_id" :items="inst_groups" :label="$t('routes.institution_groups')"
-                            item-title="name" item-value="id" @update:model-value="onGroupChange" />
-                    </v-col>
-                </template>
-
-                <v-col v-else cols="12" md="4" class="pt-0">
-                    <v-text-field :model-value="inst_name" :label="$t('fields.institution')" readonly />
-                </v-col>
-
-                <v-col v-if="available_platforms.length > 0" cols="12" md="4" class="pt-0">
-                    <v-autocomplete v-model="form.plat" :items="available_platforms" :label="$t('routes.platforms')"
-                        item-value="id" item-title="name" multiple @update:model-value="onPlatChange">
-                        <template #prepend-item>
-                            <v-list-item v-if="allConsoPlats || allPlats" @click="updateAllPlats('Clear')">
-                                <span>{{ $t('harvest.clear_selections') }}</span>
-                            </v-list-item>
-                            <template v-else>
-                                <v-list-item @click="updateAllPlats('ALL')">
-                                    <span>{{ $t('harvest.all_platforms') }}</span>
-                                </v-list-item>
-                                <v-list-item @click="updateAllPlats('Conso')">
-                                    <span>{{ $t('harvest.all_conso_platforms') }}</span>
-                                </v-list-item>
-                            </template>
-                            <v-divider class="mt-1" />
-                        </template>
-                        <template #selection="{ index }">
-                            <span v-if="index === 0">{{ platSelectionString }}</span>
-                        </template>
-                    </v-autocomplete>
-                </v-col>
-            </v-row>
-
-            <template v-if="available_reports.length > 0">
-                <v-divider class="my-5" />
-
-                <SectionHeading>
-                    <v-icon start size="22" class="me-2" aria-hidden="true">mdi-calendar-range</v-icon>
-                    {{ $t('harvest.reports_and_period') }}
-                </SectionHeading>
-
-                <v-row class="mt-0">
-                    <v-col cols="12" md="4" class="pt-0">
-                        <v-select v-model="form.reports" :items="available_reports"
-                            :label="$t('harvest.reports_to_harvest')" item-title="legend" item-value="name" multiple
-                            chips closable-chips />
-                    </v-col>
-
-                    <template v-if="form.reports.length > 0">
-                        <v-col cols="12" sm="4" md="4" class="pt-0">
-                            <v-select v-model="dateRange" :label="$t('fields.date_range')" :items="reportOptions"
-                                item-title="title" item-value="value" @update:model-value="changeHarvestDates" />
-                        </v-col>
-
-                        <v-col cols="12" sm="4" md="2" class="pt-0">
-                            <YmInput v-model="form.fromYM" :label="$t('fields.from')" />
-                        </v-col>
-
-                        <v-col cols="12" sm="4" md="2" class="pt-0">
-                            <YmInput v-model="form.toYM" :label="$t('fields.to')" :minYM="minYM" />
-                        </v-col>
-                    </template>
-                </v-row>
-            </template>
-
-            <template v-if="form.reports.length > 0">
-                <v-divider class="my-5" />
-
-                <SectionHeading>
-                    <v-icon start size="22" class="me-2" aria-hidden="true">mdi-cog-play-outline</v-icon>
-                    {{ $t('harvest.queue_options') }}
-                </SectionHeading>
-
-                <v-row class="mt-0 align-center">
-                    <v-col cols="12" md="6" class="pt-0">
-                        <div class="text-label-medium text-uppercase font-weight-bold text-medium-emphasis mb-1">
-                            {{ $t('harvest.queue_timing') }}
-                        </div>
-                        <v-radio-group v-model="form.when" inline hide-details>
-                            <v-radio :label="$t('harvest.overnight')" value="later" />
-                            <v-radio :label="$t('harvest.now')" value="now" />
-                        </v-radio-group>
-                    </v-col>
-
-                    <v-col cols="12" md="6" class="pt-0">
-                        <v-checkbox v-model="form.skip_harvested" :label="$t('harvest.skip_previously_harvested')"
-                            :true-value="1" :false-value="0" hide-details />
-                    </v-col>
-                </v-row>
-            </template>
-        </template>
-
-        <template v-if="submit_enabled || selections_made" #actions>
-            <v-btn v-if="submit_enabled" type="submit" color="primary" class="px-6" :loading="loading">
-                {{ $t('common.submit') }}
-            </v-btn>
-
-            <v-btn v-if="selections_made" variant="tonal" color="secondary" @click="resetForm">
-                {{ $t('harvest.reset_selections') }}
-            </v-btn>
-        </template>
-    </SettingsPanelShell>
-</template>
