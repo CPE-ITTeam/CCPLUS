@@ -871,20 +871,54 @@ async function reportToggleSubmit(data) {
   }
   reptDialog.value = false;
 }
+async function handleReportToggle(id, rept) {
+  let _idx = allItems.findIndex((ii) => ii.id == id);
+  if (_idx < 0) return;
 
-function handleReportToggle(id, rept) {
-  let _idx = allItems.findIndex(ii => ii.id == id);
-  if (_idx >= 0) {
-    var theItem = Object.assign({}, allItems[_idx]);
-    if (props.datasetKey == 'connections') {
-      reptItem = { 'type': 'Edit', 'id': id, 'rept': rept, 'flags': { ...theItem[rept] } };
-      reptDialogSubtitle.value = (typeof (theItem.platform) != 'undefined') ? theItem.platform : "";
-      reptDialog.value = true;
-    } else if (props.datasetKey == 'credentials') {
-      handleEdit(theItem);
+  const theItem = Object.assign({}, allItems[_idx]);
+
+  if (props.datasetKey == 'connections') {
+    reptItem = { type: 'Edit', id: id, rept: rept, flags: { ...theItem[rept] } };
+    reptDialogSubtitle.value = typeof theItem.platform != 'undefined' ? theItem.platform : '';
+    reptDialog.value = true;
+    return;
+  }
+
+  if (props.datasetKey == 'credentials') {
+    const currentFlag = theItem[rept];
+    if (!currentFlag || !currentFlag.available || currentFlag.conso) return;
+
+    const nextFlag = { ...currentFlag, requested: !currentFlag.requested };
+    const optimisticItem = { ...theItem, [rept]: nextFlag };
+    allItems.splice(_idx, 1, optimisticItem);
+    const f_idx = filteredItems.findIndex((fi) => fi.id == id);
+    if (f_idx >= 0) filteredItems.splice(f_idx, 1, optimisticItem);
+
+    try {
+      const response = await api.patch(`/api/credentials/update/${id}`, {
+        id: id,
+        report_only: true,
+        [rept]: nextFlag,
+      });
+      const resData = response?.data !== undefined ? response.data : response;
+      if (resData?.result && resData?.record) {
+        const updated = { ...theItem, ...resData.record };
+        allItems.splice(_idx, 1, updated);
+        if (f_idx >= 0) filteredItems.splice(f_idx, 1, updated);
+      } else {
+        allItems.splice(_idx, 1, theItem);
+        if (f_idx >= 0) filteredItems.splice(f_idx, 1, theItem);
+        failure.value = resData?.msg || t('messages.server_rejected');
+      }
+    } catch (error) {
+      allItems.splice(_idx, 1, theItem);
+      if (f_idx >= 0) filteredItems.splice(f_idx, 1, theItem);
+      console.error('Error toggling credential report:', error);
+      failure.value = t('messages.unexpected_server_error');
     }
   }
 }
+
 
 function handleFormCancel() {
   formDialogOpen.value = false;

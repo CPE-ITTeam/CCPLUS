@@ -246,36 +246,39 @@ class CredentialController extends BaseController
             return $this->respondError(__('credentials.reference_error'));
         }
 
-        $fields = [
-            'status'       => in_array($input['status'] ?? '', ['Enabled', 'Disabled'], true) ? $input['status'] : $cred->status,
-            'customer_id'  => $input['customer_id'] ?? null,
-            'requestor_id' => $input['requestor_id'] ?? null,
-            'api_key'      => $input['api_key'] ?? null,
-            'extra_args'   => $input['extra_args'] ?? null,
-        ];
-
-        foreach ($fields as $fld => $val) {
-            $cred->$fld = $val;
-        }
-
         $registry = $cred->provider->default_registry();
         $all_connectors = ConnectionField::get();
-        foreach ($all_connectors as $cnx) {
-            if (
-                in_array($cnx->id, $registry->connectors) &&
-                (is_null($cred->{$cnx->name}) || $cred->{$cnx->name} === '')
-            ) {
-                $cred->{$cnx->name} = '-required-';
+
+        if (!$request->boolean('report_only')) {
+            $fields = [
+                'status'       => in_array($input['status'] ?? '', ['Enabled', 'Disabled'], true) ? $input['status'] : $cred->status,
+                'customer_id'  => $input['customer_id'] ?? null,
+                'requestor_id' => $input['requestor_id'] ?? null,
+                'api_key'      => $input['api_key'] ?? null,
+                'extra_args'   => $input['extra_args'] ?? null,
+            ];
+
+            foreach ($fields as $fld => $val) {
+                $cred->$fld = $val;
             }
-        }
 
-        $cred->plat_valid = null;
-        $cred->inst_valid = null;
+            foreach ($all_connectors as $cnx) {
+                if (
+                    in_array($cnx->id, $registry->connectors) &&
+                    (is_null($cred->{$cnx->name}) || $cred->{$cnx->name} === '')
+                ) {
+                    $cred->{$cnx->name} = '-required-';
+                }
+            }
 
-        if ($cred->status === 'Disabled') {
-            $cred->save();
-        } else {
-            $cred->resetStatus(true);
+            $cred->plat_valid = null;
+            $cred->inst_valid = null;
+
+            if ($cred->status === 'Disabled') {
+                $cred->save();
+            } else {
+                $cred->resetStatus(true);
+            }
         }
 
         $this->getMasterReports();
@@ -288,16 +291,20 @@ class CredentialController extends BaseController
                 return $this->respondError($result['msg']);
             }
         }
+
         $global->load('connections', 'connections.reports');
         $record = $input;
+        unset($record['report_only']);
         $record['status'] = $cred->status;
         $record['platform'] = $cred->provider->name;
         $record['institution'] = $cred->institution->name;
         $record['connectors'] = $this->buildConnectorList($all_connectors, $registry->connectors);
         $record['connected'] = ($cred->status === 'Enabled');
         $this->attachReportFlags($record, $global->enabledReports($cred->inst_id));
+
         return $this->respondSuccess(__('credentials.updated'), $record);
     }
+
     /**
      * Update report definition for a connection.
      */

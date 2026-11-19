@@ -19,6 +19,7 @@ return [
         'missing_consortium'     => 'Error: missing consortium',
         'missing_credentials'    => 'Error: missing or invalid credentials',
         'missing_reports'        => 'Error: missing reports',
+        'incomplete_credentials' => 'Selected credentials are incomplete and cannot be queued for harvesting.',
         'no_records_created'     => 'No harvest log records created, check provider and credentials.',
         'invalid_bulk_inputs'    => 'Invalid inputs passed to bulkAction!',
         'invalid_bulk_status'    => 'Invalid status requested for bulkAction!',
