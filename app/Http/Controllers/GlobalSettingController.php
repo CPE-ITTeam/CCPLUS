@@ -2,7 +2,9 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\Consortium;
 use App\Models\GlobalSetting;
+use App\Models\HarvestLog;
 use Illuminate\Http\Request;
 use \Illuminate\Contracts\Cache\Factory;
 
@@ -10,7 +12,7 @@ class GlobalSettingController extends BaseController
 {
     public function __construct()
     {
-        $this->middleware(['auth','role:ServerAdmin']);
+        $this->middleware(['auth', 'role:ServerAdmin']);
     }
 
     /**
@@ -21,8 +23,8 @@ class GlobalSettingController extends BaseController
     public function index($type)
     {
         // Get global settings, minus the server admin credentials
-        $skip_vars = array('server_admin','server_admin_pass','max_name_length');
-        $all_settings = GlobalSetting::whereNotIn('name',$skip_vars)->get();
+        $skip_vars = array('server_admin', 'server_admin_pass', 'max_name_length');
+        $all_settings = GlobalSetting::whereNotIn('name', $skip_vars)->get();
         $records = array();
         foreach ($all_settings as $setting) {
             if ($setting->type == $type || $type == 'all') {
@@ -61,6 +63,102 @@ class GlobalSettingController extends BaseController
         // Clear the 'ccplus' section of the cached configuration
         $cache->forget('ccplus');
         return response()->json(['result' => true, 'msg' => 'Settings successfully updated!']);
+    }
+
+    /**
+     * Report active background worker processes and queue backlog counts
+     */
+    public function workerStatus(Request $request)
+    {
+        $harvesterProcs = [];
+        $processorConsoKeys = [];
+        if (function_exists('shell_exec')) {
+            $out = shell_exec("ps -eo pid,args | grep -E 'ccplus:(harvester|reportprocessor)' | grep -v grep");
+            foreach (explode("\n", trim((string) $out)) as $line) {
+                $line = trim($line);
+                if ($line === '') {
+                    continue;
+                }
+                if (str_contains($line, 'ccplus:harvester')) {
+                    $harvesterProcs[] = $line;
+                } elseif (preg_match('/ccplus:reportprocessor\s+([^\s]+)/', $line, $m)) {
+                    $processorConsoKeys[$m[1]] = ($processorConsoKeys[$m[1]] ?? 0) + 1;
+                }
+            }
+        }
+
+        $consortia = Consortium::orderBy('name')->get();
+        $consoBreakdown = [];
+        $totalHarvestQueue = 0;
+        $totalProcessQueue = 0;
+
+        foreach ($consortia as $conso) {
+            config(['database.connections.consodb.database' => 'ccplus_' . $conso->ccp_key]);
+            \DB::purge('consodb');
+
+            $harvestCount = HarvestLog::whereIn('status', ['New', 'Queued', 'Harvesting', 'Pending', 'ReQueued', 'Paused'])->count();
+            $processCount = HarvestLog::whereIn('status', ['Waiting', 'Processing'])->count();
+            $procRunning = $processorConsoKeys[$conso->ccp_key] ?? 0;
+
+            $totalHarvestQueue += $harvestCount;
+            $totalProcessQueue += $processCount;
+
+            $consoBreakdown[] = [
+                'id'                  => $conso->id,
+                'ccp_key'             => $conso->ccp_key,
+                'name'                => $conso->name,
+                'harvest_queue_count' => $harvestCount,
+                'process_queue_count' => $processCount,
+                'processor_running'   => $procRunning,
+            ];
+        }
+
+        return response()->json([
+            'result'              => true,
+            'harvester_running'   => count($harvesterProcs),
+            'processor_running'   => array_sum($processorConsoKeys),
+            'harvest_queue_count' => $totalHarvestQueue,
+            'process_queue_count' => $totalProcessQueue,
+            'consortia'           => $consoBreakdown,
+        ]);
+    }
+
+
+    /**
+     * Launch a background ccplus:harvester or ccplus:reportprocessor worker
+     */
+    public function runWorker(Request $request)
+    {
+        $worker = $request->input('worker');
+        $consoKey = $request->input('consortium') ?: session('ccp_con_key');
+        $artisan = base_path('artisan');
+        $php = PHP_BINARY ?: 'php';
+
+        if ($worker === 'harvester') {
+            $cmd = sprintf('nohup %s %s ccplus:harvester > /dev/null 2>&1 &', escapeshellarg($php), escapeshellarg($artisan));
+            shell_exec($cmd);
+            return response()->json(['result' => true, 'msg' => 'Harvester worker started in background.']);
+        }
+
+        if ($worker === 'reportprocessor') {
+            if (!$consoKey) {
+                return response()->json(['result' => false, 'msg' => 'No active consortium selected.'], 422);
+            }
+            $running = trim((string) shell_exec('ps -eo args | grep ' . escapeshellarg("ccplus:reportprocessor {$consoKey}") . ' | grep -v grep'));
+            if ($running !== '') {
+                return response()->json(['result' => false, 'msg' => "Report processor is already running for {$consoKey}."]);
+            }
+            $cmd = sprintf(
+                'nohup %s %s ccplus:reportprocessor %s > /dev/null 2>&1 &',
+                escapeshellarg($php),
+                escapeshellarg($artisan),
+                escapeshellarg($consoKey)
+            );
+            shell_exec($cmd);
+            return response()->json(['result' => true, 'msg' => "Report processor started for {$consoKey}."]);
+        }
+
+        return response()->json(['result' => false, 'msg' => 'Invalid worker type.'], 422);
     }
 
 }

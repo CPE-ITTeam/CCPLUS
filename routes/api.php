@@ -139,6 +139,14 @@ Route::middleware('ccplusAuth')->group(function () {
         Route::post('/usageData', 'App\Http\Controllers\ReportController@usageData')->name('reports.usageData');
         Route::post('/updateColumns', 'App\Http\Controllers\ReportController@updateColumns')->name('reports.updateColumns');
     });
+        Route::prefix('settings')->group(function () {
+        Route::get('/get/{type}', 'App\Http\Controllers\GlobalSettingController@index')->name('settings.index');
+        Route::post('/store', 'App\Http\Controllers\GlobalSettingController@store')->name('settings.store');
+        Route::patch('/update/{setting}', 'App\Http\Controllers\GlobalSettingController@update')->name('settings.update');
+        Route::get('/workers', 'App\Http\Controllers\GlobalSettingController@workerStatus')->name('settings.workers');
+        Route::post('/workers/run', 'App\Http\Controllers\GlobalSettingController@runWorker')->name('settings.workers.run');
+    });
+
     // API routes to expose global database tables
     Route::prefix('global')->group(function () {
         Route::get('/registries', 'App\Http\Controllers\CounterRegistryController@index')->name('global.registries');
