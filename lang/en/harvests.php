@@ -52,10 +52,10 @@ return [
         'Pending'    => 'Pending',
         'Paused'     => 'Paused',
         'Stopped'    => 'Stopped',
-        'NoRetries'  => 'Failed - No Retries',
+        'NoRetries'  => 'Out of Retries',
         'New'        => 'New',
-        'ReQueued'   => 'ReQueued',
-        'Waiting'    => 'Waiting',
+        'ReQueued'   => 'Requeued',
+        'Waiting'    => 'Process Queue',
         'Processing' => 'Processing',
     ],
 

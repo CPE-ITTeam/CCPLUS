@@ -16,6 +16,7 @@ const props = defineProps({
 
 const success = defineModel('success', { type: String, default: '' });
 const failure = defineModel('failure', { type: String, default: '' });
+const warning = defineModel('warning', { type: String, default: '' });
 
 const isModal = computed(() => props.mode === 'modal');
 
@@ -42,6 +43,27 @@ const alertProps = computed(() => ({
     </template>
   </v-alert>
 
+    <v-alert
+    v-else-if="warning"
+    type="warning"
+    :text="warning"
+    v-bind="alertProps"
+    @click:close="warning = ''"
+  >
+    <template #close="{ props: closeProps }">
+      <v-btn
+        v-bind="closeProps"
+        icon
+        variant="text"
+        class="opacity-100"
+      >
+        <v-icon icon="mdi-close-circle" :size="isModal ? 'default' : 28" />
+      </v-btn>
+    </template>
+  </v-alert>
+
+
+
   <v-alert
     v-else-if="success"
     type="success"
@@ -60,6 +82,5 @@ const alertProps = computed(() => ({
         <v-icon icon="mdi-close-circle" size="28" />
       </v-btn>
     </template>
-
   </v-alert>
 </template>

@@ -818,7 +818,7 @@ function handleFilter(filt) {
     return;
   }
 
-  if (!filterOptions[filt.key] && props.datasetKey === 'jobs' && filt.key === 'statuses') {
+  if (!filterOptions[filt.key] && (props.datasetKey === 'jobs' || props.datasetKey === 'harvests') && filt.key === 'statuses') {
     filterOptions.statuses = {
       name: 'statuses',
       type: 'mselect',
@@ -828,6 +828,7 @@ function handleFilter(filt) {
       value: [],
     };
   }
+
 
   const target = filterOptions[filt.key];
   if (!target || target.value === undefined) return;
@@ -853,11 +854,17 @@ function matchesFilter(item, filter) {
   if (!Array.isArray(filter.value) && !filter.value) return true;
 
   if (filter.type === 'select' || filter.type === 'text') {
+    const targetVal =
+      typeof filter.value === 'object' && filter.value !== null
+        ? (filter.value.id ?? filter.value.value ?? filter.value.name)
+        : filter.value;
+
     if (Array.isArray(item[filter.col])) {
-      return item[filter.col].some((f) => f == filter.value);
+      return item[filter.col].some((f) => String(f) === String(targetVal));
     }
-    return item[filter.col] == filter.value;
+    return String(item[filter.col]) === String(targetVal);
   }
+
 
   if (filter.type === 'toggle') {
     return filter.value === 'Active' ? Boolean(item[filter.col]) : true;
@@ -932,11 +939,20 @@ function syncFilterOptionItems() {
 
 
 function updateItems() {
-  if (allItems.length === 0) return;
+  if (allItems.length === 0) {
+    filteredItems.splice(0, filteredItems.length);
+    return;
+  }
 
-  const filterResult = allItems.filter((item) =>
-    Object.keys(filterOptions).every((key) => matchesFilter(item, filterOptions[key]))
-  );
+  const isServerFiltered =
+    props.datasetKey === 'jobs' ||
+    (props.datasetKey === 'harvests' && truncated.value);
+
+  const filterResult = isServerFiltered
+    ? [...allItems]
+    : allItems.filter((item) =>
+        Object.keys(filterOptions).every((key) => matchesFilter(item, filterOptions[key]))
+      );
 
   if (
     filterOptions.is_conso?.type === 'toggle' &&
@@ -1179,7 +1195,7 @@ watch(locale, () => {
 
           <template #actions>
             <v-btn @click="handleBulk({ action: 'Set Institution Type', type_id: newType.id })">{{ $t('common.save')
-            }}</v-btn>
+              }}</v-btn>
             <v-btn variant="text" class="ml-2" @click="handleFormCancel">{{ $t('common.cancel') }}</v-btn>
           </template>
         </BaseDialogLayout>

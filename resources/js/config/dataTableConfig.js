@@ -1605,7 +1605,15 @@ const rawTableSetup = {
       "requestor_id",
       "api_key",
     ],
-    static: ["groups", "statuses", "results", "inst_id", "prov_id", "legacy_prov_id", "local_id"],
+    static: [
+      "groups",
+      "statuses",
+      "results",
+      "inst_id",
+      "prov_id",
+      "legacy_prov_id",
+      "local_id",
+    ],
     bulkOptions: ["Enable", "Disable", "Delete"],
     exportFields: [
       "inst_id",
@@ -1828,16 +1836,46 @@ const rawTableSetup = {
     sortby: "platform",
   },
 
-  jobs: {
+   jobs: {
     urlRoot: "/api/jobs",
     title: "",
     fields: [
       {
-        name: "created",
+        name: "inst_name",
         get label() {
-          return t("fields.created");
+          return t("fields.institution");
         },
-        type: "date",
+        editable: false,
+      },
+      {
+        name: "prov_name",
+        get label() {
+          return t("fields.platform");
+        },
+        editable: false,
+      },
+      {
+        name: "release",
+        get label() {
+          return t("fields.release");
+        },
+        header: "center",
+        editable: false,
+      },
+      {
+        name: "yearmon",
+        get label() {
+          return t("fields.usage_date");
+        },
+        header: "center",
+        editable: false,
+      },
+      {
+        name: "report_name",
+        get label() {
+          return t("fields.report");
+        },
+        header: "center",
         editable: false,
       },
       {
@@ -1845,6 +1883,7 @@ const rawTableSetup = {
         get label() {
           return t("fields.harvest_id");
         },
+        header: "end",
         editable: false,
       },
       {
@@ -1855,36 +1894,16 @@ const rawTableSetup = {
         editable: false,
       },
       {
-        name: "prov_name",
-        get label() {
-          return t("fields.platform");
-        },
-        truncate: 20,
-        editable: false,
-      },
-
-      {
-        name: "inst_name",
-        get label() {
-          return t("fields.institution");
-        },
-        options: "fromURL",
+        name: "error",
+        label: "Last Result",
         editable: false,
       },
       {
-        name: "report_name",
+        name: "created",
         get label() {
-          return t("fields.report");
+          return t("fields.created");
         },
-        options: "fromURL",
-        editable: false,
-      },
-      {
-        name: "yearmon",
-        get label() {
-          return t("fields.usage_date");
-        },
-        options: "fromURL",
+        type: "date",
         editable: false,
       },
       {
@@ -1932,6 +1951,20 @@ const rawTableSetup = {
         searchable: false,
       },
       {
+        name: "groups",
+        get label() {
+          return t("fields.institution_groups");
+        },
+        type: "mselect",
+        options: "fromURL",
+        optVal: "id",
+        optTxt: "name",
+        isFilter: true,
+        filterCol: "inst_id",
+        header: null,
+        searchable: false,
+      },
+      {
         name: "reports",
         get label() {
           return t("fields.reports");
@@ -1942,6 +1975,20 @@ const rawTableSetup = {
         optTxt: "name",
         isFilter: true,
         filterCol: "report_id",
+        header: null,
+        searchable: false,
+      },
+      {
+        name: "yymms",
+        get label() {
+          return t("fields.usage_dates");
+        },
+        type: "mselect",
+        options: "fromURL",
+        optVal: "id",
+        optTxt: "name",
+        isFilter: true,
+        filterCol: "yearmon",
         header: null,
         searchable: false,
       },
@@ -1966,10 +2013,10 @@ const rawTableSetup = {
         },
         type: "mselect",
         options: "fromURL",
-        optVal: "value",
-        optTxt: "text",
+        optVal: "id",
+        optTxt: "name",
         isFilter: true,
-        filterCol: "status",
+        filterCol: "d_status",
         header: null,
         searchable: false,
       },
@@ -1986,9 +2033,9 @@ const rawTableSetup = {
     title: "",
     fields: [
       {
-        name: "updated",
+        name: "inst_name",
         get label() {
-          return t("fields.result_date");
+          return t("fields.institution");
         },
         editable: false,
       },
@@ -2008,10 +2055,11 @@ const rawTableSetup = {
         editable: false,
       },
       {
-        name: "inst_name",
+        name: "yearmon",
         get label() {
-          return t("fields.institution");
+          return t("fields.usage_date");
         },
+        header: "center",
         editable: false,
       },
       {
@@ -2020,14 +2068,6 @@ const rawTableSetup = {
           return t("fields.report");
         },
         header: "center",
-        editable: false,
-      },
-      {
-        name: "yearmon",
-        get label() {
-          return t("fields.usage_date");
-        },
-        header: "end",
         editable: false,
       },
       {
@@ -2046,13 +2086,12 @@ const rawTableSetup = {
         editable: false,
       },
       {
-        name: "statusDot",
+        name: "updated",
         get label() {
-          return t("fields.status");
+          return t("fields.result_date");
         },
-        header: "center",
+        type: "date",
         editable: false,
-        searchable: false,
       },
       {
         name: "rawfile",
@@ -2131,12 +2170,12 @@ const rawTableSetup = {
         get label() {
           return t("fields.updated");
         },
-        type: "mselect",
+        type: "select",
         options: "fromURL",
         optVal: "id",
         optTxt: "name",
-        isFilter: true,
         filterCol: "timeframes",
+        isFilter: true,
         header: null,
         searchable: false,
       },
@@ -2169,6 +2208,7 @@ const rawTableSetup = {
         searchable: false,
       },
       {
+      
         name: "statuses",
         get label() {
           return t("fields.statuses");
@@ -2182,6 +2222,7 @@ const rawTableSetup = {
         header: null,
         searchable: false,
       },
+
     ],
     required: [],
     static: ["id", "rawfile", "retryUrl"],

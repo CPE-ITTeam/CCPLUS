@@ -49,7 +49,6 @@ export default {
     using_inherited_default: "Using inherited default",
   },
 
-
   api_docs: {
     bearer_token_hint:
       "Bearer: <- Your_Personal_Access_Token -> (Managed in your Profile)",
@@ -295,7 +294,7 @@ export default {
     reports: "Report(s)",
     requestor_id: "Requestor ID",
     result: "Result",
-    result_date: "Result Date",
+    result_date: "Harvested",
     retry_url: "Retry URL",
     role: "Role",
     scope: "Scope",
@@ -610,6 +609,7 @@ export default {
     refresh_records: "Refresh Records",
     refreshing_registry: "Refreshing COUNTER Registry:",
     search: "Search",
+    truncated_warning: "Display is limited to the most recent records. Use the filters above to narrow your results.",
     view_error_details: "View Error Details",
   },
 

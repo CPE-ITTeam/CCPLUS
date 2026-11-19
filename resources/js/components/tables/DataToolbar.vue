@@ -48,18 +48,23 @@
         </v-expand-x-transition>
       </div>
 
-      <!-- LIVE QUEUE STATUS FILTER BAR (Harvest Queue only, right-aligned in TIER 2) -->
-      <div v-if="props.dataset === 'jobs'" class="d-flex flex-wrap align-center ga-2 ms-auto">
-        <span v-if="lastChecked" class="text-caption text-medium-emphasis me-1">
-          {{ lastChecked }}
-        </span>
-
-        <v-chip size="small" :variant="activeStatusFilters.length === 0 ? 'flat' : 'tonal'" color="primary"
-          class="font-weight-bold cursor-pointer" title="Show all queue statuses" @click="resetStatusChips">
-          Total: {{ liveQueueTotal }}
+      <!-- LIVE STATUS FILTER BAR (Harvest Queue & Harvest Log, right-aligned in TIER 2) -->
+      <div v-if="isHarvestDataset" class="d-flex flex-wrap align-center ga-2 ms-auto">
+        <!-- Harvest Stage Chips (or Log Outcome Chips on harvests) -->
+        <v-chip v-for="item in harvestStageChips" :key="item.status" size="small"
+          :variant="isStatusSelected(item.label) ? 'flat' : 'outlined'" :color="item.color || 'secondary'"
+          :prepend-icon="isStatusSelected(item.label) ? 'mdi-check' : 'mdi-filter-outline'"
+          class="font-weight-medium cursor-pointer" :title="`Toggle ${item.label} filter`"
+          @click="toggleStatusChip(item.label)">
+          {{ item.label }}: <strong class="ms-1">{{ item.count }}</strong>
         </v-chip>
 
-        <v-chip v-for="item in liveStatusCounts" :key="item.status" size="small"
+        <!-- Visual Divider Between Harvest Stage and Process Stage (Harvest Queue only) -->
+        <v-divider v-if="props.dataset === 'jobs' && harvestStageChips.length > 0 && processStageChips.length > 0"
+          vertical class="mx-1" />
+
+        <!-- Process Stage Chips (Process Queue & Processing) -->
+        <v-chip v-for="item in processStageChips" :key="item.status" size="small"
           :variant="isStatusSelected(item.label) ? 'flat' : 'outlined'" :color="item.color || 'secondary'"
           :prepend-icon="isStatusSelected(item.label) ? 'mdi-check' : 'mdi-filter-outline'"
           class="font-weight-medium cursor-pointer" :title="`Toggle ${item.label} filter`"
@@ -68,16 +73,28 @@
         </v-chip>
 
         <span v-if="liveStatusCounts.length === 0" class="text-caption text-medium-emphasis px-1">
-          Queue empty
+          {{ props.dataset === 'jobs' ? 'Queue empty' : 'No records' }}
         </span>
 
-        <v-divider vertical class="mx-1" />
+        <v-divider v-if="liveStatusCounts.length > 0" vertical class="mx-1" />
 
-        <v-btn size="x-small" variant="tonal" :color="isPolling ? 'success' : 'secondary'"
-          :prepend-icon="isPolling ? 'mdi-broadcast' : 'mdi-pause-circle-outline'" @click="togglePolling">
-          {{ isPolling ? 'Live' : 'Paused' }}
-        </v-btn>
+        <v-chip size="small" :variant="activeStatusFilters.length === 0 ? 'flat' : 'tonal'" color="info"
+          class="font-weight-bold cursor-pointer" title="Show all statuses" @click="resetStatusChips">
+          Total: {{ liveQueueTotal }}
+        </v-chip>
+
+        <template v-if="props.dataset === 'jobs'">
+          <v-divider vertical class="mx-1" />
+
+          <v-btn size="x-small" variant="tonal" :color="isPolling ? 'success' : 'secondary'"
+            :prepend-icon="isPolling ? 'mdi-broadcast' : 'mdi-pause-circle-outline'"
+            :title="isPolling ? 'Click to pause live updates' : 'Click to resume live updates'" @click="togglePolling">
+            {{ isPolling ? 'Live' : 'Paused' }}
+            <span v-if="lastChecked" class="ms-1 opacity-80">· {{ lastChecked }}</span>
+          </v-btn>
+        </template>
       </div>
+
 
       <div v-else class="d-flex align-center flex-wrap ga-2 ms-auto">
         <ExportAndImport v-if="showExportImport" :showRefresh="props.dataset == 'platforms'"
@@ -87,12 +104,12 @@
       </div>
     </div>
 
+
     <v-dialog v-model="importDialog">
       <ImportDialog :dataset="props.dataset" @close="importDialog = false" @imported="handleImported" />
     </v-dialog>
   </v-card>
 </template>
-
 <script setup>
 import { ref, computed, watch, onMounted, onBeforeUnmount } from 'vue';
 import { storeToRefs } from 'pinia';
@@ -129,6 +146,18 @@ const isPolling = ref(true);
 const activeStatusFilters = ref([]);
 let pollTimer = null;
 
+const isHarvestDataset = computed(() =>
+  props.dataset === 'jobs' || props.dataset === 'harvests'
+);
+
+const harvestStageChips = computed(() =>
+  liveStatusCounts.value.filter((item) => item.stage !== 'process')
+);
+
+const processStageChips = computed(() =>
+  liveStatusCounts.value.filter((item) => item.stage === 'process')
+);
+
 watch(
   () => props.queueStats,
   (val) => {
@@ -141,7 +170,7 @@ watch(
 );
 
 function visibleRowFilters(row) {
-  if (props.dataset !== 'jobs') return row;
+  if (!isHarvestDataset.value) return row;
   const copy = { ...row };
   delete copy.statuses;
   return copy;
@@ -154,6 +183,7 @@ const visibleFilterCount = computed(() =>
 function isStatusSelected(label) {
   return activeStatusFilters.value.includes(label);
 }
+
 function toggleStatusChip(label) {
   const idx = activeStatusFilters.value.indexOf(label);
   if (idx >= 0) {
@@ -177,11 +207,13 @@ function clearAllFilters() {
   emit('setFilter', { key: 'reset', refresh: true });
 }
 
+async function fetchStatusSummary() {
+  if (!isHarvestDataset.value) return;
+  if (props.dataset === 'jobs' && !isPolling.value) return;
 
-async function fetchLiveQueueStatus() {
-  if (props.dataset !== 'jobs' || !isPolling.value) return;
+  const endpoint = props.dataset === 'jobs' ? '/api/jobs/getItems' : '/api/harvests/getItems';
   try {
-    const res = await api.post('/api/jobs/getItems', { summary_only: true });
+    const res = await api.post(endpoint, { summary_only: true });
     const data = res?.data !== undefined ? res.data : res;
     if (data?.result) {
       const prevTotal = liveQueueTotal.value;
@@ -190,7 +222,11 @@ async function fetchLiveQueueStatus() {
       liveQueueTotal.value = data.queue_total ?? 0;
       lastChecked.value = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
 
-      if (prevSignature !== '[]' && (prevTotal !== liveQueueTotal.value || prevSignature !== JSON.stringify(liveStatusCounts.value))) {
+      if (
+        props.dataset === 'jobs' &&
+        prevSignature !== '[]' &&
+        (prevTotal !== liveQueueTotal.value || prevSignature !== JSON.stringify(liveStatusCounts.value))
+      ) {
         emit('refreshRecords');
       }
     }
@@ -201,9 +237,11 @@ async function fetchLiveQueueStatus() {
 
 function startPolling() {
   stopPolling();
-  if (props.dataset !== 'jobs') return;
-  fetchLiveQueueStatus();
-  pollTimer = setInterval(fetchLiveQueueStatus, 5000);
+  if (!isHarvestDataset.value) return;
+  fetchStatusSummary();
+  if (props.dataset === 'jobs') {
+    pollTimer = setInterval(fetchStatusSummary, 5000);
+  }
 }
 
 function stopPolling() {
@@ -226,7 +264,9 @@ watch(
   () => props.dataset,
   (ds) => {
     activeStatusFilters.value = [];
-    if (ds === 'jobs' && isPolling.value) {
+    liveStatusCounts.value = [];
+    liveQueueTotal.value = 0;
+    if (ds === 'jobs' || ds === 'harvests') {
       startPolling();
     } else {
       stopPolling();
@@ -235,7 +275,7 @@ watch(
 );
 
 onMounted(() => {
-  if (props.dataset === 'jobs' && isPolling.value) {
+  if (isHarvestDataset.value) {
     startPolling();
   }
 });
@@ -249,8 +289,9 @@ const consoOnly = computed(() => {
 });
 
 const needsRefreshButton = computed(() => {
-  return props.dataset == 'harvests' || props.dataset == 'jobs' || props.dataset == 'audit';
+  return props.dataset == 'audit';
 });
+
 
 const showExportImport = computed(() => {
   return props.dataset == 'consortia' || (!consoOnly.value && props.dataset != 'harvests' && props.dataset != 'jobs');
@@ -287,6 +328,7 @@ const anyFilterSet = computed(() => {
   }
   return is_set;
 });
+
 function handleFilter(filt) {
   let updated = false;
   filter_options.value.forEach((row, idx) => {
@@ -296,10 +338,12 @@ function handleFilter(filt) {
   });
   if (updated) emit('setFilter', filt);
 }
+
 function handleImported(data) {
   emit('imported', data);
   importDialog.value = false;
 }
+
 const emit = defineEmits([
   'updateConso',
   'update:search',

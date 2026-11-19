@@ -10,6 +10,7 @@ import { useDate } from 'vuetify';
 import { tableSetup } from '@/config/dataTableConfig.js';
 import { sortDatasetItems } from '@/utils/datasetSort.js';
 import { useExternalLinks } from '@/composables/useExternalLinks.js';
+import StatusAlerts from '@/components/ui/StatusAlerts.vue';
 
 const { openUrl, openRegistryPlatform } = useExternalLinks();
 const { t } = useI18n();
@@ -42,11 +43,22 @@ const showActions = computed(() => {
 // ==========================================
 // 1. Your Computed Headers (Guarantees unique key mapping)
 // ==========================================
+const hasSingleInstitution = computed(() => {
+  if (authStore.inst_count === 1) return true;
+  if (authStore.is_consoadmin || authStore.is_serveradmin) return false;
+  const distinctInsts = new Set(props.items.map((r) => r.inst_id).filter(Boolean));
+  return distinctInsts.size === 1;
+});
+
 const computedHeaders = computed(() => {
   const rawHeaders = props.headers.filter((h) => {
     const keyName = h.key || h.name;
 
     if (keyName === 'data-table-select' || keyName === 'id') {
+      return false;
+    }
+
+    if (keyName === 'inst_name' && hasSingleInstitution.value) {
       return false;
     }
 
@@ -88,16 +100,48 @@ const computedHeaders = computed(() => {
 
   return hdrs;
 });
+
 // ==========================================
 // 2. Your Date Formatting Helper
 // ==========================================
+function resolveActiveTimeZone() {
+  return (
+    authStore.timezone ||
+    authStore.user?.timezone ||
+    Intl.DateTimeFormat().resolvedOptions().timeZone
+  );
+}
+
 function formatDateDisplay(dateVal) {
   if (!dateVal) return '';
   const d = new Date(dateVal);
-  if (isNaN(d.getTime())) return dateVal;
+  if (isNaN(d.getTime())) return String(dateVal);
 
-  return new Intl.DateTimeFormat('en-CA').format(d);
+  return new Intl.DateTimeFormat('en-CA', {
+    timeZone: resolveActiveTimeZone(),
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).format(d);
 }
+
+function formatDateTimeTooltip(dateVal) {
+  if (!dateVal) return '';
+  const d = new Date(dateVal);
+  if (isNaN(d.getTime())) return String(dateVal);
+
+  return new Intl.DateTimeFormat('en-CA', {
+    timeZone: resolveActiveTimeZone(),
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: false,
+  })
+    .format(d)
+    .replace(',', '');
+}
+
 
 const internalSelectedRows = computed({
   get: () => props.selectedRows,
@@ -194,26 +238,25 @@ function closeErrorDialog() {
 
     <!-- Top Table Header Utility Bar Area -->
     <div class="d-flex flex-column ga-2 mb-4">
-      <v-alert v-if="truncated" type="warning" variant="tonal" density="compact" :text="$t('tables.truncated_warning')"
-        class="font-weight-bold" />
+      <StatusAlerts
+        v-if="truncated"
+        mode="page"
+        container-class="font-weight-bold mb-0"
+        :warning="$t('tables.truncated_warning')"
+        @update:warning="truncated = false"
+      />
+
 
       <!-- Selection count indicator chip & selection filter toggle button -->
       <div v-if="props.selectableRows && selectedRows.length > 0" class="align-self-start ms-4">
-        <v-tooltip
-          :text="props.showSelectedOnly ? $t('tables.show_all') : $t('tables.show_selected_only')"
-          location="top"
-        >
+        <v-tooltip :text="props.showSelectedOnly ? $t('tables.show_all') : $t('tables.show_selected_only')"
+          location="top">
           <template #activator="{ props: tooltipProps }">
-            <v-chip
-              v-bind="tooltipProps"
-              color="primary"
-              :variant="props.showSelectedOnly ? 'flat' : 'tonal'"
-              prepend-icon="mdi-check-circle"
-              :append-icon="props.showSelectedOnly ? 'mdi-filter-off' : 'mdi-filter'"
+            <v-chip v-bind="tooltipProps" color="primary" :variant="props.showSelectedOnly ? 'flat' : 'tonal'"
+              prepend-icon="mdi-check-circle" :append-icon="props.showSelectedOnly ? 'mdi-filter-off' : 'mdi-filter'"
               class="font-weight-bold cursor-pointer"
               :aria-label="props.showSelectedOnly ? $t('tables.show_all') : $t('tables.show_selected_only')"
-              @click="$emit('update:toggleSelectedOnly', !props.showSelectedOnly)"
-            >
+              @click="$emit('update:toggleSelectedOnly', !props.showSelectedOnly)">
               {{ $t('tables.items_selected', { count: selectedRows.length }, selectedRows.length) }}
             </v-chip>
           </template>
@@ -273,27 +316,26 @@ function closeErrorDialog() {
       </template>
       <!-- 4. INACTIVE RECORD ENTRIES & TRUNCATED NAMES LOOP -->
       <template v-for="key in ['platform', 'prov_name', 'institution']" #[`item.${key}`]="{ item }">
-        <span
-          :title="item[key]"
-          :class="{ 'text-disabled font-italic': (key === 'platform' || key === 'prov_name') ? item.plat_active === 0 : item.inst_active === 0 }"
-        >
+        <span :title="item[key]"
+          :class="{ 'text-disabled font-italic': (key === 'platform' || key === 'prov_name') ? item.plat_active === 0 : item.inst_active === 0 }">
           {{ formatTruncatedDisplay(item[key], 40) }}
         </span>
       </template>
 
       <!-- statusDot Key Indicator -->
       <template #item.statusDot="{ item }">
-        <v-icon :title="item.d_status" :color="item.error?.color || 'disabled'">mdi-record</v-icon>
+        <v-icon :title="item.d_status" :color="item.statusColor || item.error?.color || 'disabled'">mdi-record</v-icon>
       </template>
+
 
       <!-- Harvest ID Data Field Control Box -->
       <template #item.harvest_id="{ item }">
         <div class="d-flex align-center justify-end ga-1">
           <span>{{ item.harvest_id }}</span>
 
-          <v-btn v-if="item.rawfile != null" icon="mdi-code-json" variant="text" size="small"
-            density="comfortable" color="primary" :title="$t('tables.download_json')"
-            :aria-label="$t('tables.download_json')" @click="ccRawJson(item.harvest_id)" />
+          <v-btn v-if="item.rawfile != null" icon="mdi-code-json" variant="text" size="small" density="comfortable"
+            color="primary" :title="$t('tables.download_json')" :aria-label="$t('tables.download_json')"
+            @click="ccRawJson(item.harvest_id)" />
 
           <v-btn icon="mdi-barley" variant="text" size="small" density="comfortable" color="info"
             :title="$t('tables.manual_retry_title')" :aria-label="$t('tables.manual_retry_aria')"
@@ -301,21 +343,32 @@ function closeErrorDialog() {
         </div>
       </template>
 
-      <!-- Error Validation Matrix Column -->
+      <!-- Error / Result Validation Matrix Column -->
       <template #item.error="{ item }">
-        <span v-if="item.error?.id > 0" class="d-flex align-center ga-1">
+        <span v-if="item.error?.id > 0" class="d-flex align-center ga-1" :class="`text-${item.error.color || 'error'}`">
           {{ item.error.id }}
           <v-btn icon="mdi-dots-vertical" variant="text" size="small" density="comfortable" :color="item.error.color"
             :title="$t('tables.view_error_details')" :aria-label="$t('tables.view_error_details')"
             @click="enableErrorDialog(item.error)" />
         </span>
+        <v-icon v-else-if="item.status === 'Success'" color="success" size="small" :title="item.d_status">
+          mdi-check-circle
+        </v-icon>
       </template>
+
 
       <!-- Dynamic Date Interceptor Loop -->
       <template v-for="header in computedHeaders.filter(h => h.type === 'date')" :key="header.key"
         #[`item.${header.key}`]="{ value }">
-        {{ formatDateDisplay(value) }}
+        <v-tooltip v-if="value" location="top" content-class="bg-primary text-on-primary text-caption">
+          <template #activator="{ props: tipProps }">
+            <span v-bind="tipProps">{{ formatDateDisplay(value) }}</span>
+          </template>
+          {{ formatDateTimeTooltip(value) }}
+        </v-tooltip>
       </template>
+
+
 
       <!-- Dynamic Truncated Interceptor Loop -->
       <template v-for="header in computedHeaders.filter(h => h.truncate > 0)" :key="header.key"
@@ -337,14 +390,14 @@ function closeErrorDialog() {
                 density="comfortable" v-bind="tooltipProps" :aria-label="$t('tables.platform_refresh_state_aria')" />
             </template>
           </v-tooltip>
-        <!-- Condition B: Platform refresh targeting registry index records -->
-        <v-tooltip v-else-if="item.refresh_result != null" :text="item.refresh_text">
-          <template #activator="{ props: tooltipProps }">
-            <v-btn :icon="item.refresh_icon" :color="item.refresh_color" variant="text" size="small"
-              density="comfortable" v-bind="tooltipProps" :aria-label="$t('tables.platform_refresh_state_aria')"
-              @click="openRegistryPlatform(item.registry_id)" />
-          </template>
-        </v-tooltip>
+          <!-- Condition B: Platform refresh targeting registry index records -->
+          <v-tooltip v-else-if="item.refresh_result != null" :text="item.refresh_text">
+            <template #activator="{ props: tooltipProps }">
+              <v-btn :icon="item.refresh_icon" :color="item.refresh_color" variant="text" size="small"
+                density="comfortable" v-bind="tooltipProps" :aria-label="$t('tables.platform_refresh_state_aria')"
+                @click="openRegistryPlatform(item.registry_id)" />
+            </template>
+          </v-tooltip>
 
 
           <!-- Edit Action -->

@@ -24,7 +24,7 @@ use Illuminate\Support\Facades\File;
 class HarvestLogController extends BaseController
 {
     private array $colors = [];
-    private array $xlStatus = [];
+    private $xlStatus = [];
     private array $all_error_codes = [];
 
     public function __construct()
@@ -44,6 +44,42 @@ class HarvestLogController extends BaseController
         $consoAdmin = $thisUser->isConsoAdmin();
         $limit_insts = $consoAdmin ? [] : $thisUser->adminInsts();
 
+        $queueStatuses = ['New', 'Queued', 'Harvesting', 'Pending', 'Paused', 'ReQueued', 'Waiting', 'Processing'];
+        $badCredCodes = [1030, 2000, 2010, 2020, 9100];
+        $baseQuery = HarvestLog::query()
+            ->whereNotIn('status', $queueStatuses)
+            ->when(count($limit_insts) > 0, function ($qry) use ($limit_insts) {
+                $allowedCreds = Credential::whereIn('inst_id', $limit_insts)->pluck('id');
+                return $qry->whereIn('credentials_id', $allowedCreds);
+            });
+
+        $successCount = (clone $baseQuery)->where('status', 'Success')->count();
+        $badCredCount = (clone $baseQuery)
+            ->where('status', '!=', 'Success')
+            ->where(fn($q) => $q->where('status', 'BadCreds')->orWhereIn('error_id', $badCredCodes))
+            ->count();
+        $noRetriesCount = (clone $baseQuery)->where('status', 'NoRetries')->count();
+        $otherCount = (clone $baseQuery)
+            ->whereNotIn('status', ['Success', 'BadCreds', 'NoRetries'])
+            ->where(fn($q) => $q->whereNull('error_id')->orWhereNotIn('error_id', $badCredCodes))
+            ->count();
+
+        $statusCounts = array_values(array_filter([
+            $successCount > 0   ? ['status' => 'Success',   'label' => 'Success',         'color' => 'success',   'count' => $successCount]   : null,
+            $badCredCount > 0   ? ['status' => 'BadCreds',  'label' => 'Bad Credentials', 'color' => 'warning',   'count' => $badCredCount]   : null,
+            $noRetriesCount > 0 ? ['status' => 'NoRetries', 'label' => 'Out of Retries',  'color' => 'error',     'count' => $noRetriesCount] : null,
+            $otherCount > 0     ? ['status' => 'Other',     'label' => 'Other',           'color' => 'secondary', 'count' => $otherCount]     : null,
+        ]));
+        $logTotal = $successCount + $badCredCount + $noRetriesCount + $otherCount;
+
+        if ($request->boolean('summary_only')) {
+            return response()->json([
+                'result'        => true,
+                'status_counts' => $statusCounts,
+                'queue_total'   => $logTotal,
+            ], 200);
+        }
+
         $rawFilters = $request->input('filters', []);
         $filters = is_string($rawFilters) ? (json_decode($rawFilters, true) ?: []) : (array) $rawFilters;
 
@@ -59,26 +95,18 @@ class HarvestLogController extends BaseController
                 ->toArray();
         }
 
-        $instFilter = (array) ($filters['inst'] ?? $filters['institutions'] ?? []);
-        $provFilter = (array) ($filters['prov'] ?? $filters['platforms'] ?? []);
-        $reptFilter = (array) ($filters['rept'] ?? $filters['reports'] ?? []);
-        $codeFilter = (array) ($filters['codes'] ?? []);
-        $yymmFilter = (array) ($filters['yymms'] ?? []);
-        $updFilter  = (array) ($filters['updated'] ?? $filters['updates'] ?? []);
-
-        $rawStatFilter = (array) ($filters['stat'] ?? $filters['statuses'] ?? []);
-        $statFilter = [];
-        foreach ($rawStatFilter as $stVal) {
-            $matchedKey = array_search($stVal, $this->xlStatus, true);
-            $statFilter[] = $matchedKey !== false ? $matchedKey : $stVal;
+        $instFilter    = (array) ($filters['inst'] ?? $filters['institutions'] ?? []);
+        $provFilter    = (array) ($filters['prov'] ?? $filters['platforms'] ?? []);
+        $reptFilter    = (array) ($filters['rept'] ?? $filters['reports'] ?? []);
+        $codeFilter    = array_map('intval', (array) ($filters['codes'] ?? []));
+        $yymmFilter    = (array) ($filters['yymms'] ?? []);
+        $rawUpd = $filters['updated'] ?? $filters['updates'] ?? [];
+        if (is_array($rawUpd) && isset($rawUpd['id'])) {
+            $updFilter = [$rawUpd['id']];
+        } else {
+            $updFilter = (array) $rawUpd;
         }
-
-        $baseQuery = HarvestLog::query()
-            ->whereNotIn('status', ['New', 'Queued'])
-            ->when(count($limit_insts) > 0, function ($qry) use ($limit_insts) {
-                $allowedCreds = Credential::whereIn('inst_id', $limit_insts)->pluck('id');
-                return $qry->whereIn('credentials_id', $allowedCreds);
-            });
+        $rawStatFilter = (array) ($filters['stat'] ?? $filters['statuses'] ?? []);
 
         $hasCredFilter = count($instFilter) > 0 || count($provFilter) > 0 || !is_null($groupInsts);
 
@@ -96,18 +124,57 @@ class HarvestLogController extends BaseController
                 return $qry->whereIn('credentials_id', $credIds);
             })
             ->when(count($reptFilter) > 0, fn($qry) => $qry->whereIn('report_id', $reptFilter))
-            ->when(count($statFilter) > 0, fn($qry) => $qry->whereIn('status', $statFilter))
-            ->when(count($codeFilter) > 0, fn($qry) => $qry->whereIn('error_id', $codeFilter))
+            ->when(count($rawStatFilter) > 0, function ($qry) use ($rawStatFilter, $badCredCodes) {
+                return $qry->where(function ($sub) use ($rawStatFilter, $badCredCodes) {
+                    foreach ($rawStatFilter as $label) {
+                        if ($label === 'Success') {
+                            $sub->orWhere('status', 'Success');
+                        } elseif ($label === 'Bad Credentials') {
+                            $sub->orWhere(function ($bc) use ($badCredCodes) {
+                                $bc->where('status', '!=', 'Success')
+                                    ->where(fn($q) => $q->where('status', 'BadCreds')->orWhereIn('error_id', $badCredCodes));
+                            });
+                        } elseif ($label === 'Out of Retries') {
+                            $sub->orWhere('status', 'NoRetries');
+                        } elseif ($label === 'Other') {
+                            $sub->orWhere(function ($other) use ($badCredCodes) {
+                                $other->whereNotIn('status', ['Success', 'BadCreds', 'NoRetries'])
+                                    ->where(fn($q) => $q->whereNull('error_id')->orWhereNotIn('error_id', $badCredCodes));
+                            });
+                        } else {
+                            $matchedKey = array_search($label, $this->xlStatus, true);
+                            $sub->orWhere('status', $matchedKey !== false ? $matchedKey : $label);
+                        }
+                    }
+                });
+            })
+            ->when(count($codeFilter) > 0, function ($qry) use ($codeFilter) {
+                if (in_array(0, $codeFilter, true)) {
+                    $nonZero = array_filter($codeFilter, fn($c) => $c !== 0);
+                    return $qry->where(function ($q) use ($nonZero) {
+                        $q->whereNull('error_id')->orWhere('error_id', 0);
+                        if (count($nonZero) > 0) {
+                            $q->orWhereIn('error_id', $nonZero);
+                        }
+                    });
+                }
+                return $qry->whereIn('error_id', $codeFilter);
+            })
             ->when(count($yymmFilter) > 0, fn($qry) => $qry->whereIn('yearmon', $yymmFilter))
             ->when(!empty($filters['fromYM']), fn($qry) => $qry->where('yearmon', '>=', $filters['fromYM']))
             ->when(!empty($filters['toYM']), fn($qry) => $qry->where('yearmon', '<=', $filters['toYM']))
             ->when(count($updFilter) > 0, function ($qry) use ($updFilter) {
                 $cutoff = null;
                 foreach ($updFilter as $u) {
-                    $c = match ($u) {
+                    $label = is_array($u) ? ($u['id'] ?? $u['name'] ?? '') : $u;
+                    $c = match ($label) {
                         'Last Hour'     => now()->subHour(),
+                        'Last 6 Hours'  => now()->subHours(6),
+                        'Today'         => now()->startOfDay(),
                         'Last 24 Hours' => now()->subDay(),
                         'Last Week'     => now()->subWeek(),
+                        'Last 30 Days'  => now()->subDays(30),
+                        'Last 90 Days'  => now()->subDays(90),
                         default         => null,
                     };
                     if ($c && (!$cutoff || $c->lt($cutoff))) {
@@ -116,9 +183,11 @@ class HarvestLogController extends BaseController
                 }
                 return $cutoff ? $qry->where('updated_at', '>=', $cutoff) : $qry;
             })
+
             ->orderBy('updated_at', 'DESC')
             ->limit(2501)
             ->get();
+
 
         $truncated = $data->count() > 2500;
         $harvests = $data->take(2500)
@@ -130,11 +199,10 @@ class HarvestLogController extends BaseController
             return response()->json(['harvests' => $harvests], 200);
         }
 
-        // Build full-set filter dropdown options across all executed HarvestLog records
-        $logCredIds = (clone $baseQuery)->distinct()->pluck('credentials_id');
-        $logInstIds = Credential::whereIn('id', $logCredIds)->distinct()->pluck('inst_id');
-        $logProvIds = Credential::whereIn('id', $logCredIds)->distinct()->pluck('prov_id');
-        $logReptIds = (clone $baseQuery)->distinct()->pluck('report_id');
+        $logCredIds = (clone $baseQuery)->select('credentials_id')->distinct()->pluck('credentials_id');
+        $logInstIds = Credential::whereIn('id', $logCredIds)->select('inst_id')->distinct()->pluck('inst_id');
+        $logProvIds = Credential::whereIn('id', $logCredIds)->select('prov_id')->distinct()->pluck('prov_id');
+        $logReptIds = (clone $baseQuery)->select('report_id')->distinct()->pluck('report_id');
 
         $institutions = Institution::where('id', '>', 1)
             ->whereIn('id', $logInstIds)
@@ -145,13 +213,12 @@ class HarvestLogController extends BaseController
 
         $groups = $consoAdmin
             ? InstitutionGroup::whereHas('institutions', fn($q) => $q->whereIn('institutions.id', $logInstIds))
-                ->orderBy('name', 'ASC')
-                ->get(['id', 'name'])
-                ->toArray()
+            ->orderBy('name', 'ASC')
+            ->get(['id', 'name'])
+            ->toArray()
             : [];
 
         $platforms = GlobalProvider::whereIn('id', $logProvIds)
-            ->orderBy('name', 'ASC')
             ->get(['id', 'name'])
             ->sortBy('name', SORT_NATURAL | SORT_FLAG_CASE)
             ->values()
@@ -164,47 +231,57 @@ class HarvestLogController extends BaseController
             ->toArray();
 
         $updates = [
-            ['id' => 'Last Hour', 'name' => 'Last Hour'],
+            ['id' => 'Last Hour',     'name' => 'Last Hour'],
+            ['id' => 'Last 6 Hours',  'name' => 'Last 6 Hours'],
+            ['id' => 'Today',         'name' => 'Today'],
             ['id' => 'Last 24 Hours', 'name' => 'Last 24 Hours'],
-            ['id' => 'Last Week', 'name' => 'Last Week'],
+            ['id' => 'Last Week',     'name' => 'Last Week'],
+            ['id' => 'Last 30 Days',  'name' => 'Last 30 Days'],
+            ['id' => 'Last 90 Days',  'name' => 'Last 90 Days'],
         ];
 
         $yymms = (clone $baseQuery)
+            ->select('yearmon')
             ->distinct()
-            ->orderBy('yearmon', 'DESC')
             ->pluck('yearmon')
-            ->map(fn($ym) => ['id' => $ym, 'name' => $ym])
+            ->unique()
+            ->sortDesc()
             ->values()
-            ->toArray();
+            ->map(fn($ym) => ['id' => $ym, 'name' => $ym])
+            ->all();
 
-        $presentStatuses = (clone $baseQuery)->distinct()->pluck('status')->toArray();
-        $statuses = [];
-        foreach ($this->xlStatus as $key => $text) {
-            if (in_array($key, ['New', 'Queued'], true) || !in_array($key, $presentStatuses, true)) {
-                continue;
-            }
-            $statuses[] = ['id' => $text, 'name' => $text];
-        }
+        $statuses = array_map(
+            fn($sc) => ['id' => $sc['label'], 'name' => $sc['label']],
+            $statusCounts
+        );
 
-        $hasNoError = (clone $baseQuery)->where(fn($q) => $q->whereNull('error_id')->orWhere('error_id', 0))->exists();
+        $hasNoError = (clone $baseQuery)
+            ->where(fn($q) => $q->whereNull('error_id')->orWhere('error_id', 0))
+            ->exists();
         $codes = $hasNoError ? [['id' => 0, 'name' => __('harvests.filters.no_error')]] : [];
         $err_ids = (clone $baseQuery)
             ->where('error_id', '>', 0)
+            ->select('error_id')
             ->distinct()
-            ->orderBy('error_id', 'ASC')
-            ->pluck('error_id');
+            ->pluck('error_id')
+            ->map(fn($c) => (int) $c)
+            ->unique()
+            ->sort()
+            ->values();
         foreach ($err_ids as $code) {
-            $codes[] = ['id' => (int) $code, 'name' => (string) $code];
+            $codes[] = ['id' => $code, 'name' => (string) $code];
         }
 
         $bounds = $this->harvestBounds();
 
         return response()->json([
-            'result'    => true,
-            'records'   => $harvests,
-            'truncated' => $truncated,
-            'bounds'    => $bounds,
-            'options'   => [
+            'result'        => true,
+            'records'       => $harvests,
+            'truncated'     => $truncated,
+            'bounds'        => $bounds,
+            'status_counts' => $statusCounts,
+            'queue_total'   => $logTotal,
+            'options'       => [
                 'platforms'    => $platforms,
                 'institutions' => $institutions,
                 'groups'       => $groups,
@@ -752,7 +829,18 @@ class HarvestLogController extends BaseController
 
         $consoAdmin = $thisUser->isConsoAdmin();
         $limit_insts = $consoAdmin ? [] : $thisUser->adminInsts();
-        $limit_status = ['Queued', 'Harvesting', 'Pending', 'Paused', 'ReQueued', 'Waiting', 'Processing', 'New'];
+        $limit_status = ['New', 'Queued', 'Harvesting', 'Pending', 'ReQueued', 'Paused', 'Waiting', 'Processing'];
+        $queueColors  = [
+            'New'        => 'secondary',
+            'Queued'     => 'secondary',
+            'Harvesting' => 'info',
+            'Pending'    => 'secondary',
+            'ReQueued'   => 'warning',
+            'Paused'     => 'error',
+            'Waiting'    => 'secondary',
+            'Processing' => 'info',
+        ];
+        $processStages = ['Waiting', 'Processing'];
 
         $baseQuery = HarvestLog::query()
             ->when(count($limit_insts) > 0, function ($qry) use ($limit_insts) {
@@ -768,15 +856,19 @@ class HarvestLogController extends BaseController
 
         $statusCounts = [];
         foreach ($limit_status as $st) {
-            if (!empty($rawCounts[$st])) {
+            $cnt = (int) ($rawCounts[$st] ?? 0);
+            if ($cnt > 0 || in_array($st, ['Waiting', 'Processing'], true)) {
                 $statusCounts[] = [
                     'status' => $st,
+                    'stage'  => in_array($st, $processStages, true) ? 'process' : 'harvest',
                     'label'  => $this->xlStatus[$st] ?? $st,
-                    'color'  => $this->colors[$st] ?? 'secondary',
-                    'count'  => (int) $rawCounts[$st],
+                    'color'  => $queueColors[$st] ?? ($this->colors[$st] ?? 'secondary'),
+                    'count'  => $cnt,
                 ];
             }
         }
+
+
         $queueTotal = array_sum(array_column($statusCounts, 'count'));
 
         if ($request->boolean('summary_only')) {
@@ -786,6 +878,7 @@ class HarvestLogController extends BaseController
                 'queue_total'   => $queueTotal,
             ], 200);
         }
+
         $filters = $request->input('filters', []);
         if (is_string($filters)) {
             $filters = json_decode($filters, true) ?: [];
@@ -794,7 +887,8 @@ class HarvestLogController extends BaseController
         $selectedLabels = (array) ($filters['statuses'] ?? []);
         $selectedStatuses = [];
         if (count($selectedLabels) > 0) {
-            foreach ($this->xlStatus as $dbKey => $label) {
+            foreach ($limit_status as $dbKey) {
+                $label = $this->xlStatus[$dbKey] ?? $dbKey;
                 if (in_array($label, $selectedLabels, true) || in_array($dbKey, $selectedLabels, true)) {
                     $selectedStatuses[] = $dbKey;
                 }
@@ -805,7 +899,7 @@ class HarvestLogController extends BaseController
         $instFilter = (array) ($filters['institutions'] ?? $filters['inst'] ?? []);
         $reptFilter = (array) ($filters['reports'] ?? $filters['rept'] ?? []);
         $yymmFilter = (array) ($filters['yymms'] ?? []);
-        $codeFilter = (array) ($filters['codes'] ?? []);
+        $codeFilter = array_map('intval', (array) ($filters['codes'] ?? []));
 
         $groupFilter = (array) ($filters['groups'] ?? $filters['group'] ?? []);
         $groupInsts = null;
@@ -834,13 +928,22 @@ class HarvestLogController extends BaseController
             })
             ->when(count($reptFilter) > 0, fn($q) => $q->whereIn('report_id', $reptFilter))
             ->when(count($yymmFilter) > 0, fn($q) => $q->whereIn('yearmon', $yymmFilter))
-            ->when(count($codeFilter) > 0, fn($q) => $q->whereIn('error_id', $codeFilter))
+            ->when(count($codeFilter) > 0, function ($qry) use ($codeFilter) {
+                if (in_array(0, $codeFilter, true)) {
+                    $nonZero = array_filter($codeFilter, fn($c) => $c !== 0);
+                    return $qry->where(function ($q) use ($nonZero) {
+                        $q->whereNull('error_id')->orWhere('error_id', 0);
+                        if (count($nonZero) > 0) {
+                            $q->orWhereIn('error_id', $nonZero);
+                        }
+                    });
+                }
+                return $qry->whereIn('error_id', $codeFilter);
+            })
             ->with($this->harvestRelations())
-            ->orderByRaw("FIELD(status, 'Harvesting', 'Processing', 'ReQueued', 'Pending', 'Queued', 'Paused', 'Waiting', 'New')")
-            ->orderBy('updated_at', 'DESC')
+            ->orderByRaw("FIELD(status, 'New', 'Queued', 'Waiting', 'Harvesting', 'Processing', 'Pending', 'ReQueued', 'Paused')")->orderBy('updated_at', 'DESC')
             ->limit(501)
             ->get();
-
 
         $truncated = $data->count() > 500;
         $harvests = $data->take(500)->map(fn($harvest) => $this->formatRecord($harvest, $now))->all();
@@ -880,9 +983,9 @@ class HarvestLogController extends BaseController
 
         $filter_options['groups'] = $consoAdmin
             ? InstitutionGroup::whereHas('institutions', fn($q) => $q->whereIn('institutions.id', $queueInstIds))
-                ->orderBy('name', 'ASC')
-                ->get(['id', 'name'])
-                ->toArray()
+            ->orderBy('name', 'ASC')
+            ->get(['id', 'name'])
+            ->toArray()
             : [];
 
         $filter_options['platforms'] = GlobalProvider::whereIn('id', $queueProvIds)
@@ -901,30 +1004,10 @@ class HarvestLogController extends BaseController
             ->values()
             ->toArray();
 
-        $filter_options['statuses'] = [];
-        foreach ($this->xlStatus as $key => $text) {
-            if (in_array($key, $limit_status)) {
-                $filter_options['statuses'][] = ['id' => $text, 'name' => $text];
-            }
-        }
-
-
-        $codes = $data->where('error_id', '>', 0)->unique('error_id')->sortBy('error_id')->pluck('error_id');
-        foreach ($codes as $code) {
-            $filter_options['codes'][] = ['id' => $code, 'name' => (string) $code];
-        }
-
-        $filter_options['institutions'] = Institution::when(count($limit_insts) > 0, function ($qry) use ($limit_insts) {
-            return $qry->where('id', 1)->orWhereIn('id', $limit_insts);
-        })->get(['id', 'name'])->toArray();
-        $filter_options['platforms'] = GlobalProvider::get(['id', 'name'])->toArray();
-        $filter_options['reports'] = Report::where('parent_id', 0)->orderBy('dorder', 'ASC')->get(['id', 'name'])->toArray();
-        $filter_options['statuses'] = [];
-        foreach ($this->xlStatus as $key => $text) {
-            if (in_array($key, $limit_status)) {
-                $filter_options['statuses'][] = ['id' => $text, 'name' => $text];
-            }
-        }
+        $filter_options['statuses'] = array_map(
+            fn($sc) => ['id' => $sc['label'], 'name' => $sc['label']],
+            $statusCounts
+        );
 
         return response()->json([
             'result'        => true,
@@ -935,6 +1018,7 @@ class HarvestLogController extends BaseController
             'queue_total'   => $queueTotal,
         ], 200);
     }
+
 
 
 
@@ -976,6 +1060,42 @@ class HarvestLogController extends BaseController
         return [$result];
     }
 
+    private function resolveErrorThemeColor(int $errorId, ?array $errorData, string $fallbackColor): string
+    {
+        if ($errorId === 0) {
+            return $fallbackColor;
+        }
+
+        if (in_array($errorId, [3030, 3050, 3060, 3061, 3062, 3063, 9030], true)) {
+            return 'success';
+        }
+        if (in_array($errorId, [1030, 2000, 2010, 2020, 9100], true)) {
+            return 'warning';
+        }
+        if (in_array($errorId, [1000, 1010, 1011, 1020, 3031], true)) {
+            return 'info';
+        }
+        if (in_array($errorId, [9200, 9300], true)) {
+            return 'secondary';
+        }
+
+        $newStatus = $errorData['new_status'] ?? '';
+        return match ($newStatus) {
+            'Success'             => 'success',
+            'BadCreds'            => 'warning',
+            'ReQueued', 'Pending' => 'info',
+            'Fail'                => 'error',
+            default               => match (strtoupper((string) ($errorData['color'] ?? ''))) {
+                '#00DD00' => 'success',
+                '#FF9900' => 'warning',
+                '#39AAE0' => 'info',
+                '#999999' => 'secondary',
+                '#DD0000' => 'error',
+                default   => $fallbackColor,
+            },
+        };
+    }
+
     private function formatRecord($harvest, ?\DateTime $now = null): array
     {
         $dStatus = $this->xlStatus[$harvest->status] ?? $harvest->status;
@@ -995,28 +1115,28 @@ class HarvestLogController extends BaseController
             'report_name' => $harvest->report->name,
             'status'      => $harvest->status,
             'd_status'    => $dStatus,
-            'statusDot'   => $statusColor,
             'rawfile'     => $harvest->rawfile,
             'error_id'    => (int) ($harvest->error_id ?? 0),
             'error'       => [
                 'id'      => (int) ($harvest->error_id ?? 0),
-                'message' => ($harvest->status === 'Success' && empty($harvest->error_id)) ? $dStatus : '',
+                'message' => '',
             ],
             'failed'      => [],
         ];
 
-        $rec['updated'] = $harvest->updated_at ? date('Y-m-d H:i', strtotime($harvest->updated_at)) : ' ';
-        $rec['created'] = ($rec['updated'] !== ' ') ? $rec['updated'] : ' ';
+        $rec['updated'] = $harvest->updated_at ? $harvest->updated_at->toIso8601String() : '';
+        $rec['created'] = $harvest->created_at ? $harvest->created_at->toIso8601String() : '';
+
 
         $lastFailed = $harvest->failedHarvests ? $harvest->failedHarvests->sortByDesc('created_at')->first() : null;
         if ($harvest->lastError) {
-            $rec['error_id'] = $harvest->error_id;
+            $rec['error_id'] = (int) $harvest->error_id;
             $rec['error'] = $harvest->lastError->toArray();
             $rec['error']['detail'] = '';
             $rec['error']['help_url'] = '';
             $rec['error']['process_step'] = '';
         } elseif ($lastFailed && $harvest->error_id > 0) {
-            $rec['error_id'] = $lastFailed->error_id;
+            $rec['error_id'] = (int) $lastFailed->error_id;
             if ($lastFailed->ccplusError) {
                 $rec['error'] = $lastFailed->ccplusError->toArray();
             }
@@ -1025,9 +1145,11 @@ class HarvestLogController extends BaseController
             $rec['error']['process_step'] = $lastFailed->process_step ?? '';
         }
 
+        $resultColor = $this->resolveErrorThemeColor((int) $rec['error_id'], $rec['error'], $statusColor);
+
         $rec['error']['known_error'] = in_array($rec['error_id'], $this->all_error_codes);
         $rec['error']['noretries'] = ($harvest->status === 'NoRetries');
-        $rec['error']['color'] = $statusColor;
+        $rec['error']['color'] = $resultColor;
         $rec['error']['counter_url'] = ($harvest->release === '5.1')
             ? 'https://countermetrics.org'
             : 'https://projectcounter.org';
@@ -1037,21 +1159,34 @@ class HarvestLogController extends BaseController
         $rec['retryUrl'] = CounterApi::buildUri($beg, $end, $harvest->credential, $harvest->report, 'reports', $harvest->release);
 
         $rec['timeframes'] = [];
-        $current_dt = $now ?? new \DateTime();
-        $updated_dt = new \DateTime($harvest->updated_at);
-        $interval = $updated_dt->diff($current_dt);
-        if ($interval->days < 7) {
-            $rec['timeframes'][] = 'Last Week';
-        }
-        if ($interval->days < 1) {
-            $rec['timeframes'][] = 'Last 24 Hours';
-            if ($interval->h < 1) {
-                $rec['timeframes'][] = 'Last Hour';
+        if ($harvest->updated_at) {
+            $currentDt   = $now ?? new \DateTime();
+            $updatedDt   = new \DateTime($harvest->updated_at);
+            $diffSeconds = max(0, $currentDt->getTimestamp() - $updatedDt->getTimestamp());
+
+            $windows = [
+                'Last Hour'     => 3600,
+                'Last 6 Hours'  => 6 * 3600,
+                'Last 24 Hours' => 86400,
+                'Last Week'     => 7 * 86400,
+                'Last 30 Days'  => 30 * 86400,
+                'Last 90 Days'  => 90 * 86400,
+            ];
+
+            foreach ($windows as $label => $maxSeconds) {
+                if ($diffSeconds <= $maxSeconds) {
+                    $rec['timeframes'][] = $label;
+                }
+            }
+
+            if ($updatedDt->format('Y-m-d') === $currentDt->format('Y-m-d')) {
+                $rec['timeframes'][] = 'Today';
             }
         }
 
         return $rec;
     }
+
 
     private function deleteStoredData(array $harvest_ids): array
     {
