@@ -96,7 +96,7 @@ export default {
     Enable: "Engedélyezés",
     Kill: "Azonnali leállítás",
     Pause: "Szüneteltetés",
-    "Refresh Registry": "Nyilvántartás frissítése",
+    "Refresh from Registry": "Nyilvántartás frissítése",
     Restart: "Újraindítás",
     "Restart as r5": "Újraindítás r5 formátumban",
     "Restart as r5.1": "Újraindítás r5.1 formátumban",

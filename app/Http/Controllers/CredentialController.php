@@ -33,7 +33,7 @@ class CredentialController extends BaseController
             $limit_to_insts = [];
         }
 
-        $data = Credential::with('institution:id,name,is_active,local_id', 'provider', 'lastHarvest')
+        $data = Credential::with('institution:id,name,is_active,local_id', 'lastHarvest')
             ->when(count($limit_to_insts) > 0, fn($qry) => $qry->whereIn('inst_id', $limit_to_insts))
             ->get();
 
@@ -42,22 +42,39 @@ class CredentialController extends BaseController
             ->get();
 
         $global_connectors = ConnectionField::get();
+        $this->getMasterReports();
+
+        // Precompute platform metadata once per platform instead of 1,856 times
+        $globalsById = [];
+        $platformMeta = [];
+        $platformsFilterList = [];
+
+        foreach ($globals as $plat) {
+            $globalsById[$plat->id] = $plat;
+
+            $_connectors = [];
+            $required = $plat->connectors();
+            foreach ($global_connectors as $gc) {
+                $_connectors[$gc->name] = in_array($gc->id, $required);
+            }
+
+            $platformMeta[$plat->id] = [
+                'service_url' => $plat->service_url(),
+                'connectors'  => $this->buildConnectorList($global_connectors, $required),
+            ];
+
+            $platformsFilterList[] = [
+                'id'         => $plat->id,
+                'name'       => $plat->name,
+                'is_active'  => $plat->is_active,
+                'connectors' => $_connectors,
+            ];
+        }
+
         $filter_options = [
             'results'   => [],
             'statuses'  => $data->unique('status')->pluck('status')->toArray(),
-            'platforms' => $globals->map(function ($plat) use ($global_connectors) {
-                $_connectors = [];
-                $required = $plat->connectors();
-                foreach ($global_connectors as $gc) {
-                    $_connectors[$gc->name] = in_array($gc->id, $required);
-                }
-                return [
-                    'id'         => $plat->id,
-                    'name'       => $plat->name,
-                    'is_active'  => $plat->is_active,
-                    'connectors' => $_connectors,
-                ];
-            }),
+            'platforms' => $platformsFilterList,
         ];
 
         if ($thisUser->isConsoAdmin()) {
@@ -76,32 +93,34 @@ class CredentialController extends BaseController
 
         $nh_count = 0;
         $seen_codes = array(0);
-        $this->getMasterReports();
-
         $credentials = [];
+
         foreach ($data as $cred) {
-            if (!$cred->provider) {
+            $global = $globalsById[$cred->prov_id] ?? null;
+            if (!$global) {
                 continue;
             }
 
+            $meta = $platformMeta[$cred->prov_id];
             $rec = [
-                'id'           => $cred->id,
-                'status'       => $cred->status,
-                'inst_id'      => $cred->inst_id,
-                'prov_id'      => $cred->prov_id,
-                'customer_id'  => $cred->customer_id,
-                'requestor_id' => $cred->requestor_id,
-                'api_key'      => $cred->api_key,
-                'platform'     => $cred->provider->name,
-                'can_edit'     => true,
-                'can_delete'   => true,
-                'inst_active'  => $cred->institution->is_active,
-                'plat_active'  => $cred->provider->is_active,
-                'service_url'  => $cred->provider->service_url(),
-                'connectors'   => $this->buildConnectorList($global_connectors, $cred->provider->connectors()),
-                'institution'  => $cred->institution ? $cred->institution->name : '',
-                'local_id'     => $cred->institution ? $cred->institution->local_id : '',
-                'connected'    => ($cred->status === 'Enabled'),
+                'id'             => $cred->id,
+                'status'         => $cred->status,
+                'inst_id'        => $cred->inst_id,
+                'prov_id'        => $cred->prov_id,
+                'legacy_prov_id' => $global->legacy_id,
+                'customer_id'    => $cred->customer_id,
+                'requestor_id'   => $cred->requestor_id,
+                'api_key'        => $cred->api_key,
+                'platform'       => $global->name,
+                'can_edit'       => true,
+                'can_delete'     => true,
+                'inst_active'    => $cred->institution ? $cred->institution->is_active : 0,
+                'plat_active'    => $global->is_active,
+                'service_url'    => $meta['service_url'],
+                'connectors'     => $meta['connectors'],
+                'institution'    => $cred->institution ? $cred->institution->name : '',
+                'local_id'       => $cred->institution ? $cred->institution->local_id : '',
+                'connected'      => ($cred->status === 'Enabled'),
             ];
 
             $lastHarvest = $cred->lastHarvest;
@@ -117,10 +136,7 @@ class CredentialController extends BaseController
                 $rec['result'] = 'No Harvests';
             }
 
-            $global = $globals->where('id', $cred->prov_id)->first();
-            if ($global) {
-                $this->attachReportFlags($rec, $global->enabledReports($cred->inst_id));
-            }
+            $this->attachReportFlags($rec, $global->enabledReports($cred->inst_id));
 
             $credentials[] = $rec;
         }
@@ -136,6 +152,7 @@ class CredentialController extends BaseController
 
         return response()->json(['records' => $credentials, 'options' => $filter_options, 'result' => true], 200);
     }
+
 
     /**
      * Store a newly created resource in storage.
@@ -511,17 +528,17 @@ class CredentialController extends BaseController
     {
         $thisUser = auth()->user();
         abort_unless($thisUser->hasAnyRole(['Admin']), 403);
-
         $parsed = $this->parseMappedCsvUpload($request, [
-            'inst_id'      => ['Institution ID', 'CC+ System ID', 'System ID', 'Inst ID', 'fields.ccplus_system_id'],
-            'local_id'     => ['Local ID', 'fields.local_id'],
-            'institution'  => ['Institution', 'Institution Name', 'fields.institution'],
-            'platform_id'  => ['Platform ID', 'Global ID', 'Prov ID', 'fields.platform_id'],
-            'platform'     => ['Platform', 'Platform Name', 'fields.platform'],
-            'customer_id'  => ['Customer ID', 'fields.customer_id'],
-            'requestor_id' => ['Requestor ID', 'fields.requestor_id'],
-            'api_key'      => ['API Key', 'fields.api_key'],
-            'extra_args'   => ['Extra Args', 'Extra Arguments', 'fields.extra_args'],
+            'inst_id'        => ['Institution ID', 'Institution ID (CC+ System ID)', 'CC+ System ID', 'System ID', 'Inst ID', 'fields.ccplus_system_id'],
+            'local_id'       => ['Local ID', 'Local Institution Identifier', 'fields.local_id'],
+            'institution'    => ['Institution', 'Institution Name', 'fields.institution'],
+            'platform_id'    => ['Platform ID', 'Global ID', 'Prov ID', 'fields.platform_id'],
+            'legacy_prov_id' => ['Legacy Platform ID', 'Legacy ID', 'Platform ID (CC+ System ID)', 'fields.legacy_platform_id'],
+            'platform'       => ['Platform', 'Platform Name', 'fields.platform'],
+            'customer_id'    => ['Customer ID', 'fields.customer_id'],
+            'requestor_id'   => ['Requestor ID', 'fields.requestor_id'],
+            'api_key'        => ['API Key', 'fields.api_key'],
+            'extra_args'     => ['Extra Args', 'Extra Arguments', 'fields.extra_args'],
         ]);
 
         if (isset($parsed['error'])) {
@@ -530,10 +547,10 @@ class CredentialController extends BaseController
 
         $consoAdmin = $thisUser->isConsoAdmin();
         $adminInsts = $thisUser->adminInsts();
-        $institutions = Institution::when(!$consoAdmin, fn ($qry) => $qry->whereIn('id', $adminInsts))
+        $institutions = Institution::when(!$consoAdmin, fn($qry) => $qry->whereIn('id', $adminInsts))
             ->orderBy('name', 'ASC')
             ->get();
-        $all_platforms = GlobalProvider::with('connections')->get(['id', 'name', 'is_active']);
+        $all_platforms = GlobalProvider::with('connections')->get(['id', 'legacy_id', 'name', 'is_active']);
 
         $updated = 0;
         $skipped = 0;
@@ -556,7 +573,7 @@ class CredentialController extends BaseController
                 $institution = $institutions->where('id', intval($rawInstId))->first();
             }
             if (!$institution && $rawInstName !== '') {
-                $institution = $institutions->first(fn ($i) => strcasecmp($i->name, $rawInstName) === 0);
+                $institution = $institutions->first(fn($i) => strcasecmp($i->name, $rawInstName) === 0);
             }
 
             if (!$institution) {
@@ -564,15 +581,19 @@ class CredentialController extends BaseController
                 continue;
             }
 
-            $rawPlatId   = $row['platform_id'] ?? '';
-            $rawPlatName = $row['platform'] ?? '';
+            $rawLegacyPlatId = $row['legacy_prov_id'] ?? '';
+            $rawPlatId       = $row['platform_id'] ?? '';
+            $rawPlatName     = $row['platform'] ?? '';
 
             $platform = null;
-            if ($rawPlatId !== '' && is_numeric($rawPlatId)) {
+            if ($rawLegacyPlatId !== '' && is_numeric($rawLegacyPlatId)) {
+                $platform = $all_platforms->where('legacy_id', intval($rawLegacyPlatId))->first();
+            }
+            if (!$platform && $rawPlatId !== '' && is_numeric($rawPlatId)) {
                 $platform = $all_platforms->where('id', intval($rawPlatId))->first();
             }
             if (!$platform && $rawPlatName !== '') {
-                $platform = $all_platforms->first(fn ($p) => strcasecmp($p->name, $rawPlatName) === 0);
+                $platform = $all_platforms->first(fn($p) => strcasecmp($p->name, $rawPlatName) === 0);
             }
 
             if (!$platform) {
@@ -659,6 +680,7 @@ class CredentialController extends BaseController
 
         return $this->respondSuccess(__('credentials.import_completed', ['detail' => $detail]));
     }
+
 
     /**
      * Returns filter_options for the UI. Item records returned with auditItems().

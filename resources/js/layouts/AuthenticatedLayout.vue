@@ -141,26 +141,30 @@ watch(consortia, (newList) => {
 }, { immediate: true });
 
 // Before Mount role restricting routine
+function canAccessRole(role) {
+  if (role === "Viewer") return true;
+  if (role === "MultiInst") return authStore.has_multi_inst;
+  if (role === "Admin") return is_admin;
+  if (role === "GroupAdmin") return is_group_admin;
+  if (role === "ConsoAdmin") return is_conso_admin;
+  if (role === "ServerAdmin") return is_serveradmin;
+  return false;
+}
+
+// Before Mount role restricting routine
 onBeforeMount(() => {
   all_routes.forEach((topRoute) => {
     if (topRoute.meta && topRoute.meta.level == 1) {
       var theRoute = { ...topRoute };
       if (is_serveradmin) {
-        if (topRoute.name !== 'Account') {
+        if (topRoute.name !== "Account") {
           pages.value.push({ ...theRoute });
         }
-      } else if ((is_admin && topRoute.meta.role == "Admin") || topRoute.meta.role == "Viewer") {
+      } else if (canAccessRole(topRoute.meta.role)) {
         theRoute.children = [];
         if (topRoute.children) {
           topRoute.children.forEach((childRoute) => {
-            if ((childRoute.meta.role == "Admin" && is_admin) ||
-              (childRoute.meta.role == "ConsoAdmin" && is_conso_admin) ||
-              (childRoute.meta.role == "GroupAdmin" && is_group_admin) ||
-              childRoute.meta.role == "Viewer") {
-              if (childRoute.name === 'Institutions' && childRoute.children) {
-                const _gcx = childRoute.children.findIndex(gc => gc.name === 'InstitutionGroupsTable');
-                if (_gcx >= 0) childRoute.children[_gcx].show = is_group_admin;
-              }
+            if (canAccessRole(childRoute.meta.role)) {
               theRoute.children.push(childRoute);
             }
           });
@@ -172,6 +176,7 @@ onBeforeMount(() => {
     }
   });
 });
+
 
 onMounted(async () => {
   // Sync router tracking highlights with path states

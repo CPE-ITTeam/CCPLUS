@@ -95,7 +95,7 @@ export default {
     Enable: "Aktivieren",
     Kill: "Sofort beenden",
     Pause: "Pausieren",
-    "Refresh Registry": "Registry aktualisieren",
+    "Refresh from Registry": "Registry aktualisieren",
     Restart: "Neu starten",
     "Restart as r5": "Als r5 neu starten",
     "Restart as r5.1": "Als r5.1 neu starten",

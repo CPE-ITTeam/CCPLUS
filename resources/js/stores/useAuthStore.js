@@ -48,6 +48,19 @@ export const useAuthStore = defineStore("useAuthStore", {
           state.roles.filter((r) => r.name === "Admin").length > 1)
       );
     },
+
+        has_multi_inst: (state) => {
+      if (!state.isAuthenticated) return false;
+      if (state.roles.some((r) => r.name === "ServerAdmin" || ((r.name === "Admin" || r.name === "Viewer") && r.inst_id === 1))) {
+        return true;
+      }
+      if (state.roles.some((r) => r.group_id > 0)) {
+        return true;
+      }
+      const distinctInsts = new Set(state.roles.map((r) => r.inst_id).filter((id) => id > 0));
+      return distinctInsts.size > 1;
+    },
+
     is_admin: (state) => {
       return (
         state.isAuthenticated &&

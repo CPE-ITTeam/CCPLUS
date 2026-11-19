@@ -8,15 +8,19 @@ return new class extends Migration
 {
     public function up(): void
     {
-        Schema::table('users', function (Blueprint $table) {
-            $table->string('language', 10)->nullable()->after('fiscalYr');
-        });
+        if (!Schema::connection('consodb')->hasColumn('users', 'language')) {
+            Schema::connection('consodb')->table('users', function (Blueprint $table) {
+                $table->string('language', 10)->nullable()->after('fiscalYr');
+            });
+        }
     }
 
     public function down(): void
     {
-        Schema::table('users', function (Blueprint $table) {
-            $table->dropColumn('language');
-        });
+        if (Schema::connection('consodb')->hasColumn('users', 'language')) {
+            Schema::connection('consodb')->table('users', function (Blueprint $table) {
+                $table->dropColumn('language');
+            });
+        }
     }
 };

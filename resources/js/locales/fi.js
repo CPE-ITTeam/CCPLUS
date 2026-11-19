@@ -93,7 +93,7 @@ export default {
     Enable: "Ota käyttöön",
     Kill: "Keskeytä pakotetusti",
     Pause: "Keskeytä",
-    "Refresh Registry": "Päivitä rekisteri",
+    "Refresh from Registry": "Päivitä rekisteri",
     Restart: "Käynnistä uudelleen",
     "Restart as r5": "Käynnistä uudelleen muodossa r5",
     "Restart as r5.1": "Käynnistä uudelleen muodossa r5.1",

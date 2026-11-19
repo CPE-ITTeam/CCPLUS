@@ -55,7 +55,7 @@ const meta = computed(() => {
   if (conso) {
     return {
       icon: 'mdi-checkbox-multiple-marked',
-      color: authStore.is_conso_admin ? 'success' : 'secondary',
+      color: authStore.is_conso_admin ? 'primary' : 'secondary',
       clickable: authStore.is_conso_admin,
     };
   }

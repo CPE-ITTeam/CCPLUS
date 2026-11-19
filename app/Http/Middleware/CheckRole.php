@@ -13,16 +13,20 @@ class CheckRole
      *
      * @param  \Illuminate\Http\Request  $request
      * @param  \Closure  $next
-     * @param  String $input_roles
+     * @param  string  $input_roles
      * @return mixed
      */
     public function handle(Request $request, Closure $next, string $input_roles): Response
     {
         $user = \Auth::user();
-        if ($user->hasRole("ServerAdmin")) {
+        if (!$user) {
+            abort(401, 'This action is unauthorized.');
+        }
+        if ($user->hasRole('ServerAdmin')) {
             return $next($request);
         }
-        $roles = preg_split($input_roles,', ');
+
+        $roles = preg_split('/\s*[,|]\s*/', trim($input_roles), -1, PREG_SPLIT_NO_EMPTY);
         foreach ($roles as $role) {
             if ($user->hasRole($role)) {
                 return $next($request);

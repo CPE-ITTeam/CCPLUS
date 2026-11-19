@@ -11,6 +11,8 @@ const props = defineProps({
   title: { type: String, required: true },
   fyOptions: { type: Array, default: () => [] },
   languageOptions: { type: Array, default: () => [] },
+  defaultFy: { type: Number, default: null },
+  defaultLanguage: { type: String, default: '' },
   isAdmin: { type: Boolean, default: false },
   loading: { type: Boolean, default: false },
   success: { type: String, default: '' },
@@ -26,7 +28,11 @@ const pw_show = ref(false);
 const pwc_show = ref(false);
 
 const updateField = (key, value) => {
-  emit('update:modelValue', { ...props.modelValue, [key]: value });
+  const next = { ...props.modelValue, [key]: value };
+  if (key === 'password' && !value) {
+    next.confirm_pass = null;
+  }
+  emit('update:modelValue', next);
 };
 
 const passwordConfirmRules = computed(() => {
@@ -36,8 +42,17 @@ const passwordConfirmRules = computed(() => {
     (v) => v === props.modelValue.password || t('validation.passwords_must_match'),
   ];
 });
-</script>
 
+const defaultFyLabel = computed(() => {
+  if (!props.defaultFy) return '';
+  return props.fyOptions.find((o) => o.value === props.defaultFy)?.label || '';
+});
+
+const defaultLangLabel = computed(() => {
+  if (!props.defaultLanguage) return '';
+  return props.languageOptions.find((o) => o.id === props.defaultLanguage)?.name || props.defaultLanguage.toUpperCase();
+});
+</script>
 
 <template>
   <SettingsPanelShell v-model:valid="formValid" :title="title" icon="mdi-account-cog-outline"
@@ -59,12 +74,12 @@ const passwordConfirmRules = computed(() => {
 
         <v-text-field :model-value="modelValue.password" :label="$t('fields.password')"
           :type="pw_show ? 'text' : 'password'" autocomplete="new-password"
-          :append-inner-icon="pw_show ? 'mdi-eye' : 'mdi-eye-off'" class="mb-4"
+          :append-inner-icon="pw_show ? 'mdi-eye' : 'mdi-eye-off'"
           @update:model-value="updateField('password', $event)" @click:append-inner="pw_show = !pw_show" />
 
-        <v-text-field :model-value="modelValue.confirm_pass" :label="$t('fields.confirm_password')"
-          :type="pwc_show ? 'text' : 'password'" autocomplete="new-password"
-          :append-inner-icon="pwc_show ? 'mdi-eye' : 'mdi-eye-off'" :rules="passwordConfirmRules"
+        <v-text-field v-if="modelValue.password" :model-value="modelValue.confirm_pass"
+          :label="$t('fields.confirm_password')" :type="pwc_show ? 'text' : 'password'" autocomplete="new-password"
+          :append-inner-icon="pwc_show ? 'mdi-eye' : 'mdi-eye-off'" :rules="passwordConfirmRules" class="mt-4"
           @update:model-value="updateField('confirm_pass', $event)" @click:append-inner="pwc_show = !pwc_show" />
       </v-col>
 
@@ -124,11 +139,13 @@ const passwordConfirmRules = computed(() => {
 
         <v-select :model-value="modelValue.fiscalYr" :label="$t('fields.fiscal_year_start')" :items="fyOptions"
           item-title="label" item-value="value" clearable
+          :placeholder="defaultFyLabel" :persistent-placeholder="!!defaultFyLabel"
           :hint="modelValue.fiscalYr ? $t('account.override_active') : $t('account.using_inherited_default')"
           persistent-hint class="mb-4" @update:model-value="updateField('fiscalYr', $event)" />
 
         <v-select :model-value="modelValue.language" :label="$t('fields.default_language')" :items="languageOptions"
           item-title="name" item-value="id" clearable
+          :placeholder="defaultLangLabel" :persistent-placeholder="!!defaultLangLabel"
           :hint="modelValue.language ? $t('account.override_active') : $t('account.using_inherited_default')"
           persistent-hint @update:model-value="updateField('language', $event)" />
       </v-col>

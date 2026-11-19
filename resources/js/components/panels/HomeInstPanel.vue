@@ -7,6 +7,7 @@ import { resolvePanelFieldState } from '@/utils/panelPermissions.js';
 import SettingsPanelShell from '@/components/ui/SettingsPanelShell.vue';
 import LockTip from '@/components/ui/LockTip.vue';
 import { CONSORTIUM_THEMES } from '@/plugins/vuetify.js';
+import NumberStepper from '@/components/ui/NumberStepper.vue';
 
 const props = defineProps({
   dataset: { type: Object, required: true },
@@ -33,6 +34,12 @@ const themeOptions = computed(() =>
 );
 const getThemeColor = (id) =>
   CONSORTIUM_THEMES.find((tItem) => tItem.id === id)?.primary || '#0066a1';
+
+const fteValue = computed({
+  get: () => Number(props.modelValue.fte ?? 0),
+  set: (val) => updateField('fte', val),
+});
+
 
 const emit = defineEmits(['update:modelValue', 'submit']);
 
@@ -222,51 +229,111 @@ const resolveSelectDisplay = (field) => {
             </v-list-item>
           </template>
         </v-select>
-
-
       </v-col>
     </v-row>
 
-    <!-- Schema-Driven Grid for Home Institution Panel -->
+    <!-- 3-Column Treatment for Home Institution Panel -->
     <v-row v-else class="mt-0">
-      <v-col v-for="field in resolvedFields" :key="field.name" cols="12" :md="field.cols || 12" class="pt-0">
-        <!-- Toggle / Switch (status) -->
-        <div v-if="field.type === 'toggle'" class="d-flex align-center">
-          <v-switch :model-value="modelValue[field.name]" :label="field.label" :readonly="!field.state.editable"
-            :disabled="!field.state.editable" true-value="Active" false-value="Inactive" color="primary"
-            hide-details="auto" @update:model-value="updateField(field.name, $event)" />
-          <LockTip v-if="!field.state.editable" :text="t('account.readonly_field_hint')" class="ms-2" />
-        </div>
+      
+      <v-col cols="12" md="6" lg="4" class="pt-0">
+        <SectionHeading>
+          <v-icon start size="22" class="me-2" aria-hidden="true">mdi-domain</v-icon>
+          {{ $t('account.profile_details') }}
+        </SectionHeading>
 
-        <!-- Multi-select: read-only lines box vs editable multi-select -->
-        <template v-else-if="field.type === 'mselect'">
-          <v-textarea v-if="!field.state.editable && field.readOnlyFormat === 'lines'" :model-value="formatLines(field)"
-            :label="field.label" readonly rows="3" auto-grow hide-details="auto" />
-          <v-select v-else :model-value="modelValue[field.name]" :label="field.label"
-            :items="optionsMap[field.name] || []" :item-value="field.optVal || 'id'"
-            :item-title="field.optTxt || 'name'" :readonly="!field.state.editable" multiple chips hide-details="auto"
-            @update:model-value="updateField(field.name, $event)" />
+        <v-text-field v-if="fieldMap.name?.state.visible" :model-value="modelValue.name" :label="fieldMap.name.label"
+          :readonly="!fieldMap.name.state.editable" :rules="getFieldRules(fieldMap.name)" class="mb-4"
+          @update:model-value="updateField('name', $event)">
+          <template v-if="!fieldMap.name.state.editable" #append-inner>
+            <LockTip :text="$t('account.readonly_field_hint')" />
+          </template>
+        </v-text-field>
+
+        <v-text-field v-if="fieldMap.local_id?.state.visible" :model-value="modelValue.local_id"
+          :label="fieldMap.local_id.label" :readonly="!fieldMap.local_id.state.editable"
+          :rules="getFieldRules(fieldMap.local_id)" class="mb-4"
+          @update:model-value="updateField('local_id', $event)">
+          <template v-if="!fieldMap.local_id.state.editable" #append-inner>
+            <LockTip :text="$t('account.readonly_field_hint')" />
+          </template>
+        </v-text-field>
+
+        <v-row align="center" density="compact">
+          <v-col v-if="fieldMap.fte?.state.visible" :cols="fieldMap.status?.state.visible ? 7 : 12">
+            <NumberStepper v-if="canEditOrg" v-model="fteValue"
+              :label="fieldMap.fte.label" :min="0" :max="1000000" :rules="getFieldRules(fieldMap.fte)"
+              hide-details="auto" />
+            <v-text-field v-else :model-value="modelValue.fte" :label="fieldMap.fte.label" readonly
+              hide-details="auto">
+              <template #append-inner>
+                <LockTip :text="$t('account.readonly_field_hint')" />
+              </template>
+            </v-text-field>
+          </v-col>
+
+          <v-col v-if="fieldMap.status?.state.visible" :cols="fieldMap.fte?.state.visible ? 5 : 12"
+            class="d-flex align-center justify-end pe-4">
+            <v-switch :model-value="modelValue.status" :label="fieldMap.status.label"
+              :readonly="!fieldMap.status.state.editable" :disabled="!fieldMap.status.state.editable"
+              true-value="Active" false-value="Inactive" color="primary" @update:model-value="updateField('status', $event)" />
+            <LockTip v-if="!fieldMap.status.state.editable" :text="$t('account.readonly_field_hint')" class="ms-1" />
+          </v-col>
+        </v-row>
+
+      </v-col>
+
+      <!-- Column 2: Classification & Groups -->
+      <v-col cols="12" md="6" lg="4" class="pt-0">
+        <SectionHeading>
+          <v-icon start size="22" class="me-2" aria-hidden="true">mdi-shape-outline</v-icon>
+          {{ $t('account.organization_and_roles') }}
+        </SectionHeading>
+
+        <template v-if="fieldMap.type?.state.visible || fieldMap.type_id?.state.visible">
+          <template v-for="typeField in [fieldMap.type || fieldMap.type_id]" :key="typeField.name">
+            <v-text-field v-if="!typeField.state.editable"
+              :model-value="modelValue.type || resolveSelectDisplay(typeField)"
+              :label="typeField.label" readonly class="mb-4">
+              <template #append-inner>
+                <LockTip :text="$t('account.readonly_field_hint')" />
+              </template>
+            </v-text-field>
+            <v-select v-else :model-value="modelValue.type_id" :label="typeField.label"
+              :items="optionsMap.type || optionsMap.type_id || []" :item-value="typeField.optVal || 'id'"
+              :item-title="typeField.optTxt || 'name'" :rules="getFieldRules(typeField)" class="mb-4"
+              @update:model-value="updateField('type_id', $event)" />
+          </template>
         </template>
-        <!-- Single Select (type) -->
-        <template v-else-if="field.type === 'select'">
-          <v-text-field v-if="!field.state.editable" :model-value="resolveSelectDisplay(field)" :label="field.label"
-            readonly hide-details="auto" />
-          <v-select v-else :model-value="modelValue[field.name]" :label="field.label"
-            :items="optionsMap[field.name] || []" :item-value="field.optVal || 'id'"
-            :item-title="field.optTxt || 'name'" :rules="getFieldRules(field)" hide-details="auto"
-            @update:model-value="updateField(field.name, $event)" />
+
+
+        <template v-if="fieldMap.groups?.state.visible">
+          <v-textarea v-if="!fieldMap.groups.state.editable" :model-value="formatLines(fieldMap.groups)"
+            :label="fieldMap.groups.label" readonly rows="1" auto-grow>
+            <template #append-inner>
+              <LockTip :text="$t('account.readonly_field_hint')" />
+            </template>
+          </v-textarea>
+          <v-select v-else :model-value="modelValue.groups" :label="fieldMap.groups.label"
+            :items="optionsMap.groups || []" :item-value="fieldMap.groups.optVal || 'id'"
+            :item-title="fieldMap.groups.optTxt || 'name'" multiple chips
+            @update:model-value="updateField('groups', $event)" />
         </template>
+      </v-col>
 
-        <!-- Textarea (notes) -->
-        <v-textarea v-else-if="field.type === 'textarea'" :model-value="modelValue[field.name]" :label="field.label"
-          :readonly="!field.state.editable" :rules="getFieldRules(field)" rows="3" auto-grow hide-details="auto"
-          @update:model-value="updateField(field.name, $event)" />
+      <!-- Column 3: Notes -->
+      <v-col cols="12" md="12" lg="4" class="pt-0">
+        <SectionHeading>
+          <v-icon start size="22" class="me-2" aria-hidden="true">mdi-note-text-outline</v-icon>
+          {{ fieldMap.notes?.label || $t('fields.notes') }}
+        </SectionHeading>
 
-        <!-- Standard Text / Number / Email Input -->
-        <v-text-field v-else :model-value="modelValue[field.name]" :label="field.label"
-          :type="field.type === 'number' ? 'number' : field.type === 'email' ? 'email' : 'text'"
-          :readonly="!field.state.editable" :rules="getFieldRules(field)" hide-details="auto"
-          @update:model-value="updateField(field.name, $event)" />
+        <v-textarea v-if="fieldMap.notes?.state.visible" :model-value="modelValue.notes" :label="fieldMap.notes.label"
+          :readonly="!fieldMap.notes.state.editable" :rules="getFieldRules(fieldMap.notes)" rows="6" auto-grow
+          @update:model-value="updateField('notes', $event)">
+          <template v-if="!fieldMap.notes.state.editable" #append-inner>
+            <LockTip :text="$t('account.readonly_field_hint')" />
+          </template>
+        </v-textarea>
       </v-col>
     </v-row>
   </SettingsPanelShell>

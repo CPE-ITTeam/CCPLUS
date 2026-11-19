@@ -35,7 +35,7 @@ export function useDatasetBulk({
     const selectedList = unref(selectedRows) || [];
 
     const isRegistryRefresh =
-      data.action === "Refresh Registry" || data.action === "Full Refresh";
+      data.action === "Refresh from Registry" || data.action === "Full Refresh";
     const bulkUrl = root + (isRegistryRefresh ? "/refresh" : "/bulk");
 
     // Aggregate ID array arguments safely
@@ -103,7 +103,7 @@ export function useDatasetBulk({
             dtKey.value++;
           }
         } else if (
-          data.action === "Refresh Registry" ||
+          data.action === "Refresh from Registry" ||
           data.action === "Full Refresh"
         ) {
           if (resData.affectedItems?.length > 0) {

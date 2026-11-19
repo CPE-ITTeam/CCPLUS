@@ -38,11 +38,12 @@ class GlobalProvider extends Model
         'platform_parm' => null, 
         'selected_release' => null
     ];
-
     protected $fillable = [
-        'id', 'registry_id', 'name', 'abbrev', 'is_active', 'refreshable', 
-        'refresh_result', 'master_reports', 'day_of_month', 'platform_parm', 'selected_release'
+        'id', 'legacy_id', 'registry_id', 'name', 'abbrev', 'is_active', 'refreshable',
+        'refresh_result', 'master_reports', 'day_of_month', 'platform_parm',
+        'content_provider', 'selected_release'
     ];
+
 
     // 🏁 FIXED: Added 'array' casting mapping alongside your other scalar types to unblock array serializations
     protected $casts = [

@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\CcplusError;
 use App\Consortium;
 use App\CounterApi;
 use App\Credential;
@@ -12,7 +13,6 @@ use App\Institution;
 use App\InstitutionGroup;
 use App\Provider;
 use App\Report;
-use App\CcplusError;
 use Illuminate\Http\Request;
 use Illuminate\Support\Arr;
 use Illuminate\Support\Facades\Crypt;
@@ -45,21 +45,29 @@ class HarvestLogController extends Controller
         $json = $request->input('json', false);
         if ($json) {
             $filters = json_decode($request->input('filters', '{}'), true) ?: [];
+            $groupInsts = null;
+            if (!empty($filters['group'])) {
+                $groupInsts = InstitutionGroup::with('institutions:id')
+                    ->find($filters['group'])
+                    ?->institutions->pluck('id')->toArray() ?? [];
+            }
+
+            $hasCredFilter = count($limit_insts) > 0
+                || !empty($filters['inst'])
+                || !empty($filters['prov'])
+                || !is_null($groupInsts);
+
+            $now = new \DateTime();
             $harvests = HarvestLog::with($this->harvestRelations())
-                ->when(count($limit_insts) > 0, function ($qry) use ($limit_insts) {
-                    return $qry->whereHas('credential', fn($q) => $q->whereIn('inst_id', $limit_insts));
-                })
-                ->when(!empty($filters['inst']), function ($qry) use ($filters) {
-                    return $qry->whereHas('credential', fn($q) => $q->whereIn('inst_id', $filters['inst']));
-                })
-                ->when(!empty($filters['prov']), function ($qry) use ($filters) {
-                    return $qry->whereHas('credential', fn($q) => $q->whereIn('prov_id', $filters['prov']));
-                })
-                ->when(!empty($filters['group']), function ($qry) use ($filters) {
-                    $group_insts = InstitutionGroup::with('institutions:id')
-                        ->find($filters['group'])
-                        ?->institutions->pluck('id')->toArray() ?? [];
-                    return $qry->whereHas('credential', fn($q) => $q->whereIn('inst_id', $group_insts));
+                ->when($hasCredFilter, function ($qry) use ($limit_insts, $filters, $groupInsts) {
+                    $credIds = Credential::query()
+                        ->when(count($limit_insts) > 0, fn($q) => $q->whereIn('inst_id', $limit_insts))
+                        ->when(!empty($filters['inst']), fn($q) => $q->whereIn('inst_id', $filters['inst']))
+                        ->when(!empty($filters['prov']), fn($q) => $q->whereIn('prov_id', $filters['prov']))
+                        ->when(!is_null($groupInsts), fn($q) => $q->whereIn('inst_id', $groupInsts))
+                        ->pluck('id');
+
+                    return $qry->whereIn('credentials_id', $credIds);
                 })
                 ->when(!empty($filters['rept']), fn($qry) => $qry->whereIn('report_id', $filters['rept']))
                 ->when(!empty($filters['stat']), fn($qry) => $qry->whereIn('status', $filters['stat']))
@@ -76,8 +84,9 @@ class HarvestLogController extends Controller
                     return $cutoff ? $qry->where('updated_at', '>=', $cutoff) : $qry;
                 })
                 ->orderBy('updated_at', 'DESC')
+                ->limit(2500)
                 ->get()
-                ->map(fn($harvest) => $this->formatRecord($harvest))
+                ->map(fn($harvest) => $this->formatRecord($harvest, $now))
                 ->all();
 
             return response()->json(['harvests' => $harvests], 200);
@@ -210,7 +219,6 @@ class HarvestLogController extends Controller
         $release = $input['release'] ?? null;
         $createdCount = 0;
         $messages = [];
-
         foreach ($credentials as $cred) {
             if (!$cred->institution?->is_active || !$cred->provider?->is_active) {
                 continue;
@@ -256,15 +264,18 @@ class HarvestLogController extends Controller
                 }
             }
         }
+
         if ($createdCount === 0) {
             return $this->respondError(__('harvests.errors.no_records_created'));
         }
+
         return response()->json([
             'result'   => true,
             'msg'      => __('harvests.messages.created_count', ['count' => $createdCount]),
             'messages' => $messages,
         ], 200);
     }
+
     /**
      * Display the specified resource.
      */
@@ -274,6 +285,7 @@ class HarvestLogController extends Controller
         abort_unless($harvest->canManage(), 403);
         return response()->json(['harvest' => $this->formatRecord($harvest)], 200);
     }
+
     /**
      * Show the form for editing the specified resource.
      */
@@ -288,6 +300,7 @@ class HarvestLogController extends Controller
         }
         return view('harvests.edit', compact('record', 'statuses'));
     }
+
     /**
      * Update the specified resource in storage.
      */
@@ -297,6 +310,7 @@ class HarvestLogController extends Controller
         if (!$harvest->canManage()) {
             return $this->respondError(__('harvests.errors.not_authorized'));
         }
+
         $input = $request->all();
         if (isset($input['status']) && array_key_exists($input['status'], $this->xlStatus)) {
             $harvest->status = $input['status'];
@@ -307,17 +321,20 @@ class HarvestLogController extends Controller
         if (isset($input['attempts'])) {
             $harvest->attempts = (int) $input['attempts'];
         }
+
         try {
             $harvest->save();
         } catch (\Exception $e) {
             return $this->respondError(__('harvests.errors.update_failed', ['error' => $e->getMessage()]));
         }
+
         return response()->json([
             'result'  => true,
             'msg'     => __('harvests.messages.updated'),
             'harvest' => $this->formatRecord($harvest->fresh($this->harvestRelations())),
         ], 200);
     }
+
     /**
      * Perform bulk status updates, restarts, or deletions on selected harvests.
      */
@@ -325,15 +342,18 @@ class HarvestLogController extends Controller
     {
         $thisUser = auth()->user();
         abort_unless($thisUser->isAdmin(), 403);
+
         $input = $request->all();
         $harvestIds = $input['harvests'] ?? [];
         if (empty($input['action']) || !is_array($harvestIds) || count($harvestIds) === 0) {
             return $this->respondError(__('harvests.errors.invalid_bulk_inputs'));
         }
+
         $con = Consortium::where('ccp_key', $request->header('X-Tenant'))->first();
         if (!$con) {
             return $this->respondError(__('harvests.errors.consortium_undefined'));
         }
+
         $consoAdmin = $thisUser->isConsoAdmin();
         $limit_insts = $consoAdmin ? [] : $thisUser->adminInsts();
         $harvests = HarvestLog::with($this->harvestRelations())
@@ -342,7 +362,9 @@ class HarvestLogController extends Controller
                 return $qry->whereHas('credential', fn($q) => $q->whereIn('inst_id', $limit_insts));
             })
             ->get();
+
         $harvestIds = $harvests->pluck('id')->toArray();
+
         if ($input['action'] === 'Status') {
             $newStatus = $input['status'] ?? '';
             if (!array_key_exists($newStatus, $this->xlStatus)) {
@@ -361,11 +383,13 @@ class HarvestLogController extends Controller
                 'affectedItems' => $affectedItems,
             ], 200);
         }
+
         if ($input['action'] === 'Restart') {
             $forceRelease = $input['release'] ?? null;
             $changed = 0;
             $skipped = [];
             $affectedItems = [];
+
             foreach ($harvests as $harvest) {
                 if (
                     $harvest->credential->status !== 'Enabled' ||
@@ -375,6 +399,7 @@ class HarvestLogController extends Controller
                     $skipped[] = $harvest->id;
                     continue;
                 }
+
                 if (!is_null($forceRelease)) {
                     $registry = $harvest->credential->provider->registries->where('release', $forceRelease)->first();
                     if (!$registry) {
@@ -385,6 +410,7 @@ class HarvestLogController extends Controller
                         $harvest->release = $forceRelease;
                     }
                 }
+
                 $existsInQueue = GlobalQueueJob::where('consortium_id', $con->id)
                     ->where('harvest_id', $harvest->id)
                     ->exists();
@@ -399,6 +425,7 @@ class HarvestLogController extends Controller
                         return $this->respondError(__('harvests.errors.global_job_create_fail'));
                     }
                 }
+
                 $harvest->attempts = 0;
                 $harvest->status = 'Queued';
                 $harvest->updated_at = now();
@@ -406,6 +433,7 @@ class HarvestLogController extends Controller
                 $affectedItems[] = $this->formatRecord($harvest);
                 $changed++;
             }
+
             if ($changed > 0) {
                 $msg  = __('harvests.messages.restarted_count', ['count' => $changed]);
                 $msg .= !is_null($forceRelease) ? __('harvests.messages.as_release', ['release' => $forceRelease]) : '';
@@ -415,6 +443,7 @@ class HarvestLogController extends Controller
                 }
                 return response()->json(['result' => true, 'msg' => $msg, 'affectedItems' => $affectedItems], 200);
             }
+
             $msg = __('harvests.messages.no_harvests_changed');
             $msg .= !is_null($forceRelease) ? __('harvests.messages.no_harvests_release', ['release' => $forceRelease]) : '';
             return response()->json(['result' => true, 'msg' => $msg, 'affectedItems' => []], 200);
@@ -428,8 +457,10 @@ class HarvestLogController extends Controller
             }
             return response()->json(['result' => true, 'msg' => '', 'affectedIds' => $harvestIds], 200);
         }
+
         return $this->respondError(__('harvests.errors.unknown_bulk_action'));
     }
+
     /**
      * Download raw data for a harvest.
      */
@@ -439,13 +470,16 @@ class HarvestLogController extends Controller
         if (!$harvest->canManage()) {
             return $this->respondError(__('harvests.errors.not_authorized_hyphen'));
         }
+
         $con = Consortium::where('ccp_key', $request->header('X-Tenant'))->first();
         if (!$con) {
             return $this->respondError(__('harvests.errors.consortium_undefined'));
         }
+
         if (is_null(config('ccplus.reports_path'))) {
             return $this->respondError(__('harvests.errors.reports_path_unset'));
         }
+
         $filename = config('ccplus.reports_path') . $con->id . '/';
         if ($harvest->status === 'Waiting') {
             $matches = glob("{$filename}0_unprocessed/{$harvest->id}_*");
@@ -455,6 +489,7 @@ class HarvestLogController extends Controller
             $filename .= "{$harvest->credential->inst_id}/{$harvest->credential->prov_id}/" . ($harvest->rawfile ?? 'not-found');
             $return_name = $harvest->rawfile;
         }
+
         if (is_readable($filename)) {
             return response()->streamDownload(function () use ($filename) {
                 echo bzdecompress(Crypt::decrypt(File::get($filename), false));
@@ -463,8 +498,10 @@ class HarvestLogController extends Controller
                 'Content-Disposition' => 'attachment; filename="' . $return_name . '"',
             ]);
         }
+
         return $this->respondError(__('harvests.errors.raw_file_inaccessible'));
     }
+
     /**
      * Remove the specified harvest record and its stored report data.
      */
@@ -474,14 +511,17 @@ class HarvestLogController extends Controller
         if (!$record->canManage()) {
             return $this->respondError(__('harvests.errors.not_authorized'));
         }
+
         GlobalQueueJob::where('harvest_id', $id)->delete();
         $related_credential_ids = $this->deleteStoredData([$id]);
         if (count($related_credential_ids) > 0) {
             $this->resetLastHarvest($related_credential_ids);
         }
         $record->delete();
+
         return $this->respondSuccess(__('harvests.messages.deleted'));
     }
+
     /**
      * Return Harvest Queue records for the current consortium.
      */
@@ -489,18 +529,24 @@ class HarvestLogController extends Controller
     {
         $thisUser = auth()->user();
         abort_unless($thisUser->isAdmin(), 403);
+
         $consoAdmin = $thisUser->isConsoAdmin();
         $limit_insts = $consoAdmin ? [] : $thisUser->adminInsts();
         $limit_status = ['Queued', 'Harvesting', 'Pending', 'Paused', 'ReQueued', 'Waiting', 'Processing'];
+
+        $now = new \DateTime();
         $data = HarvestLog::with($this->harvestRelations())
             ->when(count($limit_insts) > 0, function ($qry) use ($limit_insts) {
                 return $qry->whereHas('credential', fn($q) => $q->whereIn('inst_id', $limit_insts));
             })
             ->whereIn('status', $limit_status)
             ->orderBy('updated_at', 'DESC')
+            ->limit(501)
             ->get();
+
         $truncated = $data->count() > 500;
-        $harvests = $data->take(500)->map(fn($harvest) => $this->formatRecord($harvest))->all();
+        $harvests = $data->take(500)->map(fn($harvest) => $this->formatRecord($harvest, $now))->all();
+
         $filter_options = [
             'codes' => [['id' => 0, 'name' => __('harvests.filters.no_error')]],
         ];
@@ -508,6 +554,7 @@ class HarvestLogController extends Controller
         foreach ($codes as $code) {
             $filter_options['codes'][] = ['id' => $code, 'name' => $code];
         }
+
         $filter_options['institutions'] = Institution::when(count($limit_insts) > 0, function ($qry) use ($limit_insts) {
             return $qry->where('id', 1)->orWhereIn('id', $limit_insts);
         })->get(['id', 'name'])->toArray();
@@ -519,12 +566,14 @@ class HarvestLogController extends Controller
                 $filter_options['statuses'][] = ['value' => $key, 'text' => $text];
             }
         }
+
         return response()->json([
             'records'   => $harvests,
             'options'   => $filter_options,
             'truncated' => $truncated,
         ], 200);
     }
+
     /**
      * Common eager-loading relationships for HarvestLog records.
      */
@@ -535,11 +584,13 @@ class HarvestLogController extends Controller
             'credential',
             'credential.institution:id,name',
             'credential.provider',
+            'credential.provider.registries',
             'lastError',
             'failedHarvests',
             'failedHarvests.ccplusError',
         ];
     }
+
     private function createYMarray(string $from, string $to): array
     {
         $range = [];
@@ -554,12 +605,14 @@ class HarvestLogController extends Controller
         }
         return $range;
     }
+
     private function harvestBounds(): array
     {
         $result = HarvestLog::selectRaw('min(yearmon) as YM_min, max(yearmon) as YM_max')->get()->toArray();
         return [$result];
     }
-    private function formatRecord($harvest): array
+
+    private function formatRecord($harvest, ?\DateTime $now = null): array
     {
         $rec = [
             'id'          => $harvest->id,
@@ -579,9 +632,11 @@ class HarvestLogController extends Controller
             'error'       => ['id' => $harvest->error_id, 'message' => ''],
             'failed'      => [],
         ];
+
         $rec['updated'] = $harvest->updated_at ? date('Y-m-d H:i', strtotime($harvest->updated_at)) : ' ';
         $rec['created'] = ($rec['updated'] !== ' ') ? $rec['updated'] : ' ';
         $rec['d_status'] = $this->xlStatus[$rec['status']] ?? $rec['status'];
+
         $lastFailed = $harvest->failedHarvests ? $harvest->failedHarvests->sortByDesc('created_at')->first() : null;
         if ($harvest->lastError) {
             $rec['error_id'] = $harvest->error_id;
@@ -598,17 +653,20 @@ class HarvestLogController extends Controller
             $rec['error']['help_url'] = $lastFailed->help_url ?? '';
             $rec['error']['process_step'] = $lastFailed->process_step ?? '';
         }
+
         $rec['error']['known_error'] = in_array($rec['error_id'], $this->all_error_codes);
         $rec['error']['noretries'] = ($harvest->status === 'NoRetries');
         $rec['error']['color'] = $this->colors[$rec['status']] ?? 'secondary';
         $rec['error']['counter_url'] = ($harvest->release === '5.1')
-            ? 'https://cop5.countermetrics.org/en/5.1/appendices/d-handling-errors-and-exceptions.html'
-            : 'https://cop5.projectcounter.org/en/5.0.3/appendices/f-handling-errors-and-exceptions.html';
+            ? 'https://countermetrics.org'
+            : 'https://projectcounter.org';
+
         $beg = $harvest->yearmon . '-01';
         $end = $harvest->yearmon . '-' . date('t', strtotime($beg));
         $rec['retryUrl'] = CounterApi::buildUri($beg, $end, $harvest->credential, $harvest->report, 'reports', $harvest->release);
+
         $rec['timeframes'] = [];
-        $current_dt = new \DateTime();
+        $current_dt = $now ?? new \DateTime();
         $updated_dt = new \DateTime($harvest->updated_at);
         $interval = $updated_dt->diff($current_dt);
         if ($interval->days < 7) {
@@ -620,6 +678,7 @@ class HarvestLogController extends Controller
                 $rec['timeframes'][] = 'Last Hour';
             }
         }
+
         return $rec;
     }
     private function deleteStoredData(array $harvest_ids): array
@@ -643,6 +702,7 @@ class HarvestLogController extends Controller
         }
         return $reset_ids;
     }
+
     private function resetLastHarvest(array $cred_ids): void
     {
         $credentials = Credential::with('harvestLogs')->whereIn('id', $cred_ids)->get();

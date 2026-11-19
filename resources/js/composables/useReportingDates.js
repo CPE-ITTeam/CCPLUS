@@ -6,7 +6,7 @@ const MONTH_NAMES = [
   'july', 'august', 'september', 'october', 'november', 'december',
 ];
 
-function normalizeFiscalStartMonth(val) {
+export function normalizeFiscalStartMonth(val) {
   if (val === undefined || val === null || val === '') return null;
   if (Array.isArray(val)) return normalizeFiscalStartMonth(val[0]);
   const asNum = Number(val);
@@ -68,5 +68,5 @@ export function useReportingDates() {
     return { from: startDate, to: endDate };
   }
 
-  return { fromToDates };
+  return { fromToDates, normalizeFiscalStartMonth };
 }

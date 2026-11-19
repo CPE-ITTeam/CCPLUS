@@ -286,7 +286,6 @@ const loadDataset = async (datasetKey) => {
       fld.optVal = 'label';
       fld.optTxt = 'label';
     }
-
     if (fld.header != null) {
       if (datasetKey == 'harvests' && fld.name == 'error') {
         headers.value.push({
@@ -294,9 +293,12 @@ const loadDataset = async (datasetKey) => {
           sort: (a, b) => { return Number(a.id) - Number(b.id); }
         });
       } else {
-        headers.value.push({ title: fld.label, key: fld.name, align: fld.header, type: fld.type });
+        headers.value.push({
+          title: fld.label, key: fld.name, align: fld.header, type: fld.type, truncate: fld.truncate
+        });
       }
     }
+
     if (fld.name == 'conso' && !is_conso_admin) return;
     config.fields[idx].static = config.static.includes(fld.name);
     const _options = (typeof (fld.options) != 'undefined') ? fld.options : [];
@@ -304,40 +306,44 @@ const loadDataset = async (datasetKey) => {
 
     if ((fld.type == 'select' || fld.type == 'mselect' || fld.type == 'selectObj' || fld.type == 'toggle') &&
       (fld.options == 'fromURL' || fld.name == 'fiscalYr') && typeof (allOptions[fld.name]) != 'undefined') {
-      if (Array.isArray(allOptions[fld.name]) && ((props.datasetKey == 'roles' && fld.name == 'role') ||
-        typeof (fld.optTxt) == 'undefined' || typeof (fld.optVal) == 'undefined')) {
-        if (allItems.length > 0 && fld.name != 'fiscalYr') {
-          f_options = allOptions[fld.name].filter(
-            opt => allItems.flatMap(itm => itm[fld.filterCol]).includes(opt[fld.optVal])
-          );
-        } else {
-          f_options = [...allOptions[fld.name]];
-        }
-        filterOptions[fld.name] = {
-          'name': fld.name, 'label': fld.label, 'type': 'text', 'show': fld.isFilter, 'col': fld.filterCol,
-          'items': [...f_options], 'value': null
-        };
-      } else {
-        let f_options = [];
-        let _showIt = false;
-        let initVal = (fld.type == 'mselect') ? [] : null;
-        if (refreshable.includes(datasetKey)) {
-          f_options = [...allOptions[fld.name]];
-          _showIt = true;
-        } else if (fld.name == 'fiscalYr') {
-          f_options = [...allOptions[fld.name]];
-          _showIt = fld.isFilter;
-        } else if (allItems.length > 0 && Array.isArray(allOptions[fld.name])) {
-          f_options = allOptions[fld.name].filter(
-            opt => allItems.flatMap(itm => itm[fld.filterCol]).includes(opt[fld.optVal])
-          );
-          _showIt = (f_options.length == 0 && !refreshable.includes(datasetKey)) ? false : fld.isFilter;
-        }
-        filterOptions[fld.name] = {
-          'name': fld.name, 'label': fld.label, 'type': fld.type, 'val': fld.optVal, 'txt': fld.optTxt,
-          'show': _showIt, 'col': fld.filterCol, 'items': [...f_options], 'value': initVal
-        };
+      let f_options = [];
+      let _showIt = false;
+      let initVal = (fld.type == 'mselect') ? [] : null;
+      const isSinglePrimitive = Array.isArray(allOptions[fld.name]) &&
+        fld.type !== 'mselect' &&
+        ((props.datasetKey == 'roles' && fld.name == 'role') ||
+          typeof (fld.optTxt) == 'undefined' || typeof (fld.optVal) == 'undefined');
+
+      if (refreshable.includes(datasetKey)) {
+        f_options = [...allOptions[fld.name]];
+        _showIt = true;
+      } else if (fld.name == 'fiscalYr') {
+        f_options = [...allOptions[fld.name]];
+        _showIt = fld.isFilter;
+      } else if (allItems.length > 0 && Array.isArray(allOptions[fld.name])) {
+        const presentValues = allItems
+          .flatMap(itm => itm[fld.filterCol] ?? [])
+          .map(v => String(v).trim());
+        f_options = allOptions[fld.name]
+          .map(opt => (typeof opt === 'string' ? opt.trim() : opt))
+          .filter((opt) => {
+            const optValue = (fld.optVal && typeof opt === 'object' && opt !== null) ? opt[fld.optVal] : opt;
+            return presentValues.includes(String(optValue).trim());
+          });
+        _showIt = (f_options.length == 0 && !refreshable.includes(datasetKey)) ? false : fld.isFilter;
       }
+
+      filterOptions[fld.name] = {
+        'name': fld.name,
+        'label': fld.label,
+        'type': isSinglePrimitive ? 'text' : fld.type,
+        'val': fld.optVal,
+        'txt': fld.optTxt,
+        'show': isSinglePrimitive ? fld.isFilter : _showIt,
+        'col': fld.filterCol,
+        'items': [...f_options],
+        'value': initVal
+      };
     } else if (fld.type == 'toggle' && fld.isFilter && f_options.length > 0) {
       filterOptions[fld.name] = {
         'name': fld.name, 'label': fld.label, 'type': 'toggle', 'show': fld.isFilter, 'col': fld.filterCol,
@@ -365,6 +371,7 @@ const loadDataset = async (datasetKey) => {
       };
     }
   });
+
 
   searchFields.value = config.fields.filter(fld => fld.searchable).map(f => f.name);
   editableFields.value = config.fields.filter(fld => fld.editable).map(f => f.name);

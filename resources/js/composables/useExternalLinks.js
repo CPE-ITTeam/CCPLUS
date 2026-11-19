@@ -133,12 +133,20 @@ export function useExternalLinks() {
     },
   ];
 
+  function openRegistryPlatform(registryId) {
+    if (registryId) {
+      window.open(`${REGISTRY_BASE}/platform/${registryId}`, "_blank", "noopener,noreferrer");
+    }
+  }
+
   return {
+    REGISTRY_BASE,
     LINKS,
     counterLinks,
     demoLinks,
     docLinks,
     moreLinks,
     urlFinderLinks,
+    openRegistryPlatform,
   };
 }

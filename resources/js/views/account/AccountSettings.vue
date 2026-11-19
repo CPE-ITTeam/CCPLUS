@@ -10,14 +10,13 @@ import { setAppLocale } from '@/plugins/i18n.js';
 // 2. Services, Stores & Config
 import api from '@/services/api.js';
 import { useAuthStore } from '@/stores/useAuthStore.js';
-import { fyMonths } from '@/stores/useCCPlusStore.js';
+import { normalizeFiscalStartMonth } from '@/composables/useReportingDates.js';
 import { tableSetup } from '@/config/dataTableConfig.js';
 
 // 3. Components
 import UserSettingsPanel from '@/components/panels/UserSettingsPanel.vue';
 import HomeInstPanel from '@/components/panels/HomeInstPanel.vue';
 import ApiSettingsPanel from '@/components/panels/ApiSettingsPanel.vue';
-
 
 const route = useRoute();
 const { t, locale, availableLocales } = useI18n();
@@ -33,12 +32,13 @@ const applyTheme = (themeName) => {
   }
 };
 
-
 const activeTab = computed(() => route.meta?.tab || 'profile');
 
 const success = ref('');
 const failure = ref('');
 const loadingUser = ref(false);
+const inheritedFy = ref(null);
+const inheritedLang = ref('en');
 const acctSettings = ref({
   name: '',
   email: '',
@@ -92,12 +92,11 @@ const homePanelSubmitLabel = computed(() =>
 
 const localizedFyMonths = computed(() => {
   const formatter = new Intl.DateTimeFormat(locale.value || 'en', { month: 'short' });
-  return fyMonths.map((item, idx) => {
-    const val = typeof item === 'object' ? item.value : item;
+  return Array.from({ length: 12 }, (_, idx) => {
     const formatted = formatter.format(new Date(2024, idx, 1));
     return {
       label: formatted.charAt(0).toUpperCase() + formatted.slice(1).replace(/\.$/, ''),
-      value: val,
+      value: idx + 1,
     };
   });
 });
@@ -121,11 +120,14 @@ const getSettings = async () => {
   if (!authStore.user?.id) return;
   try {
     const response = await api.get('/api/users/settings/' + authStore.user.id);
-    const records = response?.data?.records || response?.records;
+    const resData = response?.data !== undefined ? response.data : response;
+    const records = resData?.records;
     if (records) {
+      inheritedFy.value = normalizeFiscalStartMonth(resData?.defaultFiscalYr);
+      inheritedLang.value = resData?.defaultLanguage || 'en';
       acctSettings.value = {
         ...records,
-        fiscalYr: records.fiscalYr || null,
+        fiscalYr: normalizeFiscalStartMonth(records.fiscalYr),
         language: records.language || null,
         password: null,
         confirm_pass: null,
@@ -184,7 +186,6 @@ const getHomeInstSettings = async () => {
   }
 };
 
-
 async function userSubmit() {
   success.value = '';
   failure.value = '';
@@ -200,9 +201,7 @@ async function userSubmit() {
         authStore.user.email = acctSettings.value.email;
         authStore.user.fiscalYr = acctSettings.value.fiscalYr;
       }
-      if (acctSettings.value.language) {
-        setAppLocale(acctSettings.value.language);
-      }
+      setAppLocale(acctSettings.value.language || inheritedLang.value || 'en');
       await nextTick();
       success.value = resData.msg || t('account.update_success');
     } else {
@@ -269,7 +268,6 @@ async function homeInstSubmit() {
   }
 }
 
-
 const makeToken = async () => {
   try {
     const response = await api.post('/api/tokens/store');
@@ -284,7 +282,6 @@ const makeToken = async () => {
     console.error('Error creating token:', error.message);
   }
 };
-
 const destroyToken = async () => {
   try {
     const response = await api.delete('/api/tokens/destroy');
@@ -347,12 +344,12 @@ onMounted(() => {
 });
 </script>
 
-
 <template>
   <div v-if="authStore?.user">
     <UserSettingsPanel v-if="activeTab === 'profile'" v-model="acctSettings"
       :title="$t('account.title', { name: authStore.user.name })" :fy-options="localizedFyMonths"
-      :language-options="languageOptions" :is-admin="authStore.is_admin" :loading="loadingUser" :success="success"
+      :language-options="languageOptions" :default-fy="inheritedFy" :default-language="inheritedLang"
+      :is-admin="authStore.is_admin" :loading="loadingUser" :success="success"
       :failure="failure" @submit="userSubmit" @make-token="makeToken" @destroy-token="destroyToken" />
 
     <HomeInstPanel v-else-if="activeTab === 'institution'" v-model="homeInstSettings" :dataset="activeHomeDataset"
@@ -360,9 +357,9 @@ onMounted(() => {
       :submit-label="homePanelSubmitLabel" :options-map="optionsMap" :is-server-admin="authStore.is_serveradmin"
       :is-conso-admin="authStore.is_conso_admin" :can-edit-org="canEditHomeInst" :loading="loadingHomeInst"
       :success="homeInstSuccess" :failure="homeInstFailure" @submit="homeInstSubmit" />
+
     <ApiSettingsPanel v-else-if="activeTab === 'api'" :access-token="acctSettings.access_token"
       :token-expires="acctSettings.token_expires" :failure="failure" @make-token="makeToken"
       @destroy-token="destroyToken" />
-
   </div>
 </template>

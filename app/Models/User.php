@@ -22,8 +22,9 @@ class User extends Authenticatable
      */
     protected $fillable = [
         'id', 'name', 'email', 'email_verified_at', 'password', 'inst_id', 'phone', 'fiscalYr',
-        'optin_alerts', 'is_active', 'password_change_required'
+        'language', 'optin_alerts', 'is_active', 'password_change_required'
     ];
+
     protected $casts =[
         'id'=>'integer', 'inst_id'=>'integer', 'optin_alerts'=>'integer', 'is_active'=>'integer',
         'password_change_required'=>'integer'
@@ -203,11 +204,14 @@ class User extends Authenticatable
         return 0;
     }
 
-    public function maxRole($inst = null)
+     public function maxRole($inst = null)
     {
-        return (is_null($inst)) ? $this->roles->max('role_id')
-                                : $this->roles->where('inst_id',$inst)->max('role_id');
+        if (is_null($inst) || $this->isConsoAdmin()) {
+            return $this->roles->max('role_id');
+        }
+        return $this->roles->where('inst_id', $inst)->max('role_id');
     }
+
 
     public function maxRoleName()
     {

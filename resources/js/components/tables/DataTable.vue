@@ -9,8 +9,9 @@ import ErrorDetails from '@/components/dialogs/ErrorDetails.vue';
 import { useDate } from 'vuetify';
 import { tableSetup } from '@/config/dataTableConfig.js';
 import { sortDatasetItems } from '@/utils/datasetSort.js';
+import { useExternalLinks } from '@/composables/useExternalLinks.js';
 
-
+const { openUrl, openRegistryPlatform } = useExternalLinks();
 const { t } = useI18n();
 const authStore = useAuthStore();
 const dateInstance = useDate();
@@ -158,6 +159,13 @@ const noDataMessage = computed(() => {
     : t('tables.no_data_refresh');
 });
 
+function formatTruncatedDisplay(value, limit) {
+  if (value == null || value === '' || value === '-required-') return value ?? '';
+  const str = String(value);
+  return str.length > limit ? `${str.slice(0, limit)}...` : str;
+}
+
+
 function enableDeleteDialog(item) {
   curItem.value = { ...item };
   deleteDialog.value = true;
@@ -178,9 +186,6 @@ function closeErrorDialog() {
   errorDialog.value = false;
 }
 
-function openUrl(url) {
-  window.open(url, '_blank');
-}
 </script>
 
 <!-- components/tables/DataTable.vue -->
@@ -256,7 +261,7 @@ function openUrl(url) {
 
       <!-- 2. COUNTER REPORT SLOT ENGINE LOOP -->
       <template v-for="report in ['PR', 'DR', 'TR', 'IR']" #[`item.${report}`]="{ item }">
-        <ToggleIcon v-model="item[report]" :toggleable="true"
+        <ToggleIcon v-model="item[report]" :toggleable="true" :size="24"
           @update:modelValue="$emit('update:report', item.id, report)" />
       </template>
 
@@ -273,8 +278,7 @@ function openUrl(url) {
           {{ item[key] }}
         </span>
       </template>
-
-      <!-- statusDot Key Indicator -->
+            <!-- statusDot Key Indicator -->
       <template #item.statusDot="{ item }">
         <v-icon :title="item.d_status" :color="item.error?.color || 'disabled'">mdi-record</v-icon>
       </template>
@@ -310,6 +314,14 @@ function openUrl(url) {
         {{ formatDateDisplay(value) }}
       </template>
 
+      <!-- Dynamic Truncated Interceptor Loop -->
+      <template v-for="header in computedHeaders.filter(h => h.truncate > 0)" :key="header.key"
+        #[`item.${header.key}`]="{ value }">
+        <span v-if="value === '-required-'" class="text-warning font-italic">{{ value }}</span>
+        <span v-else>{{ formatTruncatedDisplay(value, header.truncate) }}</span>
+      </template>
+
+
       <!-- Row Level Operations Action Matrix Column -->
       <template #item.actions="{ item }">
         <div v-if="showActions || props.dataset === 'platforms'" class="d-flex ga-1 justify-end">
@@ -323,15 +335,15 @@ function openUrl(url) {
                 density="comfortable" v-bind="tooltipProps" :aria-label="$t('tables.platform_refresh_state_aria')" />
             </template>
           </v-tooltip>
+        <!-- Condition B: Platform refresh targeting registry index records -->
+        <v-tooltip v-else-if="item.refresh_result != null" :text="item.refresh_text">
+          <template #activator="{ props: tooltipProps }">
+            <v-btn :icon="item.refresh_icon" :color="item.refresh_color" variant="text" size="small"
+              density="comfortable" v-bind="tooltipProps" :aria-label="$t('tables.platform_refresh_state_aria')"
+              @click="openRegistryPlatform(item.registry_id)" />
+          </template>
+        </v-tooltip>
 
-          <!-- Condition B: Platform refresh targeting registry index records -->
-          <v-tooltip v-else-if="item.refresh_result != null" :text="item.refresh_text">
-            <template #activator="{ props: tooltipProps }">
-              <v-btn :icon="item.refresh_icon" :color="item.refresh_color" variant="text" size="small"
-                density="comfortable" v-bind="tooltipProps" :aria-label="$t('tables.platform_refresh_state_aria')"
-                @click="openUrl('https://countermetrics.org' + item.registry_id)" />
-            </template>
-          </v-tooltip>
 
           <!-- Edit Action -->
           <v-btn v-if="item.can_edit" icon="mdi-pencil" variant="text" size="small" density="comfortable"
@@ -345,6 +357,7 @@ function openUrl(url) {
         </div>
       </template>
     </v-data-table>
+
 
     <!-- Modal Overlays -->
     <v-dialog v-model="deleteDialog" width="auto">

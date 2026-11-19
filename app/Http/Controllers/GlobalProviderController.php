@@ -16,10 +16,11 @@ class GlobalProviderController extends BaseController
     private $masterReports;
     private $allConnectors;
     private array $resultMap;
-
     public function __construct()
     {
-        $this->middleware(['auth', 'role:ServerAdmin']);
+        $this->middleware(['auth']);
+        $this->middleware(['role:Admin'])->only(['index', 'export']);
+        $this->middleware(['role:ServerAdmin'])->except(['index', 'export']);
         $this->resultMap = [
             'success'    => ['refresh_text' => 'Open Registry Details', 'refresh_icon' => 'mdi-web-check', 'refresh_color' => 'blue'],
             'new'        => ['refresh_text' => 'New Platform Entry', 'refresh_icon' => 'mdi-web-plus', 'refresh_color' => 'green'],
@@ -31,13 +32,15 @@ class GlobalProviderController extends BaseController
         ];
     }
 
+
     /**
      * Display a listing of the resource.
      */
     public function index(Request $request)
     {
         $thisUser = $request->user();
-        abort_unless($thisUser->isServerAdmin(), 403);
+        $isServerAdmin = $thisUser->isServerAdmin();
+        abort_unless($isServerAdmin || $thisUser->isAdmin(), 403);
 
         $gp_data = GlobalProvider::with('registries', 'registries.dataHost')->orderBy('name', 'ASC')->get();
 
@@ -45,21 +48,22 @@ class GlobalProviderController extends BaseController
         $this->getConnectionFields();
         $all_connectors = $this->allConnectors->toArray();
 
-        $instances = Consortium::get();
+        $instances = $isServerAdmin ? Consortium::get() : collect();
         $all_releases = [];
         $providers = [];
 
         foreach ($gp_data as $gp) {
             $provider = [
-                'id'            => $gp->id,
-                'name'          => $gp->name,
+                'id'               => $gp->id,
+                'legacy_id'        => $gp->legacy_id,
+                'name'             => $gp->name,
                 'content_provider' => $gp->content_provider,
-                'abbrev'        => $gp->abbrev,
-                'day_of_month'  => $gp->day_of_month,
-                'platform_parm' => $gp->platform_parm,
-                'status'        => $gp->is_active ? 'Active' : 'Inactive',
-                'refreshable'   => $gp->refreshable ? 'Active' : 'Inactive',
-                'registry_id'   => (is_null($gp->registry_id) || $gp->registry_id === '') ? null : $gp->registry_id,
+                'abbrev'           => $gp->abbrev,
+                'day_of_month'     => $gp->day_of_month,
+                'platform_parm'    => $gp->platform_parm,
+                'status'           => $gp->is_active ? 'Active' : 'Inactive',
+                'refreshable'      => $gp->refreshable ? 'Active' : 'Inactive',
+                'registry_id'      => (is_null($gp->registry_id) || $gp->registry_id === '') ? null : $gp->registry_id,
             ];
 
             $resultKey = '';
@@ -111,27 +115,29 @@ class GlobalProviderController extends BaseController
                 $provider['reg_releases'][] = trim($registry->release);
             }
 
-            $provider['can_delete'] = true;
+            $provider['can_delete'] = $isServerAdmin;
             $provider['instance_count'] = 0;
             $connections = [];
 
-            foreach ($instances as $instance) {
-                $details = $this->instanceDetails($instance->ccp_key, $gp);
-                if ($details['harvest_count'] > 0) {
-                    $provider['can_delete'] = false;
-                }
-                if ($details['cnxcount'] > 0) {
-                    $connections[] = [
-                        'key'          => $instance->ccp_key,
-                        'name'         => $instance->name,
-                        'num'          => $details['cnxcount'],
-                        'last_harvest' => $details['last_harvest'],
-                    ];
-                    $provider['instance_count']++;
+            if ($isServerAdmin) {
+                foreach ($instances as $instance) {
+                    $details = $this->instanceDetails($instance->ccp_key, $gp);
+                    if ($details['harvest_count'] > 0) {
+                        $provider['can_delete'] = false;
+                    }
+                    if ($details['cnxcount'] > 0) {
+                        $connections[] = [
+                            'key'          => $instance->ccp_key,
+                            'name'         => $instance->name,
+                            'num'          => $details['cnxcount'],
+                            'last_harvest' => $details['last_harvest'],
+                        ];
+                        $provider['instance_count']++;
+                    }
                 }
             }
 
-            $provider['can_edit'] = true;
+            $provider['can_edit'] = $isServerAdmin;
             $provider['connections'] = $connections;
             $provider['updated'] = is_null($gp->updated_at) ? '' : date('Y-m-d H:i', strtotime($gp->updated_at));
             $providers[] = $provider;
@@ -155,6 +161,7 @@ class GlobalProviderController extends BaseController
 
         return response()->json(['records' => $providers, 'options' => $filter_options], 200);
     }
+
 
     /**
      * Display a listing of the resource (for the API).
@@ -501,6 +508,7 @@ class GlobalProviderController extends BaseController
         foreach ($gp_data as $gp) {
             $provider = [
                 'id'            => $gp->id,
+                'legacy_id'     => $gp->legacy_id,
                 'registry_id'   => (is_null($gp->registry_id) || $gp->registry_id === '') ? null : $gp->registry_id,
                 'name'          => $gp->name,
                 'day_of_month'  => $gp->day_of_month,
@@ -508,6 +516,7 @@ class GlobalProviderController extends BaseController
                 'status'        => $gp->is_active ? 'Active' : 'Inactive',
                 'refreshable'   => $gp->refreshable ? 'Active' : 'Inactive',
             ];
+
             foreach ($gp->registries->sortBy('release') as $registry) {
                 $provider['release'] = trim($registry->release);
                 $provider['service_url'] = $registry->service_url;
@@ -597,11 +606,11 @@ class GlobalProviderController extends BaseController
                 $platform = $global_providers->where('registry_id', $_regid)->first();
             }
             if ($platform) {
-                if (mb_strlen($_name) < 1 || $global_providers->first(fn ($p) => strcasecmp($p->name, $_name) === 0 && $p->id !== $platform->id)) {
+                if (mb_strlen($_name) < 1 || $global_providers->first(fn($p) => strcasecmp($p->name, $_name) === 0 && $p->id !== $platform->id)) {
                     $_name = trim($platform->name);
                 }
             } else {
-                $platform = $global_providers->first(fn ($p) => strcasecmp($p->name, $_name) === 0);
+                $platform = $global_providers->first(fn($p) => strcasecmp($p->name, $_name) === 0);
                 if ($platform) {
                     $_name = trim($platform->name);
                 }

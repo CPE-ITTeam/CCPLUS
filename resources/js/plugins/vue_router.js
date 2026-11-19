@@ -128,7 +128,7 @@ const routes = [
     panels: [],
     meta: {
       ...AUTH_BASE,
-      role: "Admin",
+      role: "MultiInst",
       level: 1,
       get title() {
         return t("routes.institutions");
@@ -141,7 +141,7 @@ const routes = [
         show: 1,
         meta: {
           ...AUTH_BASE,
-          role: "Admin",
+          role: "MultiInst",
           level: 2,
           get title() {
             return t("routes.institutions");
@@ -155,7 +155,7 @@ const routes = [
         show: 1,
         meta: {
           ...AUTH_BASE,
-          role: "Admin",
+          role: "ConsoAdmin",
           level: 2,
           get title() {
             return t("routes.institution_types");
@@ -169,7 +169,7 @@ const routes = [
         show: 1,
         meta: {
           ...AUTH_BASE,
-          role: "Admin",
+          role: "MultiInst",
           level: 2,
           get title() {
             return t("routes.institution_groups");
@@ -179,6 +179,7 @@ const routes = [
       },
     ],
   },
+
   {
     path: "/users",
     name: "Users",
@@ -286,7 +287,7 @@ const routes = [
         show: 1,
         meta: {
           ...AUTH_BASE,
-          role: "ServerAdmin",
+          role: "Admin",
           level: 2,
           get title() {
             return t("routes.registry");
@@ -300,7 +301,7 @@ const routes = [
         show: 1,
         meta: {
           ...AUTH_BASE,
-          role: "Admin",
+          role: "ConsoAdmin",
           level: 2,
           get title() {
             return t("routes.connections");
@@ -310,6 +311,7 @@ const routes = [
       },
     ],
   },
+
   {
     path: "/harvests",
     name: "Harvests",
@@ -541,8 +543,8 @@ const legacyAccountRedirects = [
 export const router = createRouter({
   history: createWebHistory(),
   routes: [
-    ...routes,
     accountRoute,
+    ...routes,
     ...legacyAccountRedirects,
     {
       path: "/:pathMatch(.*)*",
@@ -551,6 +553,7 @@ export const router = createRouter({
     },
   ],
 });
+
 
 // Add router reference context directly to Pinia stores
 pinia.use(({ store }) => {

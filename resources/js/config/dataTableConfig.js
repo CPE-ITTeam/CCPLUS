@@ -881,6 +881,17 @@ const rawTableSetup = {
         searchable: false,
       },
       {
+        name: "legacy_id",
+        get label() {
+          return t("fields.legacy_id");
+        },
+        type: "number",
+        header: null,
+        editable: false,
+        visible: false,
+        searchable: false,
+      },
+      {
         name: "status",
         get label() {
           return t("fields.status");
@@ -992,7 +1003,6 @@ const rawTableSetup = {
         },
         header: null,
       },
-
       {
         name: "content_provider",
         get label() {
@@ -1001,7 +1011,6 @@ const rawTableSetup = {
         header: null,
         cols: 6,
       },
-
       {
         name: "registry_id",
         get label() {
@@ -1127,6 +1136,7 @@ const rawTableSetup = {
     ],
     static: [
       "id",
+      "legacy_id",
       "instance_count",
       "updated",
       "PR",
@@ -1146,9 +1156,15 @@ const rawTableSetup = {
       "refresh_icon",
       "refresh_color",
     ],
-    bulkOptions: ["Set Active", "Set Inactive", "Refresh Registry", "Delete"],
+    bulkOptions: [
+      "Set Active",
+      "Set Inactive",
+      "Refresh from Registry",
+      "Delete",
+    ],
     exportFields: [
       "id",
+      "legacy_id",
       "registry_id",
       "name",
       "release",
@@ -1165,7 +1181,6 @@ const rawTableSetup = {
       "api_key",
       "platform_parm",
     ],
-
     sortby: "name",
   },
 
@@ -1479,6 +1494,18 @@ const rawTableSetup = {
         searchable: false,
       },
       {
+        name: "legacy_prov_id",
+        get label() {
+          return t("fields.legacy_platform_id", "Legacy Platform ID");
+        },
+        type: "number",
+        header: null,
+        editable: false,
+        visible: false,
+        searchable: false,
+      },
+
+      {
         name: "groups",
         get label() {
           return t("fields.groups_multi");
@@ -1495,19 +1522,23 @@ const rawTableSetup = {
         get label() {
           return t("fields.customer_id");
         },
+        truncate: 4,
       },
       {
         name: "requestor_id",
         get label() {
           return t("fields.requestor_id");
         },
+        truncate: 4,
       },
       {
         name: "api_key",
         get label() {
           return t("fields.api_key");
         },
+        truncate: 4,
       },
+
       {
         name: "PR",
         get label() {
@@ -1574,13 +1605,14 @@ const rawTableSetup = {
       "requestor_id",
       "api_key",
     ],
-    static: ["groups", "statuses", "results", "inst_id", "prov_id", "local_id"],
+    static: ["groups", "statuses", "results", "inst_id", "prov_id", "legacy_prov_id", "local_id"],
     bulkOptions: ["Enable", "Disable", "Delete"],
     exportFields: [
       "inst_id",
       "local_id",
       "institution",
       "prov_id",
+      "legacy_prov_id",
       "platform",
       "customer_id",
       "requestor_id",
