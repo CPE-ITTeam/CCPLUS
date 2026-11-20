@@ -20,18 +20,33 @@
     <!-- TIER 1.5: FILTERS BLOCK -->
     <div v-if="filter_options && filter_options.length > 0" class="w-100 mb-3">
       <div v-for="(row, index) in filter_options" :key="index" class="d-flex flex-column ga-1 flex-grow-1">
-        <div v-if="index === 0" class="d-flex align-center ga-3 mb-1">
+         <div v-if="index === 0" class="d-flex align-center ga-3 mb-1">
           <span class="text-caption text-uppercase font-weight-bold tracking-wider text-medium-emphasis">
             {{ $t('tables.filter', visibleFilterCount) }}
           </span>
-          <v-btn v-if="anyFilterSet" prepend-icon="mdi-close-circle-outline" color="error" @click="clearAllFilters">
+          <v-chip
+            v-if="anyFilterSet"
+            size="small"
+            color="error"
+            variant="tonal"
+            prepend-icon="mdi-close-circle-outline"
+            class="cursor-pointer font-weight-medium"
+            @click="clearAllFilters"
+          >
             {{ $t('tables.clear_all') }}
-          </v-btn>
-          <v-btn v-if="needsRefreshButton && consoKey != ''" prepend-icon="mdi-refresh" class="ms-2"
-            @click="$emit('refreshRecords')">
+          </v-chip>
+          <v-btn
+            v-if="needsRefreshButton && consoKey != ''"
+            size="small"
+            variant="tonal"
+            prepend-icon="mdi-refresh"
+            class="ms-2"
+            @click="$emit('refreshRecords')"
+          >
             {{ $t('tables.refresh_records') }}
           </v-btn>
         </div>
+
         <ToolbarFilters :filters="visibleRowFilters(row)" @setFilter="handleFilter($event)" />
       </div>
     </div>

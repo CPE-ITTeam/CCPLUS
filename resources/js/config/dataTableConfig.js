@@ -1979,19 +1979,17 @@ const rawTableSetup = {
         searchable: false,
       },
       {
-        name: "yymms",
+        name: "ymrange",
         get label() {
           return t("fields.usage_dates");
         },
-        type: "mselect",
-        options: "fromURL",
-        optVal: "id",
-        optTxt: "name",
+        type: "ymrange",
         isFilter: true,
         filterCol: "yearmon",
         header: null,
         searchable: false,
       },
+
       {
         name: "codes",
         get label() {
@@ -2180,7 +2178,7 @@ const rawTableSetup = {
         searchable: false,
       },
       {
-        name: "yymms",
+        name: "ymrange",
         get label() {
           return t("fields.usage_dates");
         },
@@ -2190,6 +2188,7 @@ const rawTableSetup = {
         header: null,
         searchable: false,
       },
+
 
       {
         name: "codes",

@@ -39,7 +39,7 @@
                 </SectionHeading>
 
                 <v-sheet
-                    class="border border-opacity-25 rounded bg-transparent py-2 px-3 d-flex flex-column justify-center"
+                    class="border border-opacity-25 rounded bg-transparent py-1 px-3 d-flex flex-column justify-center mb-3"
                     style="min-height: 56px;">
                     <div class="d-flex align-center justify-space-between">
                         <strong class="text-subtitle-2 text-primary text-uppercase font-weight-bold">
@@ -47,7 +47,7 @@
                         </strong>
                         <v-switch v-model="selectAllAvailableReports"
                             :label="$t('harvest.all_available_reports', 'All Available')" color="primary"
-                            density="compact" hide-details @update:model-value="onToggleAllReportsSwitch" />
+                            density="compact" hide-details class="ma-0" @update:model-value="onToggleAllReportsSwitch" />
                     </div>
 
                     <template v-if="!selectAllAvailableReports">
@@ -55,10 +55,11 @@
                         <div class="ps-4">
                             <v-checkbox v-for="rpt in master_reports" :key="rpt.name" v-model="form.reports"
                                 :label="rpt.legend || rpt.name" :value="rpt.name" density="compact" color="primary"
-                                hide-details />
+                                hide-details class="ma-0" />
                         </div>
                     </template>
                 </v-sheet>
+
 
 
                 <YmRangeSelector v-model="harvestDates" :fy-start="fyMo" default-preset="fYTD" />

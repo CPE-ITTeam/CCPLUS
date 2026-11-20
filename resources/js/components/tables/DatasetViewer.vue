@@ -809,7 +809,7 @@ function handleFilter(filt) {
   const shouldServerRefresh =
     filt.refresh ||
     props.datasetKey === 'jobs' ||
-    (props.datasetKey === 'harvests' && truncated.value);
+    props.datasetKey === 'harvests';
 
   if (filt.key === 'reset') {
     selectedRows.value = [];
@@ -928,9 +928,12 @@ function matchesFilter(item, filter) {
 
   return true;
 }
-
 function syncFilterOptionItems() {
   if (allItems.length === 0) return;
+
+  const isServerFiltered =
+    props.datasetKey === 'jobs' ||
+    props.datasetKey === 'harvests';
 
   for (const key of Object.keys(filterOptions)) {
     const filter = filterOptions[key];
@@ -944,8 +947,9 @@ function syncFilterOptionItems() {
     if (!Array.isArray(source)) continue;
     if ((props.datasetKey === 'jobs' || props.datasetKey === 'harvests') && key === 'statuses') continue;
 
-    // When the dataset is truncated (>500/2500 rows on server), keep the full server-provided options
-    if (truncated.value) {
+    // When server-filtered (jobs / truncated harvests), allItems only contains rows matching active server filters,
+    // so always preserve the full server-provided option list from allOptions
+    if (isServerFiltered) {
       filter.items = [...source];
       filter.show = filter.items.length > 0;
       continue;
@@ -983,13 +987,13 @@ function updateItems() {
 
   const isServerFiltered =
     props.datasetKey === 'jobs' ||
-    (props.datasetKey === 'harvests' && truncated.value);
+    props.datasetKey === 'harvests';
 
   const filterResult = isServerFiltered
     ? [...allItems]
     : allItems.filter((item) =>
-        Object.keys(filterOptions).every((key) => matchesFilter(item, filterOptions[key]))
-      );
+      Object.keys(filterOptions).every((key) => matchesFilter(item, filterOptions[key]))
+    );
 
   if (
     filterOptions.is_conso?.type === 'toggle' &&

@@ -30,7 +30,9 @@ const sharedInputDefaults = {
   density: "default", // Maximizes input height and breathing room
   clearable: true, // GLOBAL DEFAULT: Adds the "X" clear icon to all inputs
   persistentPlaceholder: true, // Keeps placeholder text always visible on empty fields
+  class: "mb-3", // Adds uniform vertical breathing room below every input
 };
+
 
 // ─── SHARED LIGHT THEME TOKENS ───
 const BASE_LIGHT_COLORS = {
@@ -77,7 +79,7 @@ export default createVuetify({
     VFileInput: { ...sharedInputDefaults },
     VNumberInput: { ...sharedInputDefaults },
     VSelect: { ...sharedInputDefaults },
-    VSwitch: { ...sharedInputDefaults },
+    VSwitch: { ...sharedInputDefaults, class: "" },
     VTextField: { ...sharedInputDefaults },
     VTextarea: { ...sharedInputDefaults },
 

@@ -943,7 +943,10 @@ class HarvestLogController extends BaseController
             })
             ->when(count($reptFilter) > 0, fn($q) => $q->whereIn('report_id', $reptFilter))
             ->when(count($yymmFilter) > 0, fn($q) => $q->whereIn('yearmon', $yymmFilter))
+            ->when(!empty($filters['fromYM']), fn($q) => $q->where('yearmon', '>=', $filters['fromYM']))
+            ->when(!empty($filters['toYM']), fn($q) => $q->where('yearmon', '<=', $filters['toYM']))
             ->when(count($codeFilter) > 0, function ($qry) use ($codeFilter) {
+
                 if (in_array(0, $codeFilter, true)) {
                     $nonZero = array_filter($codeFilter, fn($c) => $c !== 0);
                     return $qry->where(function ($q) use ($nonZero) {
