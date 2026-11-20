@@ -1,5 +1,6 @@
 // resources/js/composables/useDatasetExporter.js
 import { computed } from 'vue';
+import { useI18n } from 'vue-i18n';
 import { exportDatasetToExcel } from '@/utils/excelJsExporter.js';
 import { sortDatasetItems } from '@/utils/datasetSort.js';
 
@@ -15,7 +16,8 @@ export function useDatasetExporter({
   capDataset,
   fyMonths
 }) {
-  
+  const { t } = useI18n();
+
   const exportInstScope = computed(() => {
     if (!filterOptions.institutions && !filterOptions.groups) return "";
     if (props.datasetKey === 'groups') {
@@ -142,6 +144,8 @@ export function useDatasetExporter({
             newRow[label] = fyMonths[monthIdx] || row[col];
           } else if (Array.isArray(row[col])) {
             newRow[label] = row[col].join();
+          } else if (row[col] === '-required-') {
+            newRow[label] = t('fields.required', 'Required');
           } else {
             newRow[label] = row[col];
           }
@@ -150,7 +154,6 @@ export function useDatasetExporter({
       }, {});
     });
   });
-
 
   async function triggerExcelExport(titleConfig) {
     await exportDatasetToExcel({

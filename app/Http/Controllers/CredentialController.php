@@ -28,8 +28,9 @@ class CredentialController extends BaseController
         $thisUser = auth()->user();
         abort_unless($thisUser->hasRole('Admin'), 403);
 
+        $consoAdmin = $thisUser->isConsoAdmin();
         $limit_to_insts = array_map('intval', (array) $thisUser->adminInsts());
-        if ($limit_to_insts === array(1)) {
+        if ($limit_to_insts === [1]) {
             $limit_to_insts = [];
         }
 
@@ -42,12 +43,13 @@ class CredentialController extends BaseController
             ->get();
 
         $global_connectors = ConnectionField::get();
-        $this->getMasterReports();
+        $masterReports = Report::where('parent_id', 0)->orderBy('dorder', 'ASC')->get(['id', 'name']);
 
-        // Precompute platform metadata once per platform instead of 1,856 times
         $globalsById = [];
         $platformMeta = [];
         $platformsFilterList = [];
+        $platformBaseReports = [];
+        $platformInstReports = [];
 
         foreach ($globals as $plat) {
             $globalsById[$plat->id] = $plat;
@@ -69,15 +71,48 @@ class CredentialController extends BaseController
                 'is_active'  => $plat->is_active,
                 'connectors' => $_connectors,
             ];
+
+            $available = $plat->master_reports() ?? [];
+            $consoWide = $plat->connections->firstWhere('inst_id', 1);
+            $consoReportIds = $consoWide ? $consoWide->reports->pluck('id')->all() : [];
+
+            $base = [];
+            foreach ($masterReports as $mr) {
+                $isAvail = in_array($mr->id, $available);
+                $isConso = $isAvail && in_array($mr->id, $consoReportIds);
+                $base[$mr->name] = [
+                    'conso'     => $isConso,
+                    'insts'     => [],
+                    'groups'    => [],
+                    'requested' => false,
+                    'available' => $isAvail,
+                    'sortval'   => !$isAvail ? 4 : ($isConso ? 1 : 2),
+                ];
+            }
+            $platformBaseReports[$plat->id] = $base;
+
+            $instMap = [];
+            foreach ($plat->connections as $cnx) {
+                if (!$cnx->inst_id || $cnx->inst_id == 1) {
+                    continue;
+                }
+                if (!$consoAdmin && !in_array($cnx->inst_id, $limit_to_insts)) {
+                    continue;
+                }
+                foreach ($cnx->reports as $rpt) {
+                    $instMap[$cnx->inst_id][$rpt->name] = true;
+                }
+            }
+            $platformInstReports[$plat->id] = $instMap;
         }
 
         $filter_options = [
             'results'   => [],
-            'statuses'  => $data->unique('status')->pluck('status')->toArray(),
+            'statuses'  => $data->unique('status')->pluck('status')->values()->toArray(),
             'platforms' => $platformsFilterList,
         ];
 
-        if ($thisUser->isConsoAdmin()) {
+        if ($consoAdmin) {
             $filter_options['groups'] = InstitutionGroup::whereNull('user_id')->orderBy('name', 'ASC')->get(['id', 'name']);
             $filter_options['institutions'] = Institution::where('is_active', 1)
                 ->orderBy('name', 'ASC')
@@ -92,7 +127,7 @@ class CredentialController extends BaseController
         }
 
         $nh_count = 0;
-        $seen_codes = array(0);
+        $seen_codes = [0];
         $credentials = [];
 
         foreach ($data as $cred) {
@@ -136,7 +171,16 @@ class CredentialController extends BaseController
                 $rec['result'] = 'No Harvests';
             }
 
-            $this->attachReportFlags($rec, $global->enabledReports($cred->inst_id));
+            $recReports = $platformBaseReports[$cred->prov_id];
+            $instEnabled = $platformInstReports[$cred->prov_id][$cred->inst_id] ?? [];
+            foreach ($recReports as $rName => $rData) {
+                if ($rData['available'] && !$rData['conso'] && isset($instEnabled[$rName])) {
+                    $rData['insts'] = [$cred->inst_id];
+                    $rData['requested'] = true;
+                    $rData['sortval'] = 3;
+                }
+                $rec[$rName] = $rData;
+            }
 
             $credentials[] = $rec;
         }
@@ -154,19 +198,20 @@ class CredentialController extends BaseController
     }
 
 
+
     /**
      * Store a newly created resource in storage.
      */
-    public function store(Request $request)
+     public function store(Request $request)
     {
         $thisUser = auth()->user();
         $input = $request->all();
 
-        if (!$thisUser->canManage($input['inst_id'])) {
+        if (empty($input['inst_id']) || !$thisUser->canManage($input['inst_id'])) {
             return $this->respondError(__('credentials.inst_forbidden'));
         }
 
-        if (!isset($input['prov_id'])) {
+        if (empty($input['prov_id'])) {
             return $this->respondError(__('credentials.platform_required'));
         }
 
@@ -192,33 +237,56 @@ class CredentialController extends BaseController
             ]);
 
             $this->getMasterReports();
-            $masters = $this->masterReports->whereIn('id', $gp->master_reports());
+            $availIds = $gp->master_reports() ?? [];
+            $masters = $this->masterReports->whereIn('id', $availIds);
             foreach ($masters as $rpt) {
                 $new_conn->reports()->attach($rpt->id);
             }
         }
 
-        $fields = Arr::except($input, ['institutions', 'platforms']);
-        $cred = Credential::firstOrCreate($fields);
-        $cred->load('institution', 'provider');
-
         $global_connectors = ConnectionField::get();
-        $rec = [
-            'id'           => $cred->id,
+        $requiredIds = $gp->connectors();
+        $attrs = [
+            'inst_id'      => (int) $input['inst_id'],
+            'prov_id'      => (int) $input['prov_id'],
+            'customer_id'  => trim((string) ($input['customer_id'] ?? '')) ?: null,
+            'requestor_id' => trim((string) ($input['requestor_id'] ?? '')) ?: null,
+            'api_key'      => trim((string) ($input['api_key'] ?? '')) ?: null,
+            'extra_args'   => trim((string) ($input['extra_args'] ?? '')) ?: null,
             'status'       => 'Enabled',
-            'connected'    => true,
-            'result'       => 'No Harvests',
-            'inst_id'      => $cred->inst_id,
-            'prov_id'      => $cred->prov_id,
-            'customer_id'  => $cred->customer_id,
-            'requestor_id' => $cred->requestor_id,
-            'api_key'      => $cred->api_key,
-            'platform'     => $cred->provider->name,
-            'can_edit'     => true,
-            'can_delete'   => true,
-            'service_url'  => $cred->provider->service_url(),
-            'connectors'   => $this->buildConnectorList($global_connectors, $cred->provider->connectors()),
-            'institution'  => $cred->institution ? $cred->institution->name : '',
+        ];
+
+        foreach ($global_connectors as $gc) {
+            if (in_array($gc->id, $requiredIds) && empty($attrs[$gc->name])) {
+                $attrs[$gc->name] = '-required-';
+                $attrs['status'] = 'Incomplete';
+            }
+        }
+
+        $cred = Credential::create($attrs);
+        $cred->load('institution:id,name,is_active,local_id');
+
+        $rec = [
+            'id'             => $cred->id,
+            'status'         => $cred->status,
+            'connected'      => ($cred->status === 'Enabled'),
+            'result'         => 'No Harvests',
+            'inst_id'        => $cred->inst_id,
+            'prov_id'        => $cred->prov_id,
+            'legacy_prov_id' => $gp->legacy_id,
+            'customer_id'    => $cred->customer_id,
+            'requestor_id'   => $cred->requestor_id,
+            'api_key'        => $cred->api_key,
+            'extra_args'     => $cred->extra_args,
+            'platform'       => $gp->name,
+            'can_edit'       => true,
+            'can_delete'     => true,
+            'inst_active'    => $cred->institution ? $cred->institution->is_active : 0,
+            'plat_active'    => $gp->is_active,
+            'service_url'    => $gp->service_url(),
+            'connectors'     => $this->buildConnectorList($global_connectors, $requiredIds),
+            'institution'    => $cred->institution ? $cred->institution->name : '',
+            'local_id'       => $cred->institution ? $cred->institution->local_id : '',
         ];
 
         $this->attachReportFlags($rec, $gp->enabledReports($cred->inst_id));
@@ -234,7 +302,7 @@ class CredentialController extends BaseController
         $this->validate($request, ['id' => 'required']);
         $input = $request->all();
 
-        $cred = Credential::with('institution', 'provider')->findOrFail($input['id']);
+        $cred = Credential::with('institution', 'provider', 'lastHarvest')->findOrFail($input['id']);
         $global = GlobalProvider::findOrFail($cred->prov_id);
         $institution = Institution::findOrFail($cred->inst_id);
 
@@ -246,16 +314,16 @@ class CredentialController extends BaseController
             return $this->respondError(__('credentials.reference_error'));
         }
 
-        $registry = $cred->provider->default_registry();
+        $requiredConnectors = $global->connectors();
         $all_connectors = ConnectionField::get();
 
         if (!$request->boolean('report_only')) {
             $fields = [
                 'status'       => in_array($input['status'] ?? '', ['Enabled', 'Disabled'], true) ? $input['status'] : $cred->status,
-                'customer_id'  => $input['customer_id'] ?? null,
-                'requestor_id' => $input['requestor_id'] ?? null,
-                'api_key'      => $input['api_key'] ?? null,
-                'extra_args'   => $input['extra_args'] ?? null,
+                'customer_id'  => trim((string) ($input['customer_id'] ?? '')) ?: null,
+                'requestor_id' => trim((string) ($input['requestor_id'] ?? '')) ?: null,
+                'api_key'      => trim((string) ($input['api_key'] ?? '')) ?: null,
+                'extra_args'   => trim((string) ($input['extra_args'] ?? '')) ?: null,
             ];
 
             foreach ($fields as $fld => $val) {
@@ -264,7 +332,7 @@ class CredentialController extends BaseController
 
             foreach ($all_connectors as $cnx) {
                 if (
-                    in_array($cnx->id, $registry->connectors) &&
+                    in_array($cnx->id, $requiredConnectors) &&
                     (is_null($cred->{$cnx->name}) || $cred->{$cnx->name} === '')
                 ) {
                     $cred->{$cnx->name} = '-required-';
@@ -293,17 +361,41 @@ class CredentialController extends BaseController
         }
 
         $global->load('connections', 'connections.reports');
-        $record = $input;
-        unset($record['report_only']);
-        $record['status'] = $cred->status;
-        $record['platform'] = $cred->provider->name;
-        $record['institution'] = $cred->institution->name;
-        $record['connectors'] = $this->buildConnectorList($all_connectors, $registry->connectors);
-        $record['connected'] = ($cred->status === 'Enabled');
+        $lastHarvest = $cred->lastHarvest;
+        $lastResult = 'No Harvests';
+        if ($lastHarvest) {
+            $lastResult = ($lastHarvest->status === 'Success' || $lastHarvest->error_id == 0)
+                ? 'Success'
+                : $lastHarvest->error_id;
+        }
+
+        $record = [
+            'id'             => $cred->id,
+            'status'         => $cred->status,
+            'inst_id'        => $cred->inst_id,
+            'prov_id'        => $cred->prov_id,
+            'legacy_prov_id' => $global->legacy_id,
+            'customer_id'    => $cred->customer_id,
+            'requestor_id'   => $cred->requestor_id,
+            'api_key'        => $cred->api_key,
+            'extra_args'     => $cred->extra_args,
+            'platform'       => $global->name,
+            'can_edit'       => true,
+            'can_delete'     => true,
+            'inst_active'    => $cred->institution->is_active,
+            'plat_active'    => $global->is_active,
+            'service_url'    => $global->service_url(),
+            'connectors'     => $this->buildConnectorList($all_connectors, $requiredConnectors),
+            'institution'    => $cred->institution->name,
+            'local_id'       => $cred->institution->local_id,
+            'connected'      => ($cred->status === 'Enabled'),
+            'result'         => $lastResult,
+        ];
         $this->attachReportFlags($record, $global->enabledReports($cred->inst_id));
 
         return $this->respondSuccess(__('credentials.updated'), $record);
     }
+
 
     /**
      * Update report definition for a connection.
@@ -347,6 +439,8 @@ class CredentialController extends BaseController
     /**
      * Test the credentials for a given provider-institution.
      */
+
+    
     public function test(Request $request)
     {
         try {
@@ -357,26 +451,42 @@ class CredentialController extends BaseController
         if (!isset($input['type'])) {
             return $this->respondError(__('credentials.type_required'));
         }
-        $provider = GlobalProvider::findOrFail($input['prov_id']);
+        $provider = GlobalProvider::with('registries')->findOrFail($input['prov_id']);
         $options = [
             'headers' => ['User-Agent' => 'Mozilla/5.0 (CC-Plus custom) Firefox/80.0'],
+            'http_errors' => false,
+            'timeout' => 30,
         ];
-        $_url = rtrim($provider->service_url());
+
+        $registry = $provider->default_registry() ?? $provider->registries->first();
+        $release = $registry?->release ?? '5';
+        $baseUrl = $registry?->service_url ?: $provider->service_url();
+
+        $_url = rtrim((string) $baseUrl);
         $_url = preg_replace('#/(reports|status|members)/?$#i', '', $_url);
         $_uri = rtrim($_url, '/');
+        if ($release === '5.1' && !preg_match('#/r51$#i', $_uri)) {
+            $_uri .= '/r51';
+        }
+
         if (isset($input['extra_args'])) {
             $input['extra_args'] = ltrim(trim($input['extra_args']), '&?');
         }
         $request_uri = '';
         if ($input['type'] === 'test') {
             $_uri .= '/reports/pr?';
-            $uri_auth = !is_null($provider->platform_parm) ? 'platform=' . $provider->platform_parm : '';
+            $uri_auth = !is_null($provider->platform_parm) ? 'platform=' . urlencode($provider->platform_parm) : '';
             foreach (['customer_id', 'requestor_id', 'api_key', 'extra_args'] as $fld) {
                 if (isset($input[$fld]) && $input[$fld] !== '') {
                     $uri_auth .= ($uri_auth === '') ? '' : '&';
-                    $uri_auth .= ($fld === 'extra_args')
-                        ? urlencode($input['extra_args'])
-                        : $fld . '=' . urlencode($input[$fld]);
+                    if ($fld === 'extra_args') {
+                        parse_str($input['extra_args'], $extraParams);
+                        $uri_auth .= !empty($extraParams)
+                            ? http_build_query($extraParams)
+                            : urlencode($input['extra_args']);
+                    } else {
+                        $uri_auth .= $fld . '=' . urlencode($input[$fld]);
+                    }
                 }
             }
             $dates = '&begin_date=' . date('Y-m-d', strtotime('first day of previous month'))
@@ -389,26 +499,55 @@ class CredentialController extends BaseController
             if ($input['type'] === 'status') {
                 $response = $client->request('GET', $_uri . '/status', $options);
                 $json = (string) $response->getBody();
-                $rows[] = 'Service Status: ';
+                $rows[] = 'Service Status (' . $_uri . '/status):';
             } else {
                 $response = $client->request('GET', $request_uri, $options);
                 $json = (string) $response->getBody();
-                $rows[] = 'Request URL: ';
+                $rows[] = 'Request URL:';
                 $rows[] = $request_uri;
                 $rows[] = 'JSON Response:';
             }
             $begin_txt = substr(trim($json), 0, 80);
             $decoded = json_decode($json, true);
             if (stripos($begin_txt, 'doctype html') !== false || stripos($begin_txt, '<html') !== false) {
-                $result = __('credentials.invalid_html_response');
-                $rows = '';
-            } elseif (json_last_error() !== JSON_ERROR_NONE) {
-                $result = __('credentials.invalid_json_response');
-                $rows = '';
-            } else {
-                $result = __('credentials.test_success');
-                $rows[] = json_encode($decoded, JSON_PRETTY_PRINT);
+                return response()->json([
+                    'result' => false,
+                    'msg'    => __('credentials.invalid_html_response'),
+                    'rows'   => $rows,
+                ]);
+            } elseif (json_last_error() !== JSON_ERROR_NONE || !is_array($decoded)) {
+                return response()->json([
+                    'result' => false,
+                    'msg'    => __('credentials.invalid_json_response'),
+                    'rows'   => $rows,
+                ]);
             }
+
+            // Detect COUNTER JSON Exception payloads (both R5 and R5.1, single object or list)
+            $exception = $decoded['Exception']
+                ?? $decoded['Exceptions']
+                ?? $decoded['Report_Header']['Exceptions']
+                ?? (isset($decoded['Code']) ? $decoded : null);
+            if (is_array($exception) && array_is_list($exception)) {
+                $exception = $exception[0] ?? null;
+            }
+            $code = is_array($exception) && isset($exception['Code']) ? (int) $exception['Code'] : 0;
+            $isErrorCode = $code > 0 && !in_array($code, [3030, 3031, 3032, 3040], true);
+
+            $rows[] = json_encode($decoded, JSON_PRETTY_PRINT);
+
+            if ($isErrorCode || $response->getStatusCode() >= 400) {
+                $msg = is_array($exception) && isset($exception['Message'])
+                    ? "COUNTER Exception ({$code}): {$exception['Message']}"
+                    : __('credentials.status_request_failed');
+                return response()->json([
+                    'result' => false,
+                    'msg'    => $msg,
+                    'rows'   => $rows,
+                ]);
+            }
+
+            $result = __('credentials.test_success');
         } catch (\Exception $e) {
             $rows[] = $e->getMessage();
             return response()->json([
@@ -419,6 +558,9 @@ class CredentialController extends BaseController
         }
         return response()->json(['result' => true, 'rows' => $rows, 'msg' => $result]);
     }
+
+
+
     /**
      * Remove the specified resource from storage.
      */

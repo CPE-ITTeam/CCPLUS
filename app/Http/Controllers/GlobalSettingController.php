@@ -84,7 +84,6 @@ class GlobalSettingController extends BaseController
                 } elseif (preg_match('/ccplus:reportprocessor\s+([^\s]+)/', $line, $m)) {
                     $processorConsoKeys[$m[1]] = ($processorConsoKeys[$m[1]] ?? 0) + 1;
                 }
-
             }
         }
 
@@ -125,7 +124,6 @@ class GlobalSettingController extends BaseController
     }
 
 
-
     /**
      * Launch a background ccplus:harvester (max 1 per server) or ccplus:reportprocessor worker
      */
@@ -134,14 +132,22 @@ class GlobalSettingController extends BaseController
         $worker = $request->input('worker');
         $consoKey = $request->input('consortium') ?: session('ccp_con_key');
         $artisan = base_path('artisan');
-        $php = PHP_BINARY ?: 'php';
+        $php = trim((string) shell_exec('which php')) ?: '/usr/bin/php';
+        $setsid = is_executable('/usr/bin/setsid') ? '/usr/bin/setsid ' : '';
 
         if ($worker === 'harvester') {
             $running = trim((string) shell_exec('ps -eo args -ww | grep ' . escapeshellarg('ccplus:harvester') . ' | grep -v grep'));
             if ($running !== '') {
                 return response()->json(['result' => false, 'msg' => 'Harvester worker is already running.']);
             }
-            $cmd = sprintf('nohup %s %s ccplus:harvester > /dev/null 2>&1 &', escapeshellarg($php), escapeshellarg($artisan));
+            $log = storage_path('logs/harvester.log');
+            $cmd = sprintf(
+                '%s%s %s ccplus:harvester >> %s 2>&1 < /dev/null &',
+                $setsid,
+                escapeshellarg($php),
+                escapeshellarg($artisan),
+                escapeshellarg($log)
+            );
             shell_exec($cmd);
             return response()->json(['result' => true, 'msg' => 'Harvester worker started in background.']);
         }
@@ -150,11 +156,14 @@ class GlobalSettingController extends BaseController
             if (!$consoKey) {
                 return response()->json(['result' => false, 'msg' => 'No active consortium selected.'], 422);
             }
+            $log = storage_path('logs/reportprocessor.log');
             $cmd = sprintf(
-                'nohup %s %s ccplus:reportprocessor %s > /dev/null 2>&1 &',
+                '%s%s %s ccplus:reportprocessor %s >> %s 2>&1 < /dev/null &',
+                $setsid,
                 escapeshellarg($php),
                 escapeshellarg($artisan),
-                escapeshellarg($consoKey)
+                escapeshellarg($consoKey),
+                escapeshellarg($log)
             );
             shell_exec($cmd);
             return response()->json(['result' => true, 'msg' => "Report processor started for {$consoKey}."]);

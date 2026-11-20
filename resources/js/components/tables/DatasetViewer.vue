@@ -291,14 +291,37 @@ const loadDataset = async (datasetKey) => {
     });
 
   const buildHeaderEntry = (fld) => {
+    const isCompactReportCol = ['PR', 'DR', 'TR', 'IR'].includes(fld.name);
+    const isCompactCredCol = ['customer_id', 'requestor_id', 'api_key'].includes(fld.name);
+    const isCompactCol = isCompactReportCol || isCompactCredCol;
+    const colWidth = isCompactReportCol ? '52px' : isCompactCredCol ? '68px' : fld.width;
+
+    let groupClass = '';
+    if (isCompactReportCol) {
+      groupClass = 'compact-col report-group-col';
+      if (fld.name === 'PR') groupClass += ' group-border-start';
+      if (fld.name === 'IR') groupClass += ' group-border-end';
+    } else if (isCompactCredCol) {
+      groupClass = 'compact-col cred-group-col';
+      if (fld.name === 'api_key') groupClass += ' group-border-end';
+    }
+
     const entry = {
-      title: fld.label,
+      title: fld.shortLabel || fld.label,
+      fullTitle: fld.label,
       key: fld.name,
-      align: fld.header,
+      align: isCompactCol ? undefined : fld.header,
       type: fld.type,
       truncate: fld.truncate,
+      ...(colWidth ? { width: colWidth, maxWidth: colWidth } : {}),
+      ...(isCompactCol
+        ? {
+            headerProps: { class: `bg-info text-white ${groupClass}`, title: fld.label },
+            cellProps: { class: groupClass },
+          }
+        : {}),
     };
-    if (datasetKey === 'harvests' && fld.name === 'error') {
+    if (fld.name === 'error') {
       entry.sort = (a, b) => Number(a.id) - Number(b.id);
     }
     return entry;

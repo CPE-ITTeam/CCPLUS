@@ -1400,7 +1400,8 @@ const rawTableSetup = {
     get title() {
       return t("datasets.credentials.title");
     },
-    fields: [
+      fields: [
+      // ─── TABLE COLUMNS ───
       {
         name: "status",
         get label() {
@@ -1413,37 +1414,11 @@ const rawTableSetup = {
         searchable: false,
       },
       {
-        name: "statuses",
-        get label() {
-          return t("fields.status");
-        },
-        type: "mselect",
-        options: "fromURL",
-        isFilter: true,
-        filterCol: "status",
-        header: null,
-        searchable: false,
-      },
-      {
         name: "institution",
         get label() {
           return t("fields.institution");
         },
         editable: false,
-      },
-      {
-        name: "institutions",
-        get label() {
-          return t("fields.institution");
-        },
-        type: "select",
-        options: "fromURL",
-        optVal: "id",
-        optTxt: "name",
-        isFilter: true,
-        filterCol: "inst_id",
-        header: null,
-        searchable: false,
       },
       {
         name: "inst_id",
@@ -1470,20 +1445,6 @@ const rawTableSetup = {
         editable: false,
       },
       {
-        name: "platforms",
-        get label() {
-          return t("fields.platform");
-        },
-        type: "select",
-        options: "fromURL",
-        optVal: "id",
-        optTxt: "name",
-        isFilter: true,
-        filterCol: "prov_id",
-        header: null,
-        searchable: false,
-      },
-      {
         name: "prov_id",
         get label() {
           return t("fields.platform_id");
@@ -1504,7 +1465,6 @@ const rawTableSetup = {
         visible: false,
         searchable: false,
       },
-
       {
         name: "groups",
         get label() {
@@ -1518,62 +1478,49 @@ const rawTableSetup = {
         searchable: false,
       },
       {
+        name: "PR",
+        label: "PR",
+        type: "toggle",
+        searchable: false,
+      },
+      {
+        name: "DR",
+        label: "DR",
+        type: "toggle",
+        searchable: false,
+      },
+      {
+        name: "TR",
+        label: "TR",
+        type: "toggle",
+        searchable: false,
+      },
+      {
+        name: "IR",
+        label: "IR",
+        type: "toggle",
+        searchable: false,
+      },
+      {
         name: "customer_id",
         get label() {
           return t("fields.customer_id");
         },
-        truncate: 4,
+        shortLabel: "Cust ID",
       },
       {
         name: "requestor_id",
         get label() {
           return t("fields.requestor_id");
         },
-        truncate: 4,
+        shortLabel: "Req ID",
       },
       {
         name: "api_key",
         get label() {
           return t("fields.api_key");
         },
-        truncate: 4,
-      },
-
-      {
-        name: "PR",
-        get label() {
-          return t("fields.pr_report");
-        },
-        type: "toggle",
-        header: "center",
-        searchable: false,
-      },
-      {
-        name: "DR",
-        get label() {
-          return t("fields.dr_report");
-        },
-        type: "toggle",
-        header: "center",
-        searchable: false,
-      },
-      {
-        name: "TR",
-        get label() {
-          return t("fields.tr_report");
-        },
-        type: "toggle",
-        header: "center",
-        searchable: false,
-      },
-      {
-        name: "IR",
-        get label() {
-          return t("fields.ir_report");
-        },
-        type: "toggle",
-        header: "center",
-        searchable: false,
+        shortLabel: "API Key",
       },
       {
         name: "result",
@@ -1581,7 +1528,50 @@ const rawTableSetup = {
           return t("fields.last_harvest");
         },
         type: "date",
+        header: "center",
         editable: false,
+      },
+
+      // ─── TOOLBAR FILTERS ───
+      {
+        name: "platforms",
+        get label() {
+          return t("fields.platforms");
+        },
+        type: "mselect",
+        options: "fromURL",
+        optVal: "id",
+        optTxt: "name",
+        isFilter: true,
+        filterCol: "prov_id",
+        header: null,
+        searchable: false,
+      },
+      {
+        name: "institutions",
+        get label() {
+          return t("fields.institutions");
+        },
+        type: "mselect",
+        options: "fromURL",
+        optVal: "id",
+        optTxt: "name",
+        isFilter: true,
+        filterCol: "inst_id",
+        header: null,
+        searchable: false,
+      },
+      {
+        name: "statuses",
+        get label() {
+          return t("fields.status");
+        },
+        type: "mselect",
+        options: "fromURL",
+        isFilter: true,
+        filterCol: "status",
+        header: null,
+        searchable: false,
       },
       {
         name: "results",
@@ -1598,6 +1588,7 @@ const rawTableSetup = {
         searchable: false,
       },
     ],
+
     required: [
       "institutions",
       "platforms",
@@ -1628,6 +1619,7 @@ const rawTableSetup = {
     ],
     sortby: "platform",
   },
+
 
   audit: {
     urlRoot: "/api/audit",
@@ -1836,7 +1828,7 @@ const rawTableSetup = {
     sortby: "platform",
   },
 
-   jobs: {
+  jobs: {
     urlRoot: "/api/jobs",
     title: "",
     fields: [
@@ -2189,7 +2181,6 @@ const rawTableSetup = {
         searchable: false,
       },
 
-
       {
         name: "codes",
         get label() {
@@ -2205,7 +2196,6 @@ const rawTableSetup = {
         searchable: false,
       },
       {
-      
         name: "statuses",
         get label() {
           return t("fields.statuses");
@@ -2219,7 +2209,6 @@ const rawTableSetup = {
         header: null,
         searchable: false,
       },
-
     ],
     required: [],
     static: ["id", "rawfile", "retryUrl"],

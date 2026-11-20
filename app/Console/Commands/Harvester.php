@@ -546,15 +546,19 @@ class Harvester extends Command
 
         // Kick off ccplus:reportprocessor in background for any consortium with Waiting reports
         $artisan = base_path('artisan');
-        $php = PHP_BINARY ?: 'php';
+        $php = trim((string) shell_exec('which php')) ?: '/usr/bin/php';
+        $setsid = is_executable('/usr/bin/setsid') ? '/usr/bin/setsid ' : '';
+        $log = storage_path('logs/reportprocessor.log');
         foreach (array_keys($consortiaToProcess) as $ccpKey) {
-            $running = trim((string) shell_exec('ps -eo args | grep ' . escapeshellarg("ccplus:reportprocessor {$ccpKey}") . ' | grep -v grep'));
+            $running = trim((string) shell_exec('ps -eo args -ww | grep ' . escapeshellarg("ccplus:reportprocessor {$ccpKey}") . ' | grep -v grep'));
             if ($running === '') {
                 shell_exec(sprintf(
-                    'nohup %s %s ccplus:reportprocessor %s > /dev/null 2>&1 &',
+                    '%s%s %s ccplus:reportprocessor %s >> %s 2>&1 < /dev/null &',
+                    $setsid,
                     escapeshellarg($php),
                     escapeshellarg($artisan),
-                    escapeshellarg($ccpKey)
+                    escapeshellarg($ccpKey),
+                    escapeshellarg($log)
                 ));
             }
         }

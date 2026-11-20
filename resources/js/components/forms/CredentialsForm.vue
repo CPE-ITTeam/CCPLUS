@@ -1,155 +1,327 @@
 <!-- components/forms/CredentialsForm.vue -->
 <script setup>
-  import { ref, reactive, computed, onMounted } from 'vue';
-  import { useAuthStore } from '@/stores/useAuthStore.js';
+import { ref, reactive, computed, watch, onMounted } from 'vue';
+import { useI18n } from 'vue-i18n';
+import api from '@/services/api.js';
+import StatusAlerts from '@/components/ui/StatusAlerts.vue';
 
-  const props = defineProps({
-    initialValues: {
-      validator: (value) => { // validator allows initialValues to be string or object
-        const isString = typeof value === 'string';
-        const isObject = typeof value === 'object' && value !== null;
-        if (!isString && !isObject) {
-          console.warn('Invalid prop: "initialValues" must be a string or an object.');
-        }
-        return isString || isObject;
-      }
+const { t } = useI18n();
+
+const props = defineProps({
+  initialValues: {
+    validator: (value) => {
+      const isString = typeof value === 'string';
+      const isObject = typeof value === 'object' && value !== null;
+      return isString || isObject;
     },
-    schema: { type: Object, required: true },
+  },
+  schema: { type: Object, required: true },
+});
+
+const emit = defineEmits(['submit', 'cancel']);
+
+const formRef = ref(null);
+const opType = ref(props.schema.type);
+const formValues = reactive(
+  typeof props.initialValues === 'object' && props.initialValues !== null
+    ? { ...props.initialValues }
+    : {}
+);
+
+const instOptions = ref([]);
+const platOptions = ref([]);
+const unsetPlatIds = ref(null);
+const unsetInstIds = ref(null);
+const loadingUnset = ref(false);
+
+const success = ref('');
+const failure = ref('');
+const showTest = ref(false);
+const testingType = ref('');
+const testData = ref([]);
+const testStatus = ref('');
+const testPassed = ref(null);
+
+const allConnectors = computed(() => props.schema.options?.all_connectors || []);
+const allPlatforms = computed(() => props.schema.options?.platforms || []);
+const allInstitutions = computed(() => props.schema.options?.institutions || []);
+
+const curPlatform = computed(() => {
+  return formValues.prov_id > 0
+    ? allPlatforms.value.find((p) => Number(p.id) === Number(formValues.prov_id)) || null
+    : null;
+});
+
+const requiredCnx = computed(() => {
+  const map = {};
+  allConnectors.value.forEach((cnx) => {
+    map[cnx.name] = false;
   });
-  const { ccPost } = useAuthStore();
-  const formRef = ref();
-  const opType = ref(props.schema.type);
-  var formValues = reactive({...props.initialValues});
-  var inst_options = ref([]);
-  var plat_options = ref([]);
-  var success = ref('');
-  var failure = ref('');
-  var showTest = ref(false);
-  var testData = ref('');
-  var testStatus = ref('');
-  // Put fields in an by-name object based on the input schema prop
-  const formFields = computed(() => {
-    var fields = {};
-    props.schema.fields.forEach ( (fld) => {
-      if ( (opType.value=='Add' && props.schema.requiredKeys.includes(fld.name)) ||
-           (opType.value == 'Edit' && !fld.static) ) {
-        fields[fld.name] = {...fld};
+  if (!curPlatform.value || !curPlatform.value.connectors) return map;
+  return { ...map, ...curPlatform.value.connectors };
+});
+
+const visibleConnectors = computed(() => {
+  return allConnectors.value.filter((cnx) => Boolean(requiredCnx.value[cnx.name]));
+});
+
+
+const filteredInstOptions = computed(() => {
+  if (opType.value === 'Edit' || !Array.isArray(unsetInstIds.value)) {
+    return instOptions.value;
+  }
+  const allowed = new Set(unsetInstIds.value.map(Number));
+  return instOptions.value.filter((i) => allowed.has(Number(i.id)));
+});
+
+const filteredPlatOptions = computed(() => {
+  if (opType.value === 'Edit' || !Array.isArray(unsetPlatIds.value)) {
+    return platOptions.value;
+  }
+  const allowed = new Set(unsetPlatIds.value.map(Number));
+  return platOptions.value.filter((p) => allowed.has(Number(p.id)));
+});
+
+const requiredRule = (v) => {
+  const val = String(v ?? '').trim();
+  return (val !== '' && val !== '-required-') || t('validation.required', 'This field is required');
+};
+
+function clearPlaceholderMarker(fieldName) {
+  if (formValues[fieldName] === '-required-') {
+    formValues[fieldName] = '';
+  }
+}
+
+watch(
+  () => formValues.inst_id,
+  async (newInstId) => {
+    if (opType.value !== 'Add') return;
+    if (!newInstId) {
+      unsetPlatIds.value = null;
+      return;
+    }
+    loadingUnset.value = true;
+    try {
+      const res = await api.post('/api/credentials/unset', { inst_id: newInstId });
+      const data = res?.data ?? res;
+      if (data?.result && Array.isArray(data.unset_ids)) {
+        unsetPlatIds.value = data.unset_ids;
       }
-    })
-    return fields;
-  });
-  const requiredRule = (v) => !!v || 'This field is required';
-  const emit = defineEmits(['submit', 'cancel']);
+    } catch (e) {
+      console.error('Error fetching unset platforms:', e);
+    } finally {
+      loadingUnset.value = false;
+    }
+  }
+);
 
-  async function testSettings (type) {
-    failure.value = '';
-    success.value = '';
-    testData.value = '';
-    testStatus.value = "... Working ...";
-    showTest.value = true;
-
-    // Setup test arguments
-    var testArgs = {'type' : type, 'prov_id' : formValues['prov_id']};
-    props.schema.options['all_connectors'].forEach ( (cnx) => {
-      if (requiredCnx.value[cnx.name]) {
-        testArgs[cnx.name] = formValues[cnx.name];
+watch(
+  () => formValues.prov_id,
+  async (newProvId) => {
+    // Initialize missing connector keys so v-model binds cleanly in Add mode
+    allConnectors.value.forEach((cnx) => {
+      if (formValues[cnx.name] === undefined) {
+        formValues[cnx.name] = '';
       }
     });
-    // Run test, display outcome
-    const response = await ccPost('/api/credentials/test', testArgs);
-    testStatus.value = response.msg;
-    if (response.result) {
-      testData.value = response.rows;
-    } else {
-      testData = (response.rows.length>0) ? response.rows : "Test Failed";
+
+    if (opType.value !== 'Add') return;
+    if (!newProvId) {
+      unsetInstIds.value = null;
+      return;
+    }
+    loadingUnset.value = true;
+    try {
+      const res = await api.post('/api/credentials/unset', { plat_id: newProvId });
+      const data = res?.data ?? res;
+      if (data?.result && Array.isArray(data.unset_ids)) {
+        unsetInstIds.value = data.unset_ids;
+      }
+    } catch (e) {
+      console.error('Error fetching unset institutions:', e);
+    } finally {
+      loadingUnset.value = false;
     }
   }
+);
 
-  const curPlatform = computed(() => {
-    return (formValues['prov_id']>0) ? props.schema.options['platforms'].find( p => p.id == formValues['prov_id'])
-                                     : null;
-  });
+async function testSettings(type) {
+  failure.value = '';
+  success.value = '';
+  testData.value = [];
+  testStatus.value = '';
+  testPassed.value = null;
+  testingType.value = type;
+  showTest.value = true;
 
-  const requiredCnx = computed(() => {
-    var requiredMap = {};
-    props.schema.options['all_connectors'].forEach(cnx => requiredMap[cnx.name]=false);
-    return (curPlatform.value == null) ? {'customer_id':false, 'requestor_id':false, 'api_key':false, 'extra_args':false}
-                                       : curPlatform.value['connectors'];
-  });
-
-  function submitForm() {
-     if (formRef.value?.validate()) {
-      emit('submit', formValues);
+  const testArgs = { type, prov_id: formValues.prov_id };
+  allConnectors.value.forEach((cnx) => {
+    if (requiredCnx.value[cnx.name]) {
+      testArgs[cnx.name] = formValues[cnx.name] === '-required-' ? '' : formValues[cnx.name];
     }
+  });
+
+
+  try {
+    const res = await api.post('/api/credentials/test', testArgs);
+    const data = res?.data ?? res;
+    testPassed.value = Boolean(data?.result);
+    testStatus.value = data?.msg || '';
+    const rows = Array.isArray(data?.rows)
+      ? data.rows
+      : data?.rows
+        ? [String(data.rows)]
+        : [];
+    testData.value = rows.length > 0 ? rows : [data?.result ? 'OK' : 'Test Failed'];
+  } catch (e) {
+    testPassed.value = false;
+    testStatus.value = t('credentials.status_request_failed', 'Test request failed');
+    testData.value = [e?.response?.data?.msg || e.message || 'Test Failed'];
+  } finally {
+    testingType.value = '';
   }
-  onMounted(() => {
-    if (opType.value == 'Edit') {
-      inst_options.value = props.schema.options['institutions'].filter( inst => inst.id==formValues['inst_id']);
-      plat_options.value = props.schema.options['platforms'].filter( plat => plat.id==formValues['prov_id']);
-    } else {
-      inst_options.value = [...props.schema.options['institutions']];
-      plat_options.value = [...props.schema.options['platforms']];
+}
+
+async function submitForm() {
+  const { valid } = (await formRef.value?.validate()) || { valid: true };
+  if (!valid) return;
+  emit('submit', { ...formValues });
+}
+
+onMounted(() => {
+  allConnectors.value.forEach((cnx) => {
+    if (formValues[cnx.name] === undefined) {
+      formValues[cnx.name] = '';
     }
+  });
+
+  if (opType.value === 'Edit') {
+    instOptions.value = allInstitutions.value.filter(
+      (inst) => Number(inst.id) === Number(formValues.inst_id)
+    );
+    platOptions.value = allPlatforms.value.filter(
+      (plat) => Number(plat.id) === Number(formValues.prov_id)
+    );
+  } else {
+    instOptions.value = [...allInstitutions.value];
+    platOptions.value = [...allPlatforms.value];
+  }
 });
 </script>
+
 <template>
   <div>
     <v-form ref="formRef" @submit.prevent="submitForm">
-      <v-container>
-        <v-row class="ma-0 py-1 justify-center" no-gutters>
-          <v-col v-if="inst_options.length==1" class="d-flex px-2" cols="5">
-            <strong>{{ inst_options[0]['name'] }}</strong>
-          </v-col>
-          <v-col v-else class="d-flex ma-0 pa-0" cols="5">
-            <v-autocomplete v-model="formValues['inst_id']" :items="inst_options" :label="formFields['institutions'].label"
-                            density="compact"  :rules="[requiredRule]" item-title="name" item-value="id"
-            ></v-autocomplete>
-          </v-col>
-          <v-col cols="2" class="d-flex justify-center"> &lt;&lt; -- &gt;&gt; </v-col>
-          <v-col v-if="plat_options.length==1" class="d-flex px-2" cols="5">
-            <strong>{{ plat_options[0]['name'] }}</strong>
-          </v-col>
-          <v-col v-else class="d-flex px-2" cols="5">
-            <v-autocomplete :items="plat_options" v-model="formValues['prov_id']" :label="formFields['platforms'].label"
-                            density="compact"  :rules="[requiredRule]" item-title="name" item-value="id"
-            ></v-autocomplete>
+      <!-- Institution & Platform Selection / Header -->
+      <v-row class="align-center mb-2">
+        <v-col cols="12" sm="6">
+          <v-sheet v-if="opType === 'Edit' || instOptions.length === 1" border rounded="lg"
+            class="pa-3 bg-grey-lighten-5">
+            <div class="text-caption text-medium-emphasis">
+              {{ $t('fields.institution') }}
+            </div>
+            <div class="text-subtitle-1 font-weight-semibold">
+              {{ instOptions[0]?.name || formValues.institution }}
+            </div>
+          </v-sheet>
+          <v-autocomplete v-else v-model="formValues.inst_id" :items="filteredInstOptions"
+            :label="$t('fields.institution')" :loading="loadingUnset" :rules="[requiredRule]" item-title="name"
+            item-value="id" />
+        </v-col>
+
+        <v-col cols="12" sm="6">
+          <v-sheet v-if="opType === 'Edit' || platOptions.length === 1" border rounded="lg"
+            class="pa-3 bg-grey-lighten-5">
+            <div class="text-caption text-medium-emphasis">
+              {{ $t('fields.platform') }}
+            </div>
+            <div class="text-subtitle-1 font-weight-semibold">
+              {{ platOptions[0]?.name || formValues.platform }}
+            </div>
+          </v-sheet>
+          <v-autocomplete v-else v-model="formValues.prov_id" :items="filteredPlatOptions"
+            :label="$t('fields.platform')" :loading="loadingUnset" :rules="[requiredRule]" item-title="name"
+            item-value="id" />
+        </v-col>
+      </v-row>
+
+      <!-- Platform Service URL Hint -->
+      <div v-if="curPlatform?.service_url || formValues.service_url"
+        class="text-caption text-medium-emphasis mb-3 d-flex align-center ga-1">
+        <v-icon size="16" color="primary">mdi-link-variant</v-icon>
+        <span class="text-truncate">{{ curPlatform?.service_url || formValues.service_url }}</span>
+      </div>
+
+      <!-- Dynamic Platform Connector Fields -->
+      <template v-if="formValues.prov_id > 0">
+        <v-row v-if="visibleConnectors.length > 0">
+          <v-col
+            v-for="cnx in visibleConnectors"
+            :key="cnx.id || cnx.name"
+            cols="12"
+          >
+            <v-text-field
+              :id="cnx.name"
+              v-model="formValues[cnx.name]"
+              :label="cnx.label"
+              :placeholder="$t('credentials.leave_blank_placeholder', 'Leave blank to save as Incomplete')"
+              persistent-placeholder
+              clearable
+              @focus="clearPlaceholderMarker(cnx.name)"
+            />
           </v-col>
         </v-row>
-        <template v-for="cnx in props.schema.options['all_connectors']">
-          <v-row class="my-1 pa-0" no-gutters>
-            <v-col v-if="(requiredCnx[cnx.name] && typeof(formValues[cnx.name])!='undefined')" class="d-flex px-2" cols="10">
-              <v-text-field v-model="formValues[cnx.name]" :label='cnx.label' :id='cnx.name' 
-                            :rules="[requiredRule]" clearable></v-text-field>
-            </v-col>
-          </v-row>
-        </template>
-        <div v-if="success || failure" class="status-message">
-          <span v-if="success" class="good" role="alert" v-text="success"></span>
-          <span v-if="failure" class="fail" role="alert" v-text="failure"></span>
+
+        <v-alert v-else type="info" variant="tonal" density="comfortable" class="mb-3">
+          {{ $t('credentials.no_connectors_required', 'This platform does not require authentication parameters.') }}
+        </v-alert>
+      </template>
+
+      <StatusAlerts v-model:success="success" v-model:failure="failure" mode="modal" container-class="mb-3" />
+      <!-- Test Output Panel -->
+      <v-sheet v-if="showTest" border rounded="lg" class="pa-3 mb-4 bg-grey-lighten-5">
+        <div class="d-flex align-center justify-space-between mb-2">
+          <div class="d-flex align-center ga-2">
+            <v-progress-circular v-if="testingType !== ''" indeterminate size="18" width="2" color="primary" />
+            <v-icon v-else-if="testPassed === true" color="success" size="20">
+              mdi-check-circle-outline
+            </v-icon>
+            <v-icon v-else-if="testPassed === false" color="error" size="20">
+              mdi-alert-circle-outline
+            </v-icon>
+            <span class="text-subtitle-2 font-weight-semibold">
+              {{ testingType !== '' ? $t('common.working', 'Working...') : testStatus }}
+            </span>
+          </div>
+          <v-btn icon="mdi-close" size="x-small" variant="text" @click="showTest = false" />
         </div>
-        <v-row class="d-flex mt-2" no-gutters>
-          <v-col class="d-flex px-2 justify-center">
-            <v-btn @click="submitForm">Save</v-btn>
-          </v-col>
-          <v-col class="d-flex px-2 justify-center">
-            <v-btn class="ml-2" @click="emit('cancel')">Cancel</v-btn>
-          </v-col>
-        </v-row>
-        <div v-if="showTest">
-          <div>{{ testStatus }}</div>
-          <div v-for="row in testData">{{ row }}</div>
+
+        <pre v-if="testData.length > 0" class="text-caption overflow-auto pa-2 rounded bg-surface border"
+          style="max-height: 220px; white-space: pre-wrap; word-break: break-all;">{{ testData.join('\n') }}</pre>
+      </v-sheet>
+
+      <div class="d-flex flex-wrap align-center justify-space-between ga-2 pt-2">
+        <div class="d-flex align-center ga-2">
+          <v-btn color="primary" variant="tonal" type="submit">
+            {{ $t('common.save', 'Save') }}
+          </v-btn>
+          <v-btn color="secondary" variant="text" @click="emit('cancel')">
+            {{ $t('common.cancel', 'Cancel') }}
+          </v-btn>
         </div>
-      </v-container>
+
+        <div v-if="formValues.inst_id != null && formValues.prov_id != null" class="d-flex align-center ga-2">
+          <v-btn color="info" variant="tonal" prepend-icon="mdi-heart-pulse" :loading="testingType === 'status'"
+            :disabled="testingType !== '' && testingType !== 'status'" @click="testSettings('status')">
+            {{ $t('credentials.service_status', 'Service Status') }}
+          </v-btn>
+          <v-btn color="info" variant="tonal" prepend-icon="mdi-connection" :loading="testingType === 'test'"
+            :disabled="testingType !== '' && testingType !== 'test'" @click="testSettings('test')">
+            {{ $t('credentials.test_credentials', 'Test Credentials') }}
+          </v-btn>
+        </div>
+      </div>
     </v-form>
-    <v-row v-if="formValues['inst_id']!=null && formValues['prov_id']!=null" class="d-flex mt-1 mx-2">
-      <v-col class="d-flex px-2 justify-center">
-        <v-btn color="info" @click="testSettings('status')">Service Status</v-btn>
-      </v-col>
-      <v-col class="d-flex px-2 justify-center">
-        <v-btn color="info" @click="testSettings('test')">Test Credentials</v-btn>
-      </v-col>
-    </v-row>
   </div>
 </template>
-<style scoped>
-</style>

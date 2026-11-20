@@ -553,9 +553,12 @@ class HarvestLogController extends BaseController
             if ($running === '') {
                 $artisan = base_path('artisan');
                 $php = trim((string) shell_exec('which php')) ?: '/usr/bin/php';
-                shell_exec(sprintf('nohup %s %s ccplus:harvester > /dev/null 2>&1 &', escapeshellarg($php), escapeshellarg($artisan)));
+                $setsid = is_executable('/usr/bin/setsid') ? '/usr/bin/setsid ' : '';
+                $log = storage_path('logs/harvester.log');
+                shell_exec(sprintf('%s%s %s ccplus:harvester >> %s 2>&1 < /dev/null &', $setsid, escapeshellarg($php), escapeshellarg($artisan), escapeshellarg($log)));
             }
         }
+
 
         return response()->json([
             'result'   => true,

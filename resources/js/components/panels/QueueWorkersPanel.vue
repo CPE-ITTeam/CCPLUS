@@ -1,6 +1,6 @@
 <!-- resources/js/components/panels/QueueWorkersPanel.vue -->
 <script setup>
-import { ref, onMounted } from 'vue';
+import { ref, onMounted, onBeforeUnmount } from 'vue';
 import api from '@/services/api.js';
 import { useAuthStore } from '@/stores/useAuthStore.js';
 import SettingsPanelShell from '@/components/ui/SettingsPanelShell.vue';
@@ -20,6 +20,7 @@ const workerInfo = ref({
 const workerBusy = ref(false);
 const workerSuccess = ref('');
 const workerFailure = ref('');
+let pollTimer = null;
 
 async function fetchWorkerStatus() {
   try {
@@ -56,6 +57,11 @@ async function startWorker(worker, targetConso = null) {
 
 onMounted(() => {
   fetchWorkerStatus();
+  pollTimer = setInterval(fetchWorkerStatus, 5000);
+});
+
+onBeforeUnmount(() => {
+  if (pollTimer) clearInterval(pollTimer);
 });
 </script>
 

@@ -206,7 +206,9 @@ export default createVuetify({
       location: "top",
       openDelay: 300,
       closeOnContentClick: true,
+      contentClass: "bg-primary text-white",
     },
+
   },
 
   theme: {

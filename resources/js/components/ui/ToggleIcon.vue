@@ -122,11 +122,10 @@ function handleClick() {
     :class="meta.clickable ? 'cursor-pointer' : 'cursor-default'"
     @click="handleClick"
   >
-    <v-icon
-      :icon="meta.icon"
-      :color="meta.color"
-      :size="size"
-      class="flex-shrink-0"
+    <i
+      :class="['mdi', meta.icon, `text-${meta.color}`, 'flex-shrink-0']"
+      :style="{ fontSize: typeof size === 'number' ? `${size}px` : size, lineHeight: 1 }"
+      aria-hidden="true"
     />
 
     <span v-if="props.label !== ''" class="ms-2 text-body-2 font-weight-medium text-medium-emphasis">
