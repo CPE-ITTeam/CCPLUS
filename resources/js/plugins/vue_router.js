@@ -313,7 +313,6 @@ const routes = [
       },
     ],
   },
-
   {
     path: "/harvests",
     name: "Harvests",
@@ -369,8 +368,23 @@ const routes = [
         },
         component: markRaw(ManualHarvestPanel),
       },
+      {
+        path: "workers",
+        name: "QueueWorkers",
+        show: 1,
+        meta: {
+          ...AUTH_BASE,
+          role: "ServerAdmin",
+          level: 2,
+          get title() {
+            return t("routes.queue_workers", "Queue Workers");
+          },
+        },
+        component: markRaw(QueueWorkersPanel),
+      },
     ],
   },
+
 
   {
     path: "/reports",
@@ -442,20 +456,7 @@ const routes = [
         },
         component: markRaw(ServerSettingsPanel),
       },
-      {
-        path: "workers",
-        name: "QueueWorkers",
-        show: 1,
-        meta: {
-          ...AUTH_BASE,
-          role: "ServerAdmin",
-          level: 2,
-          get title() {
-            return t("routes.queue_workers", "Queue Workers");
-          },
-        },
-        component: markRaw(QueueWorkersPanel),
-      },
+
       {
         path: "mailsettings",
         name: "MailSettings",

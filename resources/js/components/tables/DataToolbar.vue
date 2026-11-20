@@ -20,7 +20,7 @@
     <!-- TIER 1.5: FILTERS BLOCK -->
     <div v-if="filter_options && filter_options.length > 0" class="w-100 mb-3">
       <div v-for="(row, index) in filter_options" :key="index" class="d-flex flex-column ga-1 flex-grow-1">
-         <div v-if="index === 0" class="d-flex align-center ga-3 mb-1">
+        <div v-if="index === 0" class="d-flex align-center ga-3 mb-1">
           <span class="text-caption text-uppercase font-weight-bold tracking-wider text-medium-emphasis">
             {{ $t('tables.filter', visibleFilterCount) }}
           </span>
@@ -101,6 +101,32 @@
         <template v-if="props.dataset === 'jobs'">
           <v-divider vertical class="mx-1" />
 
+          <v-chip
+            size="x-small"
+            variant="tonal"
+            :color="workerStatus.harvester_running > 0 ? 'success' : 'secondary'"
+            :prepend-icon="workerStatus.harvester_running > 0 ? 'mdi-cog-play' : 'mdi-cog-off-outline'"
+            :class="authStore.is_serveradmin ? 'cursor-pointer' : ''"
+            :title="authStore.is_serveradmin ? 'Open Queue Workers' : 'Global Harvester Worker status'"
+            @click="authStore.is_serveradmin && router.push({ name: 'QueueWorkers' })"
+          >
+            Harvester: <strong class="ms-1">{{ workerStatus.harvester_running > 0 ? 'Running' : 'Idle' }}</strong>
+          </v-chip>
+
+          <v-chip
+            size="x-small"
+            variant="tonal"
+            :color="currentConsoProcessorRunning > 0 ? 'success' : 'secondary'"
+            :prepend-icon="currentConsoProcessorRunning > 0 ? 'mdi-cog-play' : 'mdi-cog-off-outline'"
+            :class="authStore.is_serveradmin ? 'cursor-pointer' : ''"
+            :title="authStore.is_serveradmin ? 'Open Queue Workers' : 'Report Processor status for this consortium'"
+            @click="authStore.is_serveradmin && router.push({ name: 'QueueWorkers' })"
+          >
+            Processor: <strong class="ms-1">{{ currentConsoProcessorRunning > 0 ? 'Running' : 'Idle' }}</strong>
+          </v-chip>
+
+          <v-divider vertical class="mx-1" />
+
           <v-btn size="x-small" variant="tonal" :color="isPolling ? 'success' : 'secondary'"
             :prepend-icon="isPolling ? 'mdi-broadcast' : 'mdi-pause-circle-outline'"
             :title="isPolling ? 'Click to pause live updates' : 'Click to resume live updates'" @click="togglePolling">
@@ -110,7 +136,6 @@
         </template>
       </div>
 
-
       <div v-else class="d-flex align-center flex-wrap ga-2 ms-auto">
         <ExportAndImport v-if="showExportImport" :showRefresh="props.dataset == 'platforms'"
           :exportOnly="props.dataset == 'audit'" :hideExport="props.hideExport" @export="$emit('export')"
@@ -119,7 +144,6 @@
       </div>
     </div>
 
-
     <v-dialog v-model="importDialog">
       <ImportDialog :dataset="props.dataset" @close="importDialog = false" @imported="handleImported" />
     </v-dialog>
@@ -127,6 +151,7 @@
 </template>
 <script setup>
 import { ref, computed, watch, onMounted, onBeforeUnmount } from 'vue';
+import { useRouter } from 'vue-router';
 import { storeToRefs } from 'pinia';
 import { useAuthStore } from '@/stores/useAuthStore.js';
 import { useCCPlusStore } from '@/stores/useCCPlusStore.js';
@@ -148,6 +173,7 @@ const props = defineProps({
   queueStats: { type: Object, default: () => ({ status_counts: [], queue_total: 0 }) },
 });
 
+const router = useRouter();
 const authStore = useAuthStore();
 const { consortia } = storeToRefs(useCCPlusStore());
 const is_serveradmin = authStore.is_serveradmin;
@@ -159,6 +185,7 @@ const liveQueueTotal = ref(0);
 const lastChecked = ref('');
 const isPolling = ref(true);
 const activeStatusFilters = ref([]);
+const workerStatus = ref({ harvester_running: 0, processor_running: 0, consortia: [] });
 let pollTimer = null;
 
 const isHarvestDataset = computed(() =>
@@ -172,6 +199,11 @@ const harvestStageChips = computed(() =>
 const processStageChips = computed(() =>
   liveStatusCounts.value.filter((item) => item.stage === 'process')
 );
+
+const currentConsoProcessorRunning = computed(() => {
+  const match = workerStatus.value.consortia?.find((c) => c.ccp_key === authStore.ccp_key);
+  return match ? match.processor_running : workerStatus.value.processor_running;
+});
 
 watch(
   () => props.queueStats,
@@ -222,13 +254,29 @@ function clearAllFilters() {
   emit('setFilter', { key: 'reset', refresh: true });
 }
 
+async function fetchWorkerStatus() {
+  if (props.dataset !== 'jobs') return;
+  try {
+    const res = await api.get('/api/settings/workers');
+    const data = res?.data !== undefined ? res.data : res;
+    if (data?.result) {
+      workerStatus.value = data;
+    }
+  } catch (e) {
+    // Silent background poll failure
+  }
+}
+
 async function fetchStatusSummary() {
   if (!isHarvestDataset.value) return;
   if (props.dataset === 'jobs' && !isPolling.value) return;
 
   const endpoint = props.dataset === 'jobs' ? '/api/jobs/getItems' : '/api/harvests/getItems';
   try {
-    const res = await api.post(endpoint, { summary_only: true });
+    const [res] = await Promise.all([
+      api.post(endpoint, { summary_only: true }),
+      props.dataset === 'jobs' ? fetchWorkerStatus() : Promise.resolve(),
+    ]);
     const data = res?.data !== undefined ? res.data : res;
     if (data?.result) {
       const prevTotal = liveQueueTotal.value;
@@ -306,7 +354,6 @@ const consoOnly = computed(() => {
 const needsRefreshButton = computed(() => {
   return props.dataset == 'audit';
 });
-
 
 const showExportImport = computed(() => {
   return props.dataset == 'consortia' || (!consoOnly.value && props.dataset != 'harvests' && props.dataset != 'jobs');

@@ -105,11 +105,6 @@ Route::middleware('ccplusAuth')->group(function () {
         Route::delete('/delete/{role}', 'App\Http\Controllers\RoleController@destroy')->name('roles.destroy');
         Route::post('/bulk', 'App\Http\Controllers\RoleController@bulk')->name('roles.bulk');
     });
-    Route::prefix('settings')->group(function () {
-        Route::get('/get/{type}', 'App\Http\Controllers\GlobalSettingController@index')->name('settings.index');
-        Route::post('/store', 'App\Http\Controllers\GlobalSettingController@store')->name('settings.store');
-        Route::patch('/update/{setting}', 'App\Http\Controllers\GlobalSettingController@update')->name('settings.update');
-    });
     Route::prefix('harvests')->group(function () {
         Route::get('/get', 'App\Http\Controllers\HarvestLogController@index')->name('harvests.index');
         Route::post('/getItems', 'App\Http\Controllers\HarvestLogController@index')->name('harvests.items');
