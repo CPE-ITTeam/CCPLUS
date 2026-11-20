@@ -548,6 +548,15 @@ class HarvestLogController extends BaseController
             return $this->respondError(__('harvests.errors.no_records_created'));
         }
 
+        if ($when === 'now' && $createdCount > 0 && function_exists('shell_exec')) {
+            $running = trim((string) shell_exec('ps -eo args -ww | grep ' . escapeshellarg('ccplus:harvester') . ' | grep -v grep'));
+            if ($running === '') {
+                $artisan = base_path('artisan');
+                $php = trim((string) shell_exec('which php')) ?: '/usr/bin/php';
+                shell_exec(sprintf('nohup %s %s ccplus:harvester > /dev/null 2>&1 &', escapeshellarg($php), escapeshellarg($artisan)));
+            }
+        }
+
         return response()->json([
             'result'   => true,
             'msg'      => __('harvests.messages.created_count', ['count' => $createdCount]),
@@ -624,9 +633,14 @@ class HarvestLogController extends BaseController
         abort_unless($thisUser->isAdmin(), 403);
 
         $input = $request->all();
-        $harvestIds = $input['ids'] ?? $input['harvests'] ?? [];
+        $rawIds = $input['ids'] ?? $input['harvests'] ?? [];
+        $harvestIds = collect(is_array($rawIds) ? $rawIds : [])
+            ->map(fn($item) => is_array($item) ? ($item['id'] ?? null) : $item)
+            ->filter()
+            ->values()
+            ->all();
         $rawAction = $input['action'] ?? '';
-        if (empty($rawAction) || !is_array($harvestIds) || count($harvestIds) === 0) {
+        if (empty($rawAction) || count($harvestIds) === 0) {
             return $this->respondError(__('harvests.errors.invalid_bulk_inputs'));
         }
 
@@ -648,7 +662,7 @@ class HarvestLogController extends BaseController
         $harvestIds = $harvests->pluck('id')->toArray();
 
         $action = $rawAction;
-        $forceRelease = $input['release'] ?? null;
+        $forceRelease = filled($input['release'] ?? null) ? trim((string) $input['release']) : null;
         if ($rawAction === 'Restart as r5') {
             $action = 'Restart';
             $forceRelease = '5';
@@ -695,13 +709,13 @@ class HarvestLogController extends BaseController
 
                 if (!is_null($forceRelease)) {
                     $registry = $cred->provider->registries
-                        ->first(fn($r) => trim((string) $r->release) === trim((string) $forceRelease));
+                        ->first(fn($r) => trim((string) $r->release) === $forceRelease);
                     if (!$registry) {
                         $skipped[] = $harvest->id;
                         continue;
                     }
-                    if (trim((string) $forceRelease) !== trim((string) $harvest->release)) {
-                        $harvest->release = trim((string) $forceRelease);
+                    if ($forceRelease !== trim((string) $harvest->release)) {
+                        $harvest->release = $forceRelease;
                     }
                 }
 
@@ -756,6 +770,7 @@ class HarvestLogController extends BaseController
 
         return $this->respondError(__('harvests.errors.unknown_bulk_action'));
     }
+
 
 
     /**

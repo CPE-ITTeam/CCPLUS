@@ -36,6 +36,8 @@ import ManualHarvestPanel from "@/components/panels/ManualHarvestPanel.vue";
 import Reporting from "@/components/panels/ReportingPanel.vue";
 import ServerSettingsPanel from "@/components/panels/ServerSettingsPanel.vue";
 import ApiSettingsPanel from "@/components/panels/ApiSettingsPanel.vue";
+import QueueWorkersPanel from "@/components/panels/QueueWorkersPanel.vue";
+
 
 // 4. USER ACCOUNT VIEWS
 import AccountSettings from "@/views/account/AccountSettings.vue";
@@ -315,6 +317,7 @@ const routes = [
   {
     path: "/harvests",
     name: "Harvests",
+    redirect: { name: "HarvestQueue" },
     meta: {
       ...AUTH_BASE,
       role: "Admin",
@@ -324,20 +327,6 @@ const routes = [
       },
     },
     children: [
-      {
-        path: "manual",
-        name: "ManualHarvest",
-        show: 1,
-        meta: {
-          ...AUTH_BASE,
-          role: "Admin",
-          level: 2,
-          get title() {
-            return t("routes.manual_harvest");
-          },
-        },
-        component: markRaw(ManualHarvestPanel),
-      },
       {
         path: "queue",
         name: "HarvestQueue",
@@ -366,8 +355,23 @@ const routes = [
         },
         component: markRaw(HarvestLog),
       },
+      {
+        path: "manual",
+        name: "ManualHarvest",
+        show: 1,
+        meta: {
+          ...AUTH_BASE,
+          role: "Admin",
+          level: 2,
+          get title() {
+            return t("routes.manual_harvest");
+          },
+        },
+        component: markRaw(ManualHarvestPanel),
+      },
     ],
   },
+
   {
     path: "/reports",
     name: "Reports",
@@ -411,7 +415,7 @@ const routes = [
       },
     ],
   },
-  // ServerAdmin Config Routes
+// ServerAdmin Config Routes
   {
     path: "/server",
     name: "Server",
@@ -437,6 +441,20 @@ const routes = [
           },
         },
         component: markRaw(ServerSettingsPanel),
+      },
+      {
+        path: "workers",
+        name: "QueueWorkers",
+        show: 1,
+        meta: {
+          ...AUTH_BASE,
+          role: "ServerAdmin",
+          level: 2,
+          get title() {
+            return t("routes.queue_workers", "Queue Workers");
+          },
+        },
+        component: markRaw(QueueWorkersPanel),
       },
       {
         path: "mailsettings",
@@ -468,6 +486,7 @@ const routes = [
       },
     ],
   },
+
 
 ];
 

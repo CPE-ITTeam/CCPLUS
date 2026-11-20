@@ -73,7 +73,7 @@ class GlobalSettingController extends BaseController
         $harvesterProcs = [];
         $processorConsoKeys = [];
         if (function_exists('shell_exec')) {
-            $out = shell_exec("ps -eo pid,args | grep -E 'ccplus:(harvester|reportprocessor)' | grep -v grep");
+            $out = shell_exec("ps -eo pid,args -ww | grep -E 'ccplus:(harvester|reportprocessor)' | grep -v grep");
             foreach (explode("\n", trim((string) $out)) as $line) {
                 $line = trim($line);
                 if ($line === '') {
@@ -84,6 +84,7 @@ class GlobalSettingController extends BaseController
                 } elseif (preg_match('/ccplus:reportprocessor\s+([^\s]+)/', $line, $m)) {
                     $processorConsoKeys[$m[1]] = ($processorConsoKeys[$m[1]] ?? 0) + 1;
                 }
+
             }
         }
 
@@ -124,8 +125,9 @@ class GlobalSettingController extends BaseController
     }
 
 
+
     /**
-     * Launch a background ccplus:harvester or ccplus:reportprocessor worker
+     * Launch a background ccplus:harvester (max 1 per server) or ccplus:reportprocessor worker
      */
     public function runWorker(Request $request)
     {
@@ -135,6 +137,10 @@ class GlobalSettingController extends BaseController
         $php = PHP_BINARY ?: 'php';
 
         if ($worker === 'harvester') {
+            $running = trim((string) shell_exec('ps -eo args -ww | grep ' . escapeshellarg('ccplus:harvester') . ' | grep -v grep'));
+            if ($running !== '') {
+                return response()->json(['result' => false, 'msg' => 'Harvester worker is already running.']);
+            }
             $cmd = sprintf('nohup %s %s ccplus:harvester > /dev/null 2>&1 &', escapeshellarg($php), escapeshellarg($artisan));
             shell_exec($cmd);
             return response()->json(['result' => true, 'msg' => 'Harvester worker started in background.']);
@@ -143,10 +149,6 @@ class GlobalSettingController extends BaseController
         if ($worker === 'reportprocessor') {
             if (!$consoKey) {
                 return response()->json(['result' => false, 'msg' => 'No active consortium selected.'], 422);
-            }
-            $running = trim((string) shell_exec('ps -eo args | grep ' . escapeshellarg("ccplus:reportprocessor {$consoKey}") . ' | grep -v grep'));
-            if ($running !== '') {
-                return response()->json(['result' => false, 'msg' => "Report processor is already running for {$consoKey}."]);
             }
             $cmd = sprintf(
                 'nohup %s %s ccplus:reportprocessor %s > /dev/null 2>&1 &',
@@ -160,5 +162,4 @@ class GlobalSettingController extends BaseController
 
         return response()->json(['result' => false, 'msg' => 'Invalid worker type.'], 422);
     }
-
 }

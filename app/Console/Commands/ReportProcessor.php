@@ -26,9 +26,9 @@ use Illuminate\Support\Facades\Crypt;
  *   is not uncommon for TR). This script will fail and die with a shutdown exception
  *   (that is un-catchable(?) ) if it cannot allocate enough memory.
  */
- //
- // CC PlusReport Script
- //
+//
+// CC PlusReport Script
+//
 class ReportProcessor extends Command
 {
     /**
@@ -58,14 +58,14 @@ class ReportProcessor extends Command
     {
         parent::__construct();
         try {
-          $this->global_providers = GlobalProvider::where('is_active', true)->get();
+            $this->global_providers = GlobalProvider::where('is_active', true)->get();
         } catch (\Exception $e) {
-          $this->global_providers = array();
+            $this->global_providers = array();
         }
         try {
-          $this->connection_fields = ConnectionField::get();
+            $this->connection_fields = ConnectionField::get();
         } catch (\Exception $e) {
-          $this->connection_fields = array();
+            $this->connection_fields = array();
         }
     }
 
@@ -76,14 +76,14 @@ class ReportProcessor extends Command
      */
     public function handle()
     {
-       // Get optional inputs
+        // Get optional inputs
         $_ident = $this->argument('ident');
         $ident = ($_ident == "null") ? "" : $_ident . " : ";
         $order = $this->argument('order');
         $delay = $this->argument('startup-delay');
         sleep($delay);
 
-       // Allow input consortium to be an ID or Key
+        // Allow input consortium to be an ID or Key
         $ts = date("Y-m-d H:i:s") . " ";
         $conarg = $this->argument('consortium');
         $consortium = Consortium::find($conarg);
@@ -98,8 +98,8 @@ class ReportProcessor extends Command
             return 0;
         }
 
-       // Aim the consodb connection at specified consortium's database and initialize the
-       // path for keeping raw report responses
+        // Aim the consodb connection at specified consortium's database and initialize the
+        // path for keeping raw report responses
         config(['database.connections.consodb.database' => 'ccplus_' . $consortium->ccp_key]);
         DB::reconnect();
         if (is_null(config('ccplus.reports_path'))) {
@@ -107,114 +107,140 @@ class ReportProcessor extends Command
             return 0;
         }
 
-       // Set error-severity so we only have to query for it once
+        // Set error-severity so we only have to query for it once
         $severities_error = Severity::where('name', '=', 'Error')->value('id');
 
-       // Get records for all "Retrieved" Harvestlogs
+        // Get records for all "Retrieved" Harvestlogs
         $skip_statuses = array('Success', 'Fail', 'New', 'NoRetries', 'BadCreds');
-        $all_harvests = HarvestLog::with('credential','credential.provider','credential.institution')
-                                  ->whereNotIn('status', $skip_statuses)->get();
+        $all_harvests = HarvestLog::with('credential', 'credential.provider', 'credential.institution')
+            ->whereNotIn('status', $skip_statuses)->get();
 
-       // Set paths for where the files are, will be stored
+        // Set paths for where the files are, will be stored
         $consortium_root = config('ccplus.reports_path') . $consortium->id . '/';
         $report_path = $consortium_root . '0_unprocessed';
 
-       // setup the file globs we need to process
-        $master_reports = Report::where('parent_id',0)->orderBy('dorder','ASC')->get(['id','name']);
+        // setup the file globs we need to process
+        $master_reports = Report::where('parent_id', 0)->orderBy('dorder', 'ASC')->get(['id', 'name']);
         $globs = array();
         if ($order == "d") {
             $globs = [];
             foreach ($master_reports as $mr) {
                 $globs[] = "*" . $mr->name . "*.json";
             }
-       // default to one - all by-time
+            // default to one - all by-time
         } else {
             $globs[] = "*.json";
         }
 
-       // Process the globs
+        // Process the globs
         foreach ($globs as $glob) {
 
             $search_path = $report_path . "/" . $glob;
             $file_glob = glob($search_path);
             if (count($file_glob) == 0) continue;
 
-           // sort a glob by time, oldest -> newest
-            usort($file_glob, function($a, $b) {
+            // sort a glob by time, oldest -> newest
+            usort($file_glob, function ($a, $b) {
                 return filemtime($a) - filemtime($b);
             });
-
-           // Process the files
+            // Process the files
             foreach ($file_glob as $jsonFile) {
+                if (!file_exists($jsonFile)) {
+                    continue;
+                }
 
-               // Get harvest and setup output file path/name from the filename
-                $parts = preg_split('/_/', substr($jsonFile, strrpos($jsonFile,'/',0)+1));
+                // Get harvest and setup output file path/name from the filename
+                $parts = preg_split('/_/', substr($jsonFile, strrpos($jsonFile, '/', 0) + 1));
                 $harvest_id = intval($parts[0]);
-                $harvest = $all_harvests->where('id',$harvest_id)->first();
-                if (!$harvest) continue;
                 $report = $master_reports->where('name', $parts[1])->first();
-                if (!$report) continue;
+                if (!$report) {
+                    continue;
+                }
+
+                // Atomically claim the harvest row so parallel workers never collide
+                $claimed = HarvestLog::where('id', $harvest_id)
+                    ->whereNotIn('status', array_merge($skip_statuses, ['Processing']))
+                    ->update(['status' => 'Processing']);
+                if ($claimed === 0) {
+                    continue;
+                }
+
+                $harvest = HarvestLog::with('credential', 'credential.provider', 'credential.institution')
+                    ->find($harvest_id);
+                if (!$harvest || !$harvest->credential) {
+                    continue;
+                }
+
                 $prov_id = $harvest->credential->prov_id;
                 $inst_id = $harvest->credential->inst_id;
 
-                // Mark the harvest status as "Processing"
-                $harvest->status = 'Processing';
-                $harvest->save();
-
-               // Decrypt and load the JSON into a variable
-                $json = json_decode(bzdecompress(Crypt::decrypt(File::get($jsonFile), false)));
-
-               // Create a new processor object (will replace existing data)
-                $C5processor = new Counter5Processor($prov_id, $inst_id, $harvest->yearmon, $harvest->yearmon, 1);
-
-               // Run the counter processor on the JSON
                 $ts = date("Y-m-d H:i:s");
                 $rawfile = $harvest->id . '_' . $report->name . '_' . $harvest->yearmon . '.json';
+                $C5processor = null;
+
                 try {
+                    // Decrypt and load the JSON into a variable inside try/catch
+                    $json = json_decode(bzdecompress(Crypt::decrypt(File::get($jsonFile), false)));
+                    if (!$json) {
+                        throw new \RuntimeException('Failed to decode decompressed report JSON.');
+                    }
+
+                    // Create a new processor object (will replace existing data)
+                    $C5processor = new Counter5Processor($prov_id, $inst_id, $harvest->yearmon, $harvest->yearmon, 1);
+
+                    // Run the counter processor on the JSON
                     $res = $C5processor->{$report->name}($json);
+
                     // Successfully processed the report - clear out any existing "failed" records and update the harvest
                     if ($res == 'Success') {
-                        $deleted = FailedHarvest::where('harvest_id', $harvest->id)->delete();
+                        FailedHarvest::where('harvest_id', $harvest->id)->delete();
                         $harvest->error_id = 0;
                         $harvest->status = 'Success';
                     }
-               // If processor failed, signal 9100
                 } catch (\Exception $e) {
-                    $error9100 = CcplusError::where('id',9100)->first();
-                    FailedHarvest::insert(['harvest_id' => $harvest->id, 'process_step' => 'COUNTER',
-                                           'error_id' => 9100, 'detail' => 'Processing error: ' . $e->getMessage(),
-                                           'help_url' => null, 'created_at' => $ts]);
-                    $this->line($ts . " " . $ident . ":: ".$harvest->id." :: Error processing JSON : " . $e->getMessage());
+                    $error9100 = CcplusError::where('id', 9100)->first();
+                    FailedHarvest::insert([
+                        'harvest_id'   => $harvest->id,
+                        'process_step' => 'COUNTER',
+                        'error_id'     => 9100,
+                        'detail'       => 'Processing error: ' . $e->getMessage(),
+                        'help_url'     => null,
+                        'created_at'   => $ts,
+                    ]);
+                    $this->line($ts . " " . $ident . ":: " . $harvest->id . " :: Error processing JSON : " . $e->getMessage());
                     $harvest->error_id = 9100;
                     $harvest->attempts++;
                     $harvest->status = ($error9100) ? $error9100->new_status : 'ReQueued';
                 }
 
-               // Make sure the path for the output file exists
+                // Make sure the path for the output file exists
                 $path = $consortium_root . '/' . $inst_id . '/' . $prov_id;
                 if (!file_exists($path) || !is_dir($path)) {
                     mkdir($path, 0755, true);
                 }
 
-               // Move the JSON file to its new home
+                // Move the JSON file to its new home
                 $newName = $path . '/' . $rawfile;
                 try {
                     rename($jsonFile, $newName);
                 } catch (\Exception $e) {
-                   // Rename failed and file is not in the new place, clear rawfile value and log error
                     if (!is_readable($newName)) {
-                        $this->line ($ts  . " " . $ident . "Rename/Move operation for JSON source file failed: " . $jsonFile);
+                        $this->line($ts . " " . $ident . " Rename/Move operation for JSON source file failed: " . $jsonFile);
                         $harvest->rawfile = null;
-                        try { unlink($jsonFile); } catch (\Exception $e2) { }
+                        try {
+                            unlink($jsonFile);
+                        } catch (\Exception $e2) {
+                        }
                     }
                 }
+
                 $harvest->save();
 
-               // Print confirmation line
+                // Print confirmation line
                 $this->line($ts . " " . $ident . $harvest->credential->provider->name . " : " . $harvest->yearmon . " : " .
-                                  $report->name . " processed for " . $harvest->credential->institution->name);
-                unset($C5processor);
+                    $report->name . " processed for " . $harvest->credential->institution->name);
 
+                unset($C5processor);
             }
         }
         // Sleep before exiting to make sure last harvest gets fully processed
