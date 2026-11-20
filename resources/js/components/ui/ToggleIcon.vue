@@ -49,12 +49,12 @@ const meta = computed(() => {
   const { conso, available, requested } = props.modelValue;
 
   if (!available) {
-    return { icon: 'mdi-minus-box-outline', color: 'secondary', clickable: false };
+    return { icon: 'mdi-minus', color: 'secondary', clickable: false };
   }
 
   if (conso) {
     return {
-      icon: 'mdi-checkbox-multiple-marked',
+      icon: 'mdi-star-circle',
       color: authStore.is_conso_admin ? 'primary' : 'secondary',
       clickable: authStore.is_conso_admin,
     };
@@ -62,15 +62,15 @@ const meta = computed(() => {
 
   if (requested) {
     return {
-      icon: 'mdi-checkbox-marked-outline',
-      color: can_admin.value ? 'success' : 'secondary',
+      icon: 'mdi-home-circle-outline',
+      color: can_admin.value ? 'primary' : 'secondary',
       clickable: can_admin.value,
     };
   }
 
   return {
-    icon: 'mdi-plus-box-outline',
-    color: authStore.is_admin ? 'success' : 'secondary',
+    icon: 'mdi-plus',
+    color: authStore.is_admin ? 'warning' : 'secondary',
     clickable: authStore.is_admin,
   };
 });

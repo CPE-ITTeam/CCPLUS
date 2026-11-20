@@ -52,7 +52,8 @@ export default {
   api_docs: {
     bearer_token_hint:
       "Bearer: <- Your_Personal_Access_Token -> (Managed in your Profile)",
-    copy_json: "Copy JSON",
+        copied: "Copied!",
+      copy_json: "Copy JSON",
     data_for_saved_report: "Data for a Saved Report",
     endpoint_format: "Endpoint Format",
     example_links: "Example Links",
@@ -108,7 +109,9 @@ export default {
     cancel: "Cancel",
     ccplus_home_aria: "CC-PLUS Home",
     ccplus_logo_alt: "CC-PLUS Logo",
+    click_to_copy: "Click to copy",
     close: "Close",
+    copied: "Copied!",
     copy: "Copy",
     decrease: "Decrease value",
     export: "Export",
@@ -120,13 +123,16 @@ export default {
     none_of_the_above: "None of the above",
     opens_new_tab: "opens in a new tab",
     others: "others",
+    refresh: "Refresh",
     save: "Save",
     select_all: "Select All",
     select_item: "Select {label}",
     some_items: "Some {label}",
     stopping: "Stopping...",
     submit: "Submit",
+    working: "Working...",
   },
+
 
   connections: {
     all_groups: "All Groups",
@@ -145,6 +151,13 @@ export default {
     report_to_connect: "Report to Connect",
   },
 
+    credentials: {
+    leave_blank_placeholder: "Leave blank to save as Incomplete",
+    no_connectors_required: "No credential parameters are required for this platform.",
+    service_status: "Service Status",
+    status_request_failed: "Service status request failed.",
+    test_credentials: "Test Credentials",
+  },
   datasets: {
     connections: { title: "Connection" },
     consortia: { title: "Consortium" },
@@ -196,6 +209,10 @@ export default {
   },
 
   fields: {
+        all_platforms: "All Platforms",
+    exclude_consortial: "Exclude Consortial",
+    limit_to_consortial: "Limit to Consortial",
+
     abbreviation: "Abbreviation",
     add_cred_placeholders: "Add Credential Placeholders",
     admin_contact: "Admin Contact",
@@ -203,7 +220,7 @@ export default {
     admin_username_email: "Admin Username/Email",
     api_key: "API Key",
     ccplus_system_id: "CC+ System ID",
-        color_theme: "Color Theme",
+    color_theme: "Color Theme",
     confirm_password: "Confirm Password",
     connected_instances: "Connected Instances",
     connection_fields: "Connection Fields",
@@ -211,6 +228,7 @@ export default {
     consortium_key: "Consortium Key",
     consortium_name: "Consortium Name",
     consortium_only: "Consortium Only",
+    content_provider: "Content Provider",
     counter_releases: "COUNTER Releases",
     created: "Created",
     customer_id: "Customer ID",
@@ -265,6 +283,7 @@ export default {
     last_run_date: "Last Run Date",
     last_updated: "Last Updated",
     legacy_id: "Legacy ID",
+    legacy_platform_id: "Legacy Platform ID",
     local_id: "Local ID",
     member_count: "Member Count",
     member_institutions: "Member Institutions",
@@ -293,6 +312,7 @@ export default {
     report_title: "Report Title",
     reports: "Report(s)",
     requestor_id: "Requestor ID",
+    required: "Required",
     result: "Result",
     result_date: "Harvested",
     retry_url: "Retry URL",
@@ -317,6 +337,7 @@ export default {
     validation: "Validation",
   },
 
+
   footer: {
     counter_alt: "COUNTER Metrics Logo",
     counter_aria: "Official COUNTER Code of Practice website",
@@ -327,6 +348,7 @@ export default {
   },
 
   harvest: {
+        all_available_reports: "All Connected",
     all_conso_platforms: "All Consortium Platforms",
     all_institutions: "All Institutions",
     all_platforms: "All Platforms",
@@ -463,27 +485,33 @@ export default {
     },
   },
 
-  reports: {
+   reports: {
     access_and_data: "Access & Data",
     access_methods: "Access Methods",
     access_types: "Access Types",
+    c_ytd: "Calendar YTD",
     compact_format: "CC+ Compact",
     conso_undefined:
       "Current consortium is not properly defined. Check system installation or try logging out and back in.",
     counter_format: "COUNTER-R5",
+    custom: "Custom Range",
     data_types: "Data Types",
     databases: "Databases",
     end_month: "End Month",
     exclude_zeros: "Exclude Zero-Use Records",
+    f_ytd: "Fiscal YTD",
     formatting: "Report Formatting",
     information_columns: "Information Columns",
     investigations_requests: "Investigations & Requests",
+    last_12: "Last 12 Months",
     limit_rp_totals: "Limit to Reporting Period Totals",
     load_preview: "Load Preview",
     load_saved_report: "Load a Saved Report",
     metric_searches: "Metric Type: Searches",
     metrics_and_options: "Metrics, Filters & Format",
     name_required: "A name is required to save the configuration.",
+    prior_cy: "Prior Calendar Year",
+    prior_fy: "Prior Fiscal Year",
     report_dates: "Report Dates",
     report_preview: "Report Preview",
     report_scope: "Report Scope",
@@ -526,6 +554,7 @@ export default {
       my_profile: "My Profile",
     permissions: "Permissions",
     platforms: "Platforms",
+        queue_workers: "Queue Workers",
     registry: "Registry",
     reports: "Reports",
     reset_password: "Reset Password",
@@ -550,6 +579,7 @@ export default {
     max_retries: "Max Retries",
     placeholder_cookie_life: "e.g. 30",
     placeholder_retries: "e.g. 5",
+        queue_workers: "Queue & Background Workers",
     readonly_env_hint: "Readonly; Changeable in APP_ROOT/.env",
     reports_path: "Reports Path",
     retry_and_logging: "Retry & Logging",
@@ -609,6 +639,12 @@ export default {
     refresh_records: "Refresh Records",
     refreshing_registry: "Refreshing COUNTER Registry:",
     search: "Search",
+    select_all_count: "Select all ({count})",
+    select_row: "Select row",
+    select_visible: "Select visible ({count})",
+    selection_options: "Selection options",
+    show_all: "Show all rows",
+    show_selected_only: "Show selected only",
     truncated_warning: "Display is limited to the most recent records. Use the filters above to narrow your results.",
     view_error_details: "View Error Details",
   },

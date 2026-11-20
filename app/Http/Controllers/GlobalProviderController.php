@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\Connection;
 use App\Models\ConnectionField;
 use App\Models\Consortium;
 use App\Models\CounterRegistry;
@@ -52,10 +53,15 @@ class GlobalProviderController extends BaseController
         $all_releases = [];
         $providers = [];
 
+        $consoProvIds = session('ccp_con_key')
+            ? Connection::where('inst_id', 1)->pluck('global_id')->flip()->all()
+            : [];
+
         foreach ($gp_data as $gp) {
             $provider = [
                 'id'               => $gp->id,
                 'legacy_id'        => $gp->legacy_id,
+                'is_conso'         => isset($consoProvIds[$gp->id]),
                 'name'             => $gp->name,
                 'content_provider' => $gp->content_provider,
                 'abbrev'           => $gp->abbrev,
@@ -65,6 +71,7 @@ class GlobalProviderController extends BaseController
                 'refreshable'      => $gp->refreshable ? 'Active' : 'Inactive',
                 'registry_id'      => (is_null($gp->registry_id) || $gp->registry_id === '') ? null : $gp->registry_id,
             ];
+
 
             $resultKey = '';
             if (is_null($provider['registry_id'])) {

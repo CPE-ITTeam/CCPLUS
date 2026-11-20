@@ -47,6 +47,7 @@ class CredentialController extends BaseController
 
         $globalsById = [];
         $platformMeta = [];
+        $platformIsConso = [];
         $platformsFilterList = [];
         $platformBaseReports = [];
         $platformInstReports = [];
@@ -65,16 +66,19 @@ class CredentialController extends BaseController
                 'connectors'  => $this->buildConnectorList($global_connectors, $required),
             ];
 
+            $available = $plat->master_reports() ?? [];
+            $consoWide = $plat->connections->firstWhere('inst_id', 1);
+            $isConsoPlat = (bool) $consoWide;
+            $platformIsConso[$plat->id] = $isConsoPlat;
+            $consoReportIds = $consoWide ? $consoWide->reports->pluck('id')->all() : [];
+
             $platformsFilterList[] = [
                 'id'         => $plat->id,
                 'name'       => $plat->name,
                 'is_active'  => $plat->is_active,
+                'is_conso'   => $isConsoPlat,
                 'connectors' => $_connectors,
             ];
-
-            $available = $plat->master_reports() ?? [];
-            $consoWide = $plat->connections->firstWhere('inst_id', 1);
-            $consoReportIds = $consoWide ? $consoWide->reports->pluck('id')->all() : [];
 
             $base = [];
             foreach ($masterReports as $mr) {
@@ -140,12 +144,14 @@ class CredentialController extends BaseController
             $rec = [
                 'id'             => $cred->id,
                 'status'         => $cred->status,
+                'is_conso'       => $platformIsConso[$cred->prov_id] ?? false,
                 'inst_id'        => $cred->inst_id,
                 'prov_id'        => $cred->prov_id,
                 'legacy_prov_id' => $global->legacy_id,
                 'customer_id'    => $cred->customer_id,
                 'requestor_id'   => $cred->requestor_id,
                 'api_key'        => $cred->api_key,
+                'extra_args'     => $cred->extra_args,
                 'platform'       => $global->name,
                 'can_edit'       => true,
                 'can_delete'     => true,
@@ -196,7 +202,6 @@ class CredentialController extends BaseController
 
         return response()->json(['records' => $credentials, 'options' => $filter_options, 'result' => true], 200);
     }
-
 
 
     /**

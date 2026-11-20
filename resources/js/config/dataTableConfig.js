@@ -869,6 +869,7 @@ const rawTableSetup = {
       return t("datasets.platforms.title");
     },
     fields: [
+      // ─── TABLE COLUMNS ───
       {
         name: "id",
         get label() {
@@ -1085,6 +1086,20 @@ const rawTableSetup = {
         header: null,
         editable: false,
       },
+
+      // ─── TOOLBAR FILTERS ───
+      {
+        name: "is_conso",
+        get label() {
+          return t("fields.consortial", "Consortial");
+        },
+        type: "toggle",
+        options: "",
+        isFilter: true,
+        filterCol: "is_conso",
+        header: null,
+        searchable: false,
+      },
       {
         name: "releases",
         get label() {
@@ -1137,6 +1152,7 @@ const rawTableSetup = {
     static: [
       "id",
       "legacy_id",
+      "is_conso",
       "instance_count",
       "updated",
       "PR",
@@ -1183,6 +1199,7 @@ const rawTableSetup = {
     ],
     sortby: "name",
   },
+
 
   connections: {
     urlRoot: "/api/connections",
@@ -1400,7 +1417,7 @@ const rawTableSetup = {
     get title() {
       return t("datasets.credentials.title");
     },
-      fields: [
+    fields: [
       // ─── TABLE COLUMNS ───
       {
         name: "status",
@@ -1533,6 +1550,19 @@ const rawTableSetup = {
       },
 
       // ─── TOOLBAR FILTERS ───
+      // ─── TOOLBAR FILTERS ───
+      {
+        name: "is_conso",
+        get label() {
+          return t("fields.consortial", "Consortial");
+        },
+        type: "toggle",
+        options: "",
+        isFilter: true,
+        filterCol: "is_conso",
+        header: null,
+        searchable: false,
+      },
       {
         name: "platforms",
         get label() {
@@ -1619,7 +1649,6 @@ const rawTableSetup = {
     ],
     sortby: "platform",
   },
-
 
   audit: {
     urlRoot: "/api/audit",
@@ -1832,6 +1861,7 @@ const rawTableSetup = {
     urlRoot: "/api/jobs",
     title: "",
     fields: [
+      // ─── TABLE COLUMNS ───
       {
         name: "inst_name",
         get label() {
@@ -1914,6 +1944,20 @@ const rawTableSetup = {
         header: null,
         editable: false,
       },
+
+      // ─── TOOLBAR FILTERS ───
+      {
+        name: "is_conso",
+        get label() {
+          return t("fields.consortial", "Consortial");
+        },
+        type: "toggle",
+        options: "",
+        isFilter: true,
+        filterCol: "is_conso",
+        header: null,
+        searchable: false,
+      },
       {
         name: "platforms",
         get label() {
@@ -1981,7 +2025,6 @@ const rawTableSetup = {
         header: null,
         searchable: false,
       },
-
       {
         name: "codes",
         get label() {
@@ -2012,7 +2055,7 @@ const rawTableSetup = {
       },
     ],
     required: [],
-    static: ["id", "rawfile", "retryUrl"],
+    static: ["id", "is_conso", "rawfile", "retryUrl"],
     bulkOptions: ["Pause", "Restart", "Kill"],
     exportFields: [],
     sortby: "created",
@@ -2022,6 +2065,7 @@ const rawTableSetup = {
     urlRoot: "/api/harvests",
     title: "",
     fields: [
+      // ─── TABLE COLUMNS ───
       {
         name: "inst_name",
         get label() {
@@ -2098,6 +2142,20 @@ const rawTableSetup = {
         },
         header: null,
         editable: false,
+      },
+
+      // ─── TOOLBAR FILTERS ───
+      {
+        name: "is_conso",
+        get label() {
+          return t("fields.consortial", "Consortial");
+        },
+        type: "toggle",
+        options: "",
+        isFilter: true,
+        filterCol: "is_conso",
+        header: null,
+        searchable: false,
       },
       {
         name: "platforms",
@@ -2180,7 +2238,6 @@ const rawTableSetup = {
         header: null,
         searchable: false,
       },
-
       {
         name: "codes",
         get label() {
@@ -2211,11 +2268,12 @@ const rawTableSetup = {
       },
     ],
     required: [],
-    static: ["id", "rawfile", "retryUrl"],
+    static: ["id", "is_conso", "rawfile", "retryUrl"],
     bulkOptions: ["Restart", "Restart as r5", "Restart as r5.1", "Delete"],
     exportFields: [],
     sortby: "updated",
   },
+
 
   savedreports: {
     urlRoot: "/api/savedreports",

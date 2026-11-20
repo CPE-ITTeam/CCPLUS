@@ -12,6 +12,7 @@ import { useDatasetActions } from '@/composables/useDatasetActions.js';
 import { useRegistryProgress } from '@/composables/useRegistryProgress.js';
 import { useDatasetExporter } from '@/composables/useDatasetExporter.js';
 import { useDatasetBulk } from '@/composables/useDatasetBulk.js';
+import { useDatasetFilters } from '@/composables/useDatasetFilters.js';
 import { useCCPlusStore } from '@/stores/useCCPlusStore.js';
 import { setAppLocale } from '@/plugins/i18n.js';
 import StatusAlerts from '@/components/ui/StatusAlerts.vue';
@@ -316,9 +317,9 @@ const loadDataset = async (datasetKey) => {
       ...(colWidth ? { width: colWidth, maxWidth: colWidth } : {}),
       ...(isCompactCol
         ? {
-            headerProps: { class: `bg-info text-white ${groupClass}`, title: fld.label },
-            cellProps: { class: groupClass },
-          }
+          headerProps: { class: `bg-info text-white ${groupClass}`, title: fld.label },
+          cellProps: { class: groupClass },
+        }
         : {}),
     };
     if (fld.name === 'error') {
@@ -393,7 +394,7 @@ const loadDataset = async (datasetKey) => {
         items,
         value: fld.type === 'mselect' ? [] : null,
       };
-    } else if (fld.type === 'toggle' && fld.isFilter && sourceOptions.length > 0) {
+    } else if (fld.type === 'toggle' && fld.isFilter && (sourceOptions.length > 0 || fld.name === 'is_conso')) {
       filterOptions[fld.name] = {
         name: fld.name,
         label: fld.label,
@@ -401,8 +402,9 @@ const loadDataset = async (datasetKey) => {
         show: fld.isFilter,
         col: fld.filterCol,
         items: [...sourceOptions],
-        value: sourceOptions,
+        value: fld.name === 'is_conso' ? 'All' : 'Inactive',
       };
+
     } else if (fld.isFilter && (fld.type === 'text' || fld.type === 'mtext')) {
       const items =
         fld.options === 'fromURL' && Array.isArray(allOptions[fld.name])
@@ -477,6 +479,14 @@ function handleToggle(value) {
   showSelectedOnly.value = value;
   if (value) search.value = '';
 }
+watch(
+  () => selectedRows.value.length,
+  (len) => {
+    if (len === 0 && showSelectedOnly.value) {
+      showSelectedOnly.value = false;
+    }
+  }
+);
 
 async function handleChangeConso(conso) {
   consoKey.value = conso.ccp_key;
@@ -815,224 +825,19 @@ async function handleBulk(data) {
   dtLoading.value = false;
 }
 
-function syncMutualInstitutionGroupVisibility() {
-  const instVal = filterOptions.institutions?.value ?? filterOptions.institution?.value;
-  const grpVal = filterOptions.groups?.value ?? filterOptions.group?.value;
-
-  const hasInst = Array.isArray(instVal) ? instVal.length > 0 : Boolean(instVal);
-  const hasGrp = Array.isArray(grpVal) ? grpVal.length > 0 : Boolean(grpVal);
-
-  if (filterOptions.group) filterOptions.group.show = !hasInst && (filterOptions.group.items?.length > 0);
-  if (filterOptions.groups) filterOptions.groups.show = !hasInst && (filterOptions.groups.items?.length > 0);
-  if (filterOptions.institution) filterOptions.institution.show = !hasGrp && (filterOptions.institution.items?.length > 0);
-  if (filterOptions.institutions) filterOptions.institutions.show = !hasGrp && (filterOptions.institutions.items?.length > 0);
-}
-
-function handleFilter(filt) {
-  const shouldServerRefresh =
-    filt.refresh ||
-    props.datasetKey === 'jobs' ||
-    props.datasetKey === 'harvests';
-
-  if (filt.key === 'reset') {
-    selectedRows.value = [];
-    for (const key of Object.keys(filterOptions)) {
-      const f = filterOptions[key];
-      if (!f) continue;
-      if (f.type === 'ymrange') {
-        f.value = { fromYM: '', toYM: '' };
-        f.show = true;
-        continue;
-      }
-      if (Array.isArray(f.items) && f.items.length === 0) {
-        f.show = false;
-        continue;
-      }
-      if (Array.isArray(f.value)) {
-        f.value = [];
-      } else if (f.value !== null && f.value !== undefined) {
-        f.value = f.type === 'toggle' ? 'Inactive' : null;
-      }
-      f.show = true;
-    }
-    syncMutualInstitutionGroupVisibility();
-    if (shouldServerRefresh) {
-      refreshData(props.datasetKey);
-    } else {
-      updateItems();
-      dtKey.value++;
-    }
-    return;
-  }
-
-  if (!filterOptions[filt.key] && (props.datasetKey === 'jobs' || props.datasetKey === 'harvests') && filt.key === 'statuses') {
-    filterOptions.statuses = {
-      name: 'statuses',
-      type: 'mselect',
-      col: 'd_status',
-      show: false,
-      items: [],
-      value: [],
-    };
-  }
-
-  const target = filterOptions[filt.key];
-  if (!target || target.value === undefined) return;
-
-  target.value = filt.value;
-
-  if (filt.key.includes('institution') || filt.key.includes('group')) {
-    syncMutualInstitutionGroupVisibility();
-  }
-
-  if (shouldServerRefresh) {
-    refreshData(props.datasetKey);
-  } else {
-    updateItems();
-    dtKey.value++;
-  }
-}
-
-
-function matchesFilter(item, filter) {
-  if (!filter || !filter.show) return true;
-  if (Array.isArray(filter.value) && filter.value.length === 0) return true;
-  if (!Array.isArray(filter.value) && !filter.value) return true;
-
-  if (filter.type === 'ymrange') {
-    const fromYM = filter.value?.fromYM || '';
-    const toYM = filter.value?.toYM || '';
-    if (!fromYM && !toYM) return true;
-    const ym = String(item[filter.col] || '');
-    if (fromYM && ym < fromYM) return false;
-    if (toYM && ym > toYM) return false;
-    return true;
-  }
-
-  if (filter.type === 'select' || filter.type === 'text') {
-    const targetVal =
-      typeof filter.value === 'object' && filter.value !== null
-        ? (filter.value.id ?? filter.value.value ?? filter.value.name)
-        : filter.value;
-
-    if (Array.isArray(item[filter.col])) {
-      return item[filter.col].some((f) => String(f) === String(targetVal));
-    }
-    return String(item[filter.col]) === String(targetVal);
-  }
-
-  if (filter.type === 'toggle') {
-    return filter.value === 'Active' ? Boolean(item[filter.col]) : true;
-  }
-
-  if (filter.type === 'mselect' || filter.type === 'mtext') {
-    const targets = Array.isArray(filter.value)
-      ? filter.value.map((v) => String(v).trim().toLowerCase())
-      : [String(filter.value).trim().toLowerCase()];
-
-    let itemValues = [];
-    if (Array.isArray(item[filter.col])) {
-      itemValues = item[filter.col].map((v) => String(v).trim().toLowerCase());
-    } else if (item[filter.col] !== undefined && item[filter.col] !== null) {
-      itemValues = String(item[filter.col]).split(',').map((v) => v.trim().toLowerCase());
-    }
-
-    if (filter.col === 'group_string' || filter.col === 'group_ids') {
-      const fallbackIds = Array.isArray(item.group_ids)
-        ? item.group_ids.map((v) => String(v).trim())
-        : item.group_ids
-          ? String(item.group_ids).split(',').map((v) => v.trim())
-          : [];
-      if (fallbackIds.some((id) => targets.includes(id))) return true;
-    }
-
-    return itemValues.some((val) => targets.includes(val));
-  }
-
-  return true;
-}
-function syncFilterOptionItems() {
-  if (allItems.length === 0) return;
-
-  const isServerFiltered =
-    props.datasetKey === 'jobs' ||
-    props.datasetKey === 'harvests';
-
-  for (const key of Object.keys(filterOptions)) {
-    const filter = filterOptions[key];
-    if (!filter) continue;
-    if (filter.type === 'ymrange') {
-      filter.show = true;
-      continue;
-    }
-
-    const source = allOptions[key];
-    if (!Array.isArray(source)) continue;
-    if ((props.datasetKey === 'jobs' || props.datasetKey === 'harvests') && key === 'statuses') continue;
-
-    // When server-filtered (jobs / truncated harvests), allItems only contains rows matching active server filters,
-    // so always preserve the full server-provided option list from allOptions
-    if (isServerFiltered) {
-      filter.items = [...source];
-      filter.show = filter.items.length > 0;
-      continue;
-    }
-
-    // Filter allItems by every OTHER active filter so this dropdown self-limits to valid choices
-    const pool = allItems.filter((item) =>
-      Object.keys(filterOptions).every((otherKey) =>
-        otherKey === key ? true : matchesFilter(item, filterOptions[otherKey])
-      )
-    );
-
-    const presentValues = new Set(
-      pool.flatMap((itm) => itm[filter.col] ?? []).map((v) => String(v).trim())
-    );
-
-    filter.items = source
-      .map((opt) => (typeof opt === 'string' ? opt.trim() : opt))
-      .filter((opt) => {
-        const optValue = filter.val && typeof opt === 'object' && opt !== null ? opt[filter.val] : opt;
-        return presentValues.has(String(optValue).trim());
-      });
-
-    filter.show = filter.items.length > 0;
-  }
-
-  syncMutualInstitutionGroupVisibility();
-}
-
-function updateItems() {
-  if (allItems.length === 0) {
-    filteredItems.splice(0, filteredItems.length);
-    return;
-  }
-
-  const isServerFiltered =
-    props.datasetKey === 'jobs' ||
-    props.datasetKey === 'harvests';
-
-  const filterResult = isServerFiltered
-    ? [...allItems]
-    : allItems.filter((item) =>
-      Object.keys(filterOptions).every((key) => matchesFilter(item, filterOptions[key]))
-    );
-
-  if (
-    filterOptions.is_conso?.type === 'toggle' &&
-    typeof filterOptions.platforms !== 'undefined' &&
-    Array.isArray(allOptions.platforms)
-  ) {
-    filterOptions.platforms.items =
-      filterOptions.is_conso.value === 'Active'
-        ? allOptions.platforms.filter((itm) => itm.is_conso)
-        : [...allOptions.platforms];
-  }
-
-  filteredItems.splice(0, filteredItems.length, ...filterResult);
-  syncFilterOptionItems();
-}
-
+const {
+  handleFilter,
+  updateItems,
+} = useDatasetFilters({
+  datasetKey: () => props.datasetKey,
+  filterOptions,
+  allOptions,
+  allItems,
+  filteredItems,
+  selectedRows,
+  dtKey,
+  refreshData,
+});
 
 async function reportToggleSubmit(data) {
   let a_idx = allItems.findIndex(ii => ii.id == data.id);
@@ -1200,7 +1005,6 @@ watch(locale, () => {
       <!-- 2. Status Messages: Native alerts -->
       <StatusAlerts v-model:success="success" v-model:failure="failure" mode="page" />
 
-
       <!-- 3. Primary Data Table Grid -->
       <DataTable v-if="consoKey != '' || props.datasetKey == 'consortia'" :items="filteredItems" :key="dtKey"
         :search="search" :headers="headers" :isLoading="dtLoading && !refreshProgress.active"
@@ -1259,7 +1063,7 @@ watch(locale, () => {
 
           <template #actions>
             <v-btn @click="handleBulk({ action: 'Set Institution Type', type_id: newType.id })">{{ $t('common.save')
-              }}</v-btn>
+            }}</v-btn>
             <v-btn variant="text" class="ml-2" @click="handleFormCancel">{{ $t('common.cancel') }}</v-btn>
           </template>
         </BaseDialogLayout>

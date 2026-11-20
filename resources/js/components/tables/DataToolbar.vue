@@ -18,12 +18,27 @@
     </div>
 
     <!-- TIER 1.5: FILTERS BLOCK -->
-    <div v-if="filter_options && filter_options.length > 0" class="w-100 mb-3">
+    <div v-if="filter_options && filter_options.length > 0" class="w-100">
       <div v-for="(row, index) in filter_options" :key="index" class="d-flex flex-column ga-1 flex-grow-1">
-        <div v-if="index === 0" class="d-flex align-center ga-3 mb-1">
+        <div v-if="index === 0" class="d-flex flex-wrap align-center ga-3 mb-1">
           <span class="text-caption text-uppercase font-weight-bold tracking-wider text-medium-emphasis">
             {{ $t('tables.filter', visibleFilterCount) }}
           </span>
+
+          <v-switch
+            v-if="flat_filter_options.is_conso"
+            :model-value="consoSwitchState.modelValue"
+            :indeterminate="consoSwitchState.indeterminate"
+            :color="consoSwitchState.color"
+            :label="consoSwitchState.label"
+              inset
+            true-icon="mdi-star-circle"
+            false-icon="mdi-home-circle"
+            class="flex-grow-0 my-n2"
+            style="transform: scale(0.85); transform-origin: left center;"
+            @click.prevent="cycleConsoSwitch"
+          />
+
           <v-chip
             v-if="anyFilterSet"
             size="small"
@@ -35,6 +50,7 @@
           >
             {{ $t('tables.clear_all') }}
           </v-chip>
+
           <v-btn
             v-if="needsRefreshButton && consoKey != ''"
             size="small"
@@ -51,107 +67,117 @@
       </div>
     </div>
 
-    <!-- TIER 2: ACTIONS PANEL -->
-    <v-divider class="my-3" />
-    <div class="d-flex flex-wrap align-center justify-space-between ga-4 w-100 pt-1">
-      <div class="d-flex align-center ga-3" style="min-height: 40px; min-width: 280px;">
-        <v-expand-x-transition>
-          <div v-if="props.selectedRows && props.selectedRows.length > 0" class="d-flex align-center ga-3 w-100">
-            <BulkActions v-if="props.bulkOptions?.items?.length > 0" v-model="props.bulkOptions" style="width: 280px;"
-              @bulkAction="$emit('bulkAction', $event)" />
+    <!-- TIER 2: ACTIONS PANEL (collapses with smooth vertical ease when empty) -->
+    <v-expand-transition>
+      <div v-if="(props.selectedRows && props.selectedRows.length > 0 && props.bulkOptions?.items?.length > 0) || isHarvestDataset || showExportImport">
+        <v-divider class="my-3" />
+        <div class="d-flex flex-wrap align-center justify-space-between ga-4 w-100 pt-1">
+          <v-expand-x-transition>
+            <div
+              v-if="props.selectedRows && props.selectedRows.length > 0 && props.bulkOptions?.items?.length > 0"
+              class="d-flex align-center ga-3"
+            >
+              <BulkActions
+                v-model="props.bulkOptions"
+                style="width: 280px;"
+                @bulkAction="$emit('bulkAction', $event)"
+              />
+            </div>
+          </v-expand-x-transition>
+
+          <!-- LIVE STATUS FILTER BAR (Harvest Queue & Harvest Log, right-aligned in TIER 2) -->
+          <div v-if="isHarvestDataset" class="d-flex flex-wrap align-center ga-2 ms-auto">
+            <!-- Harvest Stage Chips (or Log Outcome Chips on harvests) -->
+            <v-chip v-for="item in harvestStageChips" :key="item.status" size="small"
+              :variant="isStatusSelected(item.label) ? 'flat' : 'outlined'" :color="item.color || 'secondary'"
+              :prepend-icon="isStatusSelected(item.label) ? 'mdi-check' : 'mdi-filter-outline'"
+              class="font-weight-medium cursor-pointer" :title="`Toggle ${item.label} filter`"
+              @click="toggleStatusChip(item.label)">
+              {{ item.label }}: <strong class="ms-1">{{ item.count }}</strong>
+            </v-chip>
+
+            <!-- Visual Divider Between Harvest Stage and Process Stage (Harvest Queue only) -->
+            <v-divider v-if="props.dataset === 'jobs' && harvestStageChips.length > 0 && processStageChips.length > 0"
+              vertical class="mx-1" />
+
+            <!-- Process Stage Chips (Process Queue & Processing) -->
+            <v-chip v-for="item in processStageChips" :key="item.status" size="small"
+              :variant="isStatusSelected(item.label) ? 'flat' : 'outlined'" :color="item.color || 'secondary'"
+              :prepend-icon="isStatusSelected(item.label) ? 'mdi-check' : 'mdi-filter-outline'"
+              class="font-weight-medium cursor-pointer" :title="`Toggle ${item.label} filter`"
+              @click="toggleStatusChip(item.label)">
+              {{ item.label }}: <strong class="ms-1">{{ item.count }}</strong>
+            </v-chip>
+
+            <span v-if="liveStatusCounts.length === 0" class="text-caption text-medium-emphasis px-1">
+              {{ props.dataset === 'jobs' ? 'Queue empty' : 'No records' }}
+            </span>
+
+            <v-divider v-if="liveStatusCounts.length > 0" vertical class="mx-1" />
+
+            <v-chip size="small" :variant="activeStatusFilters.length === 0 ? 'flat' : 'tonal'" color="info"
+              class="font-weight-bold cursor-pointer" title="Show all statuses" @click="resetStatusChips">
+              Total: {{ liveQueueTotal }}
+            </v-chip>
+
+            <template v-if="props.dataset === 'jobs'">
+              <v-divider vertical class="mx-1" />
+
+              <v-chip
+                size="x-small"
+                variant="tonal"
+                :color="workerStatus.harvester_running > 0 ? 'success' : 'secondary'"
+                :prepend-icon="workerStatus.harvester_running > 0 ? 'mdi-cog-play' : 'mdi-cog-off-outline'"
+                :class="authStore.is_serveradmin ? 'cursor-pointer' : ''"
+                :title="authStore.is_serveradmin ? 'Open Queue Workers' : 'Global Harvester Worker status'"
+                @click="authStore.is_serveradmin && router.push({ name: 'QueueWorkers' })"
+              >
+                Harvester: <strong class="ms-1">{{ workerStatus.harvester_running > 0 ? 'Running' : 'Idle' }}</strong>
+              </v-chip>
+
+              <v-chip
+                size="x-small"
+                variant="tonal"
+                :color="currentConsoProcessorRunning > 0 ? 'success' : 'secondary'"
+                :prepend-icon="currentConsoProcessorRunning > 0 ? 'mdi-cog-play' : 'mdi-cog-off-outline'"
+                :class="authStore.is_serveradmin ? 'cursor-pointer' : ''"
+                :title="authStore.is_serveradmin ? 'Open Queue Workers' : 'Report Processor status for this consortium'"
+                @click="authStore.is_serveradmin && router.push({ name: 'QueueWorkers' })"
+              >
+                Processor: <strong class="ms-1">{{ currentConsoProcessorRunning > 0 ? 'Running' : 'Idle' }}</strong>
+              </v-chip>
+
+              <v-divider vertical class="mx-1" />
+
+              <v-btn size="x-small" variant="tonal" :color="isPolling ? 'success' : 'secondary'"
+                :prepend-icon="isPolling ? 'mdi-broadcast' : 'mdi-pause-circle-outline'"
+                :title="isPolling ? 'Click to pause live updates' : 'Click to resume live updates'" @click="togglePolling">
+                {{ isPolling ? 'Live' : 'Paused' }}
+                <span v-if="lastChecked" class="ms-1 opacity-80">· {{ lastChecked }}</span>
+              </v-btn>
+            </template>
           </div>
-        </v-expand-x-transition>
+
+          <div v-else-if="showExportImport" class="d-flex align-center flex-wrap ga-2 ms-auto">
+            <ExportAndImport :showRefresh="props.dataset == 'platforms'"
+              :exportOnly="props.dataset == 'audit'" :hideExport="props.hideExport" @export="$emit('export')"
+              @import="importDialog = true" @add="$emit('add')"
+              @refresh="$emit('bulkAction', { action: 'Full Refresh' })" />
+          </div>
+        </div>
       </div>
-
-      <!-- LIVE STATUS FILTER BAR (Harvest Queue & Harvest Log, right-aligned in TIER 2) -->
-      <div v-if="isHarvestDataset" class="d-flex flex-wrap align-center ga-2 ms-auto">
-        <!-- Harvest Stage Chips (or Log Outcome Chips on harvests) -->
-        <v-chip v-for="item in harvestStageChips" :key="item.status" size="small"
-          :variant="isStatusSelected(item.label) ? 'flat' : 'outlined'" :color="item.color || 'secondary'"
-          :prepend-icon="isStatusSelected(item.label) ? 'mdi-check' : 'mdi-filter-outline'"
-          class="font-weight-medium cursor-pointer" :title="`Toggle ${item.label} filter`"
-          @click="toggleStatusChip(item.label)">
-          {{ item.label }}: <strong class="ms-1">{{ item.count }}</strong>
-        </v-chip>
-
-        <!-- Visual Divider Between Harvest Stage and Process Stage (Harvest Queue only) -->
-        <v-divider v-if="props.dataset === 'jobs' && harvestStageChips.length > 0 && processStageChips.length > 0"
-          vertical class="mx-1" />
-
-        <!-- Process Stage Chips (Process Queue & Processing) -->
-        <v-chip v-for="item in processStageChips" :key="item.status" size="small"
-          :variant="isStatusSelected(item.label) ? 'flat' : 'outlined'" :color="item.color || 'secondary'"
-          :prepend-icon="isStatusSelected(item.label) ? 'mdi-check' : 'mdi-filter-outline'"
-          class="font-weight-medium cursor-pointer" :title="`Toggle ${item.label} filter`"
-          @click="toggleStatusChip(item.label)">
-          {{ item.label }}: <strong class="ms-1">{{ item.count }}</strong>
-        </v-chip>
-
-        <span v-if="liveStatusCounts.length === 0" class="text-caption text-medium-emphasis px-1">
-          {{ props.dataset === 'jobs' ? 'Queue empty' : 'No records' }}
-        </span>
-
-        <v-divider v-if="liveStatusCounts.length > 0" vertical class="mx-1" />
-
-        <v-chip size="small" :variant="activeStatusFilters.length === 0 ? 'flat' : 'tonal'" color="info"
-          class="font-weight-bold cursor-pointer" title="Show all statuses" @click="resetStatusChips">
-          Total: {{ liveQueueTotal }}
-        </v-chip>
-
-        <template v-if="props.dataset === 'jobs'">
-          <v-divider vertical class="mx-1" />
-
-          <v-chip
-            size="x-small"
-            variant="tonal"
-            :color="workerStatus.harvester_running > 0 ? 'success' : 'secondary'"
-            :prepend-icon="workerStatus.harvester_running > 0 ? 'mdi-cog-play' : 'mdi-cog-off-outline'"
-            :class="authStore.is_serveradmin ? 'cursor-pointer' : ''"
-            :title="authStore.is_serveradmin ? 'Open Queue Workers' : 'Global Harvester Worker status'"
-            @click="authStore.is_serveradmin && router.push({ name: 'QueueWorkers' })"
-          >
-            Harvester: <strong class="ms-1">{{ workerStatus.harvester_running > 0 ? 'Running' : 'Idle' }}</strong>
-          </v-chip>
-
-          <v-chip
-            size="x-small"
-            variant="tonal"
-            :color="currentConsoProcessorRunning > 0 ? 'success' : 'secondary'"
-            :prepend-icon="currentConsoProcessorRunning > 0 ? 'mdi-cog-play' : 'mdi-cog-off-outline'"
-            :class="authStore.is_serveradmin ? 'cursor-pointer' : ''"
-            :title="authStore.is_serveradmin ? 'Open Queue Workers' : 'Report Processor status for this consortium'"
-            @click="authStore.is_serveradmin && router.push({ name: 'QueueWorkers' })"
-          >
-            Processor: <strong class="ms-1">{{ currentConsoProcessorRunning > 0 ? 'Running' : 'Idle' }}</strong>
-          </v-chip>
-
-          <v-divider vertical class="mx-1" />
-
-          <v-btn size="x-small" variant="tonal" :color="isPolling ? 'success' : 'secondary'"
-            :prepend-icon="isPolling ? 'mdi-broadcast' : 'mdi-pause-circle-outline'"
-            :title="isPolling ? 'Click to pause live updates' : 'Click to resume live updates'" @click="togglePolling">
-            {{ isPolling ? 'Live' : 'Paused' }}
-            <span v-if="lastChecked" class="ms-1 opacity-80">· {{ lastChecked }}</span>
-          </v-btn>
-        </template>
-      </div>
-
-      <div v-else class="d-flex align-center flex-wrap ga-2 ms-auto">
-        <ExportAndImport v-if="showExportImport" :showRefresh="props.dataset == 'platforms'"
-          :exportOnly="props.dataset == 'audit'" :hideExport="props.hideExport" @export="$emit('export')"
-          @import="importDialog = true" @add="$emit('add')"
-          @refresh="$emit('bulkAction', { action: 'Full Refresh' })" />
-      </div>
-    </div>
+    </v-expand-transition>
 
     <v-dialog v-model="importDialog">
       <ImportDialog :dataset="props.dataset" @close="importDialog = false" @imported="handleImported" />
     </v-dialog>
   </v-card>
 </template>
+
 <script setup>
 import { ref, computed, watch, onMounted, onBeforeUnmount } from 'vue';
 import { useRouter } from 'vue-router';
+import { useI18n } from 'vue-i18n';
 import { storeToRefs } from 'pinia';
 import { useAuthStore } from '@/stores/useAuthStore.js';
 import { useCCPlusStore } from '@/stores/useCCPlusStore.js';
@@ -172,8 +198,8 @@ const props = defineProps({
   hideExport: { type: Boolean, required: true },
   queueStats: { type: Object, default: () => ({ status_counts: [], queue_total: 0 }) },
 });
-
 const router = useRouter();
+const { t } = useI18n();
 const authStore = useAuthStore();
 const { consortia } = storeToRefs(useCCPlusStore());
 const is_serveradmin = authStore.is_serveradmin;
@@ -217,9 +243,11 @@ watch(
 );
 
 function visibleRowFilters(row) {
-  if (!isHarvestDataset.value) return row;
   const copy = { ...row };
-  delete copy.statuses;
+  delete copy.is_conso;
+  if (isHarvestDataset.value) {
+    delete copy.statuses;
+  }
   return copy;
 }
 
@@ -369,6 +397,39 @@ const flat_filter_options = computed(() => {
   return _options;
 });
 
+const consoSwitchState = computed(() => {
+  const val = flat_filter_options.value.is_conso?.value || 'All';
+  if (val === 'Active') {
+    return {
+      modelValue: true,
+      indeterminate: false,
+      color: 'primary',
+      label: t('fields.limit_to_consortial', 'Limit to Consortial'),
+    };
+  }
+  if (val === 'NonConso') {
+    return {
+      modelValue: false,
+      indeterminate: false,
+      color: 'secondary',
+      label: t('fields.exclude_consortial', 'Exclude Consortial'),
+    };
+  }
+  return {
+    modelValue: false,
+    indeterminate: true,
+    color: 'success',
+    label: t('fields.all_platforms', 'All Platforms'),
+  };
+});
+
+
+function cycleConsoSwitch() {
+  const current = flat_filter_options.value.is_conso?.value || 'All';
+  const next = current === 'All' ? 'Active' : current === 'Active' ? 'NonConso' : 'All';
+  emit('setFilter', { key: 'is_conso', value: next });
+}
+
 const anyFilterSet = computed(() => {
   if (activeStatusFilters.value.length > 0) return true;
   let is_set = false;
@@ -378,6 +439,8 @@ const anyFilterSet = computed(() => {
 
     if (Array.isArray(filter.value)) {
       if (filter.value.length > 0) is_set = true;
+    } else if (key === 'is_conso') {
+      is_set = filter.value === 'Active' || filter.value === 'NonConso';
     } else if (filter.type == 'toggle') {
       is_set = filter.value == 'Active';
     } else {

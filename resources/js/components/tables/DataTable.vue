@@ -319,7 +319,7 @@ function closeErrorDialog() {
         :warning="$t('tables.truncated_warning')" @update:warning="truncated = false" />
 
       <!-- Selection count indicator chip & selection filter toggle button -->
-      <div v-if="props.selectableRows && selectedRows.length > 0" class="align-self-start ms-4">
+        <div v-if="props.selectableRows && (selectedRows.length > 0 || props.showSelectedOnly)" class="align-self-start ms-4">
         <v-tooltip :text="props.showSelectedOnly ? $t('tables.show_all') : $t('tables.show_selected_only')"
           location="top">
           <template #activator="{ props: tooltipProps }">
@@ -427,16 +427,19 @@ function closeErrorDialog() {
           role="img" :aria-label="$t('fields.required', 'Required')" :title="$t('fields.required', 'Required')">
           <i class="mdi mdi-asterisk text-warning" style="font-size: 20px; line-height: 1;" aria-hidden="true" />
         </span>
-        <button v-else-if="item[field] != null && String(item[field]).trim() !== ''" type="button"
-          class="d-inline-flex align-center justify-center border-0 bg-transparent pa-0 cursor-pointer"
-          :aria-label="`${$t(`fields.${field}`)}: ${item[field]} (${$t('common.click_to_copy', 'Click to copy')})`"
-          :title="copiedCell === `${item.id}-${field}` ? $t('common.copied', 'Copied!') : `${item[field]} (${$t('common.click_to_copy', 'Click to copy')})`"
-          @click.stop="copyCellValue(`${item.id}-${field}`, item[field])">
-          <i :class="[
-            'mdi',
-            copiedCell === `${item.id}-${field}` ? 'mdi-check text-primary' : 'mdi-content-copy text-success',
-          ]" style="font-size: 20px; line-height: 1;" aria-hidden="true" />
-        </button>
+<button v-else-if="item[field] != null && String(item[field]).trim() !== ''" type="button"
+  class="d-inline-flex align-center justify-center border-0 bg-transparent pa-0 cursor-pointer"
+  :aria-label="`${$t(`fields.${field}`)}: ${item[field]} (${$t('common.click_to_copy', 'Click to copy')})`"
+  :title="copiedCell === `${item.id}-${field}` ? $t('common.copied', 'Copied!') : `${item[field]} (${$t('common.click_to_copy', 'Click to copy')})`"
+  @click.stop="copyCellValue(`${item.id}-${field}`, item[field])">
+  <v-icon
+    :icon="copiedCell === `${item.id}-${field}` ? 'mdi-check' : 'mdi-key-chain'"
+    :color="copiedCell === `${item.id}-${field}` ? 'primary' : 'success'"
+    :size="24"
+    aria-hidden="true"
+  />
+</button>
+
         <span v-else class="text-medium-emphasis">&mdash;</span>
       </template>
 
@@ -444,7 +447,7 @@ function closeErrorDialog() {
       <template v-for="key in ['platform', 'prov_name', 'institution']" #[`item.${key}`]="{ item }">
         <span :title="item[key]"
           :class="{ 'text-disabled font-italic': (key === 'platform' || key === 'prov_name') ? item.plat_active === 0 : item.inst_active === 0 }">
-          {{ formatTruncatedDisplay(item[key], 40) }}
+          {{ formatTruncatedDisplay(item[key], 30) }}
         </span>
       </template>
 
@@ -607,15 +610,19 @@ function closeErrorDialog() {
 }
 
 :deep(th.cred-group-col) {
-  background-color: color-mix(in srgb, rgb(var(--v-theme-info)) 85%, black 15%) !important;
+  background-color: color-mix(in srgb, rgb(var(--v-theme-success)) 85%, black 15%) !important;
+}
+
+:deep(th.report-group-col) {
+  background-color: color-mix(in srgb, rgb(var(--v-theme-secondary)) 85%, black 15%) !important;
 }
 
 :deep(td.report-group-col) {
-  background-color: rgba(var(--v-theme-info), 0.055);
+  background-color: rgba(var(--v-theme-secondary), 0.04);
 }
 
 :deep(td.cred-group-col) {
-  background-color: rgba(var(--v-theme-on-surface), 0.035);
+  background-color: rgba(var(--v-theme-success), 0.04);
 }
 
 :deep(.v-data-table__tbody > tr) {

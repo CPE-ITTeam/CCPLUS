@@ -108,21 +108,30 @@ class HarvestLogController extends BaseController
         }
         $rawStatFilter = (array) ($filters['stat'] ?? $filters['statuses'] ?? []);
 
-        $hasCredFilter = count($instFilter) > 0 || count($provFilter) > 0 || !is_null($groupInsts);
+        $isConsoFilter = $filters['is_conso'] ?? 'All';
+        $hasCredFilter = count($instFilter) > 0 || count($provFilter) > 0 || !is_null($groupInsts)
+            || in_array($isConsoFilter, ['Active', 'NonConso'], true);
 
         $now = new \DateTime();
         $data = (clone $baseQuery)
             ->with($this->harvestRelations())
-            ->when($hasCredFilter, function ($qry) use ($limit_insts, $instFilter, $provFilter, $groupInsts) {
+            ->when($hasCredFilter, function ($qry) use ($limit_insts, $instFilter, $provFilter, $groupInsts, $isConsoFilter) {
                 $credIds = Credential::query()
                     ->when(count($limit_insts) > 0, fn($q) => $q->whereIn('inst_id', $limit_insts))
                     ->when(count($instFilter) > 0, fn($q) => $q->whereIn('inst_id', $instFilter))
                     ->when(count($provFilter) > 0, fn($q) => $q->whereIn('prov_id', $provFilter))
                     ->when(!is_null($groupInsts), fn($q) => $q->whereIn('inst_id', $groupInsts))
+                    ->when(in_array($isConsoFilter, ['Active', 'NonConso'], true), function ($q) use ($isConsoFilter) {
+                        $consoProvIds = Connection::where('inst_id', 1)->pluck('global_id');
+                        return $isConsoFilter === 'Active'
+                            ? $q->whereIn('prov_id', $consoProvIds)
+                            : $q->whereNotIn('prov_id', $consoProvIds);
+                    })
                     ->pluck('id');
 
                 return $qry->whereIn('credentials_id', $credIds);
             })
+
             ->when(count($reptFilter) > 0, fn($qry) => $qry->whereIn('report_id', $reptFilter))
             ->when(count($rawStatFilter) > 0, function ($qry) use ($rawStatFilter, $badCredCodes) {
                 return $qry->where(function ($sub) use ($rawStatFilter, $badCredCodes) {
@@ -931,19 +940,28 @@ class HarvestLogController extends BaseController
                 ->toArray();
         }
 
-        $hasCredFilter = count($provFilter) > 0 || count($instFilter) > 0 || !is_null($groupInsts);
+        $isConsoFilter = $filters['is_conso'] ?? 'All';
+        $hasCredFilter = count($provFilter) > 0 || count($instFilter) > 0 || !is_null($groupInsts)
+            || in_array($isConsoFilter, ['Active', 'NonConso'], true);
 
         $now = new \DateTime();
         $data = (clone $baseQuery)
             ->when(count($selectedStatuses) > 0, fn($q) => $q->whereIn('status', $selectedStatuses))
-            ->when($hasCredFilter, function ($qry) use ($provFilter, $instFilter, $groupInsts) {
+            ->when($hasCredFilter, function ($qry) use ($provFilter, $instFilter, $groupInsts, $isConsoFilter) {
                 $credIds = Credential::query()
                     ->when(count($provFilter) > 0, fn($q) => $q->whereIn('prov_id', $provFilter))
                     ->when(count($instFilter) > 0, fn($q) => $q->whereIn('inst_id', $instFilter))
                     ->when(!is_null($groupInsts), fn($q) => $q->whereIn('inst_id', $groupInsts))
+                    ->when(in_array($isConsoFilter, ['Active', 'NonConso'], true), function ($q) use ($isConsoFilter) {
+                        $consoProvIds = Connection::where('inst_id', 1)->pluck('global_id');
+                        return $isConsoFilter === 'Active'
+                            ? $q->whereIn('prov_id', $consoProvIds)
+                            : $q->whereNotIn('prov_id', $consoProvIds);
+                    })
                     ->pluck('id');
                 return $qry->whereIn('credentials_id', $credIds);
             })
+
             ->when(count($reptFilter) > 0, fn($q) => $q->whereIn('report_id', $reptFilter))
             ->when(count($yymmFilter) > 0, fn($q) => $q->whereIn('yearmon', $yymmFilter))
             ->when(!empty($filters['fromYM']), fn($q) => $q->where('yearmon', '>=', $filters['fromYM']))
