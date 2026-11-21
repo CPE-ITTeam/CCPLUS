@@ -20,7 +20,7 @@ import StatusAlerts from '@/components/ui/StatusAlerts.vue';
 import BaseDialogLayout from '@/components/dialogs/BaseDialogLayout.vue';
 import DataToolbar from './DataToolbar.vue';
 import DataTable from './DataTable.vue';
-import DataForm from '@/components/tables/DataForm.vue';
+import DataForm from '@/components/forms/DataForm.vue';
 import PlatformForm from '@/components/forms/PlatformForm.vue';
 import CredentialsForm from '@/components/forms/CredentialsForm.vue';
 import ReportToggle from '@/components/dialogs/ReportToggle.vue';
@@ -184,15 +184,21 @@ const refreshData = async (datasetKey) => {
     if (consoKey.value == '' && datasetKey != 'consortia') return;
     const isGlobalTable = config.urlRoot.includes('/global') ||
       ['platforms', 'publishers', 'providers', 'registries', 'titles', 'databases', 'items', 'datahosts', 'errors'].includes(datasetKey);
+    const hasPostGetItems = ['harvests', 'jobs'].includes(datasetKey);
+
     let response;
     if (isGlobalTable) {
       const axiosResponse = await api.get(config.urlRoot, { params: { filters: _filters, type: datasetKey } });
       response = axiosResponse.data;
-    } else {
+    } else if (hasPostGetItems) {
       let itemsUrl = config.urlRoot + '/getItems';
       const axiosResponse = await api.post(itemsUrl, { filters: _filters, type: datasetKey });
       response = axiosResponse.data || axiosResponse;
+    } else {
+      const axiosResponse = await api.get(config.urlRoot + '/get', { params: { filters: _filters, type: datasetKey } });
+      response = axiosResponse.data;
     }
+
     if (response && response.result) {
       truncated.value = response.truncated || false;
       allItems.splice(0, allItems.length, ...response.records);
@@ -206,6 +212,7 @@ const refreshData = async (datasetKey) => {
   }
   dtLoading.value = false;
 };
+
 
 
 const loadDataset = async (datasetKey) => {
