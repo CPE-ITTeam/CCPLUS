@@ -1,6 +1,6 @@
 <!-- components/tables/BulkActions.vue -->
 <script setup>
-import { ref, computed } from 'vue';
+import { ref, computed, nextTick } from 'vue';
 import { useI18n } from 'vue-i18n';
 
 const { t, te } = useI18n();
@@ -28,21 +28,26 @@ function cancelDialog() {
   activeActionContext.value = null;
 }
 
-function changeOption() {
-  if (!option.value) return;
-  activeActionContext.value = option.value;
+function changeOption(val) {
+  const selected = typeof val === 'object' && val !== null ? val.value : (val ?? option.value);
+  if (!selected) return;
+  activeActionContext.value = selected;
 
-  if (option.value === 'Create New Group' || option.value === 'Add to Existing Group') {
-    groupingType.value = option.value === 'Create New Group' ? 'Create' : 'Add';
+  if (selected === 'Create New Group' || selected === 'Add to Existing Group') {
+    groupingType.value = selected === 'Create New Group' ? 'Create' : 'Add';
     groupDialog.value = true;
-  } else if (option.value === 'Delete') {
+  } else if (selected === 'Delete') {
     deleteDialog.value = true;
   } else {
-    emit('bulkAction', { action: option.value });
+    emit('bulkAction', { action: selected });
     activeActionContext.value = null;
   }
-  option.value = null;
+
+  nextTick(() => {
+    option.value = null;
+  });
 }
+
 
 function groupFormSubmit() {
   if (groupingType.value === 'Add') {

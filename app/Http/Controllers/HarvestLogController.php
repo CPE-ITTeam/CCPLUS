@@ -647,7 +647,7 @@ class HarvestLogController extends BaseController
         $input = $request->all();
         $rawIds = $input['ids'] ?? $input['harvests'] ?? [];
         $harvestIds = collect(is_array($rawIds) ? $rawIds : [])
-            ->map(fn($item) => is_array($item) ? ($item['id'] ?? null) : $item)
+            ->map(fn($item) => is_array($item) ? ($item['id'] ?? $item['harvest_id'] ?? null) : $item)
             ->filter()
             ->values()
             ->all();
@@ -662,8 +662,15 @@ class HarvestLogController extends BaseController
             return $this->respondError(__('harvests.errors.consortium_undefined'));
         }
 
-        $consoAdmin = $thisUser->isConsoAdmin();
+        $tenantDb = 'ccplus_' . $con->ccp_key;
+        if (config('database.connections.consodb.database') !== $tenantDb) {
+            config(['database.connections.consodb.database' => $tenantDb]);
+            DB::purge('consodb');
+        }
+
+        $consoAdmin = $thisUser->isConsoAdmin() || $thisUser->isServerAdmin();
         $limit_insts = $consoAdmin ? [] : $thisUser->adminInsts();
+
         $harvests = HarvestLog::with($this->harvestRelations())
             ->whereIn('id', $harvestIds)
             ->when(count($limit_insts) > 0, function ($qry) use ($limit_insts) {
@@ -705,17 +712,37 @@ class HarvestLogController extends BaseController
         if ($action === 'Restart') {
             $changed = 0;
             $skipped = [];
+            $skipReasons = [];
             $affectedItems = [];
 
             foreach ($harvests as $harvest) {
                 $cred = $harvest->credential;
-                if (
-                    !$cred ||
-                    $cred->status !== 'Enabled' ||
-                    !$cred->institution?->is_active ||
-                    !$cred->provider?->is_active
-                ) {
+                if (!$cred) {
                     $skipped[] = $harvest->id;
+                    $skipReasons[] = "{$harvest->id}:no_cred";
+                    continue;
+                }
+
+                $credDisabled = in_array($cred->status, ['Inactive', 'Suspended', 'Disabled'], true)
+                    || (isset($cred->is_active) && !$cred->is_active);
+                if ($credDisabled) {
+                    $skipped[] = $harvest->id;
+                    $skipReasons[] = "{$harvest->id}:cred_disabled(status={$cred->status})";
+                    continue;
+                }
+                if (!$cred->isComplete()) {
+                    $skipped[] = $harvest->id;
+                    $skipReasons[] = "{$harvest->id}:cred_incomplete";
+                    continue;
+                }
+                if (!$cred->institution?->is_active) {
+                    $skipped[] = $harvest->id;
+                    $skipReasons[] = "{$harvest->id}:inst_inactive";
+                    continue;
+                }
+                if (!$cred->provider?->is_active) {
+                    $skipped[] = $harvest->id;
+                    $skipReasons[] = "{$harvest->id}:prov_inactive";
                     continue;
                 }
 
@@ -724,6 +751,7 @@ class HarvestLogController extends BaseController
                         ->first(fn($r) => trim((string) $r->release) === $forceRelease);
                     if (!$registry) {
                         $skipped[] = $harvest->id;
+                        $skipReasons[] = "{$harvest->id}:no_registry_{$forceRelease}";
                         continue;
                     }
                     if ($forceRelease !== trim((string) $harvest->release)) {
@@ -765,10 +793,10 @@ class HarvestLogController extends BaseController
                 return response()->json(['result' => true, 'msg' => $msg, 'affectedItems' => $affectedItems], 200);
             }
 
-            $msg = __('harvests.messages.no_harvests_changed');
-            $msg .= !is_null($forceRelease) ? __('harvests.messages.no_harvests_release', ['release' => $forceRelease]) : '';
-            return response()->json(['result' => true, 'msg' => $msg, 'affectedItems' => []], 200);
+            $diag = "found={$harvests->count()}, db=" . DB::connection('consodb')->getDatabaseName() . ", reasons=[" . implode(', ', $skipReasons) . "]";
+            return response()->json(['result' => true, 'msg' => "No selected harvests modified ({$diag})", 'affectedItems' => []], 200);
         }
+
 
         if ($action === 'Delete' || $action === 'Kill') {
             GlobalQueueJob::where('consortium_id', $con->id)->whereIn('harvest_id', $harvestIds)->delete();
@@ -782,7 +810,6 @@ class HarvestLogController extends BaseController
 
         return $this->respondError(__('harvests.errors.unknown_bulk_action'));
     }
-
 
 
     /**
@@ -1085,6 +1112,38 @@ class HarvestLogController extends BaseController
         ], 200);
     }
 
+    public function badCredentials(Request $request)
+    {
+        $thisUser = auth()->user();
+        abort_unless($thisUser->isAdmin(), 403);
+
+        $limit_insts = $thisUser->isConsoAdmin() ? [] : $thisUser->adminInsts();
+        $badCredCodes = [ 1030, 2000, 2010, 2020, 9100 ];
+        $now = new \DateTime();
+
+        $logs = HarvestLog::with($this->harvestRelations())
+            ->when(
+                count($limit_insts) > 0,
+                fn ($qry) => $qry->whereIn('credentials_id', Credential::whereIn('inst_id', $limit_insts)->pluck('id'))
+            )
+            ->where('status', '!=', 'Success')
+            ->where(fn ($q) => $q->where('status', 'BadCreds')->orWhereIn('error_id', $badCredCodes))
+            ->orderBy('updated_at', 'DESC')
+            ->get();
+
+        $records = $logs
+            ->filter(fn ($h) => $h->credential?->inst_id && $h->credential?->prov_id)
+            ->unique(fn ($h) => "{$h->credential->inst_id}-{$h->credential->prov_id}")
+            ->map(fn ($h) => $this->formatRecord($h, $now))
+            ->sortBy([['inst_name', 'asc'], ['prov_name', 'asc']])
+            ->values()
+            ->all();
+
+        return response()->json([
+            'result' => true,
+            'records' => $records,
+        ], 200);
+    }
 
 
 
@@ -1096,7 +1155,7 @@ class HarvestLogController extends BaseController
         return [
             'report:id,name',
             'credential',
-            'credential.institution:id,name',
+            'credential.institution:id,name,is_active',
             'credential.provider',
             'credential.provider.registries',
             'lastError',
@@ -1104,6 +1163,7 @@ class HarvestLogController extends BaseController
             'failedHarvests.ccplusError',
         ];
     }
+
 
     private function createYMarray(string $from, string $to): array
     {

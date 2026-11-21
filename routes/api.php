@@ -108,12 +108,14 @@ Route::middleware('ccplusAuth')->group(function () {
     Route::prefix('harvests')->group(function () {
         Route::get('/get', 'App\Http\Controllers\HarvestLogController@index')->name('harvests.index');
         Route::post('/getItems', 'App\Http\Controllers\HarvestLogController@index')->name('harvests.items');
+        Route::get('/bad-credentials/get', 'App\Http\Controllers\HarvestLogController@badCredentials')->name('harvests.badCredentials');
         Route::get('/options', 'App\Http\Controllers\HarvestLogController@create')->name('harvests.options');
         Route::post('/store', 'App\Http\Controllers\HarvestLogController@store')->name('harvests.store');
         Route::delete('/delete/{harvest}', 'App\Http\Controllers\HarvestLogController@destroy')->name('harvests.destroy');
         Route::post('/bulk', 'App\Http\Controllers\HarvestLogController@bulkAction')->name('harvests.bulk');
         Route::get('/raw/{harvest}', 'App\Http\Controllers\HarvestLogController@downloadRaw')->name('harvests.downloadRaw');
     });
+
 
     Route::prefix('jobs')->group(function () {
         Route::get('/get', 'App\Http\Controllers\HarvestLogController@harvestQueue')->name('jobs.index');
@@ -134,7 +136,7 @@ Route::middleware('ccplusAuth')->group(function () {
         Route::post('/usageData', 'App\Http\Controllers\ReportController@usageData')->name('reports.usageData');
         Route::post('/updateColumns', 'App\Http\Controllers\ReportController@updateColumns')->name('reports.updateColumns');
     });
-        Route::prefix('settings')->group(function () {
+    Route::prefix('settings')->group(function () {
         Route::get('/get/{type}', 'App\Http\Controllers\GlobalSettingController@index')->name('settings.index');
         Route::post('/store', 'App\Http\Controllers\GlobalSettingController@store')->name('settings.store');
         Route::patch('/update/{setting}', 'App\Http\Controllers\GlobalSettingController@update')->name('settings.update');

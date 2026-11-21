@@ -41,7 +41,11 @@ export function useDatasetBulk({
     // Aggregate ID array arguments safely
     const args =
       data.action !== "Full Refresh"
-        ? { ids: selectedList.map((ii) => ii.id) }
+        ? {
+            ids: selectedList
+              .map((ii) => ii.id ?? ii.harvest_id)
+              .filter(Boolean),
+          }
         : { ids: "ALL" };
 
     Object.keys(data).forEach((key) => {
@@ -176,9 +180,15 @@ export function useDatasetBulk({
               dtKey.value++;
             }
           }
-        } else if (data.action.startsWith("Restart") || data.action === "Pause") {
+        } else if (
+          data.action.startsWith("Restart") ||
+          data.action === "Pause"
+        ) {
           resData.affectedItems?.forEach((newItem) => {
-            const idx = itemsList.findIndex((ii) => ii.id == newItem.id);
+            const targetId = newItem.id ?? newItem.harvest_id;
+            const idx = itemsList.findIndex(
+              (ii) => (ii.id ?? ii.harvest_id) == targetId,
+            );
             if (idx >= 0) {
               if (root === "/api/harvests" && newItem.status === "Queued") {
                 itemsList.splice(idx, 1);
@@ -189,7 +199,6 @@ export function useDatasetBulk({
           });
           if (typeof updateItems === "function") updateItems();
           dtKey.value++;
-
         } else if (data.action.includes(" Validat")) {
           itemsList
             .filter((aitm) => resData.affectedIds.includes(aitm.id))

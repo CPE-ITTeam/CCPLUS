@@ -1200,7 +1200,6 @@ const rawTableSetup = {
     sortby: "name",
   },
 
-
   connections: {
     urlRoot: "/api/connections",
     get title() {
@@ -1650,6 +1649,49 @@ const rawTableSetup = {
     sortby: "platform",
   },
 
+  badCredentials: {
+    urlRoot: "/api/harvests/bad-credentials",
+    title: "Bad Credentials",
+    fields: [
+      {
+        name: "inst_name",
+        get label() {
+          return t("fields.institution");
+        },
+        searchable: true,
+        editable: false,
+      },
+      {
+        name: "prov_name",
+        get label() {
+          return t("fields.platform");
+        },
+        searchable: true,
+        editable: false,
+      },
+      {
+        name: "error",
+        get label() {
+          return t("fields.result");
+        },
+        editable: false,
+      },
+      {
+        name: "updated",
+        get label() {
+          return t("fields.result_date");
+        },
+        type: "date",
+        editable: false,
+      },
+    ],
+    required: [],
+    static: ["id"],
+    bulkOptions: [],
+    exportFields: ["inst_name", "prov_name", "d_status", "updated"],
+    sortby: "inst_name",
+  },
+
   audit: {
     urlRoot: "/api/audit",
     title: "",
@@ -2065,7 +2107,6 @@ const rawTableSetup = {
     urlRoot: "/api/harvests",
     title: "",
     fields: [
-      // ─── TABLE COLUMNS ───
       {
         name: "inst_name",
         get label() {
@@ -2142,20 +2183,6 @@ const rawTableSetup = {
         },
         header: null,
         editable: false,
-      },
-
-      // ─── TOOLBAR FILTERS ───
-      {
-        name: "is_conso",
-        get label() {
-          return t("fields.consortial", "Consortial");
-        },
-        type: "toggle",
-        options: "",
-        isFilter: true,
-        filterCol: "is_conso",
-        header: null,
-        searchable: false,
       },
       {
         name: "platforms",
@@ -2238,6 +2265,7 @@ const rawTableSetup = {
         header: null,
         searchable: false,
       },
+
       {
         name: "codes",
         get label() {
@@ -2268,12 +2296,11 @@ const rawTableSetup = {
       },
     ],
     required: [],
-    static: ["id", "is_conso", "rawfile", "retryUrl"],
+    static: ["id", "rawfile", "retryUrl"],
     bulkOptions: ["Restart", "Restart as r5", "Restart as r5.1", "Delete"],
     exportFields: [],
     sortby: "updated",
   },
-
 
   savedreports: {
     urlRoot: "/api/savedreports",

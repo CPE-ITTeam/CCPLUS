@@ -16,6 +16,7 @@ import ForgotPassword from "@/views/auth/ForgotPassword.vue";
 import ResetPassword from "@/views/auth/ResetPassword.vue";
 
 // 2. DATASET SPREADSHEET MONITORING VIEWS
+import BadCredentials from '@/views/datasets/BadCredentials.vue';
 import Connections from "@/views/datasets/Connections.vue";
 import Consortia from "@/views/datasets/Consortia.vue";
 import CredentialsAudit from "@/views/datasets/CredentialsAudit.vue";
@@ -268,8 +269,23 @@ const routes = [
         },
         component: markRaw(CredentialsAudit),
       },
+      {
+        path: "bad-credentials",
+        name: "BadCredentials",
+        show: 1,
+        meta: {
+          ...AUTH_BASE,
+          role: "Admin",
+          level: 2,
+          get title() {
+            return t("routes.bad_credentials");
+          },
+        },
+        component: markRaw(BadCredentials),
+      },
     ],
   },
+
   {
     path: "/platforms",
     name: "Platforms",
