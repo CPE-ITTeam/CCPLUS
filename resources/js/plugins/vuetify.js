@@ -33,7 +33,6 @@ const sharedInputDefaults = {
   class: "mb-3", // Adds uniform vertical breathing room below every input
 };
 
-
 // ─── SHARED LIGHT THEME TOKENS ───
 const BASE_LIGHT_COLORS = {
   secondary: "#757575", // Neutral gray for secondary layout actions
@@ -123,7 +122,6 @@ export default createVuetify({
       },
     },
 
-
     VAppBar: {
       color: "surface",
       flat: true,
@@ -171,6 +169,21 @@ export default createVuetify({
       color: "primary",
       class: "text-h6 font-weight-semibold pa-0",
     },
+    VDataTable: {
+      hover: true,
+      density: "comfortable",
+      VBtn: {
+        variant: "text",
+        size: "small",
+        density: "comfortable",
+        rounded: "circle",
+        color: undefined,
+      },
+      VIcon: {
+        size: 20,
+      },
+    },
+
     VDialog: {
       maxWidth: "600px",
       scrollable: true,
@@ -212,7 +225,6 @@ export default createVuetify({
       closeOnContentClick: true,
       contentClass: "bg-primary text-white",
     },
-
   },
 
   theme: {

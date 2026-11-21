@@ -510,26 +510,27 @@ function closeErrorDialog() {
           <i class="mdi mdi-asterisk text-warning" style="font-size: 20px; line-height: 1;" aria-hidden="true" />
         </span>
         <span v-else :title="value">{{ formatTruncatedDisplay(value, header.truncate) }}</span>
-      </template>
-      <!-- Row Level Operations Action Matrix Column -->
+      </template>      <!-- Row Level Operations Action Matrix Column -->
       <template #item.actions="{ item }">
         <div
           v-if="showActions || props.dataset === 'platforms' || props.dataset === 'credentials' || props.dataset === 'badCredentials'"
-          class="d-flex ga-1 justify-end"
+          class="d-flex align-center ga-1 justify-end"
         >
           <!-- Live Credentials Test Button (credentials & badCredentials) -->
           <v-btn
             v-if="props.dataset === 'credentials' || props.dataset === 'badCredentials'"
             icon="mdi-connection"
             color="info"
-            variant="text"
-            size="small"
-            density="comfortable"
             :loading="isTesting && testingRowId === (props.dataset === 'credentials' ? item.id : item.credentials_id)"
             :title="$t('credentials.test_live', 'Test Live Credentials')"
             :aria-label="$t('credentials.test_live', 'Test Live Credentials')"
             @click="runCredentialTest(
-              { type: 'test', credentials_id: props.dataset === 'credentials' ? item.id : item.credentials_id },
+              {
+                type: 'test',
+                credentials_id: props.dataset === 'credentials' ? item.id : item.credentials_id,
+                inst_id: item.inst_id,
+                prov_id: item.prov_id,
+              },
               `${item.inst_name || item.institution || ''} — ${item.prov_name || item.platform || ''}`
             )"
           />
@@ -539,33 +540,36 @@ function closeErrorDialog() {
             v-if="props.dataset === 'platforms' && (item.refresh_result === 'orphan' || item.refresh_result == null)"
             :text="item.refresh_text">
             <template #activator="{ props: tooltipProps }">
-              <v-btn :icon="item.refresh_icon" :color="item.refresh_color" variant="text" size="small"
-                density="comfortable" v-bind="tooltipProps" :aria-label="$t('tables.platform_refresh_state_aria')" />
+              <v-btn :icon="item.refresh_icon" :color="item.refresh_color"
+                v-bind="tooltipProps" :aria-label="$t('tables.platform_refresh_state_aria')" />
             </template>
           </v-tooltip>
+
           <!-- Condition B: Platform refresh targeting registry index records -->
           <v-tooltip v-else-if="item.refresh_result != null" :text="item.refresh_text">
             <template #activator="{ props: tooltipProps }">
-              <v-btn :icon="item.refresh_icon" :color="item.refresh_color" variant="text" size="small"
-                density="comfortable" v-bind="tooltipProps" :aria-label="$t('tables.platform_refresh_state_aria')"
+              <v-btn :icon="item.refresh_icon" :color="item.refresh_color"
+                v-bind="tooltipProps" :aria-label="$t('tables.platform_refresh_state_aria')"
                 @click="openRegistryPlatform(item.registry_id)" />
             </template>
           </v-tooltip>
 
-          <button v-if="item.can_edit" type="button"
-            class="d-inline-flex align-center justify-center border-0 bg-transparent pa-1 rounded cursor-pointer text-medium-emphasis"
-            :title="$t('tables.edit_item_aria')" :aria-label="$t('tables.edit_item_aria')" @click="$emit('edit', item)">
-            <i class="mdi mdi-pencil" style="font-size: 20px; line-height: 1;" aria-hidden="true" />
-          </button>
+          <v-btn
+            v-if="item.can_edit"
+            icon="mdi-pencil"
+            :title="$t('tables.edit_item_aria')"
+            :aria-label="$t('tables.edit_item_aria')"
+            @click="$emit('edit', item)"
+          />
 
-          <button type="button" :disabled="!item.can_delete"
-            class="d-inline-flex align-center justify-center border-0 bg-transparent pa-1 rounded"
-            :class="item.can_delete ? 'cursor-pointer text-error' : 'text-disabled'"
+          <v-btn
+            icon="mdi-delete"
+            :color="item.can_delete ? 'error' : undefined"
+            :disabled="!item.can_delete"
             :title="item.can_delete ? $t('tables.delete_item_aria') : $t('tables.delete_action_disabled')"
             :aria-label="item.can_delete ? $t('tables.delete_item_aria') : $t('tables.delete_action_disabled')"
-            @click="enableDeleteDialog(item)">
-            <i class="mdi mdi-delete" style="font-size: 20px; line-height: 1;" aria-hidden="true" />
-          </button>
+            @click="enableDeleteDialog(item)"
+          />
         </div>
       </template>
 
@@ -579,7 +583,8 @@ function closeErrorDialog() {
     <v-dialog v-model="errorDialog" width="auto">
       <ErrorDetails :error="current_error" @close="closeErrorDialog" />
     </v-dialog>
-        <v-dialog v-model="testDialog" max-width="750">
+
+    <v-dialog v-model="testDialog" max-width="750">
       <v-card>
         <v-card-item>
           <v-card-title class="text-white">
@@ -616,7 +621,6 @@ function closeErrorDialog() {
         </v-card-text>
       </v-card>
     </v-dialog>
-
   </div>
 </template>
 

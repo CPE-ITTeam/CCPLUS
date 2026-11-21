@@ -207,7 +207,7 @@ class CredentialController extends BaseController
     /**
      * Store a newly created resource in storage.
      */
-     public function store(Request $request)
+    public function store(Request $request)
     {
         $thisUser = auth()->user();
         $input = $request->all();
@@ -445,9 +445,10 @@ class CredentialController extends BaseController
      * Test the credentials for a given provider-institution.
      */
 
-    
+
     public function test(Request $request)
     {
+
         try {
             $input = json_decode($request->getContent(), true);
         } catch (\Exception $e) {
@@ -456,12 +457,36 @@ class CredentialController extends BaseController
         if (!isset($input['type'])) {
             return $this->respondError(__('credentials.type_required'));
         }
+        if (!empty($input['credentials_id'])) {
+            $ccpKey = $request->header('X-Tenant') ?: session('ccp_key');
+            if ($ccpKey) {
+                $tenantDb = 'ccplus_' . $ccpKey;
+                if (config('database.connections.consodb.database') !== $tenantDb) {
+                    config(['database.connections.consodb.database' => $tenantDb]);
+                    \Illuminate\Support\Facades\DB::purge('consodb');
+                }
+            }
+
+            $cred = Credential::findOrFail($input['credentials_id']);
+            $thisUser = auth()->user();
+            abort_unless($thisUser && ($thisUser->isConsoAdmin() || $thisUser->isAdmin($cred->inst_id)), 403);
+
+            $input['prov_id'] = $cred->prov_id;
+            foreach (['customer_id', 'requestor_id', 'api_key', 'extra_args'] as $field) {
+                if ((!isset($input[$field]) || $input[$field] === '') && !empty($cred->$field)) {
+                    $input[$field] = $cred->$field;
+                }
+            }
+        }
+
+
         $provider = GlobalProvider::with('registries')->findOrFail($input['prov_id']);
         $options = [
             'headers' => ['User-Agent' => 'Mozilla/5.0 (CC-Plus custom) Firefox/80.0'],
             'http_errors' => false,
             'timeout' => 30,
         ];
+
 
         $registry = $provider->default_registry() ?? $provider->registries->first();
         $release = $registry?->release ?? '5';

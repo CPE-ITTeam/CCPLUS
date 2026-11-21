@@ -322,9 +322,12 @@ async function fetchStatusSummary() {
       }
     }
   } catch (e) {
-    // Silent background poll failure
+    if (e?.response?.status === 401) {
+      stopPolling();
+    }
   }
 }
+
 
 function startPolling() {
   stopPolling();

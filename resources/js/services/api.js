@@ -34,4 +34,18 @@ api.interceptors.request.use((config) => {
   return config;
 });
 
+// Clear stale auth state and route to Login cleanly on 401 session expiration
+api.interceptors.response.use(
+  (response) => response,
+  (error) => {
+    if (error?.response?.status === 401 && !error?.config?.url?.includes('/login')) {
+      const authStore = useAuthStore();
+      if (authStore.isAuthenticated || authStore.token) {
+        authStore.logoutStateClear();
+      }
+    }
+    return Promise.reject(error);
+  }
+);
+
 export default api;

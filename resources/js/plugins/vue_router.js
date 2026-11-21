@@ -16,7 +16,7 @@ import ForgotPassword from "@/views/auth/ForgotPassword.vue";
 import ResetPassword from "@/views/auth/ResetPassword.vue";
 
 // 2. DATASET SPREADSHEET MONITORING VIEWS
-import BadCredentials from '@/views/datasets/BadCredentials.vue';
+import BadCredentials from "@/views/datasets/BadCredentials.vue";
 import Connections from "@/views/datasets/Connections.vue";
 import Consortia from "@/views/datasets/Consortia.vue";
 import CredentialsAudit from "@/views/datasets/CredentialsAudit.vue";
@@ -32,13 +32,12 @@ import SavedReports from "@/views/datasets/SavedReports.vue";
 import Users from "@/views/datasets/Users.vue";
 
 // 3. SYSTEM INFRASTRUCTURE & SETTINGS PANELS
+import ApiSettingsPanel from "@/components/panels/ApiSettingsPanel.vue";
 import MailSettingsPanel from "@/components/panels/MailSettingsPanel.vue";
 import ManualHarvestPanel from "@/components/panels/ManualHarvestPanel.vue";
+import QueueWorkersPanel from "@/components/panels/QueueWorkersPanel.vue";
 import Reporting from "@/components/panels/ReportingPanel.vue";
 import ServerSettingsPanel from "@/components/panels/ServerSettingsPanel.vue";
-import ApiSettingsPanel from "@/components/panels/ApiSettingsPanel.vue";
-import QueueWorkersPanel from "@/components/panels/QueueWorkersPanel.vue";
-
 
 // 4. USER ACCOUNT VIEWS
 import AccountSettings from "@/views/account/AccountSettings.vue";
@@ -58,7 +57,7 @@ const AUTH_BASE = { layout: AuthenticatedLayout, key: 0 };
 
 const routes = [
   /* ----------------------------------------------------
-      Unauthenticated Routes  (LoginLayout)
+      Unauthenticated Routes (LoginLayout)
   ------------------------------------------------------- */
   {
     path: "/login",
@@ -108,8 +107,69 @@ const routes = [
   },
 
   /* ----------------------------------------------------
-       Authenticated Layout Routes
+      Authenticated Layout Routes (Alphabetical Parents & Children)
   ------------------------------------------------------- */
+  {
+    path: "/account",
+    name: "Account",
+    redirect: { name: "Profile" },
+    meta: {
+      ...AUTH_BASE,
+      role: "Viewer",
+      level: 1,
+      get title() {
+        return t("routes.account_settings");
+      },
+    },
+    children: [
+      {
+        path: "api",
+        name: "API",
+        show: 1,
+        meta: {
+          ...AUTH_BASE,
+          role: "Viewer",
+          level: 2,
+          tab: "api",
+          get title() {
+            return t("routes.ccplus_api");
+          },
+        },
+        component: markRaw(AccountSettings),
+      },
+      {
+        path: "institution",
+        name: "HomeInstitution",
+        show: 1,
+        meta: {
+          ...AUTH_BASE,
+          role: "Viewer",
+          level: 2,
+          tab: "institution",
+          get title() {
+            return t("routes.home_institution");
+          },
+        },
+        component: markRaw(AccountSettings),
+      },
+      {
+        path: "profile",
+        name: "Profile",
+        show: 1,
+        meta: {
+          ...AUTH_BASE,
+          role: "Viewer",
+          level: 2,
+          tab: "profile",
+          get title() {
+            return t("routes.my_profile");
+          },
+        },
+        component: markRaw(AccountSettings),
+      },
+    ],
+  },
+
   {
     path: "/consortia",
     name: "Consortia",
@@ -124,112 +184,11 @@ const routes = [
       },
     },
   },
-  {
-    path: "/institutions",
-    name: "Institutions",
-    show: 1,
-    panels: [],
-    meta: {
-      ...AUTH_BASE,
-      role: "MultiInst",
-      level: 1,
-      get title() {
-        return t("routes.institutions");
-      },
-    },
-    children: [
-      {
-        path: "institutions",
-        name: "InstitutionsTable",
-        show: 1,
-        meta: {
-          ...AUTH_BASE,
-          role: "MultiInst",
-          level: 2,
-          get title() {
-            return t("routes.institutions");
-          },
-        },
-        component: markRaw(Institutions),
-      },
-      {
-        path: "types",
-        name: "InstitutionsTypesTable",
-        show: 1,
-        meta: {
-          ...AUTH_BASE,
-          role: "ConsoAdmin",
-          level: 2,
-          get title() {
-            return t("routes.institution_types");
-          },
-        },
-        component: markRaw(InstitutionTypes),
-      },
-      {
-        path: "groups",
-        name: "InstitutionGroupsTable",
-        show: 1,
-        meta: {
-          ...AUTH_BASE,
-          role: "MultiInst",
-          level: 2,
-          get title() {
-            return t("routes.institution_groups");
-          },
-        },
-        component: markRaw(InstitutionGroups),
-      },
-    ],
-  },
 
-  {
-    path: "/users",
-    name: "Users",
-    show: 1,
-    panels: [],
-    meta: {
-      ...AUTH_BASE,
-      role: "Admin",
-      level: 1,
-      get title() {
-        return t("routes.users");
-      },
-    },
-    children: [
-      {
-        path: "users",
-        name: "UserTable",
-        show: 1,
-        meta: {
-          ...AUTH_BASE,
-          role: "Admin",
-          level: 2,
-          get title() {
-            return t("routes.users");
-          },
-        },
-        component: markRaw(Users),
-      },
-      {
-        path: "roles",
-        name: "RolesTable",
-        show: 1,
-        meta: {
-          ...AUTH_BASE,
-          role: "Admin",
-          level: 2,
-          get title() {
-            return t("routes.permissions");
-          },
-        },
-        component: markRaw(Roles),
-      },
-    ],
-  },
   {
     path: "/credentials",
     name: "Credentials",
+    redirect: { name: "CredentialsTable" },
     show: 1,
     panels: [],
     meta: {
@@ -241,6 +200,20 @@ const routes = [
       },
     },
     children: [
+      {
+        path: "bad-credentials",
+        name: "BadCredentials",
+        show: 1,
+        meta: {
+          ...AUTH_BASE,
+          role: "Admin",
+          level: 2,
+          get title() {
+            return t("routes.bad_credentials");
+          },
+        },
+        component: markRaw(BadCredentials),
+      },
       {
         path: "credentials",
         name: "CredentialsTable",
@@ -269,66 +242,9 @@ const routes = [
         },
         component: markRaw(CredentialsAudit),
       },
-      {
-        path: "bad-credentials",
-        name: "BadCredentials",
-        show: 1,
-        meta: {
-          ...AUTH_BASE,
-          role: "Admin",
-          level: 2,
-          get title() {
-            return t("routes.bad_credentials");
-          },
-        },
-        component: markRaw(BadCredentials),
-      },
     ],
   },
 
-  {
-    path: "/platforms",
-    name: "Platforms",
-    show: 1,
-    meta: {
-      ...AUTH_BASE,
-      role: "Admin",
-      level: 1,
-      get title() {
-        return t("routes.platforms");
-      },
-    },
-    children: [
-      {
-        path: "registry",
-        name: "PlatformsTable",
-        show: 1,
-        meta: {
-          ...AUTH_BASE,
-          role: "Admin",
-          level: 2,
-          get title() {
-            return t("routes.registry");
-          },
-        },
-        component: markRaw(Platforms),
-      },
-      {
-        path: "connections",
-        name: "ConnectionsTable",
-        show: 1,
-        meta: {
-          ...AUTH_BASE,
-          role: "ConsoAdmin",
-          level: 2,
-          get title() {
-            return t("routes.connections");
-          },
-        },
-        component: markRaw(Connections),
-      },
-    ],
-  },
   {
     path: "/harvests",
     name: "Harvests",
@@ -343,20 +259,6 @@ const routes = [
     },
     children: [
       {
-        path: "queue",
-        name: "HarvestQueue",
-        show: 1,
-        meta: {
-          ...AUTH_BASE,
-          role: "Admin",
-          level: 2,
-          get title() {
-            return t("routes.harvest_queue");
-          },
-        },
-        component: markRaw(HarvestQueue),
-      },
-      {
         path: "log",
         name: "HarvestLog",
         show: 1,
@@ -369,6 +271,20 @@ const routes = [
           },
         },
         component: markRaw(HarvestLog),
+      },
+      {
+        path: "queue",
+        name: "HarvestQueue",
+        show: 1,
+        meta: {
+          ...AUTH_BASE,
+          role: "Admin",
+          level: 2,
+          get title() {
+            return t("routes.harvest_queue");
+          },
+        },
+        component: markRaw(HarvestQueue),
       },
       {
         path: "manual",
@@ -401,10 +317,114 @@ const routes = [
     ],
   },
 
+  {
+    path: "/institutions",
+    name: "Institutions",
+    redirect: { name: "InstitutionsTable" },
+    show: 1,
+    panels: [],
+    meta: {
+      ...AUTH_BASE,
+      role: "MultiInst",
+      level: 1,
+      get title() {
+        return t("routes.institutions");
+      },
+    },
+    children: [
+      {
+        path: "groups",
+        name: "InstitutionGroupsTable",
+        show: 1,
+        meta: {
+          ...AUTH_BASE,
+          role: "MultiInst",
+          level: 2,
+          get title() {
+            return t("routes.institution_groups");
+          },
+        },
+        component: markRaw(InstitutionGroups),
+      },
+      {
+        path: "types",
+        name: "InstitutionsTypesTable",
+        show: 1,
+        meta: {
+          ...AUTH_BASE,
+          role: "ConsoAdmin",
+          level: 2,
+          get title() {
+            return t("routes.institution_types");
+          },
+        },
+        component: markRaw(InstitutionTypes),
+      },
+      {
+        path: "institutions",
+        name: "InstitutionsTable",
+        show: 1,
+        meta: {
+          ...AUTH_BASE,
+          role: "MultiInst",
+          level: 2,
+          get title() {
+            return t("routes.institutions");
+          },
+        },
+        component: markRaw(Institutions),
+      },
+    ],
+  },
+  {
+    path: "/platforms",
+    name: "Platforms",
+    redirect: { name: "PlatformsTable" },
+    show: 1,
+    meta: {
+      ...AUTH_BASE,
+      role: "Admin",
+      level: 1,
+      get title() {
+        return t("routes.platforms");
+      },
+    },
+    children: [
+      {
+        path: "connections",
+        name: "ConnectionsTable",
+        show: 1,
+        meta: {
+          ...AUTH_BASE,
+          role: "ConsoAdmin",
+          level: 2,
+          get title() {
+            return t("routes.connections");
+          },
+        },
+        component: markRaw(Connections),
+      },
+      {
+        path: "registry",
+        name: "PlatformsTable",
+        show: 1,
+        meta: {
+          ...AUTH_BASE,
+          role: "Admin",
+          level: 2,
+          get title() {
+            return t("routes.registry");
+          },
+        },
+        component: markRaw(Platforms),
+      },
+    ],
+  },
 
   {
     path: "/reports",
     name: "Reports",
+    redirect: { name: "CreateReport" },
     show: 1,
     meta: {
       ...AUTH_BASE,
@@ -445,10 +465,11 @@ const routes = [
       },
     ],
   },
-// ServerAdmin Config Routes
+
   {
     path: "/server",
     name: "Server",
+    redirect: { name: "ServerSettings" },
     meta: {
       ...AUTH_BASE,
       role: "ServerAdmin",
@@ -459,20 +480,19 @@ const routes = [
     },
     children: [
       {
-        path: "settings",
-        name: "ServerSettings",
+        path: "api",
+        name: "ServerApi",
         show: 1,
         meta: {
           ...AUTH_BASE,
           role: "ServerAdmin",
           level: 2,
           get title() {
-            return t("routes.server_settings");
+            return t("routes.api_management");
           },
         },
-        component: markRaw(ServerSettingsPanel),
+        component: markRaw(ApiSettingsPanel),
       },
-
       {
         path: "mailsettings",
         name: "MailSettings",
@@ -488,108 +508,84 @@ const routes = [
         component: markRaw(MailSettingsPanel),
       },
       {
-        path: "api",
-        name: "ServerApi",
+        path: "settings",
+        name: "ServerSettings",
         show: 1,
         meta: {
           ...AUTH_BASE,
           role: "ServerAdmin",
           level: 2,
           get title() {
-            return t("routes.api_management");
+            return t("routes.server_settings");
           },
         },
-        component: markRaw(ApiSettingsPanel),
+        component: markRaw(ServerSettingsPanel),
       },
     ],
   },
 
-
-];
-
-// Account Route Group with Subtabs (Profile, Home Institution, API)
-const accountRoute = {
-  path: "/account",
-  name: "Account",
-  redirect: "/account/profile",
-  meta: {
-    ...AUTH_BASE,
-    role: "Viewer",
-    level: 1,
-    get title() {
-      return t("routes.account_settings");
+  {
+    path: "/users",
+    name: "Users",
+    redirect: { name: "UserTable" },
+    show: 1,
+    panels: [],
+    meta: {
+      ...AUTH_BASE,
+      role: "Admin",
+      level: 1,
+      get title() {
+        return t("routes.users");
+      },
     },
+    children: [
+      {
+        path: "roles",
+        name: "RolesTable",
+        show: 1,
+        meta: {
+          ...AUTH_BASE,
+          role: "Admin",
+          level: 2,
+          get title() {
+            return t("routes.permissions");
+          },
+        },
+        component: markRaw(Roles),
+      },
+      {
+        path: "users",
+        name: "UserTable",
+        show: 1,
+        meta: {
+          ...AUTH_BASE,
+          role: "Admin",
+          level: 2,
+          get title() {
+            return t("routes.users");
+          },
+        },
+        component: markRaw(Users),
+      },
+    ],
   },
-  children: [
-    {
-      path: "profile",
-      name: "Profile",
-      show: 1,
-      meta: {
-        ...AUTH_BASE,
-        role: "Viewer",
-        level: 2,
-        tab: "profile",
-        get title() {
-          return t("routes.my_profile");
-        },
-      },
-      component: markRaw(AccountSettings),
-    },
-    {
-      path: "institution",
-      name: "HomeInstitution",
-      show: 1,
-      meta: {
-        ...AUTH_BASE,
-        role: "Viewer",
-        level: 2,
-        tab: "institution",
-        get title() {
-          return t("routes.home_institution");
-        },
-      },
-      component: markRaw(AccountSettings),
-    },
-    {
-      path: "api",
-      name: "API",
-      show: 1,
-      meta: {
-        ...AUTH_BASE,
-        role: "Viewer",
-        level: 2,
-        tab: "api",
-        get title() {
-          return t("routes.ccplus_api");
-        },
-      },
-      component: markRaw(AccountSettings),
-    },
-  ],
-};
 
-// Backward-compatible redirects for legacy routes
-const legacyAccountRedirects = [
-  { path: "/profile", redirect: "/account/profile" },
-  { path: "/ccplusApi", redirect: "/account/api" },
-  { path: "/server/api", redirect: "/account/api" },
+  /* ----------------------------------------------------
+      Backward-Compatible Legacy Redirects & Fallback
+  ------------------------------------------------------- */
+  { path: "/profile", redirect: { name: "Profile" } },
+  { path: "/ccplusApi", redirect: { name: "API" } },
+  {
+    path: "/:pathMatch(.*)*",
+    name: "NotFound",
+    redirect: { name: "Login" },
+  },
 ];
 
 export const router = createRouter({
   history: createWebHistory(),
-  routes: [
-    accountRoute,
-    ...routes,
-    ...legacyAccountRedirects,
-    {
-      path: "/:pathMatch(.*)*",
-      name: "NotFound",
-      redirect: { name: "Login" },
-    },
-  ],
+  routes,
 });
-
 
 // Add router reference context directly to Pinia stores
 pinia.use(({ store }) => {

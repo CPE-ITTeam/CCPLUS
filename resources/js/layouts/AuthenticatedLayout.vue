@@ -98,6 +98,7 @@ function onTabChange(newTab) {
 }
 
 // Update page changes from menu(s)
+// Update page changes from menu(s)
 function onPageChange(newPage) {
   if (newPage === 900) {
     activePage.value = 900;
@@ -106,12 +107,25 @@ function onPageChange(newPage) {
     activePage.value = 999;
     router.push(profileRoute.value.path);
   } else {
-    let page = pages.value[newPage];
-    if (typeof (page) != 'undefined') {
-      let path = page.path;
-      path += (page.children.length == 0) ? "" : "/" + page.children[0].path;
-      if (path != this_route.path) {
-        router.push(path);
+    const page = pages.value[newPage];
+    if (typeof page !== 'undefined') {
+      if (page.children && page.children.length > 0) {
+        let targetIdx = 0;
+        if (page.redirect) {
+          const foundIdx = page.children.findIndex((child) =>
+            typeof page.redirect === 'string'
+              ? `${page.path}/${child.path}` === page.redirect
+              : child.name === page.redirect.name
+          );
+          if (foundIdx >= 0) targetIdx = foundIdx;
+        }
+        const targetPath = `${page.path}/${page.children[targetIdx].path}`;
+        activeTab.value = targetIdx;
+        if (targetPath !== this_route.path) {
+          router.push(targetPath);
+        }
+      } else if (page.path !== this_route.path) {
+        router.push(page.path);
         activeTab.value = 0;
       }
     }

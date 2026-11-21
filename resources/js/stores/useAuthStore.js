@@ -120,7 +120,6 @@ export const useAuthStore = defineStore("useAuthStore", {
     },
 
     // Auth success responses update state and manage routing targets
-    // Auth success responses update state and manage routing targets
     handleLoginSuccess(payload) {
       this.token = payload.token;
       this.user = { ...payload.user };
@@ -140,7 +139,7 @@ export const useAuthStore = defineStore("useAuthStore", {
 
       // Direct users based on permission scope
       if (this.is_serveradmin) {
-        this.router.push({ name: "Consortia" });
+        this.router.push({ name: "ServerSettings" });
       } else if (this.is_admin) {
         this.router.push({ name: "Profile" });
       } else {
