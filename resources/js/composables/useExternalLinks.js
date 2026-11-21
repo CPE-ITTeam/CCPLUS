@@ -132,10 +132,19 @@ export function useExternalLinks() {
       icon: "mdi-frequently-asked-questions",
     },
   ];
-
   function openRegistryPlatform(registryId) {
     if (registryId) {
-      window.open(`${REGISTRY_BASE}/platform/${registryId}`, "_blank", "noopener,noreferrer");
+      window.open(
+        `${REGISTRY_BASE}/platform/${registryId}`,
+        "_blank",
+        "noopener,noreferrer",
+      );
+    }
+  }
+
+  function openUrl(url) {
+    if (url) {
+      window.open(url, "_blank", "noopener,noreferrer");
     }
   }
 
@@ -148,5 +157,6 @@ export function useExternalLinks() {
     moreLinks,
     urlFinderLinks,
     openRegistryPlatform,
+    openUrl,
   };
 }

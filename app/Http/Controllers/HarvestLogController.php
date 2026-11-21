@@ -790,41 +790,68 @@ class HarvestLogController extends BaseController
      */
     public function downloadRaw(Request $request, $id)
     {
-        $harvest = HarvestLog::findOrFail($id);
+        $harvest = HarvestLog::with('credential')->findOrFail($id);
         if (!$harvest->canManage()) {
             return $this->respondError(__('harvests.errors.not_authorized_hyphen'));
         }
 
-        $con = Consortium::where('ccp_key', $request->header('X-Tenant'))->first();
+        $conKey = $request->header('X-Tenant') ?: session('ccp_con_key') ?: session('ccp_key');
+        $con = Consortium::where('ccp_key', $conKey)->first();
         if (!$con) {
             return $this->respondError(__('harvests.errors.consortium_undefined'));
         }
 
-        if (is_null(config('ccplus.reports_path'))) {
+        $reportsPath = config('ccplus.reports_path');
+        if (is_null($reportsPath)) {
             return $this->respondError(__('harvests.errors.reports_path_unset'));
         }
 
-        $filename = config('ccplus.reports_path') . $con->id . '/';
+        $basePath = rtrim($reportsPath, '/') . '/' . $con->id . '/';
         if ($harvest->status === 'Waiting') {
-            $matches = glob("{$filename}0_unprocessed/{$harvest->id}_*");
-            $filename = (is_array($matches) && count($matches) > 0) ? reset($matches) : '/xyzzy/not-found';
-            $return_name = substr($filename, strrpos($filename, '/', 0) + 1);
+            $matches = glob("{$basePath}0_unprocessed/{$harvest->id}_*");
+            $filename = (is_array($matches) && count($matches) > 0) ? reset($matches) : '';
+            $returnName = $filename !== '' ? basename($filename) : '';
         } else {
-            $filename .= "{$harvest->credential->inst_id}/{$harvest->credential->prov_id}/" . ($harvest->rawfile ?? 'not-found');
-            $return_name = $harvest->rawfile;
+            $filename = "{$basePath}{$harvest->credential?->inst_id}/{$harvest->credential?->prov_id}/" . ($harvest->rawfile ?? '');
+            $returnName = $harvest->rawfile ?? "Harvest_{$harvest->id}.json";
         }
 
-        if (is_readable($filename)) {
-            return response()->streamDownload(function () use ($filename) {
-                echo bzdecompress(Crypt::decrypt(File::get($filename), false));
-            }, $return_name, [
-                'Content-Type'        => 'application/json',
-                'Content-Disposition' => 'attachment; filename="' . $return_name . '"',
-            ]);
+        if ($filename === '' || !is_readable($filename)) {
+            return $this->respondError(__('harvests.errors.raw_file_inaccessible'));
         }
 
-        return $this->respondError(__('harvests.errors.raw_file_inaccessible'));
+        $payload = Crypt::decrypt(File::get($filename), false);
+        if (str_starts_with($payload, 'BZh')) {
+            if (function_exists('bzdecompress')) {
+                $payload = bzdecompress($payload);
+            } elseif (is_executable('/usr/bin/bunzip2')) {
+                $proc = proc_open('/usr/bin/bunzip2 -c', [0 => ['pipe', 'r'], 1 => ['pipe', 'w'], 2 => ['pipe', 'w']], $pipes);
+                if (is_resource($proc)) {
+                    fwrite($pipes[0], $payload);
+                    fclose($pipes[0]);
+                    $payload = stream_get_contents($pipes[1]);
+                    fclose($pipes[1]);
+                    fclose($pipes[2]);
+                    proc_close($proc);
+                }
+            }
+        } elseif (function_exists('gzdecode') && str_starts_with($payload, "\x1f\x8b")) {
+            $payload = gzdecode($payload);
+        }
+
+        $downloadName = preg_replace('/\.bz2$/i', '', $returnName) ?: "Harvest_{$harvest->id}.json";
+        if (!str_ends_with(strtolower($downloadName), '.json')) {
+            $downloadName .= '.json';
+        }
+
+        return response()->streamDownload(function () use ($payload) {
+            echo $payload;
+        }, $downloadName, [
+            'Content-Type' => 'application/json',
+            'Content-Disposition' => 'attachment; filename="' . $downloadName . '"',
+        ]);
     }
+
 
     /**
      * Remove the specified harvest record and its stored report data.
@@ -1211,7 +1238,6 @@ class HarvestLogController extends BaseController
                 'Last 30 Days'  => 30 * 86400,
                 'Last 90 Days'  => 90 * 86400,
             ];
-
             foreach ($windows as $label => $maxSeconds) {
                 if ($diffSeconds <= $maxSeconds) {
                     $rec['timeframes'][] = $label;
@@ -1223,8 +1249,14 @@ class HarvestLogController extends BaseController
             }
         }
 
+        // Build retryUrl using CounterApi
+        $beg = $harvest->yearmon . '-01';
+        $end = $harvest->yearmon . '-' . date('t', strtotime($beg));
+        $rec['retryUrl'] = CounterApi::buildUri($beg, $end, $harvest->credential, $harvest->report, 'reports', $harvest->release);
+
         return $rec;
     }
+
 
 
     private function deleteStoredData(array $harvest_ids): array

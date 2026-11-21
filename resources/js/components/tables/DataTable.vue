@@ -10,11 +10,12 @@ import { tableSetup } from '@/config/dataTableConfig.js';
 import { sortDatasetItems } from '@/utils/datasetSort.js';
 import { useExternalLinks } from '@/composables/useExternalLinks.js';
 import StatusAlerts from '@/components/ui/StatusAlerts.vue';
+import { useHarvestDownload } from '@/composables/useHarvestDownload.js';
+const { openUrl, openRegistryPlatform } = useExternalLinks();
 
-const { openUrl } = useExternalLinks();
+const { ccRawJson } = useHarvestDownload();
 const { t } = useI18n();
 const authStore = useAuthStore();
-const { ccRawJson } = authStore;
 
 const emit = defineEmits(['update:selectedRows', 'update:toggle', 'update:report', 'edit', 'delete', 'update:toggleSelectedOnly']);
 
