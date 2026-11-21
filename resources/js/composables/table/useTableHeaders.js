@@ -1,4 +1,4 @@
-// resources/js/composables/useTableHeaders.JS
+// resources/js/composables/table/useTableHeaders.JS
 
 import { computed } from 'vue';
 import { useI18n } from 'vue-i18n';

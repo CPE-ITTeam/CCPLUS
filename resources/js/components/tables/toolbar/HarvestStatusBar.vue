@@ -1,3 +1,5 @@
+<!-- components/tables/toolbar/HarvestStatusBar.vue -->
+
 <template>
   <div class="d-flex flex-wrap align-center ga-2 ms-auto">
     <v-chip

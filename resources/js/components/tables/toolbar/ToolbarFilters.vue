@@ -1,4 +1,4 @@
-<!-- components/tables/ToolbarFilters.vue -->
+<!-- components/tables/toolbar/ToolbarFilters.vue -->
 <template>
   <div class="d-flex flex-row flex-wrap align-center ga-3 w-100 pt-2">
     <template v-for="(filter, name) in props.filters" :key="name">

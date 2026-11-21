@@ -1,24 +1,34 @@
 <!-- components/tables/DataTable.vue -->
 
 <script setup>
+// Core & Plugins
 import { ref, computed, toRef } from 'vue';
 import { useI18n } from 'vue-i18n';
-import ToggleIcon from '@/components/ui/ToggleIcon.vue';
-import DeleteConfirm from '@/components/dialogs/DeleteConfirm.vue';
-import ErrorDetails from '@/components/dialogs/ErrorDetails.vue';
-import CredentialTestDialog from '@/components/dialogs/CredentialTestDialog.vue';
-import StatusAlerts from '@/components/ui/StatusAlerts.vue';
-import TableSelectionMenu from '@/components/tables/TableSelectionMenu.vue';
-import CredentialCell from '@/components/tables/CredentialCell.vue';
-import TableRowActions from '@/components/tables/TableRowActions.vue';
+
+// Config & Utils
 import { tableSetup } from '@/config/dataTableConfig.js';
 import { sortDatasetItems } from '@/utils/datasetSort.js';
+
+// Composables
+import { useCredentialTest } from '@/composables/useCredentialTest.js';
 import { useExternalLinks } from '@/composables/useExternalLinks.js';
 import { useHarvestDownload } from '@/composables/useHarvestDownload.js';
-import { useDataTableHelpers } from '@/composables/useDataTableHelpers.js';
-import { useCredentialTest } from '@/composables/useCredentialTest.js';
-import { useTableSelection } from '@/composables/useTableSelection.js';
-import { useTableHeaders } from '@/composables/useTableHeaders.js';
+import { useDataTableHelpers } from '@/composables/table/useDataTableHelpers.js';
+import { useTableHeaders } from '@/composables/table/useTableHeaders.js';
+import { useTableSelection } from '@/composables/table/useTableSelection.js';
+
+// Components
+import CredentialTestDialog from '@/components/dialogs/CredentialTestDialog.vue';
+import DeleteConfirm from '@/components/dialogs/DeleteConfirm.vue';
+import ErrorDetails from '@/components/dialogs/ErrorDetails.vue';
+import StatusAlerts from '@/components/ui/StatusAlerts.vue';
+import ToggleIcon from '@/components/ui/ToggleIcon.vue';
+import CredentialCell from '@/components/tables/cells/CredentialCell.vue';
+import HarvestErrorCell from '@/components/tables/cells/HarvestErrorCell.vue';
+import HarvestIdCell from '@/components/tables/cells/HarvestIdCell.vue';
+import TableRowActions from '@/components/tables/cells/TableRowActions.vue';
+import TableSelectionMenu from '@/components/tables/cells/TableSelectionMenu.vue';
+
 
 const { t } = useI18n();
 const { openUrl, openRegistryPlatform } = useExternalLinks();
@@ -196,7 +206,7 @@ function closeErrorDialog() {
       />
 
       <div v-if="props.selectableRows && (selectedRows.length > 0 || props.showSelectedOnly)" class="align-self-start ms-4">
-        <v-tooltip :text="props.showSelectedOnly ? $t('tables.show_all') : $t('tables.show_selected_only')" location="top">
+        <v-tooltip :text="props.showSelectedOnly ? $t('tables.show_all') : $t('tables.show_selected_only')">
           <template #activator="{ props: tooltipProps }">
             <v-chip
               v-bind="tooltipProps"
@@ -270,24 +280,6 @@ function closeErrorDialog() {
         />
       </template>
 
-      <!-- FAILSAFE SLOT OVERLAY FOR ROOT DATASETS -->
-      <template v-if="props.dataset === 'consortia' || props.dataset === 'consortium'" #header.id>
-        <div
-          class="d-flex align-center justify-center h-100 bg-info text-white rounded-tl-lg ps-4"
-          style="box-shadow: inset 0 0 0 10px var(--v-theme-info); min-height: 56px;"
-        >
-          <input
-            type="checkbox"
-            :checked="isAllSelected"
-            :indeterminate.prop="isSomeSelected"
-            :aria-label="$t('common.select_all', 'Select All')"
-            class="cursor-pointer"
-            style="width: 18px; height: 18px; accent-color: white;"
-            @change="toggleSelectAllRows($event.target.checked)"
-          />
-        </div>
-      </template>
-
       <!-- 1. REUSABLE TOGGLE ENGINE LOOP -->
       <template
         v-for="col in ['status', 'connected', 'includeZeros', 'inst_valid', 'plat_valid']"
@@ -331,54 +323,12 @@ function closeErrorDialog() {
         </span>
       </template>
 
-      <!-- Harvest ID Data Field Control Box -->
       <template #item.harvest_id="{ item }">
-        <div class="d-flex align-center justify-end ga-1">
-          <span>{{ item.harvest_id }}</span>
-
-          <v-btn
-            v-if="item.rawfile != null"
-            icon="mdi-code-json"
-            variant="text"
-            size="small"
-            density="comfortable"
-            color="primary"
-            :title="$t('tables.download_json')"
-            :aria-label="$t('tables.download_json')"
-            @click="ccRawJson(item.harvest_id)"
-          />
-
-          <v-btn
-            icon="mdi-barley"
-            variant="text"
-            size="small"
-            density="comfortable"
-            color="info"
-            :title="$t('tables.manual_retry_title')"
-            :aria-label="$t('tables.manual_retry_aria')"
-            @click="openUrl(item.retryUrl)"
-          />
-        </div>
+        <HarvestIdCell :item="item" @download="ccRawJson" @retry="openUrl" />
       </template>
 
-      <!-- Error / Result Validation Matrix Column -->
       <template #item.error="{ item }">
-        <span v-if="item.error?.id > 0" class="d-flex align-center ga-1" :class="`text-${item.error.color || 'error'}`">
-          {{ item.error.id }}
-          <v-btn
-            icon="mdi-dots-vertical"
-            variant="text"
-            size="small"
-            density="comfortable"
-            :color="item.error.color"
-            :title="$t('tables.view_error_details')"
-            :aria-label="$t('tables.view_error_details')"
-            @click="enableErrorDialog(item.error)"
-          />
-        </span>
-        <v-icon v-else-if="item.status === 'Success'" color="success" size="small" :title="item.d_status">
-          mdi-check-circle
-        </v-icon>
+        <HarvestErrorCell :item="item" @viewDetails="enableErrorDialog" />
       </template>
 
       <!-- Dynamic Date Interceptor Loop -->
@@ -439,6 +389,7 @@ function closeErrorDialog() {
     />
   </div>
 </template>
+
 
 <style scoped>
 :deep(th.compact-col),

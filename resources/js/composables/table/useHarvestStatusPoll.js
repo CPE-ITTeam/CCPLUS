@@ -1,4 +1,4 @@
-// resources/js/composables/useHarvestStatusPoll.JS
+// resources/js/composables/table/useHarvestStatusPoll.JS
 
 import { ref, computed, watch, onMounted, onBeforeUnmount } from 'vue';
 import api from '@/services/api.js';

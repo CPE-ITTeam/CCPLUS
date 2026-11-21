@@ -1,4 +1,4 @@
-// resources/js/composables/useDataTableHelpers.JS
+// resources/js/composables/table/useDataTableHelpers.JS
 
 import { ref } from 'vue';
 import { useAuthStore } from '@/stores/useAuthStore.js';

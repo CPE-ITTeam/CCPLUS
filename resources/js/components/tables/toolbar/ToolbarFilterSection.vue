@@ -1,3 +1,5 @@
+<!-- components/tables/toolbar/ToolbarFilterSelection.vue -->
+
 <template>
   <div v-if="filterOptions && filterOptions.length > 0" class="w-100">
     <div v-for="(row, index) in filterOptions" :key="index" class="d-flex flex-column ga-1 flex-grow-1">
@@ -52,7 +54,8 @@
 <script setup>
 import { computed } from 'vue';
 import { useI18n } from 'vue-i18n';
-import ToolbarFilters from './ToolbarFilters.vue';
+import ToolbarFilters from '@/components/tables/toolbar/ToolbarFilters.vue';
+
 
 const props = defineProps({
   filterOptions: { type: Array, required: true },

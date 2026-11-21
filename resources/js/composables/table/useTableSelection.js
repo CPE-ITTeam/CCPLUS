@@ -1,4 +1,4 @@
-// resources/js/composables/useTableSelection.JS
+// resources/js/composables/table/useTableSelection.JS
 
 import { computed } from 'vue';
 

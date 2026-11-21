@@ -1,4 +1,4 @@
-<!-- components/tables/BulkActions.vue -->
+<!-- components/tables/toolbar/BulkActions.vue -->
 <script setup>
 import { ref, computed, nextTick } from 'vue';
 import { useI18n } from 'vue-i18n';

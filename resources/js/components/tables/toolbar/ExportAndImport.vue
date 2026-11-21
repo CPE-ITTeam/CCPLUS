@@ -1,4 +1,4 @@
-<!-- components/tables/ExportAndImport.vue -->
+<!-- components/tables/toolbar/ExportAndImport.vue -->
 <script setup>
 const props = defineProps({
   showRefresh: { type: Boolean, required: true },

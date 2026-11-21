@@ -80,15 +80,18 @@
 </template>
 
 <script setup>
-import { ref, computed, watch, toRef } from 'vue';
+import { ref, computed, toRef } from 'vue';
 import { useAuthStore } from '@/stores/useAuthStore.js';
-import { useHarvestStatusPoll } from '@/composables/useHarvestStatusPoll.js';
+import { useHarvestStatusPoll } from '@/composables/table/useHarvestStatusPoll.js';
+import { useToolbarFilters } from '@/composables/table/useToolbarFilters.js';
 import SearchAndSelect from '@/components/ui/SearchAndSelect.vue';
-import ToolbarFilterSection from './ToolbarFilterSection.vue';
-import HarvestStatusBar from './HarvestStatusBar.vue';
-import BulkActions from './BulkActions.vue';
-import ExportAndImport from './ExportAndImport.vue';
 import ImportDialog from '@/components/dialogs/ImportDialog.vue';
+
+import BulkActions from '@/components/tables/toolbar/BulkActions.vue';
+import ExportAndImport from '@/components/tables/toolbar/ExportAndImport.vue';
+import HarvestStatusBar from '@/components/tables/toolbar/HarvestStatusBar.vue';
+import ToolbarFilterSection from '@/components/tables/toolbar/ToolbarFilterSection.vue';
+
 
 const filter_options = defineModel({ type: Array, required: true });
 
@@ -119,7 +122,6 @@ const authStore = useAuthStore();
 const isServerAdmin = authStore.is_serveradmin;
 const consoKey = ref(authStore.ccp_key);
 const importDialog = ref(false);
-const activeStatusFilters = ref([]);
 
 const bulkOptionsModel = computed({
   get: () => props.bulkOptions,
@@ -141,12 +143,14 @@ const {
   () => emit('refreshRecords')
 );
 
-watch(
-  () => props.dataset,
-  () => {
-    activeStatusFilters.value = [];
-  }
-);
+const {
+  activeStatusFilters,
+  anyFilterSet,
+  handleFilter,
+  toggleStatusChip,
+  resetStatusChips,
+  clearAllFilters,
+} = useToolbarFilters(filter_options, toRef(props, 'dataset'), emit);
 
 const consoOnly = computed(() => consoKey.value === '' && isServerAdmin);
 const showSearch = computed(() => !consoOnly.value || isServerAdmin);
@@ -163,63 +167,6 @@ const hasBulkActions = computed(
 const hasTier2Content = computed(
   () => hasBulkActions.value || isHarvestDataset.value || showExportImport.value
 );
-
-const anyFilterSet = computed(() => {
-  if (activeStatusFilters.value.length > 0) return true;
-
-  return filter_options.value.some((row) =>
-    Object.entries(row).some(([key, filter]) => {
-      if (!filter.show) return false;
-      if (Array.isArray(filter.value)) return filter.value.length > 0;
-      if (key === 'is_conso') return filter.value === 'Active' || filter.value === 'NonConso';
-      if (filter.type === 'toggle') return filter.value === 'Active';
-
-      const val = filter.value;
-      return (
-        val !== null &&
-        val !== undefined &&
-        val !== '' &&
-        val !== 0 &&
-        val !== '0' &&
-        val !== 'all' &&
-        val !== 'All'
-      );
-    })
-  );
-});
-
-function toggleStatusChip(label) {
-  const idx = activeStatusFilters.value.indexOf(label);
-  if (idx >= 0) {
-    activeStatusFilters.value.splice(idx, 1);
-  } else {
-    activeStatusFilters.value.push(label);
-  }
-  const nextVal = [...activeStatusFilters.value];
-  handleFilter({ key: 'statuses', value: nextVal });
-  emit('setFilter', { key: 'statuses', value: nextVal, refresh: true });
-}
-
-function resetStatusChips() {
-  activeStatusFilters.value = [];
-  handleFilter({ key: 'statuses', value: [] });
-  emit('setFilter', { key: 'statuses', value: [], refresh: true });
-}
-
-function clearAllFilters() {
-  activeStatusFilters.value = [];
-  emit('setFilter', { key: 'reset', refresh: true });
-}
-
-function handleFilter(filt) {
-  for (const row of filter_options.value) {
-    if (row[filt.key] !== undefined) {
-      row[filt.key].value = filt.value;
-      emit('setFilter', filt);
-      break;
-    }
-  }
-}
 
 function handleImported(data) {
   emit('imported', data);

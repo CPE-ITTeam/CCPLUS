@@ -1,3 +1,5 @@
+<!-- components/tables/cells/CredentialCell.vue -->
+
 <template>
   <span
     v-if="value === '-required-'"
