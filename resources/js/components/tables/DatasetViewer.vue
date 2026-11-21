@@ -3,15 +3,17 @@
 // ============================================================================
 // PART 1: MODULES, REUSABLE COMPOSABLES & UI DIALOG IMPORTS
 // ============================================================================
-import { ref, reactive, watch, onBeforeMount, computed } from 'vue';
+// 1. Core Frameworks & External Packages
+import { computed, onBeforeMount, reactive, ref, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
-import { useAuthStore } from '@/stores/useAuthStore.js';
-import { useCCPlusStore } from '@/stores/useCCPlusStore.js';
-import { fyMonths } from '@/components/ui/YmInput.vue';
+
+// 2. Stores, Configs & Services
 import { tableSetup } from '@/config/dataTableConfig.js';
 import api from '@/services/api.js';
+import { useAuthStore } from '@/stores/useAuthStore.js';
+import { useCCPlusStore } from '@/stores/useCCPlusStore.js';
 
-import { useRegistryProgress } from '@/composables/useRegistryProgress.js';
+// 3. Composables
 import { useDatasetActions } from '@/composables/dataset/useDatasetActions.js';
 import { useDatasetBulk } from '@/composables/dataset/useDatasetBulk.js';
 import { useDatasetExporter } from '@/composables/dataset/useDatasetExporter.js';
@@ -21,15 +23,17 @@ import { useDatasetLoader } from '@/composables/dataset/useDatasetLoader.js';
 import { useDatasetMutations } from '@/composables/dataset/useDatasetMutations.js';
 import { useDatasetSchema } from '@/composables/dataset/useDatasetSchema.js';
 import { useReportToggle } from '@/composables/dataset/useReportToggle.js';
+import { useRegistryProgress } from '@/composables/useRegistryProgress.js';
 
-import StatusAlerts from '@/components/ui/StatusAlerts.vue';
-import BaseDialogLayout from '@/components/dialogs/BaseDialogLayout.vue';
-import DataToolbar from './DataToolbar.vue';
+// 4. Child & UI Components
 import DataTable from './DataTable.vue';
+import DataToolbar from './DataToolbar.vue';
+import BaseDialogLayout from '@/components/dialogs/BaseDialogLayout.vue';
+import ReportToggle from '@/components/dialogs/ReportToggle.vue';
+import CredentialsForm from '@/components/forms/CredentialsForm.vue';
 import DataForm from '@/components/forms/DataForm.vue';
 import PlatformForm from '@/components/forms/PlatformForm.vue';
-import CredentialsForm from '@/components/forms/CredentialsForm.vue';
-import ReportToggle from '@/components/dialogs/ReportToggle.vue';
+import { fyMonths } from '@/components/ui/YmInput.vue';
 
 // ============================================================================
 // PART 2: ACCOUNT LAYER INITIALIZATION & DECOUPLED BRIDGES

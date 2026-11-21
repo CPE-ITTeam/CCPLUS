@@ -1221,6 +1221,7 @@ class HarvestLogController extends BaseController
             },
         };
     }
+// app/Http/Controllers/HarvestLogController.php (or HarvestController)
 
     private function formatRecord($harvest, ?\DateTime $now = null): array
     {
@@ -1233,6 +1234,7 @@ class HarvestLogController extends BaseController
             'credentials_id' => $harvest->credentials_id,
             'inst_id'        => $harvest->credential->inst_id,
             'prov_id'        => $harvest->credential->prov_id,
+            'is_conso'       => (bool) ($harvest->credential->is_conso ?? $harvest->credential->institution->is_conso ?? false),
             'release'        => is_null($harvest->release) ? '' : $harvest->release,
             'yearmon'        => $harvest->yearmon,
             'attempts'       => $harvest->attempts,

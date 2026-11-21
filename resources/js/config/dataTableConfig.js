@@ -1549,7 +1549,6 @@ const rawTableSetup = {
       },
 
       // ─── TOOLBAR FILTERS ───
-      // ─── TOOLBAR FILTERS ───
       {
         name: "is_conso",
         get label() {
@@ -1617,7 +1616,6 @@ const rawTableSetup = {
         searchable: false,
       },
     ],
-
     required: [
       "institutions",
       "platforms",
@@ -1626,6 +1624,7 @@ const rawTableSetup = {
       "api_key",
     ],
     static: [
+      "is_conso",
       "groups",
       "statuses",
       "results",
@@ -2111,10 +2110,11 @@ const rawTableSetup = {
     sortby: "created",
   },
 
-  harvests: {
+   harvests: {
     urlRoot: "/api/harvests",
     title: "",
     fields: [
+      // ─── TABLE COLUMNS ───
       {
         name: "inst_name",
         get label() {
@@ -2191,6 +2191,20 @@ const rawTableSetup = {
         },
         header: null,
         editable: false,
+      },
+
+      // ─── TOOLBAR FILTERS ───
+      {
+        name: "is_conso",
+        get label() {
+          return t("fields.consortial", "Consortial");
+        },
+        type: "toggle",
+        options: "",
+        isFilter: true,
+        filterCol: "is_conso",
+        header: null,
+        searchable: false,
       },
       {
         name: "platforms",
@@ -2273,7 +2287,6 @@ const rawTableSetup = {
         header: null,
         searchable: false,
       },
-
       {
         name: "codes",
         get label() {
@@ -2304,11 +2317,12 @@ const rawTableSetup = {
       },
     ],
     required: [],
-    static: ["id", "rawfile", "retryUrl"],
+    static: ["id", "is_conso", "rawfile", "retryUrl"],
     bulkOptions: ["Restart", "Restart as r5", "Restart as r5.1", "Delete"],
     exportFields: [],
     sortby: "updated",
   },
+
 
   savedreports: {
     urlRoot: "/api/savedreports",
