@@ -24,7 +24,6 @@ import DataForm from '@/components/tables/DataForm.vue';
 import PlatformForm from '@/components/forms/PlatformForm.vue';
 import CredentialsForm from '@/components/forms/CredentialsForm.vue';
 import ReportToggle from '@/components/dialogs/ReportToggle.vue';
-import Swal from 'sweetalert2';
 import { useI18n } from 'vue-i18n';
 
 // ============================================================================
@@ -35,13 +34,10 @@ const ccPlusStore = useCCPlusStore();
 const is_admin = authStore.is_admin;
 const is_conso_admin = authStore.is_conso_admin;
 const { setConso } = authStore;
-
-
 const { t, locale } = useI18n();
 
-const ccGet = (url) => api.get(url);
-const ccPost = (url, content) => api.post(url, content);
-
+var dtLoading = ref(false);
+var truncated = ref(false);
 var consoKey = ref(authStore.ccp_key);
 const props = defineProps({ datasetKey: { type: String, required: true } });
 const emit = defineEmits(['updateConso', 'setFilter']);
@@ -75,8 +71,6 @@ const editableFields = ref([]);
 const urlRoot = ref('');
 const emptyFlags = { 'available': true, 'conso': false, 'groups': [], 'insts': [], 'requested': false, 'sortval': 1 };
 const refreshable = ['harvests', 'jobs', 'audit'];
-var dtLoading = ref(false);
-var truncated = ref(false);
 var success = ref('');
 var failure = ref('');
 
@@ -498,21 +492,16 @@ async function handleChangeConso(conso) {
 // 💡 FIXED: Make the hook async so we await the data reload before incrementing the DOM key
 async function handleImported(data) {
   if (data && data.length > 0) {
-    success.value = data;
+    ccPlusStore.notifySuccess(data);
   }
-
-  // 1. Clear any stale row checkbox selection states from the last view state
   selectedRows.value = [];
-
   try {
-    // 2. Await the data reload completely so the reactive array updates first
     if (typeof loadDataset === 'function') {
       await loadDataset(props.datasetKey);
     }
   } catch (err) {
     console.error("Dataset re-sync failed after import:", err);
   } finally {
-    // 3. Increment the key AFTER the array has been replaced, forcing a clean, sequential Virtual DOM paint
     dtKey.value++;
   }
 }
@@ -638,20 +627,11 @@ function addConnection() {
   reptDialog.value = true;
 }
 
-import { toRaw } from 'vue'; // Ensure `toRaw` is imported at the top of <script setup>
-
 async function handleFormSubmit(updatedValues) {
-  failure.value = '';
-  success.value = '';
-  if (ccPlusStore) {
-    ccPlusStore.tableErrorMessage = '';
-    ccPlusStore.tableSuccessMessage = '';
-  }
+  ccPlusStore.clearAlerts();
 
-  // Deep-clone plain values safely (unwraps nested reactive arrays/objects)
   const formPayload = JSON.parse(JSON.stringify(updatedValues));
 
-  // Normalize fiscal year month name to 1-12 integer
   if (typeof formPayload.fiscalYr === 'string') {
     const monthIndex = fyMonths.indexOf(formPayload.fiscalYr);
     if (monthIndex >= 0) {
@@ -662,20 +642,14 @@ async function handleFormSubmit(updatedValues) {
   const isEdit = formDialogType.value === 'Edit';
   const targetId = isEdit ? editingItem.value?.id : undefined;
 
-  // Dispatch to action engine
   const result = await saveItem(formPayload, formDialogType.value, targetId);
 
   if (!result.success) {
-    if (ccPlusStore) {
-      ccPlusStore.tableErrorMessage = result.msg;
-    }
+    ccPlusStore.notifyError(result.msg);
     return;
   }
 
-  success.value = result.msg;
-  if (ccPlusStore) {
-    ccPlusStore.tableSuccessMessage = result.msg;
-  }
+  ccPlusStore.notifySuccess(result.msg);
   formDialogOpen.value = false;
 
   if (isEdit) {
@@ -688,7 +662,6 @@ async function handleFormSubmit(updatedValues) {
     updateItems();
     dtKey.value++;
 
-    // Immediately repaint active consortium theme & default language if editing the current tenant
     if (props.datasetKey === 'consortia' && finalizedRecord.ccp_key === authStore.ccp_key) {
       if (finalizedRecord.theme) {
         authStore.setTheme(finalizedRecord.theme);
@@ -698,11 +671,11 @@ async function handleFormSubmit(updatedValues) {
       }
     }
   } else {
-    // Pass props.datasetKey so loadDataset knows which dataset to fetch
     await loadDataset(props.datasetKey);
     dtKey.value++;
   }
 }
+
 
 async function handleToggleUpdate(id, field, value) {
   const currentItem = allItems.find(item => item.id === id);
@@ -713,15 +686,15 @@ async function handleToggleUpdate(id, field, value) {
     updateLocalArrayRecord(id, result.record);
     updateItems();
     dtKey.value++;
-  } else {
-    if (result.msg) failure.value = result.msg;
+  } else if (result.msg) {
+    ccPlusStore.notifyError(result.msg);
   }
 }
 
 async function handleDelete(id) {
   const result = await deleteItem(id);
   if (result.success) {
-    success.value = result.msg;
+    ccPlusStore.notifySuccess(result.msg);
     if (props.datasetKey === "connections") {
       let idx = allItems.findIndex(ii => ii.id == id);
       if (idx >= 0) allItems[idx].can_delete = false;
@@ -732,7 +705,7 @@ async function handleDelete(id) {
     updateItems();
     dtKey.value++;
   } else {
-    failure.value = result.msg;
+    ccPlusStore.notifyError(result.msg);
   }
 }
 
@@ -765,38 +738,30 @@ function updateLocalArrayRecord(id, updatedRecord) {
 // ============================================================================
 async function handleBulk(data) {
   dtLoading.value = true;
-  success.value = '';
-  failure.value = '';
+  ccPlusStore.clearAlerts();
 
   const result = await executeBulkAction(data);
 
   if (result && result.success) {
-    // ─── DELEGATED INSTITUTION GROUPS LAYER ───
-    // Inside handleBulk(data) method in DatasetViewer.vue:
     if (result.delegateGroupUi) {
       const { resData, data: originalData } = result;
 
-      // 1. Ensure the groups object array exists inside your raw option references
       if (!allOptions.groups) {
         allOptions.groups = [];
       }
 
       const newGroupObj = { 'id': resData.group.id, 'name': resData.group.name };
 
-      // 2. Inject the new group into your core layout definitions safely
       if (originalData.action === 'Create New Group') {
-        // Push to the toolbar filter array layout
         if (filterOptions.groups && Array.isArray(filterOptions.groups.items)) {
           filterOptions.groups.items.push(newGroupObj);
         }
 
-        // Push to the primary options pool so loadDataset routines keep it synced
         if (Array.isArray(allOptions.groups)) {
           allOptions.groups.push(newGroupObj);
         }
       }
 
-      // 3. Update row assignments immutably
       allItems.filter(aitm => resData.affectedIds.includes(aitm.id)).forEach(itm => {
         let currentGroups = itm.group_string ? String(itm.group_string).split(',') : [];
         if (!currentGroups.includes(resData.group.name)) {
@@ -816,11 +781,10 @@ async function handleBulk(data) {
       updateItems();
       dtKey.value++;
     }
-    success.value = result.msg || t('messages.bulk_assign_success');
+    ccPlusStore.notifySuccess(result.msg || t('messages.bulk_assign_success'));
   } else if (result && !result.handledByUi) {
-    failure.value = result.msg || t('messages.bulk_assign_failed');
+    ccPlusStore.notifyError(result.msg || t('messages.bulk_assign_failed'));
   }
-
 
   dtLoading.value = false;
 }
@@ -854,14 +818,16 @@ async function reportToggleSubmit(data) {
         if (f_idx >= 0) filteredItems.splice(f_idx, 1, _item);
         dtKey.value++;
       } else {
-        failure.value = resData.msg;
+        ccPlusStore.notifyError(resData.msg);
       }
     } catch (error) {
       console.error('Error updating report toggle', error);
+      ccPlusStore.notifyError(t('messages.unexpected_server_error'));
     }
   }
   reptDialog.value = false;
 }
+
 async function handleReportToggle(id, rept) {
   let _idx = allItems.findIndex((ii) => ii.id == id);
   if (_idx < 0) return;
@@ -899,26 +865,25 @@ async function handleReportToggle(id, rept) {
       } else {
         allItems.splice(_idx, 1, theItem);
         if (f_idx >= 0) filteredItems.splice(f_idx, 1, theItem);
-        failure.value = resData?.msg || t('messages.server_rejected');
+        ccPlusStore.notifyError(resData?.msg || t('messages.server_rejected'));
       }
     } catch (error) {
       allItems.splice(_idx, 1, theItem);
       if (f_idx >= 0) filteredItems.splice(f_idx, 1, theItem);
       console.error('Error toggling credential report:', error);
-      failure.value = t('messages.unexpected_server_error');
+      ccPlusStore.notifyError(t('messages.unexpected_server_error'));
     }
   }
 }
-
 
 function handleFormCancel() {
   formDialogOpen.value = false;
   editingItem.value = null;
   reptDialog.value = false;
   typeDialog.value = false;
-  failure.value = '';
-  success.value = '';
+  ccPlusStore.clearAlerts();
 }
+
 // ============================================================================
 // PART 8: LIFECYCLE WATCHERS & TRIGGERS
 // ============================================================================

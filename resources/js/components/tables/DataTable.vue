@@ -11,6 +11,21 @@ import { sortDatasetItems } from '@/utils/datasetSort.js';
 import { useExternalLinks } from '@/composables/useExternalLinks.js';
 import StatusAlerts from '@/components/ui/StatusAlerts.vue';
 import { useHarvestDownload } from '@/composables/useHarvestDownload.js';
+
+
+import { useCredentialTest } from '@/composables/useCredentialTest.js';
+
+const {
+  isTesting,
+  testingRowId,
+  testDialog,
+  testPassed,
+  testStatus,
+  testRows,
+  testTargetLabel,
+  runCredentialTest,
+} = useCredentialTest();
+
 const { openUrl, openRegistryPlatform } = useExternalLinks();
 
 const { ccRawJson } = useHarvestDownload();
@@ -317,7 +332,7 @@ function closeErrorDialog() {
     <!-- Top Table Header Utility Bar Area -->
     <div class="d-flex flex-column ga-2 mb-4">
       <StatusAlerts v-if="truncated" mode="page" container-class="font-weight-bold mb-0"
-        :warning="$t('tables.truncated_warning')" @update:warning="truncated = false" />
+        :info="$t('tables.truncated_warning')" @update:warning="truncated = false" />
 
       <!-- Selection count indicator chip & selection filter toggle button -->
         <div v-if="props.selectableRows && (selectedRows.length > 0 || props.showSelectedOnly)" class="align-self-start ms-4">
@@ -498,7 +513,26 @@ function closeErrorDialog() {
       </template>
       <!-- Row Level Operations Action Matrix Column -->
       <template #item.actions="{ item }">
-        <div v-if="showActions || props.dataset === 'platforms'" class="d-flex ga-1 justify-end">
+        <div
+          v-if="showActions || props.dataset === 'platforms' || props.dataset === 'credentials' || props.dataset === 'badCredentials'"
+          class="d-flex ga-1 justify-end"
+        >
+          <!-- Live Credentials Test Button (credentials & badCredentials) -->
+          <v-btn
+            v-if="props.dataset === 'credentials' || props.dataset === 'badCredentials'"
+            icon="mdi-connection"
+            color="info"
+            variant="text"
+            size="small"
+            density="comfortable"
+            :loading="isTesting && testingRowId === (props.dataset === 'credentials' ? item.id : item.credentials_id)"
+            :title="$t('credentials.test_live', 'Test Live Credentials')"
+            :aria-label="$t('credentials.test_live', 'Test Live Credentials')"
+            @click="runCredentialTest(
+              { type: 'test', credentials_id: props.dataset === 'credentials' ? item.id : item.credentials_id },
+              `${item.inst_name || item.institution || ''} — ${item.prov_name || item.platform || ''}`
+            )"
+          />
 
           <!-- Condition A: Platform refresh action configurations -->
           <v-tooltip
@@ -534,6 +568,7 @@ function closeErrorDialog() {
           </button>
         </div>
       </template>
+
     </v-data-table>
 
     <v-dialog v-model="deleteDialog" width="auto">
@@ -544,6 +579,44 @@ function closeErrorDialog() {
     <v-dialog v-model="errorDialog" width="auto">
       <ErrorDetails :error="current_error" @close="closeErrorDialog" />
     </v-dialog>
+        <v-dialog v-model="testDialog" max-width="750">
+      <v-card>
+        <v-card-item>
+          <v-card-title class="text-white">
+            {{ $t('credentials.live_test_results', 'Live Credential Test') }}
+            <span v-if="testTargetLabel" class="text-body-2 font-weight-regular ms-2">
+              ({{ testTargetLabel }})
+            </span>
+          </v-card-title>
+          <template #append>
+            <v-btn icon="mdi-close" @click="testDialog = false" />
+          </template>
+        </v-card-item>
+
+        <v-card-text>
+          <div v-if="isTesting" class="d-flex align-center ga-3 py-4">
+            <v-progress-circular indeterminate color="primary" size="24" />
+            <span>{{ $t('credentials.testing_connection', 'Testing COUNTER endpoint...') }}</span>
+          </div>
+
+          <template v-else>
+            <v-alert
+              v-if="testStatus"
+              :type="testPassed ? 'success' : 'error'"
+              class="mb-4"
+            >
+              {{ testStatus }}
+            </v-alert>
+
+            <pre
+              class="bg-grey-lighten-4 pa-3 rounded-lg text-body-2 overflow-x-auto"
+              style="max-height: 360px; white-space: pre-wrap; word-break: break-word;"
+            >{{ testRows.join('\n') }}</pre>
+          </template>
+        </v-card-text>
+      </v-card>
+    </v-dialog>
+
   </div>
 </template>
 

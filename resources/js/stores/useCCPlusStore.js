@@ -1,5 +1,5 @@
 // resources/js/stores/useCCPlusStore.js
-import { defineStore } from 'pinia'
+import { defineStore } from 'pinia';
 import { useFetch } from '@vueuse/core';
 
 export const useCCPlusStore = defineStore('useCCPlusStore', {
@@ -11,18 +11,18 @@ export const useCCPlusStore = defineStore('useCCPlusStore', {
       reportData: [],
       consortia: [],
       reportDates: '',
-      // 💡 NEW STATE FIELDS: Track table messaging contexts cleanly
       tableErrorMessage: null,
       tableSuccessMessage: null,
-    }
+      tableWarningMessage: null,
+      tableInfoMessage: null,
+    };
   },
-  persist: {  // persist for the session
+  persist: {
     storage: sessionStorage,
   },
   getters: {
-    report_data: (state) => { return state.reportData },
-    // 💡 FIXED GETTER: Added explicit return statement so it stops returning undefined!
-    consd_data: (state) => { return state.consortia },
+    report_data: (state) => state.reportData,
+    consd_data: (state) => state.consortia,
   },
   actions: {
     updateReportData(data) {
@@ -33,7 +33,7 @@ export const useCCPlusStore = defineStore('useCCPlusStore', {
     },
     async getConsortia() {
       try {
-        const { data } = await useFetch("/api/consoList").get().json();
+        const { data } = await useFetch('/api/consoList').get().json();
         this.consortia = [...data.value.records];
         return { success: true };
       } catch (error) {
@@ -41,47 +41,63 @@ export const useCCPlusStore = defineStore('useCCPlusStore', {
       }
     },
 
-    // 💡 NEW ACTION: Handles sending new consortia to your backend controller!
     async addConsortium(payload) {
-      this.tableErrorMessage = null;
-      this.tableSuccessMessage = null;
-      
+      this.clearAlerts();
+
       try {
-        // Send a POST request to your Laravel store endpoint
         const response = await fetch('/api/consortia', {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
-            'Accept': 'application/json'
+            Accept: 'application/json',
           },
-          body: JSON.stringify(payload)
+          body: JSON.stringify(payload),
         });
 
         const resData = await response.json();
 
-        // Check the 'result' property returned by ConsortiumController
         if (response.ok && resData.result) {
-          this.tableSuccessMessage = resData.msg || "Consortium created successfully.";
-          await this.getConsortia(); // Automatically refresh your table rows!
+          this.notifySuccess(resData.msg || 'Consortium created successfully.');
+          await this.getConsortia();
           return { success: true };
         } else {
-          // Captures custom 'msg' errors or database replication alerts from your controller
-          this.tableErrorMessage = resData.msg || resData.message || "Failed to create consortium.";
+          this.notifyError(resData.msg || resData.message || 'Failed to create consortium.');
           return { success: false, error: this.tableErrorMessage };
         }
       } catch (error) {
-        this.tableErrorMessage = "Server connection lost. Unable to build database container.";
+        this.notifyError('Server connection lost. Unable to build database container.');
         return { success: false, error: error.message };
       }
     },
 
-    // 💡 FIXED FOR DATAFORM ALERTS: Clean up table state contexts on close or navigation
+    notifySuccess(msg) {
+      this.clearAlerts();
+      this.tableSuccessMessage = msg;
+    },
+    notifyError(msg) {
+      this.clearAlerts();
+      this.tableErrorMessage = msg;
+    },
+    notifyWarning(msg) {
+      this.clearAlerts();
+      this.tableWarningMessage = msg;
+    },
+    notifyInfo(msg) {
+      this.clearAlerts();
+      this.tableInfoMessage = msg;
+    },
+    clearAlerts() {
+      this.tableErrorMessage = null;
+      this.tableSuccessMessage = null;
+      this.tableWarningMessage = null;
+      this.tableInfoMessage = null;
+    },
     clearTableError() {
       this.tableErrorMessage = null;
     },
     clearTableSuccess() {
       this.tableSuccessMessage = null;
-    }
+    },
   },
 });
 
@@ -109,5 +125,5 @@ export const timeZones = [
   'Europe/Helsinki',
   'Europe/Istanbul',
   'Asia/Kolkata',
-  'Australia/Sydney'
+  'Australia/Sydney',
 ];

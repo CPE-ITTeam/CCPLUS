@@ -1228,26 +1228,27 @@ class HarvestLogController extends BaseController
         $statusColor = $this->colors[$harvest->status] ?? 'secondary';
 
         $rec = [
-            'id'          => $harvest->id,
-            'harvest_id'  => $harvest->id,
-            'inst_id'     => $harvest->credential->inst_id,
-            'prov_id'     => $harvest->credential->prov_id,
-            'release'     => is_null($harvest->release) ? '' : $harvest->release,
-            'yearmon'     => $harvest->yearmon,
-            'attempts'    => $harvest->attempts,
-            'inst_name'   => $harvest->credential->institution->name,
-            'prov_name'   => $harvest->credential->provider->name,
-            'report_id'   => $harvest->report->id,
-            'report_name' => $harvest->report->name,
-            'status'      => $harvest->status,
-            'd_status'    => $dStatus,
-            'rawfile'     => $harvest->rawfile,
-            'error_id'    => (int) ($harvest->error_id ?? 0),
-            'error'       => [
+            'id'             => $harvest->id,
+            'harvest_id'     => $harvest->id,
+            'credentials_id' => $harvest->credentials_id,
+            'inst_id'        => $harvest->credential->inst_id,
+            'prov_id'        => $harvest->credential->prov_id,
+            'release'        => is_null($harvest->release) ? '' : $harvest->release,
+            'yearmon'        => $harvest->yearmon,
+            'attempts'       => $harvest->attempts,
+            'inst_name'      => $harvest->credential->institution->name,
+            'prov_name'      => $harvest->credential->provider->name,
+            'report_id'      => $harvest->report->id,
+            'report_name'    => $harvest->report->name,
+            'status'         => $harvest->status,
+            'd_status'       => $dStatus,
+            'rawfile'        => $harvest->rawfile,
+            'error_id'       => (int) ($harvest->error_id ?? 0),
+            'error'          => [
                 'id'      => (int) ($harvest->error_id ?? 0),
                 'message' => '',
             ],
-            'failed'      => [],
+            'failed'         => [],
         ];
 
         $rec['updated'] = $harvest->updated_at ? $harvest->updated_at->toIso8601String() : '';

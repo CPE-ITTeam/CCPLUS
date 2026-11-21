@@ -1684,6 +1684,14 @@ const rawTableSetup = {
         type: "date",
         editable: false,
       },
+      {
+        name: "actions",
+        get label() {
+          return t("fields.actions");
+        },
+        header: "center",
+        editable: false,
+      },
     ],
     required: [],
     static: ["id"],

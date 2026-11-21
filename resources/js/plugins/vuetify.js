@@ -107,6 +107,9 @@ export default createVuetify({
         "text-title-large font-weight-semibold text-primary mb-3 d-flex align-center",
     },
     VAlert: {
+      variant: "tonal",
+      rounded: "lg",
+      closeIcon: "mdi-close-circle",
       VBtn: {
         color: undefined,
         variant: "text",
@@ -119,6 +122,7 @@ export default createVuetify({
         },
       },
     },
+
 
     VAppBar: {
       color: "surface",
