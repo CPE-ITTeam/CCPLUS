@@ -22,7 +22,7 @@ class User extends Authenticatable
      */
     protected $fillable = [
         'id', 'name', 'email', 'email_verified_at', 'password', 'inst_id', 'phone', 'fiscalYr',
-        'language', 'optin_alerts', 'is_active', 'password_change_required'
+        'language', 'theme', 'session_timeout', 'optin_alerts', 'is_active', 'password_change_required'
     ];
 
     protected $casts =[

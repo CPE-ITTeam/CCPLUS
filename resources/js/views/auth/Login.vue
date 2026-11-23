@@ -1,6 +1,6 @@
 <!-- views/auth/Login.vue -->
 <script setup>
-import { ref, onMounted } from 'vue';
+import { ref, computed, onMounted } from 'vue';
 import { useRoute } from 'vue-router';
 import { storeToRefs } from 'pinia';
 import { useAuthStore } from '@/stores/useAuthStore.js';
@@ -22,6 +22,10 @@ const ccplusStore = useCCPlusStore();
 const { consortia } = storeToRefs(ccplusStore);
 const { getConsortia } = ccplusStore;
 
+const activeConsortia = computed(() =>
+  consortia.value.filter((c) => Boolean(c.is_active) && c.status !== 'Inactive')
+);
+
 function selectConsortium(conso) {
   preset_conso.value = conso.name;
   consortium.value = conso;
@@ -32,11 +36,11 @@ onMounted(async () => {
   clearLoginError();
   await getConsortia();
 
-  if (consortia.value.length === 1) {
-    selectConsortium(consortia.value[0]);
+  if (activeConsortia.value.length === 1) {
+    selectConsortium(activeConsortia.value[0]);
   } else {
     const queryKeys = Object.keys(route.query);
-    const matched = consortia.value.find((c) => queryKeys.includes(c.ccp_key));
+    const matched = activeConsortia.value.find((c) => queryKeys.includes(c.ccp_key));
     if (matched) selectConsortium(matched);
   }
 });
@@ -61,7 +65,7 @@ onMounted(async () => {
         <v-select
           v-else
           v-model="consortium"
-          :items="consortia"
+          :items="activeConsortia"
           item-title="name"
           return-object
           :label="$t('datasets.consortia.title')"

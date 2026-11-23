@@ -100,21 +100,27 @@ export async function exportDatasetToExcel({
     // Extract column keys from the computed map structure
     const headers = Object.keys(safeDataRows[0]);
     
-    // Configure columns array with header names
+    // Configure columns array with header names (automatically populates Row 1)
     itemsSheet.columns = headers.map(header => ({
       header: header,
       key: header
     }));
 
-    // Append rows safely
-    safeDataRows.forEach(row => {
-      const rowData = {};
-      headers.forEach(key => {
-        // Strip null values into empty strings to stay safe against Excel layout recovery errors
-        rowData[key] = (row[key] === null || row[key] === undefined) ? "" : row[key];
+    const isTemplateOnly =
+      safeDataRows.length === 1 &&
+      headers.every(key => safeDataRows[0][key] === '' || safeDataRows[0][key] == null);
+
+    // Append data rows only when real records exist (leave header row alone for empty import templates)
+    if (!isTemplateOnly) {
+      safeDataRows.forEach(row => {
+        const rowData = {};
+        headers.forEach(key => {
+          rowData[key] = (row[key] === null || row[key] === undefined) ? "" : row[key];
+        });
+        itemsSheet.addRow(rowData);
       });
-      itemsSheet.addRow(rowData);
-    });
+    }
+
 
     // ─── SAFE AUTO-SIZING BLOCK ───
     try {

@@ -317,9 +317,23 @@ class HarvestLogController extends BaseController
         $consoAdmin = $thisUser->isConsoAdmin();
         $limit_insts = $consoAdmin ? [] : $thisUser->adminInsts();
 
+        $validCreds = Credential::with(['institution', 'provider', 'provider.registries'])
+            ->where('status', 'Enabled')
+            ->whereHas('institution', fn ($q) => $q->where('id', '>', 1)->where('is_active', true))
+            ->when(count($limit_insts) > 0, fn ($q) => $q->whereIn('inst_id', $limit_insts))
+            ->get()
+            ->filter(fn ($cred) => $cred->provider?->is_active && $cred->isComplete());
+
+        $validProvIds = $validCreds->pluck('prov_id')->unique()->all();
+        $validInstIds = $validCreds->pluck('inst_id')->unique()->all();
+        $validPairsByProv = $validCreds
+            ->groupBy('prov_id')
+            ->map(fn ($group) => $group->pluck('inst_id')->map(fn ($id) => (int) $id)->unique()->all());
+
         $institutions = Institution::where('id', '>', 1)
             ->where('is_active', true)
-            ->when(count($limit_insts) > 0, fn($q) => $q->whereIn('id', $limit_insts))
+            ->whereIn('id', $validInstIds)
+            ->when(count($limit_insts) > 0, fn ($q) => $q->whereIn('id', $limit_insts))
             ->orderBy('name', 'ASC')
             ->get(['id', 'name'])
             ->toArray();
@@ -330,7 +344,7 @@ class HarvestLogController extends BaseController
 
         $inst_groups = $consoAdmin ? $allGroups->toArray() : [];
         $groupInstMap = $allGroups->mapWithKeys(
-            fn($g) => [$g->id => $g->institutions->pluck('id')->map(fn($id) => (int) $id)->all()]
+            fn ($g) => [$g->id => $g->institutions->pluck('id')->map(fn ($id) => (int) $id)->all()]
         );
 
         $master_reports = Report::where('parent_id', 0)
@@ -339,16 +353,19 @@ class HarvestLogController extends BaseController
 
         $connections = Connection::with('reports:id,name')
             ->where('is_active', true)
+            ->whereIn('global_id', $validProvIds)
             ->get();
 
         $cnxByGlobal = $connections->groupBy('global_id');
+        $eligibleProvIds = array_values(array_intersect($validProvIds, $cnxByGlobal->keys()->all()));
 
         $platforms = GlobalProvider::where('is_active', true)
-            ->whereIn('id', $cnxByGlobal->keys())
+            ->whereIn('id', $eligibleProvIds)
             ->orderBy('name', 'ASC')
             ->get(['id', 'name'])
-            ->map(function ($gp) use ($cnxByGlobal, $master_reports, $groupInstMap) {
+            ->map(function ($gp) use ($cnxByGlobal, $master_reports, $groupInstMap, $validPairsByProv) {
                 $gpCnxs = $cnxByGlobal->get($gp->id, collect());
+                $allowedInstsForProv = $validPairsByProv->get($gp->id, []);
                 $instSet = [];
                 $reportMap = [];
 
@@ -360,13 +377,20 @@ class HarvestLogController extends BaseController
                     $cnxInsts = [];
                     if ($cnx->inst_id == 1) {
                         $instSet[1] = true;
+                        foreach ($allowedInstsForProv as $validInstId) {
+                            $instSet[$validInstId] = true;
+                        }
                     } elseif (!is_null($cnx->inst_id)) {
-                        $instSet[$cnx->inst_id] = true;
-                        $cnxInsts[] = (int) $cnx->inst_id;
+                        if (in_array((int) $cnx->inst_id, $allowedInstsForProv, true)) {
+                            $instSet[(int) $cnx->inst_id] = true;
+                            $cnxInsts[] = (int) $cnx->inst_id;
+                        }
                     } elseif (!is_null($cnx->group_id)) {
                         foreach ($groupInstMap->get($cnx->group_id, []) as $gInstId) {
-                            $instSet[$gInstId] = true;
-                            $cnxInsts[] = $gInstId;
+                            if (in_array((int) $gInstId, $allowedInstsForProv, true)) {
+                                $instSet[(int) $gInstId] = true;
+                                $cnxInsts[] = (int) $gInstId;
+                            }
                         }
                     }
 
@@ -391,6 +415,7 @@ class HarvestLogController extends BaseController
                     'reports'      => $reportMap,
                 ];
             })
+            ->filter(fn ($plat) => count($plat['institutions']) > 0)
             ->sortBy('name', SORT_NATURAL | SORT_FLAG_CASE)
             ->values()
             ->toArray();
@@ -432,8 +457,8 @@ class HarvestLogController extends BaseController
             return $this->respondError(__('harvests.errors.missing_consortium'));
         }
 
-        $provIds = $input['plat'] ?? $input['prov'] ?? [];
-        $instIds = $input['inst'] ?? [];
+        $provIds = Arr::wrap($input['plat'] ?? $input['prov'] ?? $input['platforms'] ?? $input['prov_id'] ?? []);
+        $instIds = Arr::wrap($input['inst'] ?? $input['institutions'] ?? $input['inst_id'] ?? []);
         $groupId = $input['inst_group_id'] ?? $input['inst_group'] ?? 0;
         if (!empty($groupId)) {
             $group = InstitutionGroup::with('institutions:id')->find($groupId);
@@ -457,7 +482,7 @@ class HarvestLogController extends BaseController
             'provider.connections.reports',
         ])
             ->whereIn('prov_id', $provIds)
-            ->when(count($instIds) > 0, fn($q) => $q->whereIn('inst_id', $instIds))
+            ->when(count($instIds) > 0, fn ($q) => $q->whereIn('inst_id', $instIds))
             ->where('status', 'Enabled')
             ->get();
 
@@ -465,7 +490,7 @@ class HarvestLogController extends BaseController
             return $this->respondError(__('harvests.errors.missing_credentials'));
         }
 
-        $reportInputs = $input['reports'] ?? [];
+        $reportInputs = Arr::wrap($input['reports'] ?? []);
         $reports = Report::where('parent_id', 0)
             ->where(function ($q) use ($reportInputs) {
                 $q->whereIn('id', $reportInputs)->orWhereIn('name', $reportInputs);
@@ -486,7 +511,11 @@ class HarvestLogController extends BaseController
         $messages = [];
 
         foreach ($credentials as $cred) {
-            if (!$cred->institution?->is_active || !$cred->provider?->is_active) {
+            if (
+                $cred->status !== 'Enabled' ||
+                !$cred->institution?->is_active ||
+                !$cred->provider?->is_active
+            ) {
                 continue;
             }
 
@@ -567,7 +596,6 @@ class HarvestLogController extends BaseController
                 shell_exec(sprintf('%s%s %s ccplus:harvester >> %s 2>&1 < /dev/null &', $setsid, escapeshellarg($php), escapeshellarg($artisan), escapeshellarg($log)));
             }
         }
-
 
         return response()->json([
             'result'   => true,

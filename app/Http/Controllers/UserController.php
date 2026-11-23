@@ -131,8 +131,10 @@ class UserController extends BaseController
         $data['inst_name'] = $user->institution?->name;
 
         // Keep personal overrides null when inherited
-        $data['fiscalYr'] = $user->fiscalYr ?: null;
-        $data['language'] = $user->language ?: null;
+        $data['fiscalYr']        = $user->fiscalYr ?: null;
+        $data['language']        = $user->language ?: null;
+        $data['theme']           = $user->theme ?: null;
+        $data['session_timeout'] = $user->session_timeout ?: null;
 
         if ($user->institution) {
             $inst = $user->institution;
@@ -155,16 +157,23 @@ class UserController extends BaseController
         $data['access_token'] = $token ? Crypt::decryptString($user->enc_api_token) : null;
         $data['token_expires'] = $token ? $token->expires_at : null;
 
+        $ccpKey = request()->header('X-Tenant') ?: session('ccp_key');
+        $conso = \App\Models\Consortium::where('ccp_key', $ccpKey)->first();
+
         $inheritedFy = $this->consortiumFiscalYr();
-        $consoLang = \App\Models\Consortium::where('ccp_key', session('ccp_key'))->value('language');
-        $inheritedLang = $consoLang ?: config('ccplus.language', config('app.locale', 'en'));
+        $inheritedLang = $conso?->language ?: config('ccplus.language', config('app.locale', 'en'));
+        $inheritedTheme = $conso?->theme ?: 'light';
+        $globalTimeout = (int) (\App\Models\GlobalSetting::where('name', 'session_timeout')->value('value') ?: config('session.lifetime', 120));
+        $inheritedTimeout = (int) ($conso?->session_timeout ?: $globalTimeout);
 
         return response()->json([
-            'records'         => $data,
-            'defaultFiscalYr' => $inheritedFy,
-            'defaultLanguage' => $inheritedLang,
-            'options'         => [],
-            'result'          => true,
+            'records'               => $data,
+            'defaultFiscalYr'       => $inheritedFy,
+            'defaultLanguage'       => $inheritedLang,
+            'defaultTheme'          => $inheritedTheme,
+            'defaultSessionTimeout' => $inheritedTimeout,
+            'options'               => [],
+            'result'                => true,
         ], 200);
     }
 
@@ -330,16 +339,17 @@ class UserController extends BaseController
             return $this->respondError(__('users.update_forbidden'));
         }
 
-        $fields = [];
+        $fields = [
+            'theme'           => 'nullable|string|in:light,emerald,indigo,plum,slate',
+            'session_timeout' => 'nullable|integer|min:15|max:1440',
+        ];
         if (!empty($request->password)) {
             $fields['password'] = 'same:confirm_pass';
         }
         if (isset($request->email) && $request->email !== 'Administrator') {
             $fields['email'] = 'email|unique:consodb.users,email,' . $user->id;
         }
-        if (count($fields) > 0) {
-            $this->validate($request, $fields);
-        }
+        $this->validate($request, $fields);
 
         $input = $request->all();
         if (empty($input['password'])) {
@@ -347,7 +357,7 @@ class UserController extends BaseController
         }
         $input = Arr::except($input, ['confirm_pass']);
 
-        // Normalize fiscalYr and language (null = inherit nearest default)
+        // Normalize fiscalYr, language, theme, and session_timeout (null = inherit nearest default)
         $defaultFiscalYr = $this->consortiumFiscalYr($request);
         if (array_key_exists('fiscalYr', $input)) {
             $input['fiscalYr'] = $this->normalizeFiscalYr($input['fiscalYr'], $defaultFiscalYr);
@@ -356,17 +366,29 @@ class UserController extends BaseController
             $lang = trim((string) $input['language']);
             $input['language'] = strlen($lang) > 0 ? $lang : null;
         }
+        if (array_key_exists('theme', $input)) {
+            $theme = trim((string) $input['theme']);
+            $input['theme'] = strlen($theme) > 0 ? $theme : null;
+        }
+        if (array_key_exists('session_timeout', $input)) {
+            $timeout = $input['session_timeout'];
+            $input['session_timeout'] = ($timeout !== null && $timeout !== '') ? (int) $timeout : null;
+        }
 
         // Non-admins updating their own profile may only edit personal fields & preferences
         if (!$thisUser->isAdmin()) {
-            $userData = array_intersect_key($input, array_flip(['name', 'email', 'password', 'fiscalYr', 'language']));
+            $userData = array_intersect_key($input, array_flip([
+                'name', 'email', 'password', 'fiscalYr', 'language', 'theme', 'session_timeout',
+            ]));
             $user->update($userData);
             $user->load(['institution:id,name', 'roles']);
 
             $updated_user = $user->toArray();
-            $updated_user['inst_name'] = $user->institution?->name;
-            $updated_user['fiscalYr']  = $user->fiscalYr ?: $defaultFiscalYr;
-            $updated_user['language']  = $user->language;
+            $updated_user['inst_name']       = $user->institution?->name;
+            $updated_user['fiscalYr']        = $user->fiscalYr ?: $defaultFiscalYr;
+            $updated_user['language']        = $user->language;
+            $updated_user['theme']           = $user->theme;
+            $updated_user['session_timeout'] = $user->session_timeout;
 
             return $this->respondSuccess(__('users.updated'), $updated_user);
         }

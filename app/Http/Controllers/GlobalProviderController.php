@@ -461,59 +461,102 @@ class GlobalProviderController extends BaseController
         if (!$thisUser->isServerAdmin()) {
             return $this->respondError(__('connections.forbidden_request'));
         }
+
         $this->validate($request, ['ids' => 'required', 'action' => 'required']);
         $input = $request->all();
+
         if (!in_array($input['action'], ['Set Active', 'Set Inactive', 'Delete'], true)) {
             return $this->respondError(__('connections.bulk_unrecognized'));
         }
+
         $gp_data = GlobalProvider::whereIn('id', $input['ids'])->get();
         $successIds = [];
         $skippedIds = [];
         $failureIds = [];
         $new_value = ($input['action'] === 'Set Active') ? 1 : 0;
-        foreach ($gp_data as $global) {
-            if ($input['action'] === 'Set Active' || $input['action'] === 'Set Inactive') {
+
+        if ($input['action'] === 'Set Active' || $input['action'] === 'Set Inactive') {
+            foreach ($gp_data as $global) {
                 if ($global->is_active == $new_value) {
                     $skippedIds[] = $global->id;
                 } else {
                     $global->update(['is_active' => $new_value]);
+                    $global->applyToInstances();
                     $successIds[] = $global->id;
                 }
-            } elseif ($input['action'] === 'Delete') {
-                try {
-                    $global->delete();
-                    $successIds[] = $global->id;
-                } catch (\Exception $ex) {
-                    $failureIds[] = $global->id;
+            }
+        } elseif ($input['action'] === 'Delete') {
+            $instances = Consortium::get();
+            $keepDB = config('database.connections.consodb.database');
+
+            try {
+                foreach ($gp_data as $global) {
+                    // Guard: skip platforms that have existing harvests in any consortium
+                    $hasHarvests = false;
+                    foreach ($instances as $instance) {
+                        $details = $this->instanceDetails($instance->ccp_key, $global);
+                        if (($details['harvest_count'] ?? 0) > 0) {
+                            $hasHarvests = true;
+                            break;
+                        }
+                    }
+
+                    if ($hasHarvests) {
+                        $skippedIds[] = $global->id;
+                        continue;
+                    }
+
+                    try {
+                        foreach ($instances as $instance) {
+                            config(['database.connections.consodb.database' => 'ccplus_' . $instance->ccp_key]);
+                            DB::purge('consodb');
+                            DB::reconnect('consodb');
+                            DB::connection('consodb')->table('connections')->where('global_id', $global->id)->delete();
+                        }
+
+                        $global->delete();
+                        $successIds[] = $global->id;
+                    } catch (\Exception $ex) {
+                        \Log::error("Failed bulk deleting GlobalProvider {$global->id}: " . $ex->getMessage());
+                        $failureIds[] = $global->id;
+                    }
                 }
-            }
-            $global->applyToInstances();
-        }
-        $msg = '';
-        if (count($skippedIds) > 0 || count($failureIds) > 0) {
-            $msg = __('connections.bulk_updated', ['count' => count($successIds)]);
-            if (count($skippedIds) > 0) {
-                $msg .= __('connections.bulk_skipped', ['count' => count($skippedIds)]);
-            }
-            if (count($failureIds) > 0) {
-                $msg .= __('connections.bulk_failed', ['count' => count($failureIds)]);
+            } finally {
+                config(['database.connections.consodb.database' => $keepDB]);
+                DB::purge('consodb');
+                DB::reconnect('consodb');
             }
         }
-        return response()->json(['result' => true, 'msg' => $msg, 'affectedIds' => $successIds], 200);
+
+        $msg = __('connections.bulk_updated', ['count' => count($successIds)]);
+        if (count($skippedIds) > 0) {
+            $msg .= ' ' . __('connections.bulk_skipped', ['count' => count($skippedIds)]);
+        }
+        if (count($failureIds) > 0) {
+            $msg .= ' ' . __('connections.bulk_failed', ['count' => count($failureIds)]);
+        }
+
+        return response()->json([
+            'result'      => count($successIds) > 0 || count($failureIds) === 0,
+            'msg'         => trim($msg),
+            'affectedIds' => $successIds,
+        ], 200);
     }
+
     /**
      * GET route to pull platform data for exporting.
      */
     public function export(Request $request)
     {
         $thisUser = auth()->user();
-        abort_unless($thisUser->isServerAdmin(), 403);
+        abort_unless($thisUser->isConsoAdmin() || $thisUser->isServerAdmin(), 403);
         $gp_data = GlobalProvider::with('registries')->orderBy('name', 'ASC')->get();
         $this->getMasterReports();
         $this->getConnectionFields();
         $providers = [];
+
         foreach ($gp_data as $gp) {
-            $provider = [
+            $baseProvider = [
                 'id'            => $gp->id,
                 'legacy_id'     => $gp->legacy_id,
                 'registry_id'   => (is_null($gp->registry_id) || $gp->registry_id === '') ? null : $gp->registry_id,
@@ -524,7 +567,13 @@ class GlobalProviderController extends BaseController
                 'refreshable'   => $gp->refreshable ? 'Active' : 'Inactive',
             ];
 
+            if ($gp->registries->isEmpty()) {
+                $providers[] = $baseProvider;
+                continue;
+            }
+
             foreach ($gp->registries->sortBy('release') as $registry) {
+                $provider = $baseProvider;
                 $provider['release'] = trim($registry->release);
                 $provider['service_url'] = $registry->service_url;
                 foreach ($this->connectorState($registry->connectors) as $con => $val) {
@@ -536,8 +585,10 @@ class GlobalProviderController extends BaseController
                 $providers[] = $provider;
             }
         }
+
         return response()->json(['records' => $providers], 200);
     }
+
 
     /**
      * Import providers from a CSV file to the database.

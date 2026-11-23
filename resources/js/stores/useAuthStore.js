@@ -9,6 +9,7 @@ export const useAuthStore = defineStore("useAuthStore", {
     isAuthenticated: false,
     ccp_key: "",
     theme: "light",
+    sessionTimeout: 120,
     user: { id: null, name: "", inst_id: null, fiscalYr: "" },
     roles: [],
     adminInsts: [],
@@ -49,7 +50,7 @@ export const useAuthStore = defineStore("useAuthStore", {
       );
     },
 
-        has_multi_inst: (state) => {
+    has_multi_inst: (state) => {
       if (!state.isAuthenticated) return false;
       if (state.roles.some((r) => r.name === "ServerAdmin" || ((r.name === "Admin" || r.name === "Viewer") && r.inst_id === 1))) {
         return true;
@@ -128,6 +129,7 @@ export const useAuthStore = defineStore("useAuthStore", {
       this.adminGroups = [...payload.adminGroups];
       this.ccp_key = payload.consoKey || "con_template";
       this.theme = payload.theme || "light";
+      this.sessionTimeout = Number(payload.sessionTimeout) || 120;
       if (payload.language) {
         setAppLocale(payload.language);
       }
@@ -151,8 +153,9 @@ export const useAuthStore = defineStore("useAuthStore", {
       this.token = null;
       this.ccp_key = "";
       this.theme = "light";
+      this.sessionTimeout = 120;
       this.user = { id: null, name: "", inst_id: null, fiscalYr: "" };
-      this.roles = []; // Fixed array baseline type prevents layout runtime exceptions
+      this.roles = [];
       this.adminInsts = [];
       this.adminGroups = [];
       this.isAuthenticated = false;
@@ -161,6 +164,10 @@ export const useAuthStore = defineStore("useAuthStore", {
 
     setTheme(theme) {
       this.theme = theme || "light";
+    },
+
+    setSessionTimeout(minutes) {
+      this.sessionTimeout = Number(minutes) || 120;
     },
 
     logoutStateClear() {
@@ -204,10 +211,12 @@ export const useAuthStore = defineStore("useAuthStore", {
         if (res?.data?.theme) {
           this.theme = res.data.theme;
         }
+        if (res?.data?.sessionTimeout) {
+          this.sessionTimeout = Number(res.data.sessionTimeout);
+        }
       } catch (error) {
         console.error("Failed to update active tenant database scope:", error);
       }
     },
-
   },
 });

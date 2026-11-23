@@ -19,8 +19,10 @@ const FIELD_DEFAULTS = {
   icon: "",
   helperText: "",
   options: null,
+  truncate: 30, // Accepts: number (character limit) | null | false (disable truncation)
   cols: 12,
 };
+
 
 // ─────────────────────────────────────────────────────────────────────────
 // STEP 2: SCHEMA PERMISSION HELPERS
@@ -940,7 +942,9 @@ const rawTableSetup = {
         get label() {
           return t("fields.data_host");
         },
+        truncate: 20,
       },
+
       {
         name: "day_of_month",
         get label() {
@@ -1699,10 +1703,11 @@ const rawTableSetup = {
     sortby: "inst_name",
   },
 
-  audit: {
+   audit: {
     urlRoot: "/api/audit",
     title: "",
     fields: [
+      // ─── TABLE COLUMNS ───
       {
         name: "plat_name",
         get label() {
@@ -1727,20 +1732,6 @@ const rawTableSetup = {
         },
         type: "toggle",
         header: "center",
-        searchable: false,
-      },
-      {
-        name: "platforms",
-        get label() {
-          return t("fields.platforms");
-        },
-        type: "mselect",
-        options: "fromURL",
-        optVal: "id",
-        optTxt: "name",
-        isFilter: true,
-        filterCol: "plat_id",
-        header: null,
         searchable: false,
       },
       {
@@ -1784,20 +1775,6 @@ const rawTableSetup = {
         searchable: false,
       },
       {
-        name: "institutions",
-        get label() {
-          return t("fields.institutions");
-        },
-        type: "mselect",
-        options: "fromURL",
-        optVal: "id",
-        optTxt: "name",
-        isFilter: true,
-        filterCol: "inst_id",
-        header: null,
-        searchable: false,
-      },
-      {
         name: "json_inst",
         get label() {
           return t("fields.json_institution");
@@ -1812,6 +1789,48 @@ const rawTableSetup = {
         type: "array",
         header: null,
         editable: false,
+        searchable: false,
+      },
+
+      // ─── TOOLBAR FILTERS ───
+      {
+        name: "is_conso",
+        get label() {
+          return t("fields.consortial", "Consortial");
+        },
+        type: "toggle",
+        options: "",
+        isFilter: true,
+        filterCol: "is_conso",
+        header: null,
+        searchable: false,
+      },
+      {
+        name: "platforms",
+        get label() {
+          return t("fields.platforms");
+        },
+        type: "mselect",
+        options: "fromURL",
+        optVal: "id",
+        optTxt: "name",
+        isFilter: true,
+        filterCol: "plat_id",
+        header: null,
+        searchable: false,
+      },
+      {
+        name: "institutions",
+        get label() {
+          return t("fields.institutions");
+        },
+        type: "mselect",
+        options: "fromURL",
+        optVal: "id",
+        optTxt: "name",
+        isFilter: true,
+        filterCol: "inst_id",
+        header: null,
         searchable: false,
       },
       {
@@ -1837,18 +1856,6 @@ const rawTableSetup = {
         options: "fromURL",
         isFilter: true,
         filterCol: "valid_state",
-        header: null,
-        searchable: false,
-      },
-      {
-        name: "conso_only",
-        get label() {
-          return t("fields.consortium_only");
-        },
-        type: "toggle",
-        options: ["Inactive", "Active"],
-        isFilter: true,
-        filterCol: "is_conso",
         header: null,
         searchable: false,
       },
@@ -1905,6 +1912,7 @@ const rawTableSetup = {
     ],
     sortby: "platform",
   },
+
 
   jobs: {
     urlRoot: "/api/jobs",

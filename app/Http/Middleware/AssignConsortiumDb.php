@@ -4,6 +4,8 @@ namespace App\Http\Middleware;
 
 use DB;
 use Closure;
+use App\Models\Consortium;
+use App\Models\GlobalSetting;
 use Illuminate\Http\Request;
 use Symfony\Component\HttpFoundation\Response;
 use Illuminate\Support\Facades\Config;
@@ -66,6 +68,25 @@ class AssignConsortiumDb
             DB::purge('consodb');
             DB::reconnect('consodb');
             DB::setDefaultConnection('consodb');
+        }
+
+        // 6. Enforce cascading idle session timeout (User -> Consortium -> Global Default)
+        $user = $request->user();
+        if ($user) {
+            $token = $user->currentAccessToken();
+            if ($token) {
+                $conso = (!empty($key) && $key !== 'con_template')
+                    ? Consortium::where('ccp_key', $key)->first()
+                    : null;
+                $globalTimeout = (int) (GlobalSetting::where('name', 'session_timeout')->value('value') ?: config('session.lifetime', 120));
+                $effectiveTimeout = (int) ($user->session_timeout ?: ($conso?->session_timeout ?: $globalTimeout));
+
+                $lastActivity = $token->last_used_at ?? $token->created_at;
+                if ($effectiveTimeout > 0 && $lastActivity && $lastActivity->lt(now()->subMinutes($effectiveTimeout))) {
+                    $token->delete();
+                    return response()->json(['message' => 'Session expired.'], 401);
+                }
+            }
         }
 
         return $next($request);

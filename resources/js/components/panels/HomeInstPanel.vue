@@ -8,6 +8,8 @@ import SettingsPanelShell from '@/components/ui/SettingsPanelShell.vue';
 import LockTip from '@/components/ui/LockTip.vue';
 import { CONSORTIUM_THEMES } from '@/plugins/vuetify.js';
 import NumberStepper from '@/components/ui/NumberStepper.vue';
+import { formatDurationMinutes } from '@/utils/datasetHelpers.js';
+
 
 const props = defineProps({
   dataset: { type: Object, required: true },
@@ -16,6 +18,7 @@ const props = defineProps({
   submitLabel: { type: String, default: '' },
   modelValue: { type: Object, required: true },
   optionsMap: { type: Object, default: () => ({}) },
+  defaultSessionTimeout: { type: Number, default: 120 },
   isServerAdmin: { type: Boolean, default: false },
   isConsoAdmin: { type: Boolean, default: false },
   canEditOrg: { type: Boolean, default: false },
@@ -39,7 +42,6 @@ const fteValue = computed({
   get: () => Number(props.modelValue.fte ?? 0),
   set: (val) => updateField('fte', val),
 });
-
 
 const emit = defineEmits(['update:modelValue', 'submit']);
 
@@ -83,7 +85,6 @@ const getFieldRules = (field) => {
   }
   return rules;
 };
-
 
 const formatLines = (field) => {
   const val = props.modelValue[field.name];
@@ -176,7 +177,7 @@ const resolveSelectDisplay = (field) => {
           @update:model-value="updateField('email', $event)" />
       </v-col>
 
-      <!-- Column 3: Consortium Preferences (FY & Language) -->
+      <!-- Column 3: Consortium Preferences (FY, Language, Theme & Session Timeout) -->
       <v-col cols="12" md="12" lg="4" class="pt-0">
         <SectionHeading>
           <v-icon start size="22" class="me-2" aria-hidden="true">mdi-tune-variant</v-icon>
@@ -201,6 +202,7 @@ const resolveSelectDisplay = (field) => {
           item-title="name"
           :readonly="!canEditOrg"
           :clearable="false"
+          class="mb-4"
           @update:model-value="updateField('theme', $event)"
         >
           <template #selection="{ item }">
@@ -229,6 +231,24 @@ const resolveSelectDisplay = (field) => {
             </v-list-item>
           </template>
         </v-select>
+
+      <NumberStepper
+        :model-value="modelValue.session_timeout ?? defaultSessionTimeout"
+        :label="$t('server.session_timeout', 'Session Timeout')"
+        :display-text="formatDurationMinutes(modelValue.session_timeout ?? defaultSessionTimeout)"
+        :clearable="canEditOrg && modelValue.session_timeout !== null && modelValue.session_timeout !== undefined"
+        :readonly="!canEditOrg"
+        :disabled="!canEditOrg"
+        :min="15"
+        :max="defaultSessionTimeout"
+        :step="15"
+        @update:model-value="updateField('session_timeout', $event)"
+        @click:clear="updateField('session_timeout', null)"
+      />
+
+        <div class="text-caption text-medium-emphasis mt-1">
+          {{ modelValue.session_timeout ? $t('account.override_active') : `${$t('account.using_inherited_default')} (${defaultSessionTimeout}m)` }}
+        </div>
       </v-col>
     </v-row>
 
@@ -281,8 +301,8 @@ const resolveSelectDisplay = (field) => {
         </v-row>
 
       </v-col>
-
-      <!-- Column 2: Classification & Groups -->
+      
+            <!-- Column 2: Classification & Groups -->
       <v-col cols="12" md="6" lg="4" class="pt-0">
         <SectionHeading>
           <v-icon start size="22" class="me-2" aria-hidden="true">mdi-shape-outline</v-icon>

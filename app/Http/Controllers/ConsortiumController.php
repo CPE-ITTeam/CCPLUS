@@ -17,7 +17,7 @@ class ConsortiumController extends BaseController
     /**
      * Return a JSON array of known consortia, including inactive ones.
      */
-      private function normalizeFiscalYr($value): ?string
+    private function normalizeFiscalYr($value): ?string
     {
         if (is_null($value) || $value === '') {
             return null;
@@ -79,7 +79,7 @@ class ConsortiumController extends BaseController
             return ['id' => $name, 'name' => $name];
         })->values()->all();
 
-        $languages = collect(['en', 'de', 'es', 'fi', 'fr', 'hu'])->map(fn ($code) => [
+        $languages = collect(['en', 'de', 'es', 'fi', 'fr', 'hu'])->map(fn($code) => [
             'id'   => $code,
             'name' => strtoupper($code),
         ])->values()->all();
@@ -268,9 +268,10 @@ class ConsortiumController extends BaseController
         }
 
         $this->validate($request, [
-            'email'    => 'nullable|email',
-            'language' => 'nullable|string|max:10',
-            'theme'    => 'nullable|string|in:light,emerald,indigo,plum,slate',
+            'email'           => 'nullable|email',
+            'language'        => 'nullable|string|max:10',
+            'theme'           => 'nullable|string|in:light,emerald,indigo,plum,slate',
+            'session_timeout' => 'nullable|integer|min:15|max:1440',
         ]);
 
         $consortium = Consortium::findOrFail($id);
@@ -303,6 +304,11 @@ class ConsortiumController extends BaseController
             $consortium->theme = strlen($theme) > 0 ? $theme : 'light';
         }
 
+        if ($request->has('session_timeout')) {
+            $timeout = $request->input('session_timeout');
+            $consortium->session_timeout = ($timeout !== null && $timeout !== '') ? (int) $timeout : null;
+        }
+
         // Never allow ccp_key to be changed after creation
         $consortium->save();
 
@@ -322,13 +328,15 @@ class ConsortiumController extends BaseController
         }
 
         $defaultLanguage = config('ccplus.language', config('app.locale', 'en'));
-        $consortium->admin_name = $adminName ?? 'CC-Plus Administrator';
-        $consortium->fiscalYr   = $consortium->effectiveFiscalYr();
-        $consortium->language   = $consortium->language ?: $defaultLanguage;
-        $consortium->theme      = $consortium->theme ?: 'light';
-        $consortium->status     = $consortium->is_active ? 'Active' : 'Inactive';
-        $consortium->can_edit   = true;
-        $consortium->can_delete = true;
+        $globalTimeout   = (int) (\App\Models\GlobalSetting::where('name', 'session_timeout')->value('value') ?: config('session.lifetime', 120));
+        $consortium->admin_name        = $adminName ?? 'CC-Plus Administrator';
+        $consortium->fiscalYr          = $consortium->effectiveFiscalYr();
+        $consortium->language          = $consortium->language ?: $defaultLanguage;
+        $consortium->theme             = $consortium->theme ?: 'light';
+        $consortium->effective_timeout = $consortium->session_timeout ?: $globalTimeout;
+        $consortium->status            = $consortium->is_active ? 'Active' : 'Inactive';
+        $consortium->can_edit          = true;
+        $consortium->can_delete        = true;
 
         return response()->json([
             'result' => true,
@@ -336,8 +344,6 @@ class ConsortiumController extends BaseController
             'msg'    => __('users.conso_updated', ['name' => $consortium->name]),
         ]);
     }
-
-
 
     /**
      * Return the active tenant's Consortium record for Consortium Admins.
@@ -366,11 +372,15 @@ class ConsortiumController extends BaseController
             $consortium->theme = 'light';
         }
 
+        $globalTimeout = (int) (\App\Models\GlobalSetting::where('name', 'session_timeout')->value('value') ?: config('session.lifetime', 120));
+        $consortium->effective_timeout = $consortium->session_timeout ?: $globalTimeout;
+
         return response()->json([
-            'result'          => true,
-            'consortium'      => $consortium,
-            'defaultFiscalYr' => config('ccplus.fiscalYr'),
-            'defaultLanguage' => $defaultLanguage,
+            'result'                => true,
+            'consortium'            => $consortium,
+            'defaultFiscalYr'       => config('ccplus.fiscalYr'),
+            'defaultLanguage'       => $defaultLanguage,
+            'defaultSessionTimeout' => $globalTimeout,
         ], 200);
     }
 
@@ -386,11 +396,12 @@ class ConsortiumController extends BaseController
         }
 
         $this->validate($request, [
-            'name'       => 'required|string|max:255',
-            'admin_name' => 'nullable|string|max:255',
-            'email'      => 'required|email|max:255',
-            'language'   => 'nullable|string|max:10',
-            'theme'      => 'nullable|string|in:light,emerald,indigo,plum,slate',
+            'name'            => 'required|string|max:255',
+            'admin_name'      => 'nullable|string|max:255',
+            'email'           => 'required|email|max:255',
+            'language'        => 'nullable|string|max:10',
+            'theme'           => 'nullable|string|in:light,emerald,indigo,plum,slate',
+            'session_timeout' => 'nullable|integer|min:15|max:1440',
         ]);
 
         $ccpKey = $request->header('X-Tenant') ?: session('ccp_key');
@@ -417,6 +428,11 @@ class ConsortiumController extends BaseController
             $consortium->theme = strlen($theme) > 0 ? $theme : 'light';
         }
 
+        if ($request->has('session_timeout')) {
+            $timeout = $request->input('session_timeout');
+            $consortium->session_timeout = ($timeout !== null && $timeout !== '') ? (int) $timeout : null;
+        }
+
         // Only ServerAdmin may toggle consortium status
         if ($user->isServerAdmin() && $request->has('status')) {
             $consortium->is_active = ($request->input('status') === 'Active' || $request->input('status') === true || $request->input('status') == 1) ? 1 : 0;
@@ -433,11 +449,13 @@ class ConsortiumController extends BaseController
             $consortium->theme = 'light';
         }
 
+        $globalTimeout = (int) (\App\Models\GlobalSetting::where('name', 'session_timeout')->value('value') ?: config('session.lifetime', 120));
+        $consortium->effective_timeout = $consortium->session_timeout ?: $globalTimeout;
+
         return response()->json([
             'result'     => true,
             'consortium' => $consortium,
             'msg'        => __('users.conso_updated', ['name' => $consortium->name]),
         ], 200);
     }
-
 }

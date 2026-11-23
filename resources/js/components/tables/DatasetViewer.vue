@@ -250,8 +250,15 @@ const isEditable = computed(() => {
 });
 
 const selectableRows = computed(() => {
-  if (typeof bulkOptions.value.items === 'undefined') return false;
-  return bulkOptions.value.items.length > 0;
+  const hasBulkActions = Array.isArray(bulkOptions.value.items) && bulkOptions.value.items.length > 0;
+  return hasBulkActions || exportable.value;
+});
+
+const effectiveBulkOptions = computed(() => {
+  if (props.datasetKey === 'platforms' && !authStore.is_serveradmin) {
+    return { ...bulkOptions.value, items: [] };
+  }
+  return bulkOptions.value;
 });
 
 const toolbarFilters = computed(() => {
@@ -274,15 +281,16 @@ const exportable = computed(() => {
   return config.exportFields.length > 0;
 });
 
+
 // ============================================================================
 // PART 5: CORE COMPONENT DATA LIFECYCLES & EVENT BRIDGES
 // ============================================================================
 async function handleExport() {
   const config = datasetConfig[props.datasetKey];
-  if (config.title == 'Platform') {
+  if (props.datasetKey === 'platforms') {
     try {
       const { data } = await api.get('/api/platforms/exportData');
-      platformExportItems.splice(0, platformExportItems.length, ...data.records);
+      platformExportItems.splice(0, platformExportItems.length, ...(data.records || []));
     } catch (error) {
       console.error('Platform pre-fetch error:', error);
     }
@@ -359,12 +367,13 @@ watch(locale, () => {
     <v-sheet class="bg-transparent">
 
       <!-- 1. Toolbar Filters Wrapper -->
-      <DataToolbar v-model="toolbarFilters" :search="search" :dataset="props.datasetKey" :bulkOptions="bulkOptions"
-        :selectedRows="selectedRows" :showSelectedOnly="showSelectedOnly"
-        :hideExport="!exportable || filteredItems.length == 0" @updateConso="handleChangeConso" @export="handleExport"
-        @setFilter="handleFilter" @bulkAction="handleBulk" @add="handleAddItem" @update:search="search = $event"
+      <DataToolbar :model-value="toolbarFilters" :search="search" :dataset="props.datasetKey" :bulkOptions="effectiveBulkOptions"
+         :selectedRows="selectedRows" :showSelectedOnly="showSelectedOnly"
+         :hideExport="!exportable" @updateConso="handleChangeConso" @export="handleExport"
+         @setFilter="handleFilter" @bulkAction="handleBulk" @add="handleAddItem" @update:search="search = $event"
         @update:showSelectedOnly="handleToggle" @refreshRecords="refreshData(props.datasetKey)"
         @imported="handleImported" />
+
 
       <!-- Live COUNTER Registry Refresh Progress Banner (WCAG Accessible) -->
       <v-alert v-if="refreshProgress.active" type="info" variant="tonal" class="my-3 rounded-lg" aria-live="polite">

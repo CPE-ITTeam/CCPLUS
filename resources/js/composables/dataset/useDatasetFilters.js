@@ -1,6 +1,7 @@
-// resources/js/composablesdataset/useDatasetFilters.js
+// resources/js/composables/dataset/useDatasetFilters.js
 
 import { toValue } from 'vue';
+import { isActiveFilterOption } from '@/composables/dataset/useDatasetSchema.js';
 
 export function useDatasetFilters({
   datasetKey,
@@ -42,7 +43,7 @@ export function useDatasetFilters({
           f.show = true;
           continue;
         }
-        if (key === 'is_conso') {
+        if (key === 'is_conso' || key === 'status_switch') {
           f.value = 'All';
           f.show = true;
           continue;
@@ -101,6 +102,11 @@ export function useDatasetFilters({
     if (Array.isArray(filter.value) && filter.value.length === 0) return true;
     if (!Array.isArray(filter.value) && !filter.value) return true;
 
+    if (filter.name === 'status_switch') {
+      if (!filter.value || filter.value === 'All') return true;
+      return String(item[filter.col] || '').toLowerCase() === String(filter.value).toLowerCase();
+    }
+
     if (filter.name === 'is_conso') {
       if (filter.value === 'All' || filter.value === 'Inactive') return true;
       const isConsoItem = Boolean(item[filter.col] ?? item.is_conso);
@@ -132,7 +138,7 @@ export function useDatasetFilters({
     }
 
     if (filter.type === 'toggle') {
-      return filter.value === 'Active' ? Boolean(item[filter.col]) : true;
+      return filter.value === 'Active' ? true : Boolean(item[filter.col]);
     }
 
     if (filter.type === 'mselect' || filter.type === 'mtext') {
@@ -162,6 +168,7 @@ export function useDatasetFilters({
     return true;
   }
 
+
   function syncFilterOptionItems() {
     if (allItems.length === 0) return;
 
@@ -171,14 +178,16 @@ export function useDatasetFilters({
     for (const key of Object.keys(filterOptions)) {
       const filter = filterOptions[key];
       if (!filter) continue;
-      if (filter.type === 'ymrange' || key === 'is_conso') {
+      if (filter.type === 'ymrange' || key === 'is_conso' || key === 'status_switch') {
         filter.show = true;
         continue;
       }
 
-      const source = allOptions[key];
-      if (!Array.isArray(source)) continue;
+      const rawSource = allOptions[key];
+      if (!Array.isArray(rawSource)) continue;
       if (isServerFiltered && key === 'statuses') continue;
+
+      const source = rawSource.filter((opt) => isActiveFilterOption(opt, key));
 
       if (isServerFiltered) {
         filter.items = [...source];
@@ -229,13 +238,14 @@ export function useDatasetFilters({
       typeof filterOptions.platforms !== 'undefined' &&
       Array.isArray(allOptions.platforms)
     ) {
+      const activePlatforms = allOptions.platforms.filter((itm) => isActiveFilterOption(itm, 'platforms'));
       const mode = filterOptions.is_conso.value;
       filterOptions.platforms.items =
         mode === 'Active'
-          ? allOptions.platforms.filter((itm) => Boolean(itm.is_conso))
+          ? activePlatforms.filter((itm) => Boolean(itm.is_conso))
           : mode === 'NonConso'
-            ? allOptions.platforms.filter((itm) => !itm.is_conso)
-            : [...allOptions.platforms];
+            ? activePlatforms.filter((itm) => !itm.is_conso)
+            : activePlatforms;
     }
 
     filteredItems.splice(0, filteredItems.length, ...filterResult);

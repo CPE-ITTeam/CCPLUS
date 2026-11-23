@@ -873,6 +873,7 @@ class CredentialController extends BaseController
         $connections = Connection::whereNotNull('global_id')->get();
         $limit_plats = $connections->pluck('global_id')->toArray();
         $all_institutions = Institution::with('institutionGroups:id,name')
+            ->where('is_active', 1)
             ->when(!$consoAdmin, fn($query) => $query->whereIn('id', $limit_insts))
             ->orderBy('name', 'ASC')
             ->get();
@@ -906,6 +907,7 @@ class CredentialController extends BaseController
         ])->toArray();
         return response()->json(['records' => [], 'options' => $filter_options], 200);
     }
+
     /**
      * Returns (possibly filtered) items for the Credential Audit UI.
      */
@@ -1034,7 +1036,13 @@ class CredentialController extends BaseController
                 foreach ($credential->harvestLogs as $harv) {
                     $jsonFile = "{$report_path}{$credential->inst_id}/{$credential->prov_id}/{$harv->rawfile}";
                     if (file_exists($jsonFile)) {
-                        $json = json_decode(bzdecompress(Crypt::decrypt(File::get($jsonFile), false)));
+                        $raw = Crypt::decrypt(File::get($jsonFile), false);
+                        if (function_exists('bzdecompress') && str_starts_with($raw, 'BZh')) {
+                            $raw = bzdecompress($raw);
+                        } elseif (function_exists('gzdecode') && str_starts_with($raw, "\x1f\x8b")) {
+                            $raw = gzdecode($raw);
+                        }
+                        $json = json_decode($raw);
                         if (isset($json->Report_Header)) {
                             $header = $json->Report_Header;
                             $json_host = $header->Created_By ?? 'no-Created_By';
@@ -1056,12 +1064,13 @@ class CredentialController extends BaseController
                     }
                 }
             }
+
             $record['json_host'] = $json_host;
             $record['json_item'] = $json_item;
             $record['json_inst'] = $json_inst;
-            $record['inst_set']  = ($json_inst !== 'No institution');
-            $record['plat_set']  = ($json_item !== 'No platform');
-            $record['host_set']  = ($json_host !== 'No data host');
+            $record['inst_set']  = ($json_inst !== 'No institution' && !str_starts_with($json_inst, 'no-'));
+            $record['plat_set']  = ($json_item !== 'No platform' && !str_starts_with($json_item, 'no-'));
+            $record['host_set']  = ($json_host !== 'No data host' && !str_starts_with($json_host, 'no-'));
             $_inst = $all_institutions->where('id', $credential->inst_id)->first();
             $record['group_ids'] = $_inst ? $_inst->institutionGroups()->pluck('institution_group_id')->all() : [];
             $records[] = $record;

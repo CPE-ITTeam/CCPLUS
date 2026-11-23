@@ -1,5 +1,6 @@
 // resources/js/services/api.js
 import axios from 'axios';
+import router from '@/plugins/vue_router.js';
 import { useAuthStore } from '@/stores/useAuthStore';
 import i18n from '@/plugins/i18n';
 
@@ -25,7 +26,7 @@ api.interceptors.request.use((config) => {
   }
 
   // Fallback directly to storage context if memory hasn't hydrated yet
-  const tenantKey = authStore.ccp_key || localStorage.getItem('ccp_key') || 'con_template';
+  const tenantKey = authStore.ccp_key || localStorage.getItem('ccp_key') || '';
 
   if (tenantKey) {
     config.headers['X-Tenant'] = tenantKey;
@@ -34,14 +35,18 @@ api.interceptors.request.use((config) => {
   return config;
 });
 
-// Clear stale auth state and route to Login cleanly on 401 session expiration
+// Clear stale auth state and route to Login cleanly on 401/419 session expiration
 api.interceptors.response.use(
   (response) => response,
   (error) => {
-    if (error?.response?.status === 401 && !error?.config?.url?.includes('/login')) {
+    const status = error?.response?.status;
+    if ((status === 401 || status === 419) && !error?.config?.url?.includes('/login')) {
       const authStore = useAuthStore();
       if (authStore.isAuthenticated || authStore.token) {
         authStore.logoutStateClear();
+      }
+      if (router.currentRoute.value.path !== '/login') {
+        router.push('/login');
       }
     }
     return Promise.reject(error);

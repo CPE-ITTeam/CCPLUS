@@ -5,14 +5,28 @@ import { useI18n } from 'vue-i18n';
 import { useValidationRules } from '@/composables/useValidationRules.js';
 import SettingsPanelShell from '@/components/ui/SettingsPanelShell.vue';
 import LockTip from '@/components/ui/LockTip.vue';
+import NumberStepper from '@/components/ui/NumberStepper.vue';
+import { formatDurationMinutes } from '@/utils/datasetHelpers.js';
 
 const props = defineProps({
   modelValue: { type: Object, required: true },
   title: { type: String, required: true },
   fyOptions: { type: Array, default: () => [] },
   languageOptions: { type: Array, default: () => [] },
+  themeOptions: {
+    type: Array,
+    default: () => [
+      { id: 'light', name: 'Light' },
+      { id: 'emerald', name: 'Emerald' },
+      { id: 'indigo', name: 'Indigo' },
+      { id: 'plum', name: 'Plum' },
+      { id: 'slate', name: 'Slate' },
+    ],
+  },
   defaultFy: { type: Number, default: null },
   defaultLanguage: { type: String, default: '' },
+  defaultTheme: { type: String, default: 'light' },
+  defaultSessionTimeout: { type: Number, default: 120 },
   isAdmin: { type: Boolean, default: false },
   loading: { type: Boolean, default: false },
   success: { type: String, default: '' },
@@ -22,7 +36,7 @@ const props = defineProps({
 const emit = defineEmits(['update:modelValue', 'submit']);
 
 const { t } = useI18n();
-const { required, emailRule } = useValidationRules();
+const { required, emailRule, numberRule } = useValidationRules();
 const formValid = ref(true);
 const pw_show = ref(false);
 const pwc_show = ref(false);
@@ -51,6 +65,11 @@ const defaultFyLabel = computed(() => {
 const defaultLangLabel = computed(() => {
   if (!props.defaultLanguage) return '';
   return props.languageOptions.find((o) => o.id === props.defaultLanguage)?.name || props.defaultLanguage.toUpperCase();
+});
+
+const defaultThemeLabel = computed(() => {
+  if (!props.defaultTheme) return '';
+  return props.themeOptions.find((o) => o.id === props.defaultTheme)?.name || props.defaultTheme;
 });
 </script>
 
@@ -130,7 +149,7 @@ const defaultLangLabel = computed(() => {
         </CodeBlock>
       </v-col>
 
-      <!-- Column 3: Preferences (FY & Language) -->
+      <!-- Column 3: Preferences (FY, Language, Theme & Session Timeout) -->
       <v-col cols="12" md="12" lg="4" class="pt-0">
         <SectionHeading>
           <v-icon start size="22" class="me-2" aria-hidden="true">mdi-tune-variant</v-icon>
@@ -147,7 +166,32 @@ const defaultLangLabel = computed(() => {
           item-title="name" item-value="id" clearable
           :placeholder="defaultLangLabel" :persistent-placeholder="!!defaultLangLabel"
           :hint="modelValue.language ? $t('account.override_active') : $t('account.using_inherited_default')"
-          persistent-hint @update:model-value="updateField('language', $event)" />
+          persistent-hint class="mb-4" @update:model-value="updateField('language', $event)" />
+
+        <v-select :model-value="modelValue.theme" :label="$t('fields.color_theme', 'Color Theme')" :items="themeOptions"
+          item-title="name" item-value="id" clearable
+          :placeholder="defaultThemeLabel" :persistent-placeholder="!!defaultThemeLabel"
+          :hint="modelValue.theme ? $t('account.override_active') : $t('account.using_inherited_default')"
+          persistent-hint class="mb-4" @update:model-value="updateField('theme', $event)" />
+
+      <NumberStepper
+        :model-value="modelValue.session_timeout ?? defaultSessionTimeout"
+        :label="$t('server.session_timeout', 'Session Timeout')"
+        :display-text="formatDurationMinutes(modelValue.session_timeout ?? defaultSessionTimeout)"
+        :clearable="modelValue.session_timeout !== null && modelValue.session_timeout !== undefined"
+        :rules="[numberRule]"
+        :min="15"
+        :max="defaultSessionTimeout"
+        :step="15"
+        @update:model-value="updateField('session_timeout', $event)"
+        @click:clear="updateField('session_timeout', null)"
+      />
+
+
+        <div class="text-caption text-medium-emphasis mt-1">
+          {{ modelValue.session_timeout ? $t('account.override_active') : `${$t('account.using_inherited_default')} (${defaultSessionTimeout}m)` }}
+        </div>
+
       </v-col>
     </v-row>
   </SettingsPanelShell>

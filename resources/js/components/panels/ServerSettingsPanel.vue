@@ -11,6 +11,8 @@ import SettingsPanelShell from '@/components/ui/SettingsPanelShell.vue';
 import LockTip from '@/components/ui/LockTip.vue';
 import YmInput from '@/components/ui/YmInput.vue';
 import NumberStepper from '@/components/ui/NumberStepper.vue';
+import { formatDurationMinutes } from '@/utils/datasetHelpers.js';
+
 
 defineOptions({ name: 'ServerSettingsPanel', inheritAttrs: false });
 
@@ -29,6 +31,7 @@ const configSettings = ref({
   fiscalYr: '',
   max_harvest_retries: 5,
   cookie_life: 30,
+  session_timeout: 120,
   log_login_fails: '0',
 });
 const formValid = ref(true);
@@ -63,6 +66,7 @@ const getSettings = async () => {
       ...records,
       max_harvest_retries: records.max_harvest_retries !== undefined ? Number(records.max_harvest_retries) : 5,
       cookie_life: records.cookie_life !== undefined ? Number(records.cookie_life) : 30,
+      session_timeout: records.session_timeout !== undefined ? Number(records.session_timeout) : 120,
       log_login_fails: String(records.log_login_fails ?? '0'),
     };
   } catch (error) {
@@ -78,6 +82,9 @@ async function formSubmit() {
       success.value = resData.msg;
       if (configSettings.value.default_locale) {
         setAppLocale(configSettings.value.default_locale, false);
+      }
+      if (configSettings.value.session_timeout) {
+        authStore.sessionTimeout = Number(configSettings.value.session_timeout);
       }
     } else {
       failure.value = resData?.msg || t('server.save_error');
@@ -101,6 +108,7 @@ onMounted(() => {
   getSettings();
 });
 </script>
+
 
 <template>
   <SettingsPanelShell
@@ -219,9 +227,23 @@ onMounted(() => {
             :label="$t('server.time_zone')"
             :placeholder="$t('server.select_time_zone')"
             :items="timeZones"
+            class="mb-5"
           />
+          <NumberStepper
+            v-model="configSettings.session_timeout"
+            :label="$t('server.session_timeout', 'Session Timeout')"
+            :display-text="formatDurationMinutes(configSettings.session_timeout)"
+            :clearable="false"
+            :rules="[numberRule]"
+            :min="15"
+            :max="1440"
+            :step="15"
+          />
+
+
         </fieldset>
       </v-col>
+
 
       <!-- Group 4: Harvest Settings -->
       <v-col cols="12" sm="6" lg="3">

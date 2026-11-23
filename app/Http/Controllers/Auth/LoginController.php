@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Auth;
 
 use DB;
 use App\Models\Consortium;
+use App\Models\GlobalSetting;
 use App\Http\Controllers\BaseController;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -26,8 +27,16 @@ class LoginController extends BaseController
      */
     public function login(Request $request)
     {
-        // Set the consortium handle and set database connection before attempting to authenticate
-        $key = ($request->consortium == '') ? 'con_template' : $request->consortium;
+        $key = trim((string) $request->consortium);
+        if ($key === '' || $key === 'con_template') {
+            return response()->json(['success' => false, 'message' => __('auth.failed')], 200);
+        }
+
+        $conso = Consortium::where('ccp_key', $key)->where('is_active', true)->first();
+        if (!$conso) {
+            return response()->json(['success' => false, 'message' => __('auth.failed')], 200);
+        }
+
         config(['database.connections.consodb.database' => 'ccplus_' . $key]);
         DB::purge('consodb');
         DB::reconnect('consodb');
@@ -37,7 +46,7 @@ class LoginController extends BaseController
             // Regenerate the session and store database key in it
             $request->session()->regenerate();
             $user = Auth::user();
-            $request->session()->put(['ccp_key' => $key, 'conso_id' => $request->conso_id, 'user_id' => $user->id]);
+            $request->session()->put(['ccp_key' => $key, 'conso_id' => $conso->id, 'user_id' => $user->id]);
 
             // Purge any existing login (web) tokens to keep them from piling up
             $token_name = 'Web_User_' . $user->id;
@@ -49,13 +58,11 @@ class LoginController extends BaseController
             $userPayload = $user->toArray();
             $userPayload['user_FYmm'] = $user->getFY();
 
-            $conso = ($key === 'con_template')
-                ? null
-                : Consortium::where('ccp_key', $key)->first();
-
-            $consoTheme = $conso?->theme ?: 'light';
+            $globalTimeout = (int) (GlobalSetting::where('name', 'session_timeout')->value('value') ?: config('session.lifetime', 120));
+            $effectiveTimeout = (int) ($user->session_timeout ?: ($conso->session_timeout ?: $globalTimeout));
+            $effectiveTheme = $user->theme ?: ($conso->theme ?: 'light');
             $defaultLang = config('ccplus.language', config('app.locale', 'en'));
-            $effectiveLang = $user->language ?: ($conso?->language ?: $defaultLang);
+            $effectiveLang = $user->language ?: ($conso->language ?: $defaultLang);
 
             // Setup return data including the access token, user info, roles, and admin institutions/groups
             $success['token'] = $user->createToken($token_name)->plainTextToken;
@@ -63,9 +70,10 @@ class LoginController extends BaseController
             $success['roles'] = $user->allRoles();
             $success['adminInsts'] = $user->adminInsts();
             $success['adminGroups'] = $user->adminGroups();
-            $success['consoKey'] = ($key == 'con_template') ? '' : $key;
-            $success['theme'] = $consoTheme;
+            $success['consoKey'] = $key;
+            $success['theme'] = $effectiveTheme;
             $success['language'] = $effectiveLang;
+            $success['sessionTimeout'] = $effectiveTimeout;
 
             return $this->sendResponse($success, __('auth.authenticated'));
         }

@@ -1,21 +1,14 @@
 <!-- components/tables/DataToolbar.vue -->
 <template>
   <v-card class="pa-4 mb-4" border>
-    <template v-if="showSearch">
-      <div class="d-flex flex-wrap align-center ga-3 w-100 mb-1">
-        <div style="width: 280px;" class="flex-shrink-0">
-          <span class="text-caption text-uppercase font-weight-bold tracking-wider text-medium-emphasis">
-            {{ $t('tables.search') }}
-          </span>
+    <v-row v-if="showSearch" dense class="mb-2">
+      <v-col cols="12" sm="6" lg="3">
+        <div class="text-caption text-uppercase font-weight-bold tracking-wider text-medium-emphasis mb-1">
+          {{ $t('tables.search') }}
         </div>
-      </div>
-
-      <div class="d-flex flex-wrap align-center ga-3 w-100 mb-3">
-        <div style="width: 280px;" class="flex-shrink-0">
-          <SearchAndSelect :search="search" @update:search="$emit('update:search', $event)" />
-        </div>
-      </div>
-    </template>
+        <SearchAndSelect :search="search" class="w-100" @update:search="$emit('update:search', $event)" />
+      </v-col>
+    </v-row>
 
     <ToolbarFilterSection
       :filter-options="filter_options"
@@ -59,15 +52,15 @@
           />
 
           <div v-else-if="showExportImport" class="d-flex align-center flex-wrap ga-2 ms-auto">
-            <ExportAndImport
-              :showRefresh="props.dataset === 'platforms'"
-              :exportOnly="props.dataset === 'audit'"
-              :hideExport="props.hideExport"
-              @export="$emit('export')"
-              @import="importDialog = true"
-              @add="$emit('add')"
-              @refresh="$emit('bulkAction', { action: 'Full Refresh' })"
-            />
+         <ExportAndImport
+           :showRefresh="props.dataset === 'platforms'"
+           :hideExport="props.hideExport"
+           @export="$emit('export')"
+           @import="importDialog = true"
+           @add="$emit('add')"
+           @refresh="$emit('bulkAction', { action: 'Full Refresh' })"
+         />
+
           </div>
         </div>
       </div>
@@ -154,7 +147,7 @@ const {
 
 const consoOnly = computed(() => consoKey.value === '' && isServerAdmin);
 const showSearch = computed(() => !consoOnly.value || isServerAdmin);
-const needsRefreshButton = computed(() => props.dataset === 'audit');
+//const needsRefreshButton = computed(() => props.dataset === 'audit');
 
 const showExportImport = computed(
   () => props.dataset === 'consortia' || (!consoOnly.value && !isHarvestDataset.value)

@@ -1,10 +1,23 @@
-// resources/js/composables/table/useTableHeaders.JS
+// resources/js/composables/table/useTableHeaders.js
 
 import { computed } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { useAuthStore } from '@/stores/useAuthStore.js';
 
-const CREDENTIAL_KEYS = new Set(['customer_id', 'requestor_id', 'api_key']);
+const NON_TEXT_TRUNCATE_KEYS = new Set([
+  'customer_id',
+  'requestor_id',
+  'api_key',
+  'status',
+  'is_active',
+  'refreshable',
+  'harvest_id',
+  'error',
+  'PR',
+  'DR',
+  'TR',
+  'IR',
+]);
 
 export function useTableHeaders(headers, items, selectableRows, loadingColor) {
   const { t } = useI18n();
@@ -99,7 +112,13 @@ export function useTableHeaders(headers, items, selectableRows, loadingColor) {
   );
 
   const truncatedHeaders = computed(() =>
-    computedHeaders.value.filter((h) => h.truncate > 0 && !CREDENTIAL_KEYS.has(h.key))
+    computedHeaders.value.filter(
+      (h) =>
+        h.truncate > 0 &&
+        !NON_TEXT_TRUNCATE_KEYS.has(h.key) &&
+        h.type !== 'date' &&
+        h.type !== 'toggle'
+    )
   );
 
   return {

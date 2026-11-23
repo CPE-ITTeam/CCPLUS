@@ -2,8 +2,10 @@
 <script setup>
 import { computed, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
+import { useDataTableHelpers } from '@/composables/table/useDataTableHelpers.js';
 
 const { t } = useI18n();
+const { formatTruncatedDisplay } = useDataTableHelpers();
 const model = defineModel({ type: Array, default: () => [] });
 
 const props = defineProps({
@@ -12,6 +14,7 @@ const props = defineProps({
   dataName: { type: String, required: false },
   itemTitle: { type: String, required: false },
   itemValue: { type: String, required: false },
+  truncate: { type: Number, required: false, default: null },
   shouldShowNoneOfTheAboveType: { type: Boolean, required: false, default: false },
   shouldShowNoneOfTheAboveGroup: { type: Boolean, required: false, default: false },
 });
@@ -56,6 +59,10 @@ watch(
   { immediate: true }
 );
 
+function formatOptionLabel(text) {
+  return props.truncate ? formatTruncatedDisplay(text, props.truncate) : text;
+}
+
 const selectionString = computed(() => {
   if (allSelected.value) return t('common.all_items', { label: data_label.value });
   if (model.value.length === 0) return '';
@@ -71,13 +78,14 @@ const selectionString = computed(() => {
     }
   }
 
+  _string = formatOptionLabel(_string);
+
   if (model.value.length > 1) {
     _string += ` ${t('connections.more_selected', { count: model.value.length - 1 })}`;
   }
 
   return _string;
 });
-
 
 function toggleSelectAll() {
   if (allSelected.value) {
@@ -90,7 +98,6 @@ function toggleSelectAll() {
 }
 </script>
 
-<!-- components/ui/MultiSelectCombobox.vue -->
 <template>
   <v-autocomplete
     v-model="model"
@@ -137,13 +144,13 @@ function toggleSelectAll() {
           />
         </template>
         <v-list-item-title class="text-truncate" :title="itemProps.title">
-          {{ itemProps.title }}
+          {{ formatOptionLabel(itemProps.title) }}
         </v-list-item-title>
       </v-list-item>
     </template>
 
     <template #selection="{ index }">
-      <span v-if="index === 0" class="text-truncate d-inline-block" style="max-width: 170px;">
+      <span v-if="index === 0" class="text-truncate d-inline-block" style="max-width: 170px;" :title="selectionString">
         {{ selectionString }}
       </span>
     </template>
@@ -168,14 +175,6 @@ function toggleSelectAll() {
     </template>
   </v-autocomplete>
 </template>
-
-<style scoped>
-.multi-select-box :deep(.v-field__input) {
-  flex-wrap: nowrap;
-  overflow: hidden;
-}
-</style>
-
 
 <style scoped>
 .multi-select-box :deep(.v-field__input) {

@@ -1,6 +1,42 @@
 <!-- components/ui/YmRangeSelector.vue -->
 <template>
-  <div :class="inline ? 'd-flex flex-row flex-wrap align-center ga-2' : 'd-flex flex-column ga-3'">
+  <v-row v-if="inline" dense align="center" class="w-100">
+    <v-col cols="12" sm="6">
+      <v-select
+        v-model="preset"
+        :label="label || $t('fields.date_range')"
+        :items="rangeOptions"
+        item-title="title"
+        item-value="value"
+        :clearable="clearable"
+        class="w-100"
+        @update:model-value="onPresetChange"
+      />
+    </v-col>
+    <v-col cols="12" sm="6">
+      <v-row dense>
+        <v-col cols="6">
+          <YmInput
+            :model-value="modelValue.fromYM"
+            :label="$t('reports.start_month')"
+            class="w-100"
+            @update:model-value="onMonthChange('fromYM', $event)"
+          />
+        </v-col>
+        <v-col cols="6">
+          <YmInput
+            :model-value="modelValue.toYM"
+            :label="$t('reports.end_month')"
+            :minYM="modelValue.fromYM || undefined"
+            class="w-100"
+            @update:model-value="onMonthChange('toYM', $event)"
+          />
+        </v-col>
+      </v-row>
+    </v-col>
+  </v-row>
+
+  <div v-else class="d-flex flex-column ga-3">
     <v-select
       v-model="preset"
       :label="label || $t('fields.date_range')"
@@ -8,21 +44,20 @@
       item-title="title"
       item-value="value"
       :clearable="clearable"
-      :style="inline ? 'width: 200px;' : undefined"
       @update:model-value="onPresetChange"
     />
-    <div :class="inline ? 'd-flex flex-row align-center ga-2' : 'd-flex flex-row ga-2'">
+    <div class="d-flex flex-row ga-2">
       <YmInput
         :model-value="modelValue.fromYM"
         :label="$t('reports.start_month')"
-        :style="inline ? 'width: 155px;' : 'flex: 1 1 0; min-width: 0;'"
+        style="flex: 1 1 0; min-width: 0;"
         @update:model-value="onMonthChange('fromYM', $event)"
       />
       <YmInput
         :model-value="modelValue.toYM"
         :label="$t('reports.end_month')"
         :minYM="modelValue.fromYM || undefined"
-        :style="inline ? 'width: 155px;' : 'flex: 1 1 0; min-width: 0;'"
+        style="flex: 1 1 0; min-width: 0;"
         @update:model-value="onMonthChange('toYM', $event)"
       />
     </div>

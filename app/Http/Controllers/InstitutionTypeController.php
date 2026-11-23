@@ -13,6 +13,42 @@ class InstitutionTypeController extends BaseController
     protected string $modelLabel = 'Institution type';
 
     /**
+     * Handle bulk actions for institution types.
+     */
+    public function bulk(Request $request)
+    {
+        if (!auth()->user()->isConsoAdmin()) {
+            return $this->respondError(__('institutions.not_authorized'));
+        }
+
+        $action = $request->input('action');
+        $ids = $request->input('ids', []);
+
+        if ($action === 'Delete') {
+            $affectedIds = [];
+
+            foreach ($ids as $id) {
+                $type = InstitutionType::find($id);
+                if (!$type || $this->canDeleteRecord($type) !== true) {
+                    continue;
+                }
+
+                $this->beforeDeleteRecord($type);
+                $type->delete();
+                $affectedIds[] = $type->id;
+            }
+
+            return response()->json([
+                'result'      => true,
+                'msg'         => __('institutions.type_deleted'),
+                'affectedIds' => $affectedIds,
+            ], 200);
+        }
+
+        return $this->respondError(__('common.invalid_action', ['action' => $action]));
+    }
+
+    /**
      * Display a listing of the resource.
      */
     public function index(Request $request)
@@ -26,6 +62,105 @@ class InstitutionTypeController extends BaseController
         $types = $data->map(fn ($type) => $this->formatRecord($type, $consoAdmin));
 
         return response()->json(['records' => $types], 200);
+    }
+
+    /**
+     * Import institution types from a CSV to the database.
+     */
+    public function import(Request $request)
+    {
+        if (!auth()->user()->isConsoAdmin()) {
+            return $this->respondError(__('institutions.not_authorized'));
+        }
+
+        $parsed = $this->parseMappedCsvUpload($request, [
+            'id'   => ['ID', 'CC+ System ID', 'System ID', 'fields.ccplus_system_id'],
+            'name' => ['Institution Type', 'Type', 'Name', 'fields.type'],
+        ], ['Full Replacement', 'Additions & Updates']);
+
+        if (isset($parsed['error'])) {
+            return $this->respondError($parsed['error']);
+        }
+
+        $importType = $parsed['type'];
+
+        $num_deleted = 0;
+        $num_skipped = 0;
+        $num_updated = 0;
+        $num_created = 0;
+
+        if ($importType === 'Full Replacement') {
+            $institutions = Institution::get();
+            $original_types = [];
+            foreach ($institutions as $inst) {
+                $original_types[$inst->id] = $inst->type_id;
+                $inst->type_id = 1;
+                $inst->save();
+            }
+
+            $num_deleted = InstitutionType::count() - 1;
+            InstitutionType::where('id', '<>', 1)->delete();
+        }
+
+        $current_types = InstitutionType::get();
+
+        foreach ($parsed['rows'] as $row) {
+            $rawId = $row['id'] ?? '';
+            $_name = $row['name'] ?? '';
+
+            if ($_name === '') {
+                continue;
+            }
+
+            $_tid = ($rawId !== '' && is_numeric($rawId)) ? intval($rawId) : null;
+            if ($_tid !== null && $_tid <= 1) {
+                continue;
+            }
+
+            if ($importType === 'Additions & Updates' && $current_types->first(fn ($t) => strcasecmp($t->name, $_name) === 0)) {
+                $num_skipped++;
+                continue;
+            }
+
+            $existing_type = $_tid !== null ? $current_types->where('id', $_tid)->first() : null;
+            if ($existing_type) {
+                $existing_type->update(['name' => $_name]);
+                $num_updated++;
+            } else {
+                $newType = new InstitutionType();
+                if ($_tid !== null) {
+                    $newType->id = $_tid;
+                }
+                $newType->name = $_name;
+                $newType->save();
+                $current_types->push($newType);
+                $num_created++;
+            }
+        }
+
+        if ($importType === 'Full Replacement') {
+            $new_ids = InstitutionType::pluck('id')->toArray();
+            foreach ($original_types as $id => $typeId) {
+                if (in_array($typeId, $new_ids)) {
+                    $inst = $institutions->where('id', $id)->first();
+                    if ($inst) {
+                        $inst->update(['type_id' => $typeId]);
+                    }
+                }
+            }
+        }
+
+        $extra = ($num_skipped > 0) ? __('institutions.type_import_skipped', ['count' => $num_skipped]) : '';
+        $msg = $this->formatImportSummary(
+            __('institutions.type_import_success'),
+            $num_updated,
+            $num_created,
+            $num_deleted,
+            0,
+            $extra
+        );
+
+        return $this->respondSuccess($msg);
     }
 
     /**
@@ -83,6 +218,14 @@ class InstitutionTypeController extends BaseController
     }
 
     /**
+     * Reassign any institutions using this type back to the default type (id = 1).
+     */
+    protected function beforeDeleteRecord(Model $type): void
+    {
+        Institution::where('type_id', $type->id)->update(['type_id' => 1]);
+    }
+
+    /**
      * Restrict deletion to ConsoAdmins and protect the default type (id = 1).
      */
     protected function canDeleteRecord(Model $type): bool|string
@@ -97,116 +240,6 @@ class InstitutionTypeController extends BaseController
 
         return true;
     }
-
-    /**
-     * Reassign any institutions using this type back to the default type (id = 1).
-     */
-    protected function beforeDeleteRecord(Model $type): void
-    {
-        Institution::where('type_id', $type->id)->update(['type_id' => 1]);
-    }
-
-    /**
-     * Import institution types from a CSV to the database.
-     */
-    public function import(Request $request)
-    {
-        if (!auth()->user()->isConsoAdmin()) {
-            return $this->respondError(__('institutions.not_authorized'));
-        }
-
-        $parsed = $this->parseMappedCsvUpload($request, [
-            'id'   => ['ID', 'CC+ System ID', 'System ID', 'fields.ccplus_system_id'],
-            'name' => ['Institution Type', 'Type', 'Name', 'fields.type'],
-        ], ['Full Replacement', 'Additions & Updates']);
-
-        if (isset($parsed['error'])) {
-            return $this->respondError($parsed['error']);
-        }
-
-        $importType = $parsed['type'];
-
-        $num_deleted = 0;
-        $num_skipped = 0;
-        $num_updated = 0;
-        $num_created = 0;
-
-        // Preserve institution type mappings before wiping non-default types on Full Replacement
-        if ($importType === 'Full Replacement') {
-            $institutions = Institution::get();
-            $original_types = [];
-            foreach ($institutions as $inst) {
-                $original_types[$inst->id] = $inst->type_id;
-                $inst->type_id = 1;
-                $inst->save();
-            }
-
-            $num_deleted = InstitutionType::count() - 1;
-            InstitutionType::where('id', '<>', 1)->delete();
-        }
-
-        $current_types = InstitutionType::get();
-
-        foreach ($parsed['rows'] as $row) {
-            $rawId = $row['id'] ?? '';
-            $_name = $row['name'] ?? '';
-
-            if ($_name === '') {
-                continue;
-            }
-
-            $_tid = ($rawId !== '' && is_numeric($rawId)) ? intval($rawId) : null;
-            if ($_tid !== null && $_tid <= 1) {
-                continue;
-            }
-
-            if ($importType === 'Additions & Updates' && $current_types->first(fn ($t) => strcasecmp($t->name, $_name) === 0)) {
-                $num_skipped++;
-                continue;
-            }
-
-            $existing_type = $_tid !== null ? $current_types->where('id', $_tid)->first() : null;
-            if ($existing_type) {
-                $existing_type->update(['name' => $_name]);
-                $num_updated++;
-            } else {
-                $newType = new InstitutionType();
-                if ($_tid !== null) {
-                    $newType->id = $_tid;
-                }
-                $newType->name = $_name;
-                $newType->save();
-                $current_types->push($newType);
-                $num_created++;
-            }
-        }
-
-        // Restore institution type assignments where the type ID still exists
-        if ($importType === 'Full Replacement') {
-            $new_ids = InstitutionType::pluck('id')->toArray();
-            foreach ($original_types as $id => $typeId) {
-                if (in_array($typeId, $new_ids)) {
-                    $inst = $institutions->where('id', $id)->first();
-                    if ($inst) {
-                        $inst->update(['type_id' => $typeId]);
-                    }
-                }
-            }
-        }
-
-        $extra = ($num_skipped > 0) ? __('institutions.type_import_skipped', ['count' => $num_skipped]) : '';
-        $msg = $this->formatImportSummary(
-            __('institutions.type_import_success'),
-            $num_updated,
-            $num_created,
-            $num_deleted,
-            0,
-            $extra
-        );
-
-        return $this->respondSuccess($msg);
-    }
-
 
     /**
      * Format an InstitutionType record consistently for the dataset UI.
@@ -224,5 +257,4 @@ class InstitutionTypeController extends BaseController
             'institutions' => $type->institutions->toArray(),
         ];
     }
-
 }

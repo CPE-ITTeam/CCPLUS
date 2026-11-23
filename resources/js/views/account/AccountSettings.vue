@@ -39,11 +39,16 @@ const failure = ref('');
 const loadingUser = ref(false);
 const inheritedFy = ref(null);
 const inheritedLang = ref('en');
+const inheritedTheme = ref('light');
+const serverDefaultTimeout = ref(120);
+const inheritedTimeout = ref(120);
 const acctSettings = ref({
   name: '',
   email: '',
   fiscalYr: null,
   language: null,
+  theme: null,
+  session_timeout: null,
   password: null,
   confirm_pass: null,
   access_token: null,
@@ -125,10 +130,18 @@ const getSettings = async () => {
     if (records) {
       inheritedFy.value = normalizeFiscalStartMonth(resData?.defaultFiscalYr);
       inheritedLang.value = resData?.defaultLanguage || 'en';
+      if (resData?.defaultTheme) {
+        inheritedTheme.value = resData.defaultTheme;
+      }
+      if (resData?.defaultSessionTimeout) {
+        inheritedTimeout.value = Number(resData.defaultSessionTimeout) || 120;
+      }
       acctSettings.value = {
         ...records,
         fiscalYr: normalizeFiscalStartMonth(records.fiscalYr),
         language: records.language || null,
+        theme: records.theme || null,
+        session_timeout: records.session_timeout ?? null,
         password: null,
         confirm_pass: null,
       };
@@ -149,6 +162,9 @@ const getHomeInstSettings = async () => {
       const response = await api.get('/api/consortia/current');
       const resData = response?.data !== undefined ? response.data : response;
       const consortium = resData?.consortium;
+      if (resData?.defaultSessionTimeout) {
+        serverDefaultTimeout.value = Number(resData.defaultSessionTimeout) || 120;
+      }
       if (consortium) {
         homeInstSettings.value = {
           status: consortium.status || 'Active',
@@ -159,15 +175,17 @@ const getHomeInstSettings = async () => {
           fiscalYr: consortium.fiscalYr || resData?.defaultFiscalYr || 'January',
           language: consortium.language || resData?.defaultLanguage || 'en',
           theme: consortium.theme || 'light',
+          session_timeout: consortium.session_timeout ?? null,
         };
-        applyTheme(homeInstSettings.value.theme);
+        inheritedTheme.value = homeInstSettings.value.theme;
+        inheritedTimeout.value = consortium.session_timeout || serverDefaultTimeout.value;
+        applyTheme(acctSettings.value.theme || homeInstSettings.value.theme);
       }
     } catch (error) {
       console.error('Error fetching consortium settings:', error.message);
     }
     return;
   }
-
   if (!homeInstSettings.value?.id && authStore.user_inst_id) {
     try {
       const roleParam = authStore.is_admin ? 'Admin' : 'User';
@@ -202,6 +220,10 @@ async function userSubmit() {
         authStore.user.fiscalYr = acctSettings.value.fiscalYr;
       }
       setAppLocale(acctSettings.value.language || inheritedLang.value || 'en');
+      const effectiveTheme = acctSettings.value.theme || inheritedTheme.value || 'light';
+      applyTheme(effectiveTheme);
+      authStore.setTheme(effectiveTheme);
+      authStore.setSessionTimeout(acctSettings.value.session_timeout || inheritedTimeout.value || 120);
       await nextTick();
       success.value = resData.msg || t('account.update_success');
     } else {
@@ -229,12 +251,21 @@ async function homeInstSubmit() {
         fiscalYr: homeInstSettings.value.fiscalYr,
         language: homeInstSettings.value.language,
         theme: homeInstSettings.value.theme || 'light',
+        session_timeout: homeInstSettings.value.session_timeout ?? null,
       });
       const resData = response?.data !== undefined ? response.data : response;
       if (resData?.result) {
         const savedTheme = homeInstSettings.value.theme || 'light';
-        applyTheme(savedTheme);
-        authStore.setTheme(savedTheme);
+        inheritedTheme.value = savedTheme;
+        if (!acctSettings.value.theme) {
+          applyTheme(savedTheme);
+          authStore.setTheme(savedTheme);
+        }
+        const effectiveConsoTimeout = homeInstSettings.value.session_timeout || serverDefaultTimeout.value || 120;
+        inheritedTimeout.value = effectiveConsoTimeout;
+        if (!acctSettings.value.session_timeout) {
+          authStore.setSessionTimeout(effectiveConsoTimeout);
+        }
         if (!acctSettings.value.language && homeInstSettings.value.language) {
           setAppLocale(homeInstSettings.value.language);
         }
@@ -329,7 +360,7 @@ const loadTabData = async (tab) => {
 watch(
   () => homeInstSettings.value.theme,
   (newTheme) => {
-    if (authStore.is_conso_admin && newTheme) {
+    if (authStore.is_conso_admin && !acctSettings.value.theme && newTheme) {
       applyTheme(newTheme);
     }
   }
@@ -349,12 +380,14 @@ onMounted(() => {
     <UserSettingsPanel v-if="activeTab === 'profile'" v-model="acctSettings"
       :title="$t('account.title', { name: authStore.user.name })" :fy-options="localizedFyMonths"
       :language-options="languageOptions" :default-fy="inheritedFy" :default-language="inheritedLang"
+      :default-theme="inheritedTheme" :default-session-timeout="inheritedTimeout"
       :is-admin="authStore.is_admin" :loading="loadingUser" :success="success"
       :failure="failure" @submit="userSubmit" @make-token="makeToken" @destroy-token="destroyToken" />
 
     <HomeInstPanel v-else-if="activeTab === 'institution'" v-model="homeInstSettings" :dataset="activeHomeDataset"
       :title="homePanelTitle" :icon="authStore.is_conso_admin ? 'mdi-lan' : 'mdi-domain'"
-      :submit-label="homePanelSubmitLabel" :options-map="optionsMap" :is-server-admin="authStore.is_serveradmin"
+      :submit-label="homePanelSubmitLabel" :options-map="optionsMap"
+      :default-session-timeout="serverDefaultTimeout" :is-server-admin="authStore.is_serveradmin"
       :is-conso-admin="authStore.is_conso_admin" :can-edit-org="canEditHomeInst" :loading="loadingHomeInst"
       :success="homeInstSuccess" :failure="homeInstFailure" @submit="homeInstSubmit" />
 

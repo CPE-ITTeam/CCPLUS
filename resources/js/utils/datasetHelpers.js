@@ -30,6 +30,16 @@ export function resolveFiscalYearNumber(fiscalYrVal, fyMonths) {
   return idx >= 0 ? idx + 1 : fiscalYrVal;
 }
 
+export function formatDurationMinutes(totalMins) {
+  const mins = Number(totalMins) || 0;
+  const hours = Math.floor(mins / 60);
+  const rem = mins % 60;
+  const parts = [];
+  if (hours > 0) parts.push(`${hours} ${hours === 1 ? 'hour' : 'hours'}`);
+  if (rem > 0 || hours === 0) parts.push(`${rem} ${rem === 1 ? 'minute' : 'minutes'}`);
+  return parts.join(' ');
+}
+
 export function syncRecordInPools(id, updatedRecord, ...pools) {
   pools.forEach((pool) => {
     if (!Array.isArray(pool)) return;

@@ -4,6 +4,7 @@ import { ref, onMounted, onBeforeMount, watch, computed } from 'vue';
 import { useRouter, useRoute } from 'vue-router';
 import { useI18n } from 'vue-i18n';
 import { useTheme } from 'vuetify';
+import { useIdle } from '@vueuse/core';
 import { storeToRefs } from 'pinia';
 import { useAuthStore } from '@/stores/useAuthStore.js';
 import { useCCPlusStore } from '@/stores/useCCPlusStore.js';
@@ -29,7 +30,19 @@ const authStore = useAuthStore();
 const ccPlusStore = useCCPlusStore();
 const { consortia } = storeToRefs(ccPlusStore);
 
-// Sync Vuetify theme with the active consortium's saved theme
+// Idle session timeout watcher (cascaded Server -> Consortium -> User minutes)
+// Idle session timeout watcher (cascaded Server -> Consortium -> User minutes)
+const timeoutMinutes = Math.max(5, Number(authStore.sessionTimeout) || 120);
+const { idle } = useIdle(timeoutMinutes * 60 * 1000);
+
+watch(idle, (isIdle) => {
+  if (isIdle && authStore.isAuthenticated) {
+    authStore.logout();
+  }
+});
+
+
+// Sync Vuetify theme with the active user/consortium saved theme
 watch(
   () => authStore.theme,
   (newTheme) => {
@@ -97,7 +110,6 @@ function onTabChange(newTab) {
   }
 }
 
-// Update page changes from menu(s)
 // Update page changes from menu(s)
 function onPageChange(newPage) {
   if (newPage === 900) {
@@ -190,7 +202,6 @@ onBeforeMount(() => {
     }
   });
 });
-
 
 onMounted(async () => {
   // Sync router tracking highlights with path states

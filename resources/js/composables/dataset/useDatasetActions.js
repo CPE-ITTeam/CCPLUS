@@ -6,6 +6,21 @@ import i18n from '@/plugins/i18n.js';
 
 const t = (key) => i18n.global.t(key);
 
+function extractErrorMessage(error, fallback) {
+  if (error.response?.status === 422) {
+    const validationErrors = error.response.data?.errors;
+    if (validationErrors && typeof validationErrors === 'object') {
+      const firstKey = Object.keys(validationErrors)[0];
+      if (firstKey && validationErrors[firstKey]) {
+        const errorPayload = validationErrors[firstKey];
+        return Array.isArray(errorPayload) ? errorPayload[0] : errorPayload;
+      }
+    }
+    return error.response.data?.message || error.response.data?.msg || t('messages.validation_failed');
+  }
+  return error.response?.data?.message || error.response?.data?.msg || fallback;
+}
+
 export function useDatasetActions(urlRoot) {
   const isProcessing = ref(false);
   const getBaseUrl = () => unref(urlRoot) || '';
@@ -39,29 +54,10 @@ export function useDatasetActions(urlRoot) {
         msg: payload?.msg || payload?.message || t('messages.server_rejected'),
       };
     } catch (error) {
-      console.error(`[DatasetActions] Error during ${formDialogType}:`, error);
-
-      if (error.response?.status === 422) {
-        const validationErrors = error.response.data.errors;
-
-        if (validationErrors && typeof validationErrors === 'object') {
-          const firstKey = Object.keys(validationErrors)[0];
-          if (firstKey && validationErrors[firstKey]) {
-            const errorPayload = validationErrors[firstKey];
-            return {
-              success: false,
-              msg: Array.isArray(errorPayload) ? errorPayload[0] : errorPayload,
-            };
-          }
-        }
-
-        const fallbackMsg = error.response.data.message || t('messages.validation_failed');
-        return { success: false, msg: fallbackMsg };
-      }
-
+      console.error(`[DatasetActions] Error during ${formDialogType}:`, error.response?.data || error);
       return {
         success: false,
-        msg: error.response?.data?.message || error.response?.data?.msg || t('messages.unexpected_server_error'),
+        msg: extractErrorMessage(error, t('messages.unexpected_server_error')),
       };
     } finally {
       isProcessing.value = false;
@@ -102,8 +98,11 @@ export function useDatasetActions(urlRoot) {
       }
       return { success: true, record: mutatedRecord, msg: resData.msg };
     } catch (error) {
-      console.error('[DatasetActions] Error syncing validation toggle:', error);
-      return { success: false, msg: t('messages.sync_status_failed') };
+      console.error('[DatasetActions] Error syncing validation toggle:', error.response?.data || error);
+      return {
+        success: false,
+        msg: extractErrorMessage(error, t('messages.sync_status_failed')),
+      };
     }
   }
 
@@ -115,8 +114,11 @@ export function useDatasetActions(urlRoot) {
       const resData = response?.data !== undefined ? response.data : response;
       return { success: !!resData.result, msg: resData.msg };
     } catch (error) {
-      console.error('[DatasetActions] Error executing row destruction:', error);
-      return { success: false, msg: t('messages.server_connection_lost') };
+      console.error('[DatasetActions] Error executing row destruction:', error.response?.data || error);
+      return {
+        success: false,
+        msg: extractErrorMessage(error, t('messages.server_connection_lost')),
+      };
     }
   }
 

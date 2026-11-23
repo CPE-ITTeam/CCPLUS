@@ -14,7 +14,7 @@ const GLOBAL_DATASETS = new Set([
   'errors',
 ]);
 
-const POST_GET_DATASETS = new Set(['harvests', 'jobs']);
+const POST_GET_DATASETS = new Set(['harvests', 'jobs', 'audit']);
 
 export function useDatasetLoader({
   datasetConfig,
@@ -75,8 +75,10 @@ export function useDatasetLoader({
       console.error('[DatasetLoader] Background master group pre-fetch failed:', err);
     }
   }
-
-// resources/js/composablesdataset/useDatasetLoader.js
+  const isCanceledError = (error) =>
+    error?.code === 'ERR_CANCELED' ||
+    error?.name === 'CanceledError' ||
+    error?.message === 'Request aborted';
 
   async function loadDataset(datasetKey) {
     const config = datasetConfig[datasetKey];
@@ -101,11 +103,20 @@ export function useDatasetLoader({
         await prefetchMasterGroups();
       }
     } catch (error) {
-      console.error(`Error fetching records for ${datasetKey}:`, error);
+      if (!isCanceledError(error)) {
+        console.error(`Error fetching records for ${datasetKey}:`, error);
+      }
     } finally {
       applySchema(datasetKey);
+      if (datasetKey === 'audit') {
+        await refreshData(datasetKey);
+      } else {
+        updateItems();
+      }
       dtLoading.value = false;
     }
+
+
   }
 
   async function refreshData(datasetKey) {
@@ -137,7 +148,9 @@ export function useDatasetLoader({
         updateItems();
       }
     } catch (error) {
-      console.error(`Error refreshing records for ${datasetKey}:`, error);
+      if (!isCanceledError(error)) {
+        console.error(`Error refreshing records for ${datasetKey}:`, error);
+      }
     } finally {
       dtLoading.value = false;
     }
