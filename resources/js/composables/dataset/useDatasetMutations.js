@@ -18,7 +18,7 @@ export function useDatasetMutations({
   ccPlusStore,
   t,
 }) {
-  async function handleToggleUpdate(id, field, value) {
+async function handleToggleUpdate(id, field, value) {
     const currentItem = allItems.find((item) => item.id === id);
     if (!currentItem) return;
 
@@ -26,11 +26,11 @@ export function useDatasetMutations({
     if (result.success) {
       syncRecordInPools(id, result.record, allItems, filteredItems);
       updateItems();
-      dtKey.value++;
     } else if (result.msg) {
       ccPlusStore.notifyError(result.msg);
     }
   }
+
 
   async function handleDelete(id) {
     const result = await deleteItem(id);

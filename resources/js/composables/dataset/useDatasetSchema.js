@@ -304,6 +304,29 @@ function applySchema(activeKey = datasetKey()) {
     };
   }
 
+  if (activeKey === "audit") {
+    filterOptions.valid_types = {
+      name: "valid_types",
+      label: "Validation",
+      type: "valid_switch",
+      show: true,
+      col: "valid_state",
+      items: [],
+      value: "Not Validated",
+    };
+    filterOptions.valid_target = {
+      name: "valid_target",
+      label: "Unvalidated Scope",
+      type: "valid_target_switch",
+      show: true,
+      col: "valid_state",
+      items: [],
+      value: "All",
+    };
+  }
+
+
+
   searchFields.value = config.fields
     .filter((fld) => fld.searchable)
     .map((f) => f.name);

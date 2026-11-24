@@ -34,9 +34,6 @@
           />
         </div>
 
-
-
-
         <!-- Multi-select combobox case -->
         <MultiSelectCombobox
           v-else-if="entry.filter.type == 'mselect'"
@@ -50,36 +47,30 @@
           @update:modelValue="handleFilter(entry.name, $event)"
         />
 
-        <!-- Standard Autocomplete case -->
+        <!-- Standard Autocomplete case (single-select with radios) -->
         <v-autocomplete
           v-else-if="entry.filter.type == 'select'"
           v-model="props.filters[entry.name].value"
           :label="entry.filter.label"
           :items="entry.filter.items"
-          :item-title="entry.filter.txt"
-          :item-value="entry.filter.val"
-          clearable
+          :item-title="entry.filter.txt || 'name'"
+          :item-value="entry.filter.val || 'id'"
+          :clearable="false"
           @update:modelValue="handleFilter(entry.name, $event)"
         >
-          <template #item="{ props: itemProps, item }">
-            <v-list-item v-bind="itemProps">
-              <template #prepend>
+          <template #item="{ props: itemProps }">
+            <v-list-item v-bind="itemProps" title="">
+              <template #prepend="{ isSelected }">
                 <v-icon
                   size="small"
-                  :color="props.filters[entry.name].value === (entry.filter.val ? item.raw?.[entry.filter.val] : item.raw) ? 'primary' : 'medium-emphasis'"
+                  :color="isSelected ? 'primary' : 'medium-emphasis'"
                 >
-                  {{
-                    props.filters[entry.name].value === (entry.filter.val ? item.raw?.[entry.filter.val] : item.raw)
-                      ? 'mdi-radiobox-marked'
-                      : 'mdi-radiobox-blank'
-                  }}
+                  {{ isSelected ? 'mdi-radiobox-marked' : 'mdi-radiobox-blank' }}
                 </v-icon>
               </template>
-              <template #title>
-                <span :title="item.title">
-                  {{ entry.filter.truncate ? formatTruncatedDisplay(item.title, entry.filter.truncate) : item.title }}
-                </span>
-              </template>
+              <v-list-item-title class="text-truncate" :title="itemProps.title">
+                {{ entry.filter.truncate ? formatTruncatedDisplay(itemProps.title, entry.filter.truncate) : itemProps.title }}
+              </v-list-item-title>
             </v-list-item>
           </template>
           <template #selection="{ item }">
@@ -100,22 +91,28 @@
           @update:modelValue="handleFilter(entry.name, $event)"
         />
 
-        <!-- Standard Dropdown select case -->
+        <!-- Standard Dropdown select case (primitive single-select with radios) -->
         <v-select
           v-else-if="entry.filter.type == 'text'"
           v-model="props.filters[entry.name].value"
           :label="entry.filter.label"
           :items="entry.filter.items"
-          clearable
+          :clearable="false"
           @update:modelValue="handleFilter(entry.name, $event)"
         >
-          <template #item="{ props: itemProps, item }">
-            <v-list-item v-bind="itemProps">
-              <template #title>
-                <span :title="item.title">
-                  {{ entry.filter.truncate ? formatTruncatedDisplay(item.title, entry.filter.truncate) : item.title }}
-                </span>
+          <template #item="{ props: itemProps }">
+            <v-list-item v-bind="itemProps" title="">
+              <template #prepend="{ isSelected }">
+                <v-icon
+                  size="small"
+                  :color="isSelected ? 'primary' : 'medium-emphasis'"
+                >
+                  {{ isSelected ? 'mdi-radiobox-marked' : 'mdi-radiobox-blank' }}
+                </v-icon>
               </template>
+              <v-list-item-title class="text-truncate" :title="itemProps.title">
+                {{ entry.filter.truncate ? formatTruncatedDisplay(itemProps.title, entry.filter.truncate) : itemProps.title }}
+              </v-list-item-title>
             </v-list-item>
           </template>
           <template #selection="{ item }">
@@ -128,6 +125,7 @@
     </v-col>
   </v-row>
 </template>
+
 
 <script setup>
 import { computed } from 'vue';
@@ -166,6 +164,7 @@ const PERIOD_KEYS = new Set([
   'yearmonths',
   'status',
   'statuses',
+  'valid_types',
 ]);
 
 const filterColumns = computed(() => {
@@ -199,9 +198,7 @@ const filterColumns = computed(() => {
     ];
   }
   return scope.length > 0 ? [{ key: 'scope', items: scope }] : [];
-
 });
-
 
 const colMdSpan = computed(() => {
   const count = filterColumns.value.length;
@@ -221,7 +218,6 @@ function formatToggleLabel(entry) {
   }
   return raw.replace(/^Show\b/i, 'Hide');
 }
-
 
 function handleFilter(keyName, newValue) {
   emit('setFilter', { key: keyName, value: newValue });

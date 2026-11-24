@@ -207,8 +207,17 @@ export function useDatasetBulk({
               Object.entries(resData.data).forEach(([col, value]) => {
                 itm[col] = value == null ? "Inactive" : "Active";
               });
+              if (itm.inst_valid === "Active" && itm.plat_valid === "Active") {
+                itm.valid_state = ["Fully Validated"];
+              } else {
+                itm.valid_state = [];
+                if (itm.inst_valid === "Inactive") itm.valid_state.push("Institution Not Validated");
+                if (itm.plat_valid === "Inactive") itm.valid_state.push("Platform Not Validated");
+                itm.valid_state.push("Not Fully Validated");
+              }
             });
         }
+
 
         return { success: true, msg: resData.msg };
       } else {

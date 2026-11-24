@@ -16,6 +16,7 @@ export function useToolbarFilters(filterOptions, dataset, emit) {
       Object.entries(row).some(([key, filter]) => {
         if (!filter.show) return false;
         if (Array.isArray(filter.value)) return filter.value.length > 0;
+        if (key === 'valid_types') return filter.value !== 'Not Validated';
         if (key === 'is_conso') return filter.value === 'Active' || filter.value === 'NonConso';
         if (filter.type === 'toggle') return filter.value === 'Active';
 

@@ -437,7 +437,6 @@ class HarvestLogController extends BaseController
         ], 200);
     }
 
-
     /**
      * Store a newly created resource in storage.
      */
@@ -603,7 +602,6 @@ class HarvestLogController extends BaseController
             'messages' => $messages,
         ], 200);
     }
-
 
     /**
      * Display the specified resource.
@@ -1347,8 +1345,6 @@ class HarvestLogController extends BaseController
 
         return $rec;
     }
-
-
 
     private function deleteStoredData(array $harvest_ids): array
     {

@@ -30,7 +30,13 @@ const authStore = useAuthStore();
 const ccPlusStore = useCCPlusStore();
 const { consortia } = storeToRefs(ccPlusStore);
 
-// Idle session timeout watcher (cascaded Server -> Consortium -> User minutes)
+const activeConsortia = computed(() =>
+  (consortia.value || []).filter(
+    (c) => Number(c.is_active ?? 1) !== 0 && String(c.status || '').toLowerCase() !== 'inactive'
+  )
+);
+
+
 // Idle session timeout watcher (cascaded Server -> Consortium -> User minutes)
 const timeoutMinutes = Math.max(5, Number(authStore.sessionTimeout) || 120);
 const { idle } = useIdle(timeoutMinutes * 60 * 1000);
@@ -262,17 +268,15 @@ onMounted(async () => {
             class="d-flex flex-column flex-md-row align-stretch align-md-center justify-md-space-between ga-0 ga-md-3 px-6 pt-4 w-100">
 
             <!-- ─── 🏢 MOBILE & DESKTOP ENVIRONMENT SELECTOR ─── -->
-            <div v-if="is_serveradmin && consortia.length > 0"
+            <div v-if="is_serveradmin && activeConsortia.length > 0"
               class="w-100 flex-md-initial order-first order-md-last mb-2 mb-md-0"
               style="max-width: 100%; min-width: 280px; width: auto;">
-              <v-autocomplete v-model="globalConsoKey" :label="$t('nav.active_environment')" :items="consortia"
-                item-title="name" item-value="ccp_key" return-object bg-color="white" hide-details
+              <v-autocomplete v-model="globalConsoKey" :label="$t('nav.active_environment')" :items="activeConsortia"
+                item-title="name" item-value="ccp_key" return-object :clearable="false" bg-color="white" hide-details
                 @update:modelValue="handleGlobalConsoChange" />
 
               <v-divider class="d-md-none mt-3" />
             </div>
-
-
 
             <!-- ─── 📱 MOBILE ONLY: RESPONSIVE DROPDOWN NAVIGATION MENU ─── -->
             <div class="d-md-none w-100 mt-2 mb-0">

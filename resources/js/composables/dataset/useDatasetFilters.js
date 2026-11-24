@@ -26,7 +26,7 @@ export function useDatasetFilters({
     if (filterOptions.institutions) filterOptions.institutions.show = !hasGrp && (filterOptions.institutions.items?.length > 0);
   }
 
-  function handleFilter(filt) {
+function handleFilter(filt) {
     const dsKey = toValue(datasetKey);
     const shouldServerRefresh =
       filt.refresh ||
@@ -43,11 +43,17 @@ export function useDatasetFilters({
           f.show = true;
           continue;
         }
-        if (key === 'is_conso' || key === 'status_switch') {
+        if (key === 'valid_types') {
+          f.value = 'Not Validated';
+          f.show = true;
+          continue;
+        }
+        if (key === 'is_conso' || key === 'status_switch' || key === 'valid_target') {
           f.value = 'All';
           f.show = true;
           continue;
         }
+
         if (Array.isArray(f.items) && f.items.length === 0) {
           f.show = false;
           continue;
@@ -64,7 +70,6 @@ export function useDatasetFilters({
         refreshData(dsKey);
       } else {
         updateItems();
-        dtKey.value++;
       }
       return;
     }
@@ -93,11 +98,11 @@ export function useDatasetFilters({
       refreshData(dsKey);
     } else {
       updateItems();
-      dtKey.value++;
     }
   }
 
-  function matchesFilter(item, filter) {
+
+function matchesFilter(item, filter) {
     if (!filter || !filter.show) return true;
     if (Array.isArray(filter.value) && filter.value.length === 0) return true;
     if (!Array.isArray(filter.value) && !filter.value) return true;
@@ -114,6 +119,24 @@ export function useDatasetFilters({
       if (filter.value === 'NonConso') return !isConsoItem;
       return true;
     }
+
+    if (filter.name === 'valid_types') {
+      if (!filter.value || filter.value === 'All') return true;
+      const states = Array.isArray(item[filter.col]) ? item[filter.col] : [];
+      if (filter.value === 'Validated') return states.includes('Fully Validated');
+      if (filter.value === 'Not Validated') return states.includes('Not Fully Validated');
+      return states.includes(filter.value);
+    }
+
+    if (filter.name === 'valid_target') {
+      if (filterOptions.valid_types?.value !== 'Not Validated') return true;
+      if (!filter.value || filter.value === 'All') return true;
+      const states = Array.isArray(item[filter.col]) ? item[filter.col] : [];
+      if (filter.value === 'Platform') return states.includes('Platform Not Validated');
+      if (filter.value === 'Institution') return states.includes('Institution Not Validated');
+      return true;
+    }
+
 
     if (filter.type === 'ymrange') {
       const fromYM = filter.value?.fromYM || '';
@@ -169,7 +192,8 @@ export function useDatasetFilters({
   }
 
 
-  function syncFilterOptionItems() {
+
+function syncFilterOptionItems() {
     if (allItems.length === 0) return;
 
     const dsKey = toValue(datasetKey);
@@ -178,7 +202,12 @@ export function useDatasetFilters({
     for (const key of Object.keys(filterOptions)) {
       const filter = filterOptions[key];
       if (!filter) continue;
-      if (filter.type === 'ymrange' || key === 'is_conso' || key === 'status_switch') {
+      if (
+        filter.type === 'ymrange' ||
+        key === 'is_conso' ||
+        key === 'status_switch' ||
+        key === 'valid_types'
+      ) {
         filter.show = true;
         continue;
       }

@@ -94,6 +94,7 @@ export function useDatasetActions(urlRoot) {
           mutatedRecord.valid_state = [];
           if (mutatedRecord.inst_valid === 'Inactive') mutatedRecord.valid_state.push('Institution Not Validated');
           if (mutatedRecord.plat_valid === 'Inactive') mutatedRecord.valid_state.push('Platform Not Validated');
+          mutatedRecord.valid_state.push('Not Fully Validated');
         }
       }
       return { success: true, record: mutatedRecord, msg: resData.msg };
@@ -105,6 +106,7 @@ export function useDatasetActions(urlRoot) {
       };
     }
   }
+
 
   // Row deletion handler
   async function deleteItem(id) {

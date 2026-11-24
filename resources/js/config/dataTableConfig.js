@@ -1910,7 +1910,7 @@ const rawTableSetup = {
       "json_item",
       "json_inst",
     ],
-    sortby: "platform",
+    sortby: "plat_name",
   },
 
 

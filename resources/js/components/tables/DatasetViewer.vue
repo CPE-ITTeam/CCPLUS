@@ -82,6 +82,23 @@ const capDataset = computed(() =>
   props.datasetKey ? props.datasetKey.charAt(0).toUpperCase() + props.datasetKey.slice(1) : ''
 );
 
+const AUDIT_INST_COLS = new Set(['inst_name', 'inst_valid', 'json_inst']);
+const AUDIT_PLAT_COLS = new Set(['plat_name', 'plat_valid', 'json_item', 'json_host']);
+
+const visibleHeaders = computed(() => {
+  if (props.datasetKey !== 'audit') return headers.value;
+  if (filterOptions.valid_types?.value !== 'Not Validated') return headers.value;
+
+  const target = filterOptions.valid_target?.value || 'All';
+  if (target === 'Platform') {
+    return headers.value.filter((h) => !AUDIT_INST_COLS.has(h.key));
+  }
+  if (target === 'Institution') {
+    return headers.value.filter((h) => !AUDIT_PLAT_COLS.has(h.key));
+  }
+  return headers.value;
+});
+
 const formComponent = computed(() => {
   if (props.datasetKey === 'platforms') return PlatformForm;
   if (props.datasetKey === 'credentials') return CredentialsForm;
@@ -255,11 +272,31 @@ const selectableRows = computed(() => {
 });
 
 const effectiveBulkOptions = computed(() => {
-  if (props.datasetKey === 'platforms' && !authStore.is_serveradmin) {
-    return { ...bulkOptions.value, items: [] };
+  const base = bulkOptions.value;
+  if (props.datasetKey !== 'audit' || !Array.isArray(base?.items)) {
+    return base;
   }
-  return bulkOptions.value;
+
+  const validMode = filterOptions.valid_types?.value;
+  const target = filterOptions.valid_target?.value;
+
+  if (validMode === 'Not Validated' && target === 'Platform') {
+    return {
+      ...base,
+      items: base.items.filter((opt) => opt !== 'Set Institution Validated'),
+    };
+  }
+
+  if (validMode === 'Not Validated' && target === 'Institution') {
+    return {
+      ...base,
+      items: base.items.filter((opt) => opt !== 'Set Platform Validated'),
+    };
+  }
+
+  return base;
 });
+
 
 const toolbarFilters = computed(() => {
   const rows = [];
@@ -367,10 +404,10 @@ watch(locale, () => {
     <v-sheet class="bg-transparent">
 
       <!-- 1. Toolbar Filters Wrapper -->
-      <DataToolbar :model-value="toolbarFilters" :search="search" :dataset="props.datasetKey" :bulkOptions="effectiveBulkOptions"
-         :selectedRows="selectedRows" :showSelectedOnly="showSelectedOnly"
-         :hideExport="!exportable" @updateConso="handleChangeConso" @export="handleExport"
-         @setFilter="handleFilter" @bulkAction="handleBulk" @add="handleAddItem" @update:search="search = $event"
+      <DataToolbar :model-value="toolbarFilters" :search="search" :dataset="props.datasetKey"
+        :bulkOptions="effectiveBulkOptions" :selectedRows="selectedRows" :showSelectedOnly="showSelectedOnly"
+        :hideExport="!exportable" @updateConso="handleChangeConso" @export="handleExport" @setFilter="handleFilter"
+        @bulkAction="handleBulk" @add="handleAddItem" @update:search="search = $event"
         @update:showSelectedOnly="handleToggle" @refreshRecords="refreshData(props.datasetKey)"
         @imported="handleImported" />
 
@@ -398,15 +435,15 @@ watch(locale, () => {
       <!-- 2. Status Messages: Native alerts -->
       <v-alert v-if="success" type="success" class="my-3 mx-4" :text="success" />
       <v-alert v-else-if="failure" type="error" class="my-3 mx-4" :text="failure" />
-
       <!-- 3. Primary Data Table Grid -->
       <DataTable v-if="consoKey != '' || props.datasetKey == 'consortia'" :items="filteredItems" :key="dtKey"
-        :search="search" :headers="headers" :isLoading="dtLoading && !refreshProgress.active"
+        :search="search" :headers="visibleHeaders" :isLoading="dtLoading && !refreshProgress.active"
         :loadingColor="props.loadingColor" :dataset="props.datasetKey" :showSelectedOnly="showSelectedOnly"
         :editableFields="editableFields" :truncated="truncated" :searchFields="searchFields"
         :selectedRows="selectedRows" :selectableRows="selectableRows" @edit="handleEdit" @delete="handleDelete"
         @update:report="handleReportToggle" @update:selectedRows="selectedRows = $event"
         @update:toggle="handleToggleUpdate" @update:toggleSelectedOnly="handleToggle" />
+
 
       <!-- 4. Dialog One: Core Item Forms -->
       <v-dialog v-if="editingItem && isEditable" v-model="formDialogOpen">
@@ -457,7 +494,7 @@ watch(locale, () => {
 
           <template #actions>
             <v-btn @click="handleBulk({ action: 'Set Institution Type', type_id: newType.id })">{{ $t('common.save')
-              }}</v-btn>
+            }}</v-btn>
             <v-btn variant="text" class="ml-2" @click="handleFormCancel">{{ $t('common.cancel') }}</v-btn>
           </template>
         </BaseDialogLayout>
