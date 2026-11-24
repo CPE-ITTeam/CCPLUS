@@ -1,0 +1,15 @@
+{
+  "name": "CC-Plus",
+  "short_name": "CC-Plus",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#1976d2",
+  "icons": [
+    {
+      "src": "/assets/images/apple-touch-icon.png",
+      "sizes": "130x130",
+      "type": "image/png"
+    }
+  ]
+}

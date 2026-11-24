@@ -983,32 +983,10 @@ class CredentialController extends BaseController
             ->when(!$consoAdmin, fn($query) => $query->whereIn('id', $limit_insts))
             ->orderBy('name', 'ASC')
             ->get();
-        $selectedValidTypes = array_values(array_filter(
-            (array) ($filters['valid_types'] ?? []),
-            fn($v) => $v !== null && $v !== '' && $v !== 'All'
-        ));
         $records = [];
         foreach ($credentials as $credential) {
             if (is_null($credential->provider) || is_null($credential->institution)) {
                 continue;
-            }
-            if (count($selectedValidTypes) > 0) {
-                $matches = false;
-                if (count(array_intersect(['Validated', 'Fully Validated'], $selectedValidTypes)) > 0 && $credential->inst_valid && $credential->plat_valid) {
-                    $matches = true;
-                }
-                if (count(array_intersect(['Not Validated', 'Not Fully Validated'], $selectedValidTypes)) > 0 && (is_null($credential->inst_valid) || is_null($credential->plat_valid))) {
-                    $matches = true;
-                }
-                if (in_array('Institution Not Validated', $selectedValidTypes, true) && is_null($credential->inst_valid)) {
-                    $matches = true;
-                }
-                if (in_array('Platform Not Validated', $selectedValidTypes, true) && is_null($credential->plat_valid)) {
-                    $matches = true;
-                }
-                if (!$matches) {
-                    continue;
-                }
             }
 
             $record = [
@@ -1079,8 +1057,12 @@ class CredentialController extends BaseController
             $record['group_ids'] = $_inst ? $_inst->institutionGroups()->pluck('institution_group_id')->all() : [];
             $records[] = $record;
         }
-        return response()->json(['result' => true, 'records' => $records, 'truncated' => false], 200);
+        return response()->json([
+            'result'  => true,
+            'records' => $records,
+        ], 200);
     }
+
     /**
      * Update credential as audit-validated.
      */

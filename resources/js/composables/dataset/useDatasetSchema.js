@@ -288,7 +288,6 @@ function applySchema(activeKey = datasetKey()) {
       };
     }
   });
-
   if (STATUS_SWITCH_DATASETS.has(activeKey)) {
     if (filterOptions.statuses) {
       filterOptions.statuses.show = false;
@@ -304,7 +303,23 @@ function applySchema(activeKey = datasetKey()) {
     };
   }
 
+  if (filterOptions.is_conso) {
+    filterOptions.is_conso.show = true;
+    if (!filterOptions.is_conso.value) {
+      filterOptions.is_conso.value = "All";
+    }
+  }
+
   if (activeKey === "audit") {
+    filterOptions.is_conso = {
+      name: "is_conso",
+      label: "Consortial",
+      type: "toggle",
+      show: true,
+      col: "is_conso",
+      items: [],
+      value: "All",
+    };
     filterOptions.valid_types = {
       name: "valid_types",
       label: "Validation",
@@ -324,6 +339,7 @@ function applySchema(activeKey = datasetKey()) {
       value: "All",
     };
   }
+
 
 
 
