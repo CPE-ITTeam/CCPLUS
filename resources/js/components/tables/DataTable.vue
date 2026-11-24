@@ -474,8 +474,4 @@ function closeErrorDialog() {
   content-visibility: auto;
   contain-intrinsic-size: 44px;
 }
-
-:deep(.v-data-table-footer__items-per-page .v-field__clearable) {
-  display: none !important;
-}
 </style>

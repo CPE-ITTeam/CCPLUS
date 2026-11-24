@@ -1,6 +1,6 @@
 <!-- views/auth/ForgotPassword.vue -->
 <script setup>
-import { ref, onMounted } from 'vue';
+import { ref, computed, onMounted } from 'vue';
 import { storeToRefs } from 'pinia';
 import { useAuthStore } from '@/stores/useAuthStore.js';
 import { useCCPlusStore } from '@/stores/useCCPlusStore.js';
@@ -18,14 +18,18 @@ const ccplusStore = useCCPlusStore();
 const { consortia } = storeToRefs(ccplusStore);
 const { getConsortia } = ccplusStore;
 
+const activeConsortia = computed(() =>
+  consortia.value.filter((c) => Boolean(c.is_active) && c.status !== 'Inactive')
+);
+
 onMounted(async () => {
   clearLoginError();
   if (!consortia.value.length) {
     await getConsortia();
   }
-  if (consortia.value.length === 1) {
-    preset_conso.value = consortia.value[0].name;
-    consortium.value = consortia.value[0];
+  if (activeConsortia.value.length === 1) {
+    preset_conso.value = activeConsortia.value[0].name;
+    consortium.value = activeConsortia.value[0];
   }
 });
 
@@ -47,7 +51,7 @@ async function formSubmit() {
         <v-select
           v-else
           v-model="consortium"
-          :items="consortia"
+          :items="activeConsortia"
           item-title="name"
           item-value="ccp_key"
           return-object
@@ -62,7 +66,6 @@ async function formSubmit() {
         name="email"
         autocomplete="email"
         :label="$t('auth.email')"
-        clearable
         class="mb-6"
         required
       />

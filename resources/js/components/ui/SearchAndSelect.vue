@@ -17,8 +17,6 @@ watch(search, (val) => emit('update:search', val));
     v-model="search"
     :label="$t('tables.search')"
     prepend-inner-icon="mdi-magnify"
-    clearable
     class="w-100 pt-2"
-    @input="$emit('update:search', search)"
   />
 </template>

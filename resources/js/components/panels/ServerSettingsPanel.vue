@@ -113,7 +113,6 @@ onMounted(() => {
 <template>
   <SettingsPanelShell
     v-model:valid="formValid"
-    class="mt-4"
     :title="$t('server.title')"
     icon="mdi-server-security"
     :submit-label="$t('server.save_server_settings')"
@@ -121,7 +120,7 @@ onMounted(() => {
     :failure="failure"
     @submit="formSubmit"
   >
-    <v-row class="ga-y-6">
+    <v-row class="mt-0 ga-y-6">
       <!-- Group 1: Server Info -->
       <v-col cols="12" sm="6" lg="3">
         <fieldset class="border-0 pa-0 ma-0">
@@ -292,8 +291,6 @@ onMounted(() => {
             :label="$t('server.log_login_fails')"
             true-value="1"
             false-value="0"
-            color="primary"
-            hide-details
           />
         </fieldset>
       </v-col>

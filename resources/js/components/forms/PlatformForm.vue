@@ -192,7 +192,6 @@ async function regRefresh() {
   <!-- Pure form content block. No BaseDialogLayout, no outer v-card -->
   <v-form ref="formRef" @submit.prevent="submitForm">
 
-
     <v-row align="center">
       <v-col :sm="formFields['name'].cols" cols="12">
         <v-text-field v-model="formValues['name']" :label="formFields['name'].label" hide-details />
@@ -210,13 +209,13 @@ async function regRefresh() {
           <v-col cols="auto" class="pa-0">
             <!-- Add mode: clean text input -->
             <v-text-field v-if="opType == 'Add'" v-model="formValues['cur_release']"
-              :label="formFields['cur_release'].label" :clearable="false" density="compact" style="width: 140px;"
-              :rules="[requiredRule]" hide-details="auto" />
+              :label="formFields['cur_release'].label" :clearable="false" style="width: 140px;"
+              :rules="[requiredRule]" />
 
             <!-- Edit mode: native Vuetify v-select with centered selection & menu items -->
             <v-select v-else v-model="formValues['cur_release']" :items="releaseOptions"
-              :label="formFields['cur_release'].label" :clearable="false" density="compact" style="width: 140px;"
-              :rules="[requiredRule]" hide-details="auto" @update:modelValue="changeRelease">
+              :label="formFields['cur_release'].label" style="width: 140px;"
+              :rules="[requiredRule]" @update:modelValue="changeRelease">
               <template #selection>
                 <span class="text-center d-inline-block" style="width: 84px;">
                   {{ formValues['cur_release'] }}
@@ -245,7 +244,7 @@ async function regRefresh() {
       <v-col cols="12">
         <v-text-field v-model="formValues['service_url']" :label="formFields['service_url'].label"
           :hint="formFields['service_url'].helperText" :readonly="formValues['refreshable'] == 'Active'"
-          persistent-hint />
+          :clearable="formValues['refreshable'] != 'Active'" persistent-hint />
       </v-col>
       <v-col cols="12" sm="6">
         <v-text-field v-model="formValues['platform_parm']" :label="formFields['platform_parm'].label"
@@ -292,9 +291,9 @@ async function regRefresh() {
     <v-row align="center" class="mt-4 ga-4">
       <v-col :sm="formFields['day_of_month'].cols" cols="12" class="d-flex align-center">
         <strong class="text-body-2 text-no-wrap text-medium-emphasis mr-2">Monthly harvest day:</strong>
-        <v-number-input v-model.number="formValues['day_of_month']" :min="1" :max="28" :clearable="false"
-          control-variant="split" density="compact" :rules="[dayRules.required, dayRules.validDay]"
-          style="max-width: 135px;" hide-details="auto" />
+        <v-number-input v-model.number="formValues['day_of_month']" :min="1" :max="28"
+          control-variant="split" :rules="[dayRules.required, dayRules.validDay]"
+          style="max-width: 135px;" />
       </v-col>
 
 
@@ -344,6 +343,8 @@ async function regRefresh() {
 
   </v-form>
 </template>
+
+
 <style scoped>
 .centered-number :deep(input) {
   text-align: center;

@@ -210,8 +210,8 @@ export default {
 
   fields: {
         all_platforms: "All Platforms",
-    exclude_consortial: "Exclude Consortial",
-    limit_to_consortial: "Limit to Consortial",
+    exclude_consortial: "Exclude Consortial Platforms",
+    limit_to_consortial: "Consortial Platforms Only",
 
     abbreviation: "Abbreviation",
     add_cred_placeholders: "Add Credential Placeholders",

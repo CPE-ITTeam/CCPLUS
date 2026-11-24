@@ -23,7 +23,6 @@ const FIELD_DEFAULTS = {
   cols: 12,
 };
 
-
 // ─────────────────────────────────────────────────────────────────────────
 // STEP 2: SCHEMA PERMISSION HELPERS
 // ─────────────────────────────────────────────────────────────────────────
@@ -490,7 +489,7 @@ const rawTableSetup = {
       return t("datasets.users.title");
     },
     fields: [
-      // Row 1: Status
+      // Hidden / Metadata Columns
       {
         name: "id",
         get label() {
@@ -502,6 +501,35 @@ const rawTableSetup = {
         visible: false,
         searchable: false,
       },
+      {
+        name: "inst_id",
+        get label() {
+          return t("fields.institution_id");
+        },
+        type: "number",
+        header: null,
+        editable: false,
+        visible: false,
+        searchable: false,
+      },
+      {
+        name: "institution.name",
+        get label() {
+          return t("fields.home_institution");
+        },
+        editable: false,
+        visible: false,
+      },
+      {
+        name: "user_role",
+        get label() {
+          return t("fields.role");
+        },
+        editable: false,
+        visible: false,
+      },
+
+      // Row 1: Status
       {
         name: "status",
         get label() {
@@ -550,66 +578,6 @@ const rawTableSetup = {
         options: "fromURL",
         optVal: "id",
         optTxt: "name",
-        searchable: false,
-        cols: 6,
-      },
-
-      // Row 4: Institution & Role
-      {
-        name: "institution.name",
-        get label() {
-          return t("fields.home_institution");
-        },
-        editable: false,
-        visible: false,
-      },
-      {
-        name: "institutions",
-        get label() {
-          return t("fields.home_institution");
-        },
-        type: "select",
-        options: "fromURL",
-        optVal: "id",
-        optTxt: "name",
-        isFilter: true,
-        filterCol: "inst_id",
-        header: null,
-        searchable: false,
-        cols: 6,
-      },
-      {
-        name: "inst_id",
-        get label() {
-          return t("fields.institution_id");
-        },
-        type: "number",
-        header: null,
-        editable: false,
-        visible: false,
-        searchable: false,
-      },
-
-      {
-        name: "user_role",
-        get label() {
-          return t("fields.role");
-        },
-        editable: false,
-        visible: false,
-      },
-      {
-        name: "uroles",
-        get label() {
-          return t("fields.role");
-        },
-        type: "select",
-        options: "fromURL",
-        optVal: "id",
-        optTxt: "name",
-        isFilter: true,
-        filterCol: "user_role",
-        header: null,
         searchable: false,
         cols: 6,
       },
@@ -672,6 +640,38 @@ const rawTableSetup = {
         visible: ["Edit"],
         searchable: false,
         cols: 12,
+      },
+
+      // ─── Row 4 Form Fields & Toolbar Filters (Home Institution & Role) ───
+      {
+        name: "institutions",
+        get label() {
+          return t("fields.home_institution");
+        },
+        type: "select",
+        options: "fromURL",
+        optVal: "id",
+        optTxt: "name",
+        isFilter: true,
+        filterCol: "inst_id",
+        header: null,
+        searchable: false,
+        cols: 6,
+      },
+      {
+        name: "uroles",
+        get label() {
+          return t("fields.role");
+        },
+        type: "select",
+        options: "fromURL",
+        optVal: "id",
+        optTxt: "name",
+        isFilter: true,
+        filterCol: "user_role",
+        header: null,
+        searchable: false,
+        cols: 6,
       },
     ],
 
@@ -1687,14 +1687,16 @@ const rawTableSetup = {
         type: "date",
         editable: false,
       },
-      {
-        name: "actions",
-        get label() {
-          return t("fields.actions");
-        },
-        header: "center",
-        editable: false,
-      },
+   {
+     name: "actions",
+     get label() {
+       return t("tables.actions");
+     },
+     header: "center",
+     sortable: false,
+     editable: false,
+   },
+
     ],
     required: [],
     static: ["id"],
@@ -1703,7 +1705,7 @@ const rawTableSetup = {
     sortby: "inst_name",
   },
 
-   audit: {
+  audit: {
     urlRoot: "/api/audit",
     title: "",
     fields: [
@@ -1913,7 +1915,6 @@ const rawTableSetup = {
     sortby: "plat_name",
   },
 
-
   jobs: {
     urlRoot: "/api/jobs",
     title: "",
@@ -2118,7 +2119,7 @@ const rawTableSetup = {
     sortby: "created",
   },
 
-   harvests: {
+  harvests: {
     urlRoot: "/api/harvests",
     title: "",
     fields: [
@@ -2331,7 +2332,6 @@ const rawTableSetup = {
     sortby: "updated",
   },
 
-
   savedreports: {
     urlRoot: "/api/savedreports",
     get title() {
@@ -2420,6 +2420,7 @@ const rawTableSetup = {
     sortby: "title",
   },
 };
+
 // ─────────────────────────────────────────────────────────────────────────
 // STEP 4: THE AUTOMATED LOOPER (Preserves live getters & wires required)
 // ─────────────────────────────────────────────────────────────────────────

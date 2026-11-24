@@ -27,8 +27,7 @@ i18n.global.mergeLocaleMessage("hu", { $vuetify: vuetifyHu });
 const sharedInputDefaults = {
   hideDetails: "auto", // Hides bottom spacing unless an active error shows
   variant: "outlined", // Gives fields a crisp border frame
-  density: "default", // Maximizes input height and breathing room
-  clearable: true, // GLOBAL DEFAULT: Adds the "X" clear icon to all inputs
+  density: "comfortable", // Maximizes input height and breathing room
   persistentPlaceholder: true, // Keeps placeholder text always visible on empty fields
   class: "mb-3", // Adds uniform vertical breathing room below every input
 };
@@ -72,23 +71,34 @@ export default createVuetify({
   // ─── NATIVE FRAMEWORK GLOBAL OVERRIDES ───
   defaults: {
     // ─── SHARED INPUT DEFAULTS SELECTION GROUP ───
-    VAutocomplete: { ...sharedInputDefaults },
-    VCheckbox: { ...sharedInputDefaults },
-    VCombobox: { ...sharedInputDefaults },
+    // ─── SHARED INPUT DEFAULTS SELECTION GROUP ───
+    VAutocomplete: { ...sharedInputDefaults, class: "mb-3 flex-grow-0" },
+    VCheckbox: { ...sharedInputDefaults, color: "primary" },
+    VCombobox: { ...sharedInputDefaults, class: "mb-3 flex-grow-0" },
     VFileInput: { ...sharedInputDefaults },
     VNumberInput: { ...sharedInputDefaults },
-    VSelect: { ...sharedInputDefaults },
-    VSwitch: { ...sharedInputDefaults, class: "" },
-    VTextField: { ...sharedInputDefaults },
-    VTextarea: { ...sharedInputDefaults },
+    VRadio: { color: "primary" },
+    VRadioGroup: { ...sharedInputDefaults, color: "primary" },
+    VSelect: { ...sharedInputDefaults, class: "mb-3 flex-grow-0" },
+
+    VSwitch: {
+      ...sharedInputDefaults,
+      density: "compact",
+      hideDetails: true,
+      color: "primary",
+      class: "flex-grow-0",
+      style: "transform: scale(0.85); transform-origin: left center;",
+    },
+    VTextField: { ...sharedInputDefaults, clearable: true },
+    VTextarea: { ...sharedInputDefaults, clearable: true },
 
     // ─── FORM LAYOUT SPACING ───
     VForm: {
       VRow: {
-        class: "my-1", // Ensures generous vertical spacing between form rows
+        class: "mt-0 mb-1", // Removes extra top margin while keeping bottom row spacing
       },
       VCol: {
-        class: "py-2", // Keeps vertical padding consistent across grid columns
+        class: "pt-1 pb-2", // Tightens top column padding across dialogs and panels
       },
     },
 
@@ -163,8 +173,9 @@ export default createVuetify({
       class: "pt-3 px-5",
     },
     VCardText: {
-      class: "pa-5",
+      class: "pt-3 px-5 pb-5", // Trims top padding below card/dialog headers while keeping side & bottom breathing room
     },
+
     VCardTitle: {
       color: "primary",
       class: "text-h6 font-weight-semibold pa-0",

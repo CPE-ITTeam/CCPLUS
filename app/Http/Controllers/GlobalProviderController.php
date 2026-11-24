@@ -53,15 +53,17 @@ class GlobalProviderController extends BaseController
         $all_releases = [];
         $providers = [];
 
-        $consoProvIds = session('ccp_con_key')
-            ? Connection::where('inst_id', 1)->pluck('global_id')->flip()->all()
+        $activeTenantKey = $request->header('X-Tenant') ?: session('ccp_con_key');
+        $connectedProvIds = $activeTenantKey
+            ? Connection::whereNotNull('global_id')->pluck('global_id')->flip()->all()
             : [];
 
         foreach ($gp_data as $gp) {
             $provider = [
                 'id'               => $gp->id,
                 'legacy_id'        => $gp->legacy_id,
-                'is_conso'         => isset($consoProvIds[$gp->id]),
+                'is_conso'         => isset($connectedProvIds[$gp->id]),
+                'is_connected'     => isset($connectedProvIds[$gp->id]),
                 'name'             => $gp->name,
                 'content_provider' => $gp->content_provider,
                 'abbrev'           => $gp->abbrev,
@@ -71,7 +73,6 @@ class GlobalProviderController extends BaseController
                 'refreshable'      => $gp->refreshable ? 'Active' : 'Inactive',
                 'registry_id'      => (is_null($gp->registry_id) || $gp->registry_id === '') ? null : $gp->registry_id,
             ];
-
 
             $resultKey = '';
             if (is_null($provider['registry_id'])) {
@@ -144,6 +145,10 @@ class GlobalProviderController extends BaseController
                 }
             }
 
+            if (!$activeTenantKey) {
+                $provider['is_connected'] = $provider['instance_count'] > 0;
+            }
+
             $provider['can_edit'] = $isServerAdmin;
             $provider['connections'] = $connections;
             $provider['updated'] = is_null($gp->updated_at) ? '' : date('Y-m-d H:i', strtotime($gp->updated_at));
@@ -168,6 +173,7 @@ class GlobalProviderController extends BaseController
 
         return response()->json(['records' => $providers, 'options' => $filter_options], 200);
     }
+
 
 
     /**

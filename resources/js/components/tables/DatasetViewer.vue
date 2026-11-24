@@ -160,6 +160,16 @@ const { handleFilter, updateItems } = useDatasetFilters({
   refreshData,
 });
 
+watch(
+  [() => props.datasetKey, () => filterOptions.is_conso],
+  ([ds, isConsoFilter]) => {
+    if (ds === 'platforms' && isConsoFilter) {
+      isConsoFilter.useConnected = true;
+    }
+  },
+  { immediate: true }
+);
+
 const { triggerExcelExport } = useDatasetExporter({
   props,
   datasetConfig,
@@ -435,6 +445,7 @@ watch(locale, () => {
       <!-- 2. Status Messages: Native alerts -->
       <v-alert v-if="success" type="success" class="my-3 mx-4" :text="success" />
       <v-alert v-else-if="failure" type="error" class="my-3 mx-4" :text="failure" />
+
       <!-- 3. Primary Data Table Grid -->
       <DataTable v-if="consoKey != '' || props.datasetKey == 'consortia'" :items="filteredItems" :key="dtKey"
         :search="search" :headers="visibleHeaders" :isLoading="dtLoading && !refreshProgress.active"
@@ -443,7 +454,6 @@ watch(locale, () => {
         :selectedRows="selectedRows" :selectableRows="selectableRows" @edit="handleEdit" @delete="handleDelete"
         @update:report="handleReportToggle" @update:selectedRows="selectedRows = $event"
         @update:toggle="handleToggleUpdate" @update:toggleSelectedOnly="handleToggle" />
-
 
       <!-- 4. Dialog One: Core Item Forms -->
       <v-dialog v-if="editingItem && isEditable" v-model="formDialogOpen">

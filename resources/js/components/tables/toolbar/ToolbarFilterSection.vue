@@ -7,164 +7,76 @@
         {{ $t('tables.filter', visibleFilterCount) }}
       </span>
 
-      <v-chip
-        v-if="anyFilterSet"
-        size="small"
-        color="error"
-        variant="tonal"
-        prepend-icon="mdi-close-circle-outline"
-        class="cursor-pointer font-weight-medium"
-        @click="$emit('clearAll')"
-      >
+      <v-chip v-if="anyFilterSet" size="small" color="error" variant="tonal" prepend-icon="mdi-close-circle-outline"
+        class="cursor-pointer font-weight-medium" @click="$emit('clearAll')">
         {{ $t('tables.clear_all') }}
       </v-chip>
 
-      <v-btn
-        v-if="showRefreshButton"
-        size="small"
-        variant="tonal"
-        prepend-icon="mdi-refresh"
-        class="ms-2"
-        @click="$emit('refreshRecords')"
-      >
+      <v-btn v-if="showRefreshButton" size="small" variant="tonal" prepend-icon="mdi-refresh" class="ms-2"
+        @click="$emit('refreshRecords')">
         {{ $t('tables.refresh_records') }}
       </v-btn>
     </div>
 
     <!-- Row 2: Thin Switch Bar Aligned Over Active Filter Columns -->
-    <v-row v-if="hasAnySwitch" dense align="center" class="w-100 my-0">
-      <!-- Column 1 Switch(es): Scope (Consortial / Active Institutions / Single-Col Status) -->
-      <v-col cols="12" md="4" class="py-0 d-flex flex-wrap align-center ga-3">
-        <v-switch
-          v-if="flatFilterOptions.is_conso"
-          :model-value="consoSwitchState.modelValue"
-          :indeterminate="consoSwitchState.indeterminate"
-          :color="consoSwitchState.color"
-          :label="consoSwitchState.label"
-          inset
-          hide-details
-          density="compact"
-          true-icon="mdi-star-circle"
-          false-icon="mdi-home-circle"
-          class="flex-grow-0"
-          style="transform: scale(0.85); transform-origin: left center;"
-          @click.prevent="cycleConsoSwitch"
-        />
+    <v-row v-if="hasAnySwitch" dense align="start" class="w-100 my-0 switch-bar">
+      <!-- Column 1 Switch(es): Scope (Consortial / Active Institutions / Validation / Single-Col Status) -->
+      <v-col cols="12" md="4" class="py-0 d-flex flex-column align-start ga-0">
+        <div class="d-flex flex-wrap align-center switch-group">
+          <v-switch v-if="flatFilterOptions.is_conso" :model-value="consoSwitchState.modelValue"
+            :indeterminate="consoSwitchState.indeterminate" :color="consoSwitchState.color"
+            :label="consoSwitchState.label" true-icon="mdi-star-circle" false-icon="mdi-home-circle"
+            @click.prevent="cycleConsoSwitch" />
 
-        <v-switch
-          v-if="flatFilterOptions.inst_active_only"
-          :model-value="flatFilterOptions.inst_active_only.value === 'Active'"
-          color="success"
-          :label="$t('fields.active_institutions_only', 'Active institutions only')"
-          inset
-          hide-details
-          density="compact"
-          class="flex-grow-0"
-          style="transform: scale(0.85); transform-origin: left center;"
-          @click.prevent="toggleInstActiveSwitch"
-        />
+          <v-switch v-if="flatFilterOptions.inst_active_only"
+            :model-value="flatFilterOptions.inst_active_only.value === 'Active'" color="success"
+            :label="$t('fields.active_institutions_only', 'Active institutions only')"
+            @click.prevent="toggleInstActiveSwitch" />
 
-        <v-switch
-          v-if="flatFilterOptions.status_switch && statusSwitchCol === 1"
-          :model-value="statusSwitchState.modelValue"
-          :indeterminate="statusSwitchState.indeterminate"
-          :color="statusSwitchState.color"
-          :label="statusSwitchState.label"
-          inset
-          hide-details
-          density="compact"
-          class="flex-grow-0"
-          style="transform: scale(0.85); transform-origin: left center;"
-          @click.prevent="cycleStatusSwitch"
-        />
-      </v-col>
-
-      <!-- Column 2 Switch(es): Status / Credentials OR Audit JSON + Validation Switches -->
-      <v-col
-        v-if="statusSwitchCol >= 2 || auditJsonSwitches.length > 0 || flatFilterOptions.valid_types"
-        cols="12"
-        md="4"
-        class="py-0 d-flex flex-column align-start ga-1"
-      >
-        <v-switch
-          v-if="flatFilterOptions.status_switch && statusSwitchCol === 2"
-          :model-value="statusSwitchState.modelValue"
-          :indeterminate="statusSwitchState.indeterminate"
-          :color="statusSwitchState.color"
-          :label="statusSwitchState.label"
-          inset
-          hide-details
-          density="compact"
-          class="flex-grow-0"
-          style="transform: scale(0.85); transform-origin: left center;"
-          @click.prevent="cycleStatusSwitch"
-        />
-
-        <div v-if="auditJsonSwitches.length > 0" class="d-flex flex-wrap align-center ga-3">
-          <v-switch
-            v-for="sw in auditJsonSwitches"
-            :key="sw.name"
-            :model-value="sw.value === 'Active' || sw.value === true"
-            :label="formatJsonToggleLabel(sw)"
-            color="warning"
-            base-color="success"
-            inset
-            hide-details
-            density="compact"
-            class="flex-grow-0"
-            style="transform: scale(0.85); transform-origin: left center;"
-            @update:modelValue="emit('setFilter', { key: sw.name, value: $event ? 'Active' : 'Inactive' })"
-          />
+          <v-switch v-if="flatFilterOptions.status_switch && statusSwitchCol === 1"
+            :model-value="statusSwitchState.modelValue" :indeterminate="statusSwitchState.indeterminate"
+            :color="statusSwitchState.color" :base-color="statusSwitchState.color" :label="statusSwitchState.label"
+            @click.prevent="cycleStatusSwitch" />
         </div>
 
-        <div v-if="flatFilterOptions.valid_types" class="d-flex flex-wrap align-center ga-3">
-          <v-switch
-            :model-value="validStatusSwitchState.modelValue"
-            :indeterminate="validStatusSwitchState.indeterminate"
-            :color="validStatusSwitchState.color"
-            :base-color="validStatusSwitchState.baseColor"
-            :label="validStatusSwitchState.label"
-            inset
-            hide-details
-            density="compact"
-            class="flex-grow-0"
-            style="transform: scale(0.85); transform-origin: left center;"
-            @click.prevent="cycleValidStatusSwitch"
-          />
+        <div v-if="flatFilterOptions.valid_types" class="d-flex flex-wrap align-center switch-group">
+          <v-switch :model-value="validStatusSwitchState.modelValue"
+            :indeterminate="validStatusSwitchState.indeterminate" :color="validStatusSwitchState.color"
+            :base-color="validStatusSwitchState.color" :label="validStatusSwitchState.label"
+            @click.prevent="cycleValidStatusSwitch" />
 
-          <v-switch
-            v-if="flatFilterOptions.valid_types.value === 'Not Validated' && flatFilterOptions.valid_target"
-            :model-value="validTargetSwitchState.modelValue"
-            :indeterminate="validTargetSwitchState.indeterminate"
-            :color="validTargetSwitchState.color"
-            :label="validTargetSwitchState.label"
-            inset
-            hide-details
-            density="compact"
-            class="flex-grow-0"
-            style="transform: scale(0.85); transform-origin: left center;"
-            @click.prevent="cycleValidTargetSwitch"
-          />
+          <v-switch v-if="flatFilterOptions.valid_types.value === 'Not Validated' && flatFilterOptions.valid_target"
+            :model-value="validTargetSwitchState.modelValue" :indeterminate="validTargetSwitchState.indeterminate"
+            :color="validTargetSwitchState.color" :label="validTargetSwitchState.label"
+            @click.prevent="cycleValidTargetSwitch" />
         </div>
       </v-col>
 
-      <!-- Column 3 Switch (when 3 filter columns exist) -->
-      <v-col v-if="statusSwitchCol === 3" cols="12" md="4" class="py-0 d-flex align-center">
-        <v-switch
-          v-if="flatFilterOptions.status_switch"
-          :model-value="statusSwitchState.modelValue"
-          :indeterminate="statusSwitchState.indeterminate"
-          :color="statusSwitchState.color"
-          :label="statusSwitchState.label"
-          inset
-          hide-details
-          density="compact"
-          class="flex-grow-0"
-          style="transform: scale(0.85); transform-origin: left center;"
-          @click.prevent="cycleStatusSwitch"
-        />
+      <!-- Column 2 Switch(es): Status / Credentials OR Releases OR Audit JSON Switches -->
+      <v-col v-if="statusSwitchCol >= 2 || auditJsonSwitches.length > 0 || flatFilterOptions.releases" cols="12" md="4"
+        class="py-0 d-flex flex-column align-start ga-0">
+        <div v-if="(flatFilterOptions.status_switch && statusSwitchCol >= 2) || flatFilterOptions.releases"
+          class="d-flex flex-wrap align-center switch-group">
+          <v-switch v-if="flatFilterOptions.status_switch && statusSwitchCol >= 2"
+            :model-value="statusSwitchState.modelValue" :indeterminate="statusSwitchState.indeterminate"
+            :color="statusSwitchState.color" :base-color="statusSwitchState.color" :label="statusSwitchState.label"
+            @click.prevent="cycleStatusSwitch" />
+
+          <v-switch v-if="flatFilterOptions.releases" :model-value="releaseSwitchState.modelValue"
+            :indeterminate="releaseSwitchState.indeterminate" :color="releaseSwitchState.color"
+            :base-color="releaseSwitchState.color" :label="releaseSwitchState.label"
+            @click.prevent="cycleReleaseSwitch" />
+        </div>
+
+        <div v-if="auditJsonSwitches.length > 0" class="d-flex flex-wrap align-center switch-group">
+          <v-switch v-for="sw in auditJsonSwitches" :key="sw.name"
+            :model-value="sw.value !== 'Active' && sw.value !== true" :label="formatJsonToggleLabel(sw)" color="success"
+            base-color="warning"
+            @update:modelValue="emit('setFilter', { key: sw.name, value: $event ? 'Inactive' : 'Active' })" />
+        </div>
       </v-col>
     </v-row>
+
 
     <!-- Row 3: 3-Column Filter Inputs -->
     <ToolbarFilters :filters="mergedVisibleFilters" @setFilter="$emit('setFilter', $event)" />
@@ -195,10 +107,15 @@ const SCOPE_KEYS = new Set([
   'platforms',
   'plat_id',
   'institutions',
+  'institution',
   'inst_id',
   'institution_groups',
   'groups',
+  'group',
   'group_id',
+  'users',
+  'user',
+  'user_id',
   'types',
   'type_id',
 ]);
@@ -235,6 +152,7 @@ const hasAnySwitch = computed(() =>
     flatFilterOptions.value.status_switch ||
     flatFilterOptions.value.valid_types ||
     flatFilterOptions.value.valid_target ||
+    flatFilterOptions.value.releases ||
     auditJsonSwitches.value.length > 0
   )
 );
@@ -250,6 +168,7 @@ const mergedVisibleFilters = computed(() => {
         key === 'status_switch' ||
         key === 'valid_types' ||
         key === 'valid_target' ||
+        key === 'releases' ||
         AUDIT_JSON_KEYS.includes(key)
       ) continue;
       if (props.isHarvestDataset && key === 'statuses') continue;
@@ -261,6 +180,7 @@ const mergedVisibleFilters = computed(() => {
   });
   return merged;
 });
+
 
 const visibleFilterCount = computed(() =>
   Object.values(mergedVisibleFilters.value).filter((f) => f?.show).length
@@ -308,7 +228,7 @@ const statusSwitchState = computed(() => {
   }
   if (val === 'Incomplete') {
     return {
-      modelValue: true,
+      modelValue: false,
       indeterminate: false,
       color: 'warning',
       label: t('fields.incomplete_credentials_only', 'Incomplete credentials only'),
@@ -326,7 +246,7 @@ const statusSwitchState = computed(() => {
     modelValue: false,
     indeterminate: isCredentialsStatus.value,
     color: 'secondary',
-    label: t('fields.all_statuses', 'All Statuses'),
+    label: t('fields.all_statuses', 'All Credentials Statuses'),
   };
 });
 
@@ -351,19 +271,23 @@ function toggleInstActiveSwitch() {
 }
 
 function formatJsonToggleLabel(sw) {
-  const isOn = sw.value === 'Active' || sw.value === true;
-  const raw = String(sw.label || '');
-  return isOn ? raw.replace(/^Hide\b/i, 'Show') : raw.replace(/^Show\b/i, 'Hide');
+  const isHiding = sw.value !== 'Active' && sw.value !== true;
+  const clean = String(sw.label || '').replace(/^(Show|Hide)\s+/i, '');
+  return `${isHiding ? 'Hide' : 'Show'} ${clean}`;
 }
-
 const consoSwitchState = computed(() => {
-  const val = flatFilterOptions.value.is_conso?.value || 'All';
+  const sw = flatFilterOptions.value.is_conso;
+  const val = sw?.value || 'All';
+  const isConnectedMode = Boolean(sw?.useConnected);
+
   if (val === 'Active') {
     return {
       modelValue: true,
       indeterminate: false,
       color: 'primary',
-      label: t('fields.limit_to_consortial', 'Limit to Consortial'),
+      label: isConnectedMode
+        ? t('fields.connected_only', 'Connected')
+        : t('fields.limit_to_consortial', 'Limit to Consortial'),
     };
   }
   if (val === 'NonConso') {
@@ -371,7 +295,9 @@ const consoSwitchState = computed(() => {
       modelValue: false,
       indeterminate: false,
       color: 'secondary',
-      label: t('fields.exclude_consortial', 'Exclude Consortial'),
+      label: isConnectedMode
+        ? t('fields.not_connected', 'Not Connected')
+        : t('fields.exclude_consortial', 'Exclude Consortial'),
     };
   }
   return {
@@ -395,8 +321,7 @@ const validStatusSwitchState = computed(() => {
       modelValue: true,
       indeterminate: false,
       color: 'success',
-      baseColor: undefined,
-      label: t('fields.validated', 'Validated'),
+      label: t('fields.credentials_validated', 'Credentials Validated'),
     };
   }
   if (val === 'Not Validated') {
@@ -404,16 +329,14 @@ const validStatusSwitchState = computed(() => {
       modelValue: false,
       indeterminate: false,
       color: 'warning',
-      baseColor: 'warning',
-      label: t('fields.not_validated', 'Not Validated'),
+      label: t('fields.credentials_not_validated', 'Credentials Not Validated'),
     };
   }
   return {
     modelValue: false,
     indeterminate: true,
     color: 'secondary',
-    baseColor: undefined,
-    label: t('common.all', 'All'),
+    label: t('fields.all_credentials', 'All Credentials'),
   };
 });
 
@@ -432,8 +355,8 @@ const validTargetSwitchState = computed(() => {
     return {
       modelValue: true,
       indeterminate: false,
-      color: 'primary',
-      label: t('fields.no_platform', 'No Platform'),
+      color: 'secondary',
+      label: t('fields.platform_not_validated', 'Platform Not Validated'),
     };
   }
   if (val === 'Institution') {
@@ -441,14 +364,14 @@ const validTargetSwitchState = computed(() => {
       modelValue: false,
       indeterminate: false,
       color: 'secondary',
-      label: t('fields.no_institution', 'No Institution'),
+      label: t('fields.institution_not_validated', 'Institution Not Validated'),
     };
   }
   return {
     modelValue: false,
     indeterminate: true,
-    color: 'warning',
-    label: t('common.all', 'All'),
+    color: 'secondary',
+    label: t('fields.all_unvalidated', 'All Unvalidated'),
   };
 });
 
@@ -457,4 +380,46 @@ function cycleValidTargetSwitch() {
   const next = current === 'All' ? 'Platform' : current === 'Platform' ? 'Institution' : 'All';
   emit('setFilter', { key: 'valid_target', value: next });
 }
+
+const releaseSwitchState = computed(() => {
+  const val = flatFilterOptions.value.releases?.value || 'All';
+  if (val === '5.1') {
+    return {
+      modelValue: true,
+      indeterminate: false,
+      color: 'primary',
+      label: t('fields.release_5_1', '5.1'),
+    };
+  }
+  if (val === '5') {
+    return {
+      modelValue: false,
+      indeterminate: false,
+      color: 'info',
+      label: t('fields.release_5', '5'),
+    };
+  }
+  return {
+    modelValue: false,
+    indeterminate: true,
+    color: 'success',
+    label: t('fields.all_releases', 'All Releases'),
+  };
+});
+
+function cycleReleaseSwitch() {
+  const current = flatFilterOptions.value.releases?.value || 'All';
+  const next = current === 'All' ? '5.1' : current === '5.1' ? '5' : 'All';
+  emit('setFilter', { key: 'releases', value: next });
+}
 </script>
+
+<style scoped>
+.switch-group {
+  column-gap: 12px;
+  row-gap: 0;
+}
+.switch-bar :deep(.v-selection-control) {
+  min-height: 24px;
+}
+</style>

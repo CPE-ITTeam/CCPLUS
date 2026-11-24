@@ -3,14 +3,24 @@
 import { fyMonths } from "@/components/ui/YmInput.vue";
 
 const REFRESHABLE_DATASETS = new Set(["harvests", "jobs"]);
-const ENTITY_FILTER_FIELDS = new Set(["consortia", "institutions", "platforms"]);
-const STATUS_SWITCH_DATASETS = new Set(["consortia", "institutions", "platforms", "credentials"]);
+const ENTITY_FILTER_FIELDS = new Set([
+  "consortia",
+  "institutions",
+  "platforms",
+]);
+const STATUS_SWITCH_DATASETS = new Set([
+  "consortia",
+  "institutions",
+  "platforms",
+  "credentials",
+]);
 
 export function isActiveFilterOption(opt, fldName) {
   if (!ENTITY_FILTER_FIELDS.has(fldName)) return true;
   if (!opt || typeof opt !== "object") return true;
   if ("is_active" in opt && Number(opt.is_active) === 0) return false;
-  if ("status" in opt && String(opt.status).toLowerCase() === "inactive") return false;
+  if ("status" in opt && String(opt.status).toLowerCase() === "inactive")
+    return false;
   return true;
 }
 
@@ -117,242 +127,289 @@ export function useDatasetSchema({
   urlRoot,
   isConsoAdmin,
 }) {
+  function applySchema(activeKey = datasetKey()) {
+    const rawConfig = datasetConfig[activeKey];
+    if (!rawConfig) return;
 
+    const clonedFields = rawConfig.fields.map((f) => ({ ...f }));
+    datasetConfig[activeKey] = {
+      ...rawConfig,
+      fields: clonedFields,
+      required: [...(rawConfig.required || [])],
+      static: [...(rawConfig.static || [])],
+      bulkOptions: Array.isArray(rawConfig.bulkOptions)
+        ? [...rawConfig.bulkOptions]
+        : [],
+      exportFields: Array.isArray(rawConfig.exportFields)
+        ? [...rawConfig.exportFields]
+        : [],
+    };
+    const config = datasetConfig[activeKey];
 
-function applySchema(activeKey = datasetKey()) {
-  const rawConfig = datasetConfig[activeKey];
-  if (!rawConfig) return;
-
-  const clonedFields = rawConfig.fields.map((f) => ({ ...f }));
-  datasetConfig[activeKey] = {
-    ...rawConfig,
-    fields: clonedFields,
-    required: [...(rawConfig.required || [])],
-    static: [...(rawConfig.static || [])],
-    bulkOptions: Array.isArray(rawConfig.bulkOptions)
-      ? [...rawConfig.bulkOptions]
-      : [],
-    exportFields: Array.isArray(rawConfig.exportFields)
-      ? [...rawConfig.exportFields]
-      : [],
-  };
-  const config = datasetConfig[activeKey];
-
-  bulkOptions.value = { dataset: activeKey, items: [...config.bulkOptions] };
-  if (activeKey === "institutions" && Array.isArray(allOptions.groups)) {
-    bulkOptions.value.groups = [...allOptions.groups];
-  }
-
-  Object.keys(filterOptions).forEach((key) => {
-    delete filterOptions[key];
-  });
-
-  headers.value = [{ title: "", key: "" }];
-
-  config.fields.forEach((fld, idx) => {
-    if (fld.name === "fiscalYr") {
-      allOptions.fiscalYr = buildFiscalYearOptions();
-      fld.optVal = "label";
-      fld.optTxt = "label";
+    bulkOptions.value = { dataset: activeKey, items: [...config.bulkOptions] };
+    if (activeKey === "institutions" && Array.isArray(allOptions.groups)) {
+      bulkOptions.value.groups = [...allOptions.groups];
     }
 
-    if (fld.header !== null) {
-      headers.value.push(buildHeaderEntry(fld));
-    }
+    Object.keys(filterOptions).forEach((key) => {
+      delete filterOptions[key];
+    });
 
-    if (fld.name === "conso" && !isConsoAdmin) return;
-    config.fields[idx].static = config.static.includes(fld.name);
+    headers.value = [{ title: "", key: "" }];
 
-    const fallbackOptions = fld.options ?? [];
-    const sourceOptions = allOptions[fld.name] ?? fallbackOptions;
-    const isSelectLike = [
-      "select",
-      "mselect",
-      "selectObj",
-      "toggle",
-    ].includes(fld.type);
-    if (
-      isSelectLike &&
-      (fld.options === "fromURL" || fld.name === "fiscalYr") &&
-      allOptions[fld.name] !== undefined
-    ) {
-      const urlOptions = Array.isArray(allOptions[fld.name])
-        ? allOptions[fld.name].filter((opt) => isActiveFilterOption(opt, fld.name))
-        : allOptions[fld.name];
-      const isMultiTypeFilter = fld.name === "type" || fld.name === "types";
-      const effectiveType = isMultiTypeFilter ? "mselect" : fld.type;
-      const isSinglePrimitive =
-        Array.isArray(urlOptions) &&
-        effectiveType !== "mselect" &&
-        ((activeKey === "roles" && fld.name === "role") ||
-          fld.optTxt === undefined ||
-          fld.optVal === undefined);
-
-      let items = [];
-      let show = false;
-
-      if (REFRESHABLE_DATASETS.has(activeKey)) {
-        items = [...urlOptions];
-        show = true;
-      } else if (
-        fld.name === "fiscalYr" ||
-        (activeKey === "institutions" && fld.name === "groups")
-      ) {
-        items = [...urlOptions];
-        show = fld.isFilter;
-      } else {
-        items = resolvePresentOptionItems(urlOptions, fld, allItems);
-        show = items.length === 0 ? false : fld.isFilter;
+config.fields.forEach((fld, idx) => {
+      if (fld.name === "fiscalYr") {
+        allOptions.fiscalYr = buildFiscalYearOptions();
+        fld.optVal = "label";
+        fld.optTxt = "label";
       }
 
-      filterOptions[fld.name] = {
-        name: fld.name,
-        label: fld.label,
-        type: isSinglePrimitive ? "text" : effectiveType,
-        val: fld.optVal,
-        txt: fld.optTxt,
-        show: isSinglePrimitive ? fld.isFilter : show,
-        col: fld.filterCol,
-        truncate: fld.truncate ?? null,
-        items,
-        value: effectiveType === "mselect" ? [] : null,
-      };
-    } else if (
-      fld.type === "toggle" &&
-      fld.isFilter &&
-      (sourceOptions.length > 0 || fld.name === "is_conso")
-    ) {
-      filterOptions[fld.name] = {
-        name: fld.name,
-        label: fld.label,
-        type: "toggle",
-        show: fld.isFilter,
-        col: fld.filterCol,
-        truncate: fld.truncate ?? null,
-        items: [...sourceOptions],
-        value: fld.name === "is_conso" ? "All" : "Inactive",
-      };
+      if (fld.header !== null) {
+        headers.value.push(buildHeaderEntry(fld));
+      }
 
-    } else if (
-      fld.isFilter &&
-      (fld.type === "text" || fld.type === "mtext")
-    ) {
-      const items =
-        fld.options === "fromURL" && Array.isArray(allOptions[fld.name])
-          ? allOptions[fld.name].filter((opt) => isActiveFilterOption(opt, fld.name))
-          : [...fld.options];
+      if (fld.name === "conso" && !isConsoAdmin) return;
+      config.fields[idx].static = config.static.includes(fld.name);
 
-      filterOptions[fld.name] = {
-        name: fld.name,
-        label: fld.label,
-        type: fld.type,
-        show: true,
-        col: fld.filterCol,
-        truncate: fld.truncate ?? null,
-        value: fld.type === "text" ? null : [],
-        items,
-      };
-    } else if (fld.isFilter && fld.type === "ymrange") {
-      filterOptions[fld.name] = {
-        name: fld.name,
-        label: fld.label,
-        type: "ymrange",
-        show: true,
-        col: fld.filterCol,
-        truncate: null,
-        items: [],
-        value: { fromYM: "", toYM: "" },
-      };
-
-    } else if (Array.isArray(fld.options)) {
-      const items =
-        allItems.length > 0
-          ? fld.options.filter((opt) =>
-              allItems
-                .flatMap((itm) => itm[fld.filterCol])
-                .includes(opt[fld.optVal]),
+      const fallbackOptions = fld.options ?? [];
+      const sourceOptions = allOptions[fld.name] ?? fallbackOptions;
+      const isSelectLike = [
+        "select",
+        "mselect",
+        "selectObj",
+        "toggle",
+      ].includes(fld.type);
+      if (
+        isSelectLike &&
+        (fld.options === "fromURL" || fld.name === "fiscalYr") &&
+        allOptions[fld.name] !== undefined
+      ) {
+        const urlOptions = Array.isArray(allOptions[fld.name])
+          ? allOptions[fld.name].filter((opt) =>
+              isActiveFilterOption(opt, fld.name),
             )
-          : fld.options;
+          : allOptions[fld.name];
+        const isMultiTypeFilter =
+          fld.name === "type" ||
+          fld.name === "types" ||
+          (activeKey === "users" &&
+            (fld.name === "institutions" || fld.name === "uroles")) ||
+          (activeKey === "roles" &&
+            ["role", "user", "institution", "group"].includes(fld.name));
+        const isPrimitiveArray =
+          Array.isArray(urlOptions) &&
+          urlOptions.length > 0 &&
+          typeof urlOptions[0] !== "object";
+        const effectiveType = isMultiTypeFilter
+          ? (isPrimitiveArray ? "mtext" : "mselect")
+          : fld.type;
 
-      filterOptions[fld.name] = {
-        name: fld.name,
-        label: fld.label,
-        type: fld.type,
-        val: fld.optVal,
-        txt: fld.optTxt,
-        show: fld.isFilter,
-        col: fld.filterCol,
-        truncate: fld.truncate ?? null,
-        items: [...items],
-        value: null,
+        const isSinglePrimitive =
+          Array.isArray(urlOptions) &&
+          effectiveType !== "mselect" &&
+          effectiveType !== "mtext" &&
+          (fld.optTxt === undefined || fld.optVal === undefined);
+
+        let items = [];
+        let show = false;
+
+        if (REFRESHABLE_DATASETS.has(activeKey)) {
+          items = [...urlOptions];
+          show = true;
+        } else if (
+          fld.name === "fiscalYr" ||
+          (activeKey === "institutions" && fld.name === "groups")
+        ) {
+          items = [...urlOptions];
+          show = fld.isFilter;
+        } else {
+          items = resolvePresentOptionItems(urlOptions, fld, allItems);
+          show = items.length === 0 ? false : fld.isFilter;
+        }
+
+        filterOptions[fld.name] = {
+          name: fld.name,
+          label: fld.label,
+          type: isSinglePrimitive ? "text" : effectiveType,
+          val: fld.optVal,
+          txt: fld.optTxt,
+          show: isSinglePrimitive ? fld.isFilter : show,
+          col: fld.filterCol,
+          truncate: fld.truncate ?? null,
+          items,
+          value: effectiveType === "mselect" || effectiveType === "mtext" ? [] : null,
+        };
+      } else if (
+        fld.type === "toggle" &&
+        fld.isFilter &&
+        (sourceOptions.length > 0 || fld.name === "is_conso")
+      ) {
+        filterOptions[fld.name] = {
+          name: fld.name,
+          label: fld.label,
+          type: "toggle",
+          show: fld.isFilter,
+          col: fld.filterCol,
+          truncate: fld.truncate ?? null,
+          items: [...sourceOptions],
+          value: fld.name === "is_conso" ? "All" : "Inactive",
+        };
+      } else if (
+        fld.isFilter &&
+        (fld.type === "text" || fld.type === "mtext")
+      ) {
+        const items =
+          fld.options === "fromURL" && Array.isArray(allOptions[fld.name])
+            ? allOptions[fld.name].filter((opt) =>
+                isActiveFilterOption(opt, fld.name),
+              )
+            : [...fld.options];
+
+        filterOptions[fld.name] = {
+          name: fld.name,
+          label: fld.label,
+          type: fld.type,
+          show: true,
+          col: fld.filterCol,
+          truncate: fld.truncate ?? null,
+          value: fld.type === "text" ? null : [],
+          items,
+        };
+      } else if (fld.isFilter && fld.type === "ymrange") {
+        filterOptions[fld.name] = {
+          name: fld.name,
+          label: fld.label,
+          type: "ymrange",
+          show: true,
+          col: fld.filterCol,
+          truncate: null,
+          items: [],
+          value: { fromYM: "", toYM: "" },
+        };
+      } else if (Array.isArray(fld.options)) {
+        const items =
+          allItems.length > 0
+            ? fld.options.filter((opt) =>
+                allItems
+                  .flatMap((itm) => itm[fld.filterCol])
+                  .includes(opt[fld.optVal]),
+              )
+            : fld.options;
+
+        filterOptions[fld.name] = {
+          name: fld.name,
+          label: fld.label,
+          type: fld.type,
+          val: fld.optVal,
+          txt: fld.optTxt,
+          show: fld.isFilter,
+          col: fld.filterCol,
+          truncate: fld.truncate ?? null,
+          items: [...items],
+          value: null,
+        };
+      }
+    });
+
+    const instFilter =
+      filterOptions.institutions || filterOptions.institution || filterOptions.inst_id;
+    const grpFilter =
+      filterOptions.groups || filterOptions.group || filterOptions.group_id;
+    if (instFilter && grpFilter && instFilter.items?.length > 0 && grpFilter.items?.length > 0) {
+      instFilter.show = true;
+      grpFilter.show = false;
+      filterOptions.scope_mode = {
+        name: "scope_mode",
+        label: "Scope Mode",
+        type: "scope_switch",
+        show: true,
+        col: "scope_mode",
+        items: [],
+        value: false,
       };
     }
-  });
-  if (STATUS_SWITCH_DATASETS.has(activeKey)) {
-    if (filterOptions.statuses) {
-      filterOptions.statuses.show = false;
+
+
+    if (STATUS_SWITCH_DATASETS.has(activeKey)) {
+      if (filterOptions.statuses) {
+        filterOptions.statuses.show = false;
+      }
+      filterOptions.status_switch = {
+        name: "status_switch",
+        label: "Status",
+        type: "status_switch",
+        show: true,
+        col: "status",
+        items: [],
+        value: activeKey === "credentials" ? "Enabled" : "Active",
+      };
     }
-    filterOptions.status_switch = {
-      name: "status_switch",
-      label: "Status",
-      type: "status_switch",
-      show: true,
-      col: "status",
-      items: [],
-      value: activeKey === "credentials" ? "Enabled" : "Active",
-    };
-  }
 
-  if (filterOptions.is_conso) {
-    filterOptions.is_conso.show = true;
-    if (!filterOptions.is_conso.value) {
-      filterOptions.is_conso.value = "All";
+    if (filterOptions.is_conso) {
+      filterOptions.is_conso.show = true;
+      if (!filterOptions.is_conso.value) {
+        filterOptions.is_conso.value = "All";
+      }
     }
+
+    if (activeKey === "platforms") {
+      filterOptions.releases = {
+        name: "releases",
+        label: "Releases",
+        type: "release_switch",
+        show: true,
+        col: "reg_releases",
+        items: [],
+        value: "All",
+      };
+    }
+
+    if (activeKey === "audit") {
+      filterOptions.is_conso = {
+        name: "is_conso",
+        label: "Consortial",
+        type: "toggle",
+        show: true,
+        col: "is_conso",
+        items: [],
+        value: "All",
+      };
+      filterOptions.valid_types = {
+        name: "valid_types",
+        label: "Validation",
+        type: "valid_switch",
+        show: true,
+        col: "valid_state",
+        items: [],
+        value: "Not Validated",
+      };
+      filterOptions.valid_target = {
+        name: "valid_target",
+        label: "Unvalidated Scope",
+        type: "valid_target_switch",
+        show: true,
+        col: "valid_state",
+        items: [],
+        value: "All",
+      };
+      for (const k of ["no_inst", "no_plat", "no_host"]) {
+        if (filterOptions[k]) {
+          filterOptions[k].value = "Inactive";
+        }
+      }
+    }
+
+    searchFields.value = config.fields
+      .filter((fld) => fld.searchable)
+      .map((f) => f.name);
+    editableFields.value = config.fields
+      .filter((fld) => fld.editable)
+      .map((f) => f.name);
+    urlRoot.value = config.urlRoot;
   }
 
-  if (activeKey === "audit") {
-    filterOptions.is_conso = {
-      name: "is_conso",
-      label: "Consortial",
-      type: "toggle",
-      show: true,
-      col: "is_conso",
-      items: [],
-      value: "All",
-    };
-    filterOptions.valid_types = {
-      name: "valid_types",
-      label: "Validation",
-      type: "valid_switch",
-      show: true,
-      col: "valid_state",
-      items: [],
-      value: "Not Validated",
-    };
-    filterOptions.valid_target = {
-      name: "valid_target",
-      label: "Unvalidated Scope",
-      type: "valid_target_switch",
-      show: true,
-      col: "valid_state",
-      items: [],
-      value: "All",
-    };
-  }
 
-
-
-
-  searchFields.value = config.fields
-    .filter((fld) => fld.searchable)
-    .map((f) => f.name);
-  editableFields.value = config.fields
-    .filter((fld) => fld.editable)
-    .map((f) => f.name);
-  urlRoot.value = config.urlRoot;
-}
-
-function syncLocaleLabels(activeKey = datasetKey()) {
+  function syncLocaleLabels(activeKey = datasetKey()) {
     const config = datasetConfig[activeKey];
     if (!config) return;
 
@@ -367,6 +424,7 @@ function syncLocaleLabels(activeKey = datasetKey()) {
       const fld = config.fields.find((f) => f.name === key);
       if (fld) filterOptions[key].label = fld.label;
     });
+
   }
 
   return {

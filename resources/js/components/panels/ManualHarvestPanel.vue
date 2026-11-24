@@ -2,12 +2,16 @@
 <template>
     <SettingsPanelShell v-if="consoKey !== ''" class="mt-4" :title="$t('routes.manual_harvest')"
         icon="mdi-cloud-download-outline" :loading="loading" :success="success" :failure="failure" @submit="formSubmit">
-        <v-alert v-if="institution_options.length === 0" type="warning" variant="tonal"
+        <div v-if="!optionsLoaded" class="d-flex justify-center align-center py-8">
+            <v-progress-circular indeterminate color="primary" />
+        </div>
+        <v-alert v-else-if="institution_options.length === 0" type="warning" variant="tonal"
             :text="$t('harvest.no_institutions')" />
         <v-alert v-else-if="available_platforms.length === 0" type="warning" variant="tonal"
             :text="$t('harvest.no_platforms')" />
 
         <v-row v-else class="mt-0">
+
             <!-- COLUMN 1: Platforms, then Institutions / Institution Groups -->
             <v-col cols="12" md="4" class="d-flex flex-column ga-3">
                 <SectionHeading class="mb-1">
@@ -39,28 +43,30 @@
                 </SectionHeading>
 
                 <v-sheet
-                    class="border border-opacity-25 rounded bg-transparent py-1 px-3 d-flex flex-column justify-center mb-3"
-                    style="min-height: 56px;">
-                    <div class="d-flex align-center justify-space-between">
+                    class="border border-opacity-25 rounded bg-transparent px-3 d-flex flex-column justify-center mb-3"
+                    style="min-height: 48px;">
+                    <div class="d-flex align-center justify-space-between" style="min-height: 48px;">
                         <strong class="text-subtitle-2 text-primary text-uppercase font-weight-bold">
                             {{ $t('harvest.reports_to_harvest') }}
                         </strong>
                         <v-switch v-model="selectAllAvailableReports"
                             :label="$t('harvest.all_available_reports', 'All Available')" color="primary"
-                            density="compact" hide-details class="ma-0" @update:model-value="onToggleAllReportsSwitch" />
+                            @update:model-value="onToggleAllReportsSwitch" />
                     </div>
 
                     <template v-if="!selectAllAvailableReports">
-                        <v-divider class="my-2 border-opacity-25" />
-                        <div class="ps-4">
+                        <v-divider class="mt-0 mb-2 border-opacity-25" />
+                        <div class="ps-4 pb-2 compact-checkbox-list">
                             <v-checkbox v-for="rpt in master_reports" :key="rpt.name" v-model="form.reports"
-                                :label="rpt.legend || rpt.name" :value="rpt.name" density="compact" color="primary"
-                                hide-details class="ma-0" />
+                                :value="rpt.name" density="compact" color="primary" hide-details class="ma-0">
+                                <template #label>
+                                    <span class="ms-2">{{ rpt.legend || rpt.name }}</span>
+                                </template>
+                            </v-checkbox>
                         </div>
                     </template>
+
                 </v-sheet>
-
-
 
                 <YmRangeSelector v-model="harvestDates" :fy-start="fyMo" default-preset="fYTD" />
             </v-col>
@@ -82,8 +88,8 @@
                     </v-radio-group>
                 </div>
 
-                <v-switch v-model="form.skip_harvested" :label="$t('harvest.skip_previously_harvested')" color="primary"
-                    :true-value="1" :false-value="0" hide-details />
+                <v-switch v-model="form.skip_harvested" :label="$t('harvest.skip_previously_harvested')" :true-value="1"
+                    :false-value="0" />
             </v-col>
         </v-row>
 
@@ -117,6 +123,7 @@ const emit = defineEmits(['newHarvests', 'updatedHarvests', 'updateConso']);
 
 const consoKey = computed(() => authStore.ccp_key);
 const loading = ref(false);
+const optionsLoaded = ref(false);
 const success = ref('');
 const failure = ref('');
 const inst_name = ref('');
@@ -187,35 +194,10 @@ const initializeOptions = async () => {
         }
     } catch (error) {
         console.error('Error loading harvest options:', error.message);
+    } finally {
+        optionsLoaded.value = true;
     }
 };
-
-const instSelectionString = computed(() => {
-    if (form.value.inst.length === institution_options.value.length) return t('harvest.all_institutions');
-    const inst = institutions.value.find((ii) => ii.id === form.value.inst[0]);
-    if (!inst) return '';
-    let ret = inst.name;
-    if (form.value.inst.length > 1) {
-        ret += ` +${form.value.inst.length - 1} ${form.value.inst.length > 2 ? t('common.others') : t('common.more')}`;
-    }
-    return ret;
-});
-
-const platSelectionString = computed(() => {
-    if (allPlats.value) return t('harvest.all_platforms');
-    if (allConsoPlats.value) return t('harvest.all_conso_platforms');
-    if (form.value.plat.length > 0) {
-        const plat = platforms.value.find((p) => p.id === form.value.plat[0]);
-        if (plat) {
-            let ret = plat.name;
-            if (form.value.plat.length > 1) {
-                ret += ` +${form.value.plat.length - 1} ${form.value.plat.length > 2 ? t('common.others') : t('common.more')}`;
-            }
-            return ret;
-        }
-    }
-    return '';
-});
 
 const selections_made = computed(() => selectedInstitutions.value.length > 0 || form.value.plat.length > 0);
 const submit_enabled = computed(
@@ -424,3 +406,13 @@ onBeforeMount(() => {
     initializeOptions();
 });
 </script>
+
+<style scoped>
+.compact-checkbox-list :deep(.v-checkbox) {
+  --v-input-control-height: 24px;
+}
+.compact-checkbox-list :deep(.v-selection-control) {
+  min-height: 24px;
+}
+</style>
+

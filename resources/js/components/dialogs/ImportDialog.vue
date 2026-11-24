@@ -221,14 +221,14 @@ async function runImport() {
         <v-row no-gutters class="ga-3">
           <v-col cols="12">
             <v-file-input v-model="csv_upload" show-size :label="$t('imports.csv_file_label')" accept="text/csv"
-              variant="outlined" density="compact" prepend-icon="mdi-file-delimited-outline" hide-details="auto"
+              prepend-icon="mdi-file-delimited-outline" 
               :rules="[requiredRule]" />
           </v-col>
 
           <v-col cols="12">
             <v-select v-model="import_type" :items="datasets[props.dataset]?.import_types || []" item-title="title"
-              item-value="value" :label="$t('imports.import_strategy_label')" variant="outlined" density="compact"
-              hide-details="auto" :readonly="datasets[props.dataset]?.import_types?.length === 1"
+              item-value="value" :label="$t('imports.import_strategy_label')" 
+              :readonly="datasets[props.dataset]?.import_types?.length === 1"
               :hint="datasets[props.dataset]?.import_types?.length === 1 ? $t('imports.locked_safe_update_hint') : ''"
               persistent-hint :rules="[requiredRule]" />
           </v-col>

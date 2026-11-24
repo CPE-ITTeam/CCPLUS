@@ -24,7 +24,6 @@ const emit = defineEmits(['click:clear']);
       :max="max"
       :step="step"
       :rules="rules"
-      :clearable="clearable"
       control-variant="split"
       @keydown="displayText ? $event.preventDefault() : null"
       @click:clear="emit('click:clear')"

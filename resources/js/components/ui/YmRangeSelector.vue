@@ -8,7 +8,6 @@
         :items="rangeOptions"
         item-title="title"
         item-value="value"
-        :clearable="clearable"
         class="w-100"
         @update:model-value="onPresetChange"
       />
@@ -43,7 +42,6 @@
       :items="rangeOptions"
       item-title="title"
       item-value="value"
-      :clearable="clearable"
       @update:model-value="onPresetChange"
     />
     <div class="d-flex flex-row ga-2">
@@ -75,7 +73,6 @@ const props = defineProps({
   label: { type: String, default: '' },
   fyStart: { type: [Number, String], default: null },
   inline: { type: Boolean, default: false },
-  clearable: { type: Boolean, default: false },
   defaultPreset: { type: String, default: null },
 });
 

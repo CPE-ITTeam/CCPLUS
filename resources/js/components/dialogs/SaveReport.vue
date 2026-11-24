@@ -58,9 +58,6 @@ function saveConfig() {
             <v-text-field
               v-model="saveTitle"
               :label="$t('dialogs.title_label')"
-              variant="outlined"
-              density="compact"
-              hide-details="auto"
             />
           </v-col>
         </v-row>
@@ -73,9 +70,6 @@ function saveConfig() {
               :label="$t('datasets.savedreports.title')"
               item-title="title"
               item-value="id"
-              variant="outlined"
-              density="compact"
-              hide-details="auto"
               @update:modelValue="chooseExisting()"
             />
           </v-col>

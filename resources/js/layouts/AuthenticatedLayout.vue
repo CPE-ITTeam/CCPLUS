@@ -267,22 +267,23 @@ onMounted(async () => {
           <div
             class="d-flex flex-column flex-md-row align-stretch align-md-center justify-md-space-between ga-0 ga-md-3 px-6 pt-4 w-100">
 
-            <!-- ─── 🏢 MOBILE & DESKTOP ENVIRONMENT SELECTOR ─── -->
+<!-- ─── 🏢 MOBILE & DESKTOP ENVIRONMENT SELECTOR ─── -->
             <div v-if="is_serveradmin && activeConsortia.length > 0"
               class="w-100 flex-md-initial order-first order-md-last mb-2 mb-md-0"
               style="max-width: 100%; min-width: 280px; width: auto;">
               <v-autocomplete v-model="globalConsoKey" :label="$t('nav.active_environment')" :items="activeConsortia"
-                item-title="name" item-value="ccp_key" return-object :clearable="false" bg-color="white" hide-details
+                item-title="name" item-value="ccp_key" return-object bg-color="white" hide-details
                 @update:modelValue="handleGlobalConsoChange" />
 
               <v-divider class="d-md-none mt-3" />
             </div>
 
+
             <!-- ─── 📱 MOBILE ONLY: RESPONSIVE DROPDOWN NAVIGATION MENU ─── -->
             <div class="d-md-none w-100 mt-2 mb-0">
               <v-menu close-on-content-click>
                 <template #activator="{ props: menuProps }">
-                  <v-btn v-bind="menuProps" variant="outlined" color="primary"
+                  <v-btn v-bind="menuProps" color="primary"
                     class="w-100 justify-space-between text-none" append-icon="mdi-chevron-down">
                     <span class="font-weight-bold">
                       {{ pages[activePage]?.meta?.title || $t('nav.navigate_dashboard') }} </span>
@@ -322,7 +323,7 @@ onMounted(async () => {
             <v-tabs-window v-model="activePage" @update:model-value="onPageChange">
               <v-tabs-window-item v-for="(page, pageIndex) in pages" :key="pageIndex" :value="pageIndex">
 
-                <v-tabs v-model="activeTab" bg-color="white" density="compact" @update:model-value="onTabChange">
+                <v-tabs v-model="activeTab" bg-color="white" @update:model-value="onTabChange">
                   <template v-for="(child, cidx) in page?.children" :key="cidx">
                     <v-tab v-if="child?.show" :value="cidx" color="green">
                       {{ child?.meta?.title }}

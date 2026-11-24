@@ -10,12 +10,18 @@
     >
 
       <template v-for="entry in col.items" :key="entry.name">
+        <InstitutionScopeSwitch
+          v-if="scopeModeFilter && ['institutions', 'institution', 'inst_id', 'groups', 'group', 'group_id'].includes(entry.name)"
+          :model-value="Boolean(scopeModeFilter.value)"
+          class="mb-n2"
+          @update:modelValue="handleFilter('scope_mode', $event)"
+        />
+
         <!-- Year-Month Range Filter (Vertical stack inside column, matching ManualHarvestPanel) -->
         <YmRangeSelector
           v-if="entry.filter.type == 'ymrange'"
           v-model="props.filters[entry.name].value"
           :label="entry.filter.label"
-          clearable
           @update:modelValue="handleFilter(entry.name, $event)"
         />
         <!-- Toggle filter case (Vuetify switch: green Hide when off, warning Show when on) -->
@@ -25,11 +31,6 @@
             :label="formatToggleLabel(entry)"
             color="warning"
             base-color="success"
-            inset
-            hide-details
-            density="compact"
-            class="flex-grow-0"
-            style="transform: scale(0.9); transform-origin: left center;"
             @update:modelValue="handleFilter(entry.name, $event ? 'Active' : 'Inactive')"
           />
         </div>
@@ -55,7 +56,6 @@
           :items="entry.filter.items"
           :item-title="entry.filter.txt || 'name'"
           :item-value="entry.filter.val || 'id'"
-          :clearable="false"
           @update:modelValue="handleFilter(entry.name, $event)"
         >
           <template #item="{ props: itemProps }">
@@ -97,9 +97,9 @@
           v-model="props.filters[entry.name].value"
           :label="entry.filter.label"
           :items="entry.filter.items"
-          :clearable="false"
           @update:modelValue="handleFilter(entry.name, $event)"
         >
+
           <template #item="{ props: itemProps }">
             <v-list-item v-bind="itemProps" title="">
               <template #prepend="{ isSelected }">
@@ -127,11 +127,13 @@
 </template>
 
 
+
 <script setup>
 import { computed } from 'vue';
 import { useDataTableHelpers } from '@/composables/table/useDataTableHelpers.js';
 import MultiSelectCombobox from '@/components/ui/MultiSelectCombobox.vue';
 import YmRangeSelector from '@/components/ui/YmRangeSelector.vue';
+import InstitutionScopeSwitch from '@/components/ui/InstitutionScopeSwitch.vue';
 
 const { formatTruncatedDisplay } = useDataTableHelpers();
 
@@ -141,19 +143,29 @@ const props = defineProps({
 
 const emit = defineEmits(['setFilter']);
 
+const scopeModeFilter = computed(() =>
+  props.filters?.scope_mode?.show ? props.filters.scope_mode : null
+);
+
 const SCOPE_KEYS = new Set([
   'consortia',
   'conso_id',
   'platforms',
   'plat_id',
   'institutions',
+  'institution',
   'inst_id',
   'institution_groups',
   'groups',
+  'group',
   'group_id',
+  'users',
+  'user',
+  'user_id',
   'types',
   'type_id',
 ]);
+
 
 const PERIOD_KEYS = new Set([
   'reports',
@@ -173,7 +185,7 @@ const filterColumns = computed(() => {
   const other = [];
 
   Object.entries(props.filters || {}).forEach(([name, filter]) => {
-    if (!filter?.show) return;
+    if (!filter?.show || name === 'scope_mode') return;
     const entry = { name, filter };
     if (SCOPE_KEYS.has(name) || SCOPE_KEYS.has(filter.key)) {
       scope.push(entry);
@@ -184,7 +196,7 @@ const filterColumns = computed(() => {
     }
   });
 
-  if (other.length > 0) {
+  if (period.length > 0 && other.length > 0) {
     return [
       { key: 'scope', items: scope },
       { key: 'period', items: period },
@@ -195,6 +207,12 @@ const filterColumns = computed(() => {
     return [
       { key: 'scope', items: scope },
       { key: 'period', items: period },
+    ];
+  }
+  if (other.length > 0) {
+    return [
+      { key: 'scope', items: scope },
+      { key: 'other', items: other },
     ];
   }
   return scope.length > 0 ? [{ key: 'scope', items: scope }] : [];

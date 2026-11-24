@@ -6,7 +6,13 @@ import { useDataTableHelpers } from '@/composables/table/useDataTableHelpers.js'
 
 const { t } = useI18n();
 const { formatTruncatedDisplay } = useDataTableHelpers();
-const model = defineModel({ type: Array, default: () => [] });
+const model = defineModel({
+  type: Array,
+  default: () => [],
+  set(val) {
+    return Array.isArray(val) ? val : [];
+  },
+});
 
 const props = defineProps({
   label: { type: String, required: true },
@@ -99,18 +105,11 @@ function toggleSelectAll() {
 </script>
 
 <template>
-  <v-autocomplete
-    v-model="model"
-    :items="items"
-    multiple
-    :return-object="false"
-    :placeholder="$t('common.select_item', { label: data_label })"
-    :item-title="item_title"
-    :item-value="item_value"
-    :color="model.length > 0 ? 'primary' : undefined"
-    :menu-props="{ maxWidth: 360 }"
-    class="w-100 multi-select-box"
-  >
+  <v-autocomplete v-model="model" :items="items" multiple clearable :return-object="false"
+    :placeholder="$t('common.select_item', { label: data_label })" :item-title="item_title" :item-value="item_value"
+    :color="model.length > 0 ? 'primary' : undefined" :menu-props="{ maxWidth: 360 }" class="w-100 multi-select-box"
+    @click:clear="model = []">
+
     <template #label>
       {{ data_label }}
     </template>
@@ -118,13 +117,8 @@ function toggleSelectAll() {
     <template #prepend-item>
       <v-list-item @click.stop="toggleSelectAll">
         <template #prepend>
-          <v-checkbox-btn
-            :model-value="allSelected"
-            :indeterminate="model.length > 0 && !allSelected"
-            color="primary"
-            class="me-3"
-            tabindex="-1"
-          />
+          <v-checkbox-btn :model-value="allSelected" :indeterminate="model.length > 0 && !allSelected" color="primary"
+            class="me-3" tabindex="-1" />
         </template>
         <v-list-item-title class="font-weight-medium">
           {{ selectAllLabel }}
@@ -136,12 +130,7 @@ function toggleSelectAll() {
     <template #item="{ props: itemProps }">
       <v-list-item v-bind="itemProps" title="">
         <template #prepend="{ isSelected }">
-          <v-checkbox-btn
-            :model-value="isSelected"
-            color="primary"
-            class="me-3"
-            tabindex="-1"
-          />
+          <v-checkbox-btn :model-value="isSelected" color="primary" class="me-3" tabindex="-1" />
         </template>
         <v-list-item-title class="text-truncate" :title="itemProps.title">
           {{ formatOptionLabel(itemProps.title) }}
@@ -158,19 +147,13 @@ function toggleSelectAll() {
     <template #append-item>
       <template v-if="shouldShowNoneOfTheAboveType">
         <v-divider class="my-0 py-0" />
-        <v-list-item
-          :title="$t('common.none_of_the_above')"
-          value="No type assigned"
-          @click="$emit('update:selected', ['No type assigned'])"
-        />
+        <v-list-item :title="$t('common.none_of_the_above')" value="No type assigned"
+          @click="$emit('update:selected', ['No type assigned'])" />
       </template>
       <template v-else-if="shouldShowNoneOfTheAboveGroup">
         <v-divider class="my-0 py-0" />
-        <v-list-item
-          :title="$t('common.none_of_the_above')"
-          value="No groups assigned"
-          @click="$emit('update:selected', ['No groups assigned'])"
-        />
+        <v-list-item :title="$t('common.none_of_the_above')" value="No groups assigned"
+          @click="$emit('update:selected', ['No groups assigned'])" />
       </template>
     </template>
   </v-autocomplete>

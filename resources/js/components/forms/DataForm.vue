@@ -248,7 +248,6 @@ onMounted(() => {
 
 </script>
 
-
 <template>
   <div>
     <v-form v-if="m_schema.fields.length" ref="formRef" @submit.prevent="submitForm">
@@ -315,28 +314,30 @@ onMounted(() => {
             <!-- Standard Select Fields -->
             <v-select v-else-if="field.type === 'select'" v-model="formValues[field.name]" :label="field.label"
               :items="m_schema.options[field.name]" :item-title="field.optTxt" :item-value="field.optVal"
-              :prepend-inner-icon="field.icon" :hint="field.helperText" :rules="field.required ? [requiredRule] : []"
-              @update:modelValue="selectChanged(field.name)" />
+              :prepend-inner-icon="field.icon" :hint="field.helperText" :clearable="!field.required"
+              :rules="field.required ? [requiredRule] : []" @update:modelValue="selectChanged(field.name)" />
 
             <!-- Rich Object Select Strings -->
             <v-select v-else-if="field.type === 'selectObj'" v-model="formValues[field.name]" :label="field.label"
               :items="m_schema.options[field.name]" :item-title="field.optTxt" :item-value="field.optVal"
-              :prepend-inner-icon="field.icon" :hint="field.helperText" return-object
+              :prepend-inner-icon="field.icon" :hint="field.helperText" return-object :clearable="!field.required"
               :rules="field.required ? [requiredRule] : []" />
 
             <!-- Multi-Select Dropdowns -->
             <v-select v-else-if="field.type === 'mselect'" v-model="formValues[field.name]" :label="field.label"
               :items="m_schema.options[field.name]" :item-title="field.optTxt" :item-value="field.optVal"
-              :prepend-inner-icon="field.icon" :hint="field.helperText" multiple chips closable-chips
-              :rules="field.required ? [requiredRule] : []" />
+              :prepend-inner-icon="field.icon" :hint="field.helperText" multiple chips closable-chips clearable
+              :rules="field.required ? [requiredRule] : []" @click:clear="formValues[field.name] = []" />
 
             <!-- Universal Fallback text, email & number inputs -->
             <v-text-field v-else-if="field.type != 'passconf'" v-model="formValues[field.name]" :label="field.label"
               :type="field.type === 'number' ? 'number' : 'text'" :name="`${m_schema.dataset}_${field.name}`"
-              autocomplete="off" :prepend-inner-icon="field.icon" :hint="field.helperText" :rules="[
+              autocomplete="off" :prepend-inner-icon="field.icon" :hint="field.helperText"
+              :clearable="field.type !== 'number'" :rules="[
                 ...(field.required ? [requiredRule] : []),
                 ...(field.type === 'email' ? [emailRule] : []),
               ]" />
+
 
           </v-col>
 

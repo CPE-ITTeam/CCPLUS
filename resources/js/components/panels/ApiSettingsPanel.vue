@@ -129,7 +129,6 @@ async function copyToken() {
               readonly
               :type="patShow ? 'text' : 'password'"
               :append-inner-icon="patShow ? 'mdi-eye' : 'mdi-eye-off'"
-              hide-details="auto"
               @click:append-inner="patShow = !patShow"
             />
           </v-col>

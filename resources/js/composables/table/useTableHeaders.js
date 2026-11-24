@@ -95,7 +95,7 @@ export function useTableHeaders(headers, items, selectableRows, loadingColor) {
       });
     }
 
-    if (showActions.value) {
+    if (showActions.value && !hdrs.some((h) => h.key === 'actions')) {
       hdrs.push({
         title: t('tables.actions'),
         key: 'actions',
@@ -103,6 +103,7 @@ export function useTableHeaders(headers, items, selectableRows, loadingColor) {
         headerProps: { class: `font-weight-bold bg-${loadingColor.value} text-white` },
       });
     }
+
 
     return hdrs;
   });

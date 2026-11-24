@@ -42,7 +42,6 @@ onMounted(() => {
         name="email"
         autocomplete="email"
         :label="$t('auth.email')"
-        clearable
         class="mb-4"
         required
       />

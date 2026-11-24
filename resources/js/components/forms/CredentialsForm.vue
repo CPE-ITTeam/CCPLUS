@@ -267,13 +267,12 @@ onMounted(() => {
               :label="cnx.label"
               :placeholder="$t('credentials.leave_blank_placeholder', 'Leave blank to save as Incomplete')"
               persistent-placeholder
-              clearable
               @focus="clearPlaceholderMarker(cnx.name)"
             />
           </v-col>
         </v-row>
 
-        <v-alert v-else type="info" variant="tonal" density="comfortable" class="mb-3">
+        <v-alert v-else type="info" variant="tonal" class="mb-3">
           {{ $t('credentials.no_connectors_required', 'This platform does not require authentication parameters.') }}
         </v-alert>
       </template>

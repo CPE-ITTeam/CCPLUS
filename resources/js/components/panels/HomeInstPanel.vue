@@ -143,8 +143,7 @@ const resolveSelectDisplay = (field) => {
 
         <v-row align="center" density="compact">
           <v-col cols="7">
-            <v-text-field :model-value="modelValue.ccp_key" :label="fieldMap.ccp_key?.label" readonly
-              hide-details="auto">
+            <v-text-field :model-value="modelValue.ccp_key" :label="fieldMap.ccp_key?.label" readonly >
               <template #append-inner>
                 <LockTip :text="$t('server.readonly_env_hint')" />
               </template>
@@ -154,8 +153,7 @@ const resolveSelectDisplay = (field) => {
           <v-col cols="5" class="d-flex align-center justify-end">
             <v-switch :model-value="modelValue.status" :label="fieldMap.status?.label"
               :readonly="!fieldMap.status?.state.editable" :disabled="!fieldMap.status?.state.editable"
-              true-value="Active" false-value="Inactive" color="primary" hide-details="auto"
-              @update:model-value="updateField('status', $event)" />
+              true-value="Active" false-value="Inactive" @update:model-value="updateField('status', $event)" />
             <LockTip v-if="!fieldMap.status?.state.editable" :text="$t('account.readonly_field_hint')" class="ms-1" />
           </v-col>
         </v-row>
@@ -201,7 +199,6 @@ const resolveSelectDisplay = (field) => {
           item-value="id"
           item-title="name"
           :readonly="!canEditOrg"
-          :clearable="false"
           class="mb-4"
           @update:model-value="updateField('theme', $event)"
         >
@@ -281,10 +278,8 @@ const resolveSelectDisplay = (field) => {
         <v-row align="center" density="compact">
           <v-col v-if="fieldMap.fte?.state.visible" :cols="fieldMap.status?.state.visible ? 7 : 12">
             <NumberStepper v-if="canEditOrg" v-model="fteValue"
-              :label="fieldMap.fte.label" :min="0" :max="1000000" :rules="getFieldRules(fieldMap.fte)"
-              hide-details="auto" />
-            <v-text-field v-else :model-value="modelValue.fte" :label="fieldMap.fte.label" readonly
-              hide-details="auto">
+              :label="fieldMap.fte.label" :min="0" :max="1000000" :rules="getFieldRules(fieldMap.fte)" />
+            <v-text-field v-else :model-value="modelValue.fte" :label="fieldMap.fte.label" readonly >
               <template #append-inner>
                 <LockTip :text="$t('account.readonly_field_hint')" />
               </template>
@@ -295,7 +290,7 @@ const resolveSelectDisplay = (field) => {
             class="d-flex align-center justify-end pe-4">
             <v-switch :model-value="modelValue.status" :label="fieldMap.status.label"
               :readonly="!fieldMap.status.state.editable" :disabled="!fieldMap.status.state.editable"
-              true-value="Active" false-value="Inactive" color="primary" @update:model-value="updateField('status', $event)" />
+              true-value="Active" false-value="Inactive" @update:model-value="updateField('status', $event)" />
             <LockTip v-if="!fieldMap.status.state.editable" :text="$t('account.readonly_field_hint')" class="ms-1" />
           </v-col>
         </v-row>

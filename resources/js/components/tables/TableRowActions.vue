@@ -1,5 +1,9 @@
 <template>
-  <div v-if="hasVisibleActions" class="d-flex align-center ga-1 justify-end">
+  <div
+    v-if="hasVisibleActions"
+    class="d-flex align-center ga-1"
+    :class="dataset === 'badCredentials' ? 'justify-center' : 'justify-end'"
+  >
     <v-btn
       v-if="isCredentialDataset"
       icon="mdi-connection"
@@ -45,6 +49,7 @@
     />
 
     <v-btn
+      v-if="dataset !== 'badCredentials'"
       icon="mdi-delete"
       :color="item.can_delete ? 'error' : undefined"
       :disabled="!item.can_delete"
@@ -54,6 +59,7 @@
     />
   </div>
 </template>
+
 
 <script setup>
 import { computed } from 'vue';

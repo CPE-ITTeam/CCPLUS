@@ -114,7 +114,7 @@ onBeforeUnmount(() => {
 
     <!-- Per-Consortium Report Processor Card -->
     <v-sheet v-if="workerInfo.consortia?.length > 0" border rounded="lg" class="overflow-hidden">
-      <v-table density="comfortable">
+      <v-table>
         <thead style="background-color: rgba(var(--v-theme-secondary), 0.12);">
           <tr>
             <th>Consortium</th>

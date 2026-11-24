@@ -151,7 +151,7 @@ onMounted(() => {
         <v-row v-if="props.item.type == 'Add'" class="d-flex mb-2" no-gutters>
           <v-col class="d-flex">
             <v-autocomplete v-model="selectedPlatform" :items="props.item.connections" :label="$t('fields.platform')"
-              return-object item-title="platform" item-value="id" variant="outlined" density="compact"
+              return-object item-title="platform" item-value="id" 
               :rules="[requiredRule]" @update:modelValue="updatePlatform" />
           </v-col>
         </v-row>
@@ -159,14 +159,14 @@ onMounted(() => {
         <v-row v-if="props.item.type == 'Add' && report_options.length > 0" class="d-flex mb-2" no-gutters>
           <v-col class="d-flex">
             <v-select v-model="selectedReport" :items="report_options" :label="$t('connections.report_to_connect')"
-              variant="outlined" density="compact" :rules="[requiredRule]" @update:modelValue="updateReport" />
+              :rules="[requiredRule]" @update:modelValue="updateReport" />
           </v-col>
         </v-row>
 
         <v-row v-if="showSelectors" class="d-flex mb-2" no-gutters>
           <v-col v-if="insts.length > 0" class="d-flex" cols="12">
             <v-autocomplete v-model="selectedInsts" :items="insts" :label="$t('connections.enable_institutions')"
-              multiple return-object item-title="name" item-value="id" variant="outlined" density="compact"
+              multiple return-object item-title="name" item-value="id" 
               @update:modelValue="changeInsts">
               <template #prepend-item>
                 <v-list-item @click="updateAllInsts">
@@ -190,7 +190,7 @@ onMounted(() => {
         <v-row v-if="showSelectors" class="d-flex mb-2" no-gutters>
           <v-col v-if="groups.length > 0" class="d-flex" cols="12">
             <v-autocomplete v-model="selectedGroups" :items="groups" :label="$t('connections.enable_groups')" multiple
-              return-object item-title="name" item-value="id" variant="outlined" density="compact"
+              return-object item-title="name" item-value="id"
               @update:modelValue="changeGroups">
               <template v-if="groups.length === 1" #prepend-item>
                 <v-list-item @click="updateAllGroups">
