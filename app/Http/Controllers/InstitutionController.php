@@ -38,19 +38,19 @@ class InstitutionController extends BaseController
         if (!$this->thisUser->isConsoAdmin()) {
             $rawInsts = ($type === 'admin') ? $this->thisUser->adminInsts() : $this->thisUser->viewerInsts();
             $limit_to_insts = array_map('intval', (array) $rawInsts);
-            if ($limit_to_insts === array(1)) {
+            if ($limit_to_insts === [1]) {
                 $limit_to_insts = [];
             }
         }
 
-        $inst_data = Institution::with('institutionGroups:id,name', 'credentials', 'institutionType')
+        $inst_data = Institution::with('institutionGroups:id,name,type_id', 'institutionGroups.typeRestriction:id,name', 'credentials', 'institutionType')
             ->when(count($limit_to_insts) > 0, fn($qry) => $qry->whereIn('id', $limit_to_insts))
             ->orderBy('name', 'ASC')
             ->get();
 
-        $seen_group_ids = [];
         foreach ($inst_data as $rec) {
-            $inst = [
+            $harvest_count = $rec->credentials->whereNotNull('last_harvest')->count();
+            $data[] = [
                 'id'           => $rec->id,
                 'name'         => $rec->name,
                 'is_active'    => $rec->is_active,
@@ -58,36 +58,45 @@ class InstitutionController extends BaseController
                 'fte'          => $rec->fte,
                 'notes'        => $rec->notes,
                 'type_id'      => $rec->type_id,
-                'group_string' => '',
+                'group_string' => $rec->institutionGroups->pluck('name')->implode(', '),
                 'status'       => $rec->is_active ? 'Active' : 'Inactive',
-                'group_ids'    => $rec->institutionGroups()->pluck('institution_group_id')->all(),
+                'group_ids'    => $rec->institutionGroups->pluck('id')->all(),
                 'groups'       => $rec->institutionGroups->map(fn($group) => [
-                    'id'   => $group->id,
-                    'name' => $group->name,
+                    'id'        => $group->id,
+                    'name'      => $group->name,
+                    'type_id'   => $group->type_id,
+                    'type_name' => $group->typeRestriction?->name ?? '',
                 ]),
+                'type'         => $rec->institutionType ? $rec->institutionType->name : '(Not classified)',
+                'can_edit'     => $rec->canManage(),
+                'can_delete'   => !($harvest_count > 0 || !$rec->canManage()),
+                'role'         => $this->userRole($rec->id),
             ];
-
-            foreach ($rec->institutionGroups as $group) {
-                $inst['group_string'] .= ($inst['group_string'] === '') ? '' : ', ';
-                $inst['group_string'] .= $group->name;
-                if (!in_array($group->id, $seen_group_ids)) {
-                    $seen_group_ids[] = $group->id;
-                    $filter_options['groups'][] = ['id' => $group->id, 'name' => $group->name];
-                }
-            }
-
-            $harvest_count = $rec->credentials->whereNotNull('last_harvest')->count();
-            $inst['type'] = $rec->institutionType ? $rec->institutionType->name : '(Not classified)';
-            $inst['can_edit'] = $rec->canManage();
-            $inst['can_delete'] = !($harvest_count > 0 || !$rec->canManage());
-            $inst['role'] = $this->userRole($rec->id);
-            $data[] = $inst;
         }
 
-        array_multisort(array_column($filter_options['groups'], 'name'), SORT_ASC, $filter_options['groups']);
+        $filter_options['groups'] = InstitutionGroup::with('typeRestriction:id,name')
+            ->get(['id', 'name', 'type_id'])
+            ->map(fn($g) => [
+                'id'        => $g->id,
+                'name'      => $g->name,
+                'type_id'   => $g->type_id,
+                'type_name' => $g->typeRestriction?->name ?? '',
+            ])
+            ->sort(function ($a, $b) {
+                $aUnrestricted = ($a['type_name'] === '');
+                $bUnrestricted = ($b['type_name'] === '');
+                if ($aUnrestricted !== $bUnrestricted) {
+                    return $aUnrestricted <=> $bUnrestricted;
+                }
+                return strcasecmp($a['type_name'], $b['type_name'])
+                    ?: strcasecmp($a['name'], $b['name']);
+            })
+            ->values()
+            ->toArray();
 
         return response()->json(['records' => $data, 'options' => $filter_options], 200);
     }
+
 
     /**
      * Store a newly created resource in storage.

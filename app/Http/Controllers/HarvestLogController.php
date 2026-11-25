@@ -221,11 +221,19 @@ class HarvestLogController extends BaseController
             ->toArray();
 
         $groups = $consoAdmin
-            ? InstitutionGroup::whereHas('institutions', fn($q) => $q->whereIn('institutions.id', $logInstIds))
-            ->orderBy('name', 'ASC')
-            ->get(['id', 'name'])
+            ? InstitutionGroup::with('typeRestriction:id,name')
+            ->whereHas('institutions', fn($q) => $q->whereIn('institutions.id', $logInstIds))
+            ->get(['id', 'name', 'type_id'])
+            ->map(fn($g) => [
+                'id'        => $g->id,
+                'name'      => $g->name,
+                'type_id'   => $g->type_id,
+                'type_name' => $g->typeRestriction?->name ?? '',
+            ])
+            ->values()
             ->toArray()
             : [];
+
 
         $platforms = GlobalProvider::whereIn('id', $logProvIds)
             ->get(['id', 'name'])
@@ -338,11 +346,19 @@ class HarvestLogController extends BaseController
             ->get(['id', 'name'])
             ->toArray();
 
-        $allGroups = InstitutionGroup::with('institutions:id')
-            ->orderBy('name', 'ASC')
-            ->get(['id', 'name']);
+        $allGroups = InstitutionGroup::with('institutions:id', 'typeRestriction:id,name')
+            ->get(['id', 'name', 'type_id']);
 
-        $inst_groups = $consoAdmin ? $allGroups->toArray() : [];
+        $inst_groups = $consoAdmin
+            ? $allGroups->map(fn($g) => [
+                'id'           => $g->id,
+                'name'         => $g->name,
+                'type_id'      => $g->type_id,
+                'type_name'    => $g->typeRestriction?->name ?? '',
+                'institutions' => $g->institutions->map(fn($inst) => ['id' => $inst->id])->values()->toArray(),
+            ])->values()->toArray()
+            : [];
+
         $groupInstMap = $allGroups->mapWithKeys(
             fn($g) => [$g->id => $g->institutions->pluck('id')->map(fn($id) => (int) $id)->all()]
         );
@@ -1098,12 +1114,18 @@ class HarvestLogController extends BaseController
             ->toArray();
 
         $filter_options['groups'] = $consoAdmin
-            ? InstitutionGroup::whereHas('institutions', fn($q) => $q->whereIn('institutions.id', $queueInstIds))
-            ->orderBy('name', 'ASC')
-            ->get(['id', 'name'])
+            ? InstitutionGroup::with('typeRestriction:id,name')
+            ->whereHas('institutions', fn($q) => $q->whereIn('institutions.id', $queueInstIds))
+            ->get(['id', 'name', 'type_id'])
+            ->map(fn($g) => [
+                'id'        => $g->id,
+                'name'      => $g->name,
+                'type_id'   => $g->type_id,
+                'type_name' => $g->typeRestriction?->name ?? '',
+            ])
+            ->values()
             ->toArray()
             : [];
-
         $filter_options['platforms'] = GlobalProvider::whereIn('id', $queueProvIds)
             ->get(['id', 'name'])
             ->sortBy('name', SORT_NATURAL | SORT_FLAG_CASE)

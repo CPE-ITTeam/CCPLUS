@@ -117,7 +117,16 @@ class CredentialController extends BaseController
         ];
 
         if ($consoAdmin) {
-            $filter_options['groups'] = InstitutionGroup::whereNull('user_id')->orderBy('name', 'ASC')->get(['id', 'name']);
+            $filter_options['groups'] = InstitutionGroup::with('typeRestriction:id,name')
+                ->whereNull('user_id')
+                ->get(['id', 'name', 'type_id'])
+                ->map(fn($g) => [
+                    'id'        => $g->id,
+                    'name'      => $g->name,
+                    'type_id'   => $g->type_id,
+                    'type_name' => $g->typeRestriction?->name ?? '',
+                ])
+                ->values();
             $filter_options['institutions'] = Institution::where('is_active', 1)
                 ->orderBy('name', 'ASC')
                 ->get(['id', 'name', 'is_active']);
@@ -915,9 +924,17 @@ class CredentialController extends BaseController
             ];
         });
         $adminGroups = $consoAdmin ? [] : $thisUser->adminGroups();
-        $filter_options['groups'] = InstitutionGroup::when(!$consoAdmin, fn($query) => $query->whereIn('id', $adminGroups))
-            ->orderBy('name', 'ASC')
-            ->get(['id', 'name']);
+        $filter_options['groups'] = InstitutionGroup::with('typeRestriction:id,name')
+            ->when(!$consoAdmin, fn($query) => $query->whereIn('id', $adminGroups))
+            ->get(['id', 'name', 'type_id'])
+            ->map(fn($g) => [
+                'id'        => $g->id,
+                'name'      => $g->name,
+                'type_id'   => $g->type_id,
+                'type_name' => $g->typeRestriction?->name ?? '',
+            ])
+            ->values();
+
         $filter_options['institutions'] = $all_institutions->map(fn($rec) => [
             'id'   => $rec['id'],
             'name' => $rec['name'],

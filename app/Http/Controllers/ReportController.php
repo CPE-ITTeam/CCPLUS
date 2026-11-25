@@ -55,10 +55,18 @@ class ReportController extends BaseController
             ->toArray();
 
         $limit_groups = $consoAdmin ? [] : $thisUser->viewerGroups();
-        $return_data['groups'] = InstitutionGroup::when($consoAdmin, fn($qry) => $qry->whereNull('user_id'))
+        $return_data['groups'] = InstitutionGroup::with('typeRestriction:id,name')
+            ->when($consoAdmin, fn($qry) => $qry->whereNull('user_id'))
             ->when(count($limit_groups) > 0, fn($qry) => $qry->whereIn('id', $limit_groups))
-            ->orderBy('name', 'ASC')
-            ->get(['id', 'name']);
+            ->get(['id', 'name', 'type_id'])
+            ->map(fn($g) => [
+                'id'        => $g->id,
+                'name'      => $g->name,
+                'type_id'   => $g->type_id,
+                'type_name' => $g->typeRestriction?->name ?? '',
+            ])
+            ->values();
+
 
         // Connected global platforms with harvested data
         $global_ids = Connection::when(count($limit_by_inst) > 0, function ($qry) use ($limit_by_inst) {

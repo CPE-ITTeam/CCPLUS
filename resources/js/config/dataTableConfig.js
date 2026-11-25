@@ -294,6 +294,7 @@ const rawTableSetup = {
         options: "fromURL",
         optVal: "id",
         optTxt: "name",
+        groupBy: "type_name",
         editableBy: ["ConsoAdmin", "ServerAdmin"],
         readOnlyFormat: "lines",
         isFilter: true,
@@ -302,6 +303,7 @@ const rawTableSetup = {
         searchable: false,
         cols: 12,
       },
+
 
       // Row 5: Notes
       {
@@ -894,12 +896,14 @@ const rawTableSetup = {
         options: "fromURL",
         optVal: "id",
         optTxt: "name",
+        groupBy: "type_name",
         isFilter: true,
         filterCol: "group_id",
         header: null,
         visible: false,
         searchable: false,
       },
+
     ],
     required: ["user_role", "user", "conso", "institution", "group"],
     static: ["user_id", "role_id", "inst_id", "group_id"],
@@ -1420,9 +1424,11 @@ const rawTableSetup = {
         options: "fromURL",
         optVal: "id",
         optTxt: "name",
+        groupBy: "type_name",
         header: null,
         searchable: false,
       },
+
     ],
     required: ["id"],
     static: [
@@ -1628,37 +1634,13 @@ const rawTableSetup = {
         options: "fromURL",
         optVal: "id",
         optTxt: "name",
+        groupBy: "type_name",
         isFilter: true,
         filterCol: "group_ids",
         header: null,
         searchable: false,
       },
-      {
-        name: "statuses",
-        get label() {
-          return t("fields.status");
-        },
-        type: "mselect",
-        options: "fromURL",
-        isFilter: true,
-        filterCol: "status",
-        header: null,
-        searchable: false,
-      },
-      {
-        name: "results",
-        get label() {
-          return t("fields.last_harvest");
-        },
-        type: "mselect",
-        options: "fromURL",
-        optVal: "result",
-        optTxt: "result",
-        isFilter: true,
-        filterCol: "result",
-        header: null,
-        searchable: false,
-      },
+
     ],
     required: [
       "institutions",
@@ -1831,11 +1813,13 @@ const rawTableSetup = {
         options: "fromURL",
         optVal: "id",
         optTxt: "name",
+        groupBy: "type_name",
         isFilter: true,
         filterCol: "group_ids",
         header: null,
         searchable: false,
       },
+
       {
         name: "valid_types",
         get label() {
@@ -2093,11 +2077,13 @@ const rawTableSetup = {
         options: "fromURL",
         optVal: "id",
         optTxt: "name",
+        groupBy: "type_name",
         isFilter: true,
         filterCol: "inst_id",
         header: null,
         searchable: false,
       },
+
       {
         name: "reports",
         get label() {
@@ -2292,11 +2278,13 @@ const rawTableSetup = {
         options: "fromURL",
         optVal: "id",
         optTxt: "name",
+        groupBy: "type_name",
         isFilter: true,
         filterCol: "inst_id",
         header: null,
         searchable: false,
       },
+
       {
         name: "reports",
         get label() {

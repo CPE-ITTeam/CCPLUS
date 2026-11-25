@@ -398,6 +398,7 @@ function handleFilter(keyName, newValue) {
           <MultiSelectCombobox v-if="entry.filter.type == 'mselect'" v-model="props.filters[entry.name].value"
             :label="entry.filter.label" multiple :items="entry.filter.items" :item-title="entry.filter.txt"
             :item-value="entry.filter.val" :truncate="entry.filter.truncate"
+            :group-by="entry.filter.groupBy || null"
             @update:modelValue="handleFilter(entry.name, $event)" />
         </v-sheet>
 
@@ -417,7 +418,9 @@ function handleFilter(keyName, newValue) {
         <MultiSelectCombobox v-else-if="entry.filter.type == 'mselect'" v-model="props.filters[entry.name].value"
           :label="entry.filter.label" multiple :items="entry.filter.items" :item-title="entry.filter.txt"
           :item-value="entry.filter.val" :truncate="entry.filter.truncate"
+          :group-by="entry.filter.groupBy || null"
           @update:modelValue="handleFilter(entry.name, $event)" />
+
 
         <!-- Standard Autocomplete case -->
         <v-autocomplete v-else-if="entry.filter.type == 'select'" v-model="props.filters[entry.name].value"

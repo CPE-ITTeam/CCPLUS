@@ -220,6 +220,7 @@ async function submitForm() {
               :items="groupOptions"
               item-title="name"
               item-value="id"
+              group-by="type_name"
             />
           </v-col>
         </template>

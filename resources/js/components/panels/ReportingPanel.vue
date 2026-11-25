@@ -529,7 +529,7 @@ onBeforeMount(() => {
                 :label="$t('routes.institutions')" item-title="name" item-value="id" :items="optionItems.institution" />
 
               <MultiSelectCombobox v-else v-model="selectedFields.institutiongroup"
-                :label="$t('routes.institution_groups')" item-title="name" item-value="id"
+                :label="$t('routes.institution_groups')" group-by="type_name" item-title="name" item-value="id"
                 :items="optionItems.institutiongroup" />
             </template>
 

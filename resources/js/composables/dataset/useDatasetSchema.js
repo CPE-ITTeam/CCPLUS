@@ -236,15 +236,17 @@ config.fields.forEach((fld, idx) => {
         filterOptions[fld.name] = {
           name: fld.name,
           label: fld.label,
-          type: isSinglePrimitive ? "text" : effectiveType,
+          type: effectiveType,
+          items,
           val: fld.optVal,
           txt: fld.optTxt,
           show: isSinglePrimitive ? fld.isFilter : show,
           col: fld.filterCol,
           truncate: fld.truncate ?? null,
-          items,
-          value: effectiveType === "mselect" || effectiveType === "mtext" ? [] : null,
+          groupBy: fld.groupBy ?? null,
+          value: [],
         };
+
       } else if (
         fld.type === "toggle" &&
         fld.isFilter &&

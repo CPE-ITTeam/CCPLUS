@@ -358,7 +358,7 @@ onBeforeMount(() => {
                         @update:model-value="onInstChange" />
 
                     <MultiSelectCombobox v-else v-model="group_ids" :items="inst_groups"
-                        :label="$t('routes.institution_groups')" item-value="id" item-title="name" default-all
+                        :label="$t('routes.institution_groups')" group-by="type_name" item-value="id" item-title="name" default-all
                         @update:model-value="onGroupChange" />
                 </template>
 

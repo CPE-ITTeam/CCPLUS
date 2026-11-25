@@ -91,9 +91,16 @@ class RoleController extends BaseController
             }
         }
 
-        $groups = InstitutionGroup::when(count($limit_groups) > 0, fn($qry) => $qry->whereIn('id', $limit_groups))
-            ->orderBy('name', 'ASC')
-            ->get(['id', 'name']);
+        $groups = InstitutionGroup::with('typeRestriction:id,name')
+            ->when(count($limit_groups) > 0, fn($qry) => $qry->whereIn('id', $limit_groups))
+            ->get(['id', 'name', 'type_id'])
+            ->map(fn($g) => [
+                'id'        => $g->id,
+                'name'      => $g->name,
+                'type_id'   => $g->type_id,
+                'type_name' => $g->typeRestriction?->name ?? '',
+            ])
+            ->values();
 
         $institutions = Institution::where('is_active', 1)
             ->when(count($limit_insts) > 0, fn($qry) => $qry->whereIn('id', $limit_insts))
