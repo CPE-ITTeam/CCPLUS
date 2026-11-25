@@ -126,7 +126,9 @@ Route::middleware('ccplusAuth')->group(function () {
         Route::delete('/delete/{role}', 'App\Http\Controllers\RoleController@destroy')->name('roles.destroy');
         Route::get('/get', 'App\Http\Controllers\RoleController@index')->name('roles.index');
         Route::post('/store', 'App\Http\Controllers\RoleController@store')->name('roles.store');
+        Route::patch('/update/{id}', 'App\Http\Controllers\RoleController@update')->name('roles.update');
     });
+
 
     Route::prefix('savedreports')->group(function () {
         Route::delete('/delete/{id}', 'App\Http\Controllers\SavedReportController@destroy')->name('savedreports.destroy');

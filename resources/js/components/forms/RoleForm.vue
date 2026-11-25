@@ -120,13 +120,13 @@ async function submitForm() {
     );
     return;
   }
-
   const instId = isServerAdmin.value
     ? null
-    : (state.conso ? 1 : (!useInstGroups.value ? (state.institutions ?? null) : null));
+    : (state.conso ? 1 : (!useInstGroups.value ? (state.institutions[0] ?? null) : null));
   const groupId = isServerAdmin.value || state.conso || !useInstGroups.value
     ? null
-    : (state.groups ?? null);
+    : (state.groups[0] ?? null);
+
 
   emit('submit', {
     id: state.id,

@@ -254,13 +254,15 @@ class RoleController extends BaseController
             }
             $instId = 1;
         } elseif (!empty($input['institution'])) {
-            $instId = (int) $input['institution'];
-            if (!$thisUser->isAdmin($instId, null)) {
+            $rawInst = is_array($input['institution']) ? ($input['institution'][0] ?? null) : $input['institution'];
+            $instId = $rawInst ? (int) $rawInst : null;
+            if (!$instId || !$thisUser->isAdmin($instId, null)) {
                 return $this->respondError(__('users.operation_forbidden'));
             }
         } elseif (!empty($input['group'])) {
-            $groupId = (int) $input['group'];
-            if (!$thisUser->isAdmin(null, $groupId)) {
+            $rawGroup = is_array($input['group']) ? ($input['group'][0] ?? null) : $input['group'];
+            $groupId = $rawGroup ? (int) $rawGroup : null;
+            if (!$groupId || !$thisUser->isAdmin(null, $groupId)) {
                 return $this->respondError(__('users.operation_forbidden'));
             }
         } else {
@@ -282,12 +284,12 @@ class RoleController extends BaseController
         $userRole->group_id = $groupId;
         $userRole->save();
 
-
         $this->pruneSubsumedRoles($userRole->user, $role, $instId, $groupId, (int) $userRole->id);
 
         $record = $this->formatRoleRecord($userRole, $userRole->user, $role);
         return $this->respondSuccess(__('users.role_saved'), $record);
     }
+    
 
     private function isCoveredByExistingRole(User $user, Role $role, ?int $instId, ?int $groupId): bool
     {
