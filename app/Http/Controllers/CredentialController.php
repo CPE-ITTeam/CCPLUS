@@ -169,16 +169,14 @@ class CredentialController extends BaseController
 
             $lastHarvest = $cred->lastHarvest;
             if ($lastHarvest) {
-                if ($lastHarvest->error_id > 0 && !in_array($lastHarvest->error_id, $seen_codes)) {
-                    $seen_codes[] = $lastHarvest->error_id;
+                if ((int) $lastHarvest->error_id > 0 && !in_array((int) $lastHarvest->error_id, $seen_codes, true)) {
+                    $seen_codes[] = (int) $lastHarvest->error_id;
                 }
-                $rec['result'] = ($lastHarvest->status === 'Success' || $lastHarvest->error_id == 0)
-                    ? 'Success'
-                    : $lastHarvest->error_id;
             } else {
                 $nh_count++;
-                $rec['result'] = 'No Harvests';
             }
+            $this->attachLastHarvestResult($rec, $lastHarvest);
+
 
             $recReports = $platformBaseReports[$cred->prov_id];
             $instEnabled = $platformInstReports[$cred->prov_id][$cred->inst_id] ?? [];
@@ -205,8 +203,6 @@ class CredentialController extends BaseController
 
         return response()->json(['records' => $credentials, 'options' => $filter_options, 'result' => true], 200);
     }
-
-
     /**
      * Store a newly created resource in storage.
      */
@@ -263,7 +259,6 @@ class CredentialController extends BaseController
             'extra_args'   => trim((string) ($input['extra_args'] ?? '')) ?: null,
             'status'       => 'Enabled',
         ];
-
         foreach ($global_connectors as $gc) {
             if (in_array($gc->id, $requiredIds) && empty($attrs[$gc->name])) {
                 $attrs[$gc->name] = '-required-';
@@ -302,6 +297,32 @@ class CredentialController extends BaseController
         return $this->respondSuccess(__('credentials.created'), $rec);
     }
 
+     private function attachLastHarvestResult(array &$rec, $lastHarvest): void
+    {
+        if (!$lastHarvest) {
+            $rec['result'] = 'No Harvests';
+            return;
+        }
+
+        $errId = (int) $lastHarvest->error_id;
+        $rec['result'] = ($lastHarvest->status === 'Success' || $errId === 0)
+            ? 'Success'
+            : $errId;
+
+        if ($errId > 0) {
+            $ccErr = \App\Models\CcplusError::find($errId);
+            $errPayload = $ccErr ? $ccErr->toArray() : ['id' => $errId, 'message' => ''];
+            $errPayload['id'] = $errId;
+            $errPayload['detail'] = $errPayload['detail'] ?? '';
+            $errPayload['help_url'] = $errPayload['help_url'] ?? '';
+            $errPayload['process_step'] = $errPayload['process_step'] ?? '';
+            $errPayload['color'] = \App\Models\CcplusError::resolveThemeColor($errId, $errPayload, 'error');
+            $errPayload['counter_url'] = ($lastHarvest->release === '5.1')
+                ? 'https://countermetrics.org'
+                : 'https://projectcounter.org';
+            $rec['error'] = $errPayload;
+        }
+    }
     /**
      * Set/update credential values and report access/availability.
      */
@@ -403,8 +424,6 @@ class CredentialController extends BaseController
 
         return $this->respondSuccess(__('credentials.updated'), $record);
     }
-
-
     /**
      * Update report definition for a connection.
      */
@@ -591,9 +610,6 @@ class CredentialController extends BaseController
         }
         return response()->json(['result' => true, 'rows' => $rows, 'msg' => $result]);
     }
-
-
-
     /**
      * Remove the specified resource from storage.
      */
@@ -862,8 +878,6 @@ class CredentialController extends BaseController
 
         return $this->respondSuccess(__('credentials.import_completed', ['detail' => $detail]));
     }
-
-
     /**
      * Returns filter_options for the UI. Item records returned with auditItems().
      */
@@ -910,7 +924,6 @@ class CredentialController extends BaseController
         ])->toArray();
         return response()->json(['records' => [], 'options' => $filter_options], 200);
     }
-
     /**
      * Returns (possibly filtered) items for the Credential Audit UI.
      */
@@ -1065,7 +1078,6 @@ class CredentialController extends BaseController
             'records' => $records,
         ], 200);
     }
-
     /**
      * Update credential as audit-validated.
      */

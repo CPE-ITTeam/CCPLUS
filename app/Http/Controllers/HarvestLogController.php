@@ -801,7 +801,6 @@ class HarvestLogController extends BaseController
                 }
 
                 $harvest->attempts = 0;
-                $harvest->error_id = 0;
                 $harvest->status = 'Queued';
                 $harvest->updated_at = now();
                 $harvest->save();
@@ -1277,19 +1276,19 @@ class HarvestLogController extends BaseController
         $rec['updated'] = $harvest->updated_at ? $harvest->updated_at->toIso8601String() : '';
         $rec['created'] = $harvest->created_at ? $harvest->created_at->toIso8601String() : '';
 
-
         $lastFailed = $harvest->failedHarvests ? $harvest->failedHarvests->sortByDesc('created_at')->first() : null;
-        if ($harvest->lastError) {
+        if ($harvest->lastError && (int) $harvest->error_id > 0) {
             $rec['error_id'] = (int) $harvest->error_id;
             $rec['error'] = $harvest->lastError->toArray();
-            $rec['error']['detail'] = '';
-            $rec['error']['help_url'] = '';
-            $rec['error']['process_step'] = '';
-        } elseif ($lastFailed && $harvest->error_id > 0) {
+            $rec['error']['detail'] = $lastFailed->detail ?? '';
+            $rec['error']['help_url'] = $lastFailed->help_url ?? '';
+            $rec['error']['process_step'] = $lastFailed->process_step ?? '';
+        } elseif ($lastFailed && (int) $lastFailed->error_id > 0) {
             $rec['error_id'] = (int) $lastFailed->error_id;
             if ($lastFailed->ccplusError) {
                 $rec['error'] = $lastFailed->ccplusError->toArray();
             }
+            $rec['error']['id'] = (int) $lastFailed->error_id;
             $rec['error']['detail'] = $lastFailed->detail ?? '';
             $rec['error']['help_url'] = $lastFailed->help_url ?? '';
             $rec['error']['process_step'] = $lastFailed->process_step ?? '';
@@ -1333,13 +1332,9 @@ class HarvestLogController extends BaseController
             }
         }
 
-        // Build retryUrl using CounterApi
-        $beg = $harvest->yearmon . '-01';
-        $end = $harvest->yearmon . '-' . date('t', strtotime($beg));
-        $rec['retryUrl'] = CounterApi::buildUri($beg, $end, $harvest->credential, $harvest->report, 'reports', $harvest->release);
-
         return $rec;
     }
+
 
     private function deleteStoredData(array $harvest_ids): array
     {

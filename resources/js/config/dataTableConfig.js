@@ -1527,15 +1527,13 @@ const rawTableSetup = {
         shortLabel: "API Key",
       },
       {
-        name: "result",
+        name: "error",
         get label() {
           return t("fields.last_harvest");
         },
-        type: "date",
         header: "center",
         editable: false,
       },
-
       // ─── TOOLBAR FILTERS ───
       {
         name: "is_conso",

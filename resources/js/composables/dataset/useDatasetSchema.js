@@ -82,7 +82,14 @@ export function buildHeaderEntry(fld) {
   };
 
   if (fld.name === "error") {
-    entry.sort = (a, b) => Number(a.id) - Number(b.id);
+    entry.sort = (a, b) => Number(a?.id ?? 0) - Number(b?.id ?? 0);
+  }
+  if (fld.name === "result") {
+    entry.sort = (a, b) => {
+      const rank = (v) =>
+        v === "Success" ? -1 : v === "No Harvests" ? 999999 : Number(v) || 0;
+      return rank(a) - rank(b);
+    };
   }
 
   return entry;

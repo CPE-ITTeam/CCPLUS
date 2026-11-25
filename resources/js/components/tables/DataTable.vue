@@ -325,15 +325,10 @@ function closeErrorDialog() {
         <HarvestIdCell :item="item" @download="ccRawJson" @retry="openUrl" />
       </template>
 
-      <template #item.error="{ item }">
+      <template v-for="col in ['error', 'result']" :key="col" #[`item.${col}`]="{ item }">
         <HarvestResultCell :item="item" @viewDetails="enableErrorDialog" />
       </template>
-
-      <template #item.result="{ item }">
-        <HarvestResultCell :item="item" @viewDetails="enableErrorDialog" />
-      </template>
-
-
+      
       <!-- Dynamic Date Interceptor Loop -->
       <template v-for="header in dateHeaders" :key="header.key" #[`item.${header.key}`]="{ value }">
         <span v-if="value" :title="formatDateTimeTooltip(value)">{{ formatDateDisplay(value) }}</span>
