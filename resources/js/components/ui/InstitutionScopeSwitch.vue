@@ -2,17 +2,18 @@
 <template>
   <v-switch
     :model-value="modelValue"
-    :color="modelValue ? 'secondary' : 'primary'"
-    :base-color="modelValue ? 'secondary' : 'primary'"
+    :color="modelValue ? 'primary' : 'secondary'"
+    :base-color="modelValue ? 'primary' : 'secondary'"
     :label="modelValue ? $t('routes.institution_groups', 'Institution Groups') : $t('routes.institutions', 'Institutions')"
     :disabled="disabled"
+    hide-details
     @update:model-value="$emit('update:modelValue', Boolean($event))"
   />
 </template>
 
 <script setup>
 defineProps({
-  modelValue: { type: Boolean, default: false },
+  modelValue: { type: Boolean, default: true },
   disabled: { type: Boolean, default: false },
 });
 

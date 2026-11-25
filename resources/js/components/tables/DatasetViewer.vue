@@ -29,7 +29,7 @@ import { useRegistryProgress } from '@/composables/useRegistryProgress.js';
 import DataTable from './DataTable.vue';
 import DataToolbar from './DataToolbar.vue';
 import BaseDialogLayout from '@/components/dialogs/BaseDialogLayout.vue';
-import ReportToggle from '@/components/dialogs/ReportToggle.vue';
+import ManageConnectionsDialog from '@/components/dialogs/ManageConnectionsDialog.vue';
 import CredentialsForm from '@/components/forms/CredentialsForm.vue';
 import DataForm from '@/components/forms/DataForm.vue';
 import PlatformForm from '@/components/forms/PlatformForm.vue';
@@ -485,7 +485,7 @@ watch(locale, () => {
             </div>
           </template>
 
-          <ReportToggle :item="reptItem" :options="allOptions" @submit="reportToggleSubmit"
+          <ManageConnectionsDialog :item="reptItem" :options="allOptions" @submit="reportToggleSubmit"
             @cancel="handleFormCancel" />
         </BaseDialogLayout>
       </v-dialog>

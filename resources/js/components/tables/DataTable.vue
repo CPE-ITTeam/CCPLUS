@@ -24,7 +24,7 @@ import ErrorDetails from '@/components/dialogs/ErrorDetails.vue';
 import StatusAlerts from '@/components/ui/StatusAlerts.vue';
 import ToggleIcon from '@/components/ui/ToggleIcon.vue';
 import CredentialCell from '@/components/tables/cells/CredentialCell.vue';
-import HarvestErrorCell from '@/components/tables/cells/HarvestErrorCell.vue';
+import HarvestResultCell from '@/components/tables/cells/HarvestResultCell.vue';
 import HarvestIdCell from '@/components/tables/cells/HarvestIdCell.vue';
 import TableRowActions from '@/components/tables/cells/TableRowActions.vue';
 import TableSelectionMenu from '@/components/tables/cells/TableSelectionMenu.vue';
@@ -321,15 +321,18 @@ function closeErrorDialog() {
         >
           {{ formatTruncatedDisplay(item[key], 30) }}
         </span>
-      </template>
-
-      <template #item.harvest_id="{ item }">
+      </template>      <template #item.harvest_id="{ item }">
         <HarvestIdCell :item="item" @download="ccRawJson" @retry="openUrl" />
       </template>
 
       <template #item.error="{ item }">
-        <HarvestErrorCell :item="item" @viewDetails="enableErrorDialog" />
+        <HarvestResultCell :item="item" @viewDetails="enableErrorDialog" />
       </template>
+
+      <template #item.result="{ item }">
+        <HarvestResultCell :item="item" @viewDetails="enableErrorDialog" />
+      </template>
+
 
       <!-- Dynamic Date Interceptor Loop -->
       <template v-for="header in dateHeaders" :key="header.key" #[`item.${header.key}`]="{ value }">

@@ -43,6 +43,8 @@ const item_value = computed(() => {
 
 const data_label = computed(() => props.dataName ?? props.label);
 
+const allItemsText = computed(() => t('common.all_items', { label: data_label.value }));
+
 const allSelected = computed(() => {
   return props.items.length > 0 && model.value.length === props.items.length;
 });
@@ -70,7 +72,7 @@ function formatOptionLabel(text) {
 }
 
 const selectionString = computed(() => {
-  if (allSelected.value) return t('common.all_items', { label: data_label.value });
+  if (allSelected.value) return allItemsText.value;
   if (model.value.length === 0) return '';
 
   const firstVal = model.value[0];
@@ -105,11 +107,22 @@ function toggleSelectAll() {
 </script>
 
 <template>
-  <v-autocomplete v-model="model" :items="items" multiple clearable :return-object="false"
-    :placeholder="$t('common.select_item', { label: data_label })" :item-title="item_title" :item-value="item_value"
-    :color="model.length > 0 ? 'primary' : undefined" :menu-props="{ maxWidth: 360 }" class="w-100 multi-select-box"
-    @click:clear="model = []">
-
+  <v-autocomplete
+    v-model="model"
+    :items="items"
+    multiple
+    clearable
+    :return-object="false"
+    :placeholder="allItemsText"
+    persistent-placeholder
+    :item-title="item_title"
+    :item-value="item_value"
+    :color="model.length > 0 ? 'primary' : undefined"
+    :menu-props="{ maxWidth: 360 }"
+    bg-color="surface"
+    class="w-100 multi-select-box"
+    @click:clear="model = []"
+  >
     <template #label>
       {{ data_label }}
     </template>
@@ -117,8 +130,13 @@ function toggleSelectAll() {
     <template #prepend-item>
       <v-list-item @click.stop="toggleSelectAll">
         <template #prepend>
-          <v-checkbox-btn :model-value="allSelected" :indeterminate="model.length > 0 && !allSelected" color="primary"
-            class="me-3" tabindex="-1" />
+          <v-checkbox-btn
+            :model-value="allSelected"
+            :indeterminate="model.length > 0 && !allSelected"
+            color="primary"
+            class="me-3"
+            tabindex="-1"
+          />
         </template>
         <v-list-item-title class="font-weight-medium">
           {{ selectAllLabel }}
@@ -147,13 +165,19 @@ function toggleSelectAll() {
     <template #append-item>
       <template v-if="shouldShowNoneOfTheAboveType">
         <v-divider class="my-0 py-0" />
-        <v-list-item :title="$t('common.none_of_the_above')" value="No type assigned"
-          @click="$emit('update:selected', ['No type assigned'])" />
+        <v-list-item
+          :title="$t('common.none_of_the_above')"
+          value="No type assigned"
+          @click="$emit('update:selected', ['No type assigned'])"
+        />
       </template>
       <template v-else-if="shouldShowNoneOfTheAboveGroup">
         <v-divider class="my-0 py-0" />
-        <v-list-item :title="$t('common.none_of_the_above')" value="No groups assigned"
-          @click="$emit('update:selected', ['No groups assigned'])" />
+        <v-list-item
+          :title="$t('common.none_of_the_above')"
+          value="No groups assigned"
+          @click="$emit('update:selected', ['No groups assigned'])"
+        />
       </template>
     </template>
   </v-autocomplete>
@@ -163,5 +187,10 @@ function toggleSelectAll() {
 .multi-select-box :deep(.v-field__input) {
   flex-wrap: nowrap;
   overflow: hidden;
+}
+
+.multi-select-box :deep(input::placeholder) {
+  color: rgba(var(--v-theme-on-surface), var(--v-high-emphasis-opacity)) !important;
+  opacity: 1 !important;
 }
 </style>

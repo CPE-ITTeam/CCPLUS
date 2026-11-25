@@ -1210,6 +1210,7 @@ const rawTableSetup = {
       return t("datasets.connections.title");
     },
     fields: [
+      // ─── TABLE COLUMNS ───
       {
         name: "id",
         get label() {
@@ -1229,9 +1230,7 @@ const rawTableSetup = {
       },
       {
         name: "PR",
-        get label() {
-          return t("fields.pr_report");
-        },
+        label: "PR",
         type: "toggle",
         header: "center",
         searchable: false,
@@ -1254,9 +1253,7 @@ const rawTableSetup = {
       },
       {
         name: "DR",
-        get label() {
-          return t("fields.dr_report");
-        },
+        label: "DR",
         type: "toggle",
         header: "center",
         searchable: false,
@@ -1279,9 +1276,7 @@ const rawTableSetup = {
       },
       {
         name: "TR",
-        get label() {
-          return t("fields.tr_report");
-        },
+        label: "TR",
         type: "toggle",
         header: "center",
         searchable: false,
@@ -1304,9 +1299,7 @@ const rawTableSetup = {
       },
       {
         name: "IR",
-        get label() {
-          return t("fields.ir_report");
-        },
+        label: "IR",
         type: "toggle",
         header: "center",
         searchable: false,
@@ -1332,8 +1325,22 @@ const rawTableSetup = {
         get label() {
           return t("fields.last_harvest");
         },
+        header: "center",
         editable: false,
       },
+      {
+        name: "conso",
+        get label() {
+          return t("fields.entire_consortium");
+        },
+        type: "toggle",
+        options: ["Inactive", "Active"],
+        addValue: "Inactive",
+        header: null,
+        searchable: false,
+      },
+
+      // ─── TOOLBAR FILTERS ───
       {
         name: "results",
         get label() {
@@ -1345,17 +1352,6 @@ const rawTableSetup = {
         optTxt: "result",
         isFilter: true,
         filterCol: "result",
-        header: null,
-        searchable: false,
-      },
-      {
-        name: "conso",
-        get label() {
-          return t("fields.entire_consortium");
-        },
-        type: "toggle",
-        options: ["Inactive", "Active"],
-        addValue: "Inactive",
         header: null,
         searchable: false,
       },

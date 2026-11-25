@@ -309,14 +309,13 @@ config.fields.forEach((fld, idx) => {
         };
       }
     });
-
     const instFilter =
       filterOptions.institutions || filterOptions.institution || filterOptions.inst_id;
     const grpFilter =
       filterOptions.groups || filterOptions.group || filterOptions.group_id;
     if (instFilter && grpFilter && instFilter.items?.length > 0 && grpFilter.items?.length > 0) {
-      instFilter.show = true;
-      grpFilter.show = false;
+      instFilter.show = false;
+      grpFilter.show = true;
       filterOptions.scope_mode = {
         name: "scope_mode",
         label: "Scope Mode",
@@ -324,9 +323,10 @@ config.fields.forEach((fld, idx) => {
         show: true,
         col: "scope_mode",
         items: [],
-        value: false,
+        value: true,
       };
     }
+
 
 
     if (STATUS_SWITCH_DATASETS.has(activeKey)) {
