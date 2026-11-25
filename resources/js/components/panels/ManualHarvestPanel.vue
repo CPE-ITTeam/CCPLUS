@@ -1,118 +1,4 @@
 <!-- resources/js/components/panels/ManualHarvestPanel.vue -->
-<template>
-    <SettingsPanelShell v-if="consoKey !== ''" class="mt-4" :title="$t('routes.manual_harvest')"
-        icon="mdi-cloud-download-outline" :loading="loading" :success="success" :failure="failure" @submit="formSubmit">
-        <div v-if="!optionsLoaded" class="d-flex justify-center align-center py-8">
-            <v-progress-circular indeterminate color="primary" />
-        </div>
-        <v-alert v-else-if="institution_options.length === 0" type="warning" variant="tonal"
-            :text="$t('harvest.no_institutions')" />
-        <v-alert v-else-if="available_platforms.length === 0" type="warning" variant="tonal"
-            :text="$t('harvest.no_platforms')" />
-
-        <v-row v-else class="mt-0">
-
-            <!-- COLUMN 1: Platforms, then Institutions / Institution Groups -->
-            <v-col cols="12" md="4" class="d-flex flex-column ga-3">
-                <SectionHeading class="mb-1">
-                    <v-icon start size="20" class="me-2" aria-hidden="true">mdi-target</v-icon>
-                    {{ $t('harvest.scope_and_platforms') }}
-                </SectionHeading>
-
-                <MultiSelectCombobox v-model="form.plat" :items="available_platforms" :label="$t('routes.platforms')"
-                    item-value="id" item-title="name" @update:model-value="onPlatChange" />
-
-                <template v-if="institution_options.length > 1">
-                    <InstitutionScopeSwitch
-                        v-if="inst_groups.length > 0"
-                        v-model="useInstGroups"
-                        class="mb-n2"
-                        @update:model-value="onScopeModeChange"
-                    />
-
-                    <MultiSelectCombobox v-if="!useInstGroups" v-model="form.inst" :items="institution_options"
-                        :label="$t('routes.institutions')" item-value="id" item-title="name"
-                        @update:model-value="onInstChange" />
-
-                    <MultiSelectCombobox v-else v-model="group_ids" :items="inst_groups"
-                        :label="$t('routes.institution_groups')" item-value="id" item-title="name"
-                        @update:model-value="onGroupChange" />
-                </template>
-
-                <v-text-field v-else :model-value="inst_name" :label="$t('fields.institution')" readonly />
-            </v-col>
-
-
-            <!-- COLUMN 2: Reports and Dates -->
-            <v-col cols="12" md="4" class="d-flex flex-column ga-3">
-                <SectionHeading class="mb-1">
-                    <v-icon start size="20" class="me-2" aria-hidden="true">mdi-calendar-range</v-icon>
-                    {{ $t('harvest.reports_and_period') }}
-                </SectionHeading>
-
-                <v-sheet
-                    class="border border-opacity-25 rounded bg-transparent px-3 d-flex flex-column justify-center mb-3"
-                    style="min-height: 48px;">
-                    <div class="d-flex align-center justify-space-between" style="min-height: 48px;">
-                        <strong class="text-subtitle-2 text-primary text-uppercase font-weight-bold">
-                            {{ $t('harvest.reports_to_harvest') }}
-                        </strong>
-                        <v-switch v-model="selectAllAvailableReports"
-                            :label="$t('harvest.all_available_reports', 'All Available')" color="primary"
-                            @update:model-value="onToggleAllReportsSwitch" />
-                    </div>
-
-                    <template v-if="!selectAllAvailableReports">
-                        <v-divider class="mt-0 mb-2 border-opacity-25" />
-                        <div class="ps-4 pb-2 compact-checkbox-list">
-                            <v-checkbox v-for="rpt in master_reports" :key="rpt.name" v-model="form.reports"
-                                :value="rpt.name" density="compact" color="primary" hide-details class="ma-0">
-                                <template #label>
-                                    <span class="ms-2">{{ rpt.legend || rpt.name }}</span>
-                                </template>
-                            </v-checkbox>
-                        </div>
-                    </template>
-
-                </v-sheet>
-
-                <YmRangeSelector v-model="harvestDates" :fy-start="fyMo" default-preset="fYTD" />
-            </v-col>
-
-            <!-- COLUMN 3: Queue Options -->
-            <v-col cols="12" md="4" class="d-flex flex-column ga-3">
-                <SectionHeading class="mb-1">
-                    <v-icon start size="20" class="me-2" aria-hidden="true">mdi-cog-play-outline</v-icon>
-                    {{ $t('harvest.queue_options') }}
-                </SectionHeading>
-
-                <div>
-                    <div class="text-label-medium text-uppercase font-weight-bold text-medium-emphasis mb-1">
-                        {{ $t('harvest.queue_timing') }}
-                    </div>
-                    <v-radio-group v-model="form.when" inline hide-details>
-                        <v-radio :label="$t('harvest.now')" value="now" />
-                        <v-radio :label="$t('harvest.overnight')" value="later" />
-                    </v-radio-group>
-                </div>
-
-                <v-switch v-model="form.skip_harvested" :label="$t('harvest.skip_previously_harvested')" :true-value="1"
-                    :false-value="0" />
-            </v-col>
-        </v-row>
-
-        <template v-if="submit_enabled || selections_made" #actions>
-            <v-btn v-if="submit_enabled" type="submit" color="primary" class="px-6" :loading="loading">
-                {{ $t('common.submit') }}
-            </v-btn>
-
-            <v-btn v-if="selections_made" variant="tonal" color="secondary" @click="resetForm">
-                {{ $t('harvest.reset_selections') }}
-            </v-btn>
-        </template>
-    </SettingsPanelShell>
-</template>
-
 <script setup>
 import { ref, computed, watch, onBeforeMount } from 'vue';
 import { useI18n } from 'vue-i18n';
@@ -122,6 +8,7 @@ import SettingsPanelShell from '@/components/ui/SettingsPanelShell.vue';
 import YmRangeSelector from '@/components/ui/YmRangeSelector.vue';
 import MultiSelectCombobox from '@/components/ui/MultiSelectCombobox.vue';
 import InstitutionScopeSwitch from '@/components/ui/InstitutionScopeSwitch.vue';
+import PlatformScopeSwitch from '@/components/ui/PlatformScopeSwitch.vue';
 
 const { t } = useI18n();
 const authStore = useAuthStore();
@@ -434,6 +321,120 @@ onBeforeMount(() => {
     initializeOptions();
 });
 </script>
+
+<template>
+    <SettingsPanelShell v-if="consoKey !== ''" class="mt-4" :title="$t('routes.manual_harvest')"
+        icon="mdi-cloud-download-outline" :loading="loading" :success="success" :failure="failure" @submit="formSubmit">
+        <div v-if="!optionsLoaded" class="d-flex justify-center align-center py-8">
+            <v-progress-circular indeterminate color="primary" />
+        </div>
+        <v-alert v-else-if="institution_options.length === 0" type="warning" variant="tonal"
+            :text="$t('harvest.no_institutions')" />
+        <v-alert v-else-if="available_platforms.length === 0" type="warning" variant="tonal"
+            :text="$t('harvest.no_platforms')" />
+
+        <v-row v-else class="mt-0">
+
+            <!-- COLUMN 1: Platforms, then Institutions / Institution Groups -->
+            <v-col cols="12" md="4" class="d-flex flex-column ga-3">
+                <SectionHeading class="mb-1">
+                    <v-icon start size="20" class="me-2" aria-hidden="true">mdi-target</v-icon>
+                    {{ $t('harvest.scope_and_platforms') }}
+                </SectionHeading>
+
+                <MultiSelectCombobox v-model="form.plat" :items="available_platforms" :label="$t('routes.platforms')"
+                    item-value="id" item-title="name" default-all @update:model-value="onPlatChange" />
+
+                <template v-if="institution_options.length > 1">
+                    <InstitutionScopeSwitch
+                        v-if="inst_groups.length > 0"
+                        v-model="useInstGroups"
+                        class="mb-n2"
+                        @update:model-value="onScopeModeChange"
+                    />
+
+                    <MultiSelectCombobox v-if="!useInstGroups" v-model="form.inst" :items="institution_options"
+                        :label="$t('routes.institutions')" item-value="id" item-title="name" default-all
+                        @update:model-value="onInstChange" />
+
+                    <MultiSelectCombobox v-else v-model="group_ids" :items="inst_groups"
+                        :label="$t('routes.institution_groups')" item-value="id" item-title="name" default-all
+                        @update:model-value="onGroupChange" />
+                </template>
+
+                <v-text-field v-else :model-value="inst_name" :label="$t('fields.institution')" readonly />
+            </v-col>
+
+
+            <!-- COLUMN 2: Reports and Dates -->
+            <v-col cols="12" md="4" class="d-flex flex-column ga-3">
+                <SectionHeading class="mb-1">
+                    <v-icon start size="20" class="me-2" aria-hidden="true">mdi-calendar-range</v-icon>
+                    {{ $t('harvest.reports_and_period') }}
+                </SectionHeading>
+
+                <v-sheet
+                    class="border border-opacity-25 rounded bg-transparent px-3 d-flex flex-column justify-center mb-3"
+                    style="min-height: 48px;">
+                    <div class="d-flex align-center justify-space-between" style="min-height: 48px;">
+                        <strong class="text-subtitle-2 text-primary text-uppercase font-weight-bold">
+                            {{ $t('harvest.reports_to_harvest') }}
+                        </strong>
+                        <v-switch v-model="selectAllAvailableReports"
+                            :label="$t('harvest.all_available_reports', 'All Available')" color="primary"
+                            @update:model-value="onToggleAllReportsSwitch" />
+                    </div>
+
+                    <template v-if="!selectAllAvailableReports">
+                        <v-divider class="mt-0 mb-2 border-opacity-25" />
+                        <div class="ps-4 pb-2 compact-checkbox-list">
+                            <v-checkbox v-for="rpt in master_reports" :key="rpt.name" v-model="form.reports"
+                                :value="rpt.name" density="compact" color="primary" hide-details class="ma-0">
+                                <template #label>
+                                    <span class="ms-2">{{ rpt.legend || rpt.name }}</span>
+                                </template>
+                            </v-checkbox>
+                        </div>
+                    </template>
+
+                </v-sheet>
+
+                <YmRangeSelector v-model="harvestDates" :fy-start="fyMo" default-preset="fYTD" />
+            </v-col>
+
+            <!-- COLUMN 3: Queue Options -->
+            <v-col cols="12" md="4" class="d-flex flex-column ga-3">
+                <SectionHeading class="mb-1">
+                    <v-icon start size="20" class="me-2" aria-hidden="true">mdi-cog-play-outline</v-icon>
+                    {{ $t('harvest.queue_options') }}
+                </SectionHeading>
+
+                <div>
+                    <div class="text-label-medium text-uppercase font-weight-bold text-medium-emphasis mb-1">
+                        {{ $t('harvest.queue_timing') }}
+                    </div>
+                    <v-radio-group v-model="form.when" inline hide-details>
+                        <v-radio :label="$t('harvest.now')" value="now" />
+                        <v-radio :label="$t('harvest.overnight')" value="later" />
+                    </v-radio-group>
+                </div>
+
+                <v-switch v-model="form.skip_harvested" :label="$t('harvest.skip_previously_harvested')" :true-value="1"
+                    :false-value="0" />
+            </v-col>
+        </v-row>
+
+        <template v-if="submit_enabled || selections_made" #actions>
+            <v-btn v-if="submit_enabled" type="submit" color="primary" class="px-6" :loading="loading">
+                {{ $t('common.submit') }}
+            </v-btn>
+
+            <v-btn v-if="selections_made" variant="tonal" color="secondary" @click="resetForm">
+                {{ $t('harvest.reset_selections') }}
+            </v-btn>
+        </template>
+    </SettingsPanelShell>
+</template>
 
 <style scoped>
 .compact-checkbox-list :deep(.v-checkbox) {

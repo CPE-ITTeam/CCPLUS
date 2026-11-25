@@ -1,6 +1,6 @@
 <!-- components/ui/MultiSelectCombobox.vue -->
 <script setup>
-import { computed, watch } from 'vue';
+import { computed, ref, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { useDataTableHelpers } from '@/composables/table/useDataTableHelpers.js';
 
@@ -21,12 +21,14 @@ const props = defineProps({
   itemTitle: { type: String, required: false },
   itemValue: { type: String, required: false },
   truncate: { type: Number, required: false, default: null },
+  defaultAll: { type: Boolean, required: false, default: false },
   shouldShowNoneOfTheAboveType: { type: Boolean, required: false, default: false },
   shouldShowNoneOfTheAboveGroup: { type: Boolean, required: false, default: false },
 });
 
 defineEmits(['update:selected']);
 
+const userCleared = ref(false);
 const isPrimitiveItems = computed(() => {
   return props.items.length > 0 && typeof props.items[0] !== 'object';
 });
@@ -43,26 +45,39 @@ const item_value = computed(() => {
 
 const data_label = computed(() => props.dataName ?? props.label);
 
-const allItemsText = computed(() => t('common.all_items', { label: data_label.value }));
+const allItemValues = computed(() => {
+  if (!isPrimitiveItems.value && item_value.value && typeof props.items[0]?.[item_value.value] !== 'undefined') {
+    return props.items.map((item) => item[item_value.value]);
+  }
+  return [...props.items];
+});
+
 
 const allSelected = computed(() => {
   return props.items.length > 0 && model.value.length === props.items.length;
 });
 
+const allItemsText = computed(() => t('common.all_items', { label: data_label.value }));
+
 const selectAllLabel = computed(() => {
   return allSelected.value ? t('tables.clear_all') : t('common.select_all');
 });
+
 const labelCache = new Map();
 
 watch(
   () => props.items,
   (list) => {
-    if (!Array.isArray(list) || isPrimitiveItems.value || !item_value.value || !item_title.value) return;
-    list.forEach((entry) => {
-      if (entry && typeof entry === 'object' && entry[item_value.value] !== undefined) {
-        labelCache.set(String(entry[item_value.value]), String(entry[item_title.value]));
-      }
-    });
+    if (Array.isArray(list) && !isPrimitiveItems.value && item_value.value && item_title.value) {
+      list.forEach((entry) => {
+        if (entry && typeof entry === 'object' && entry[item_value.value] !== undefined) {
+          labelCache.set(String(entry[item_value.value]), String(entry[item_title.value]));
+        }
+      });
+    }
+    if (props.defaultAll && !userCleared.value && Array.isArray(list) && list.length > 0 && model.value.length === 0) {
+      model.value = [...allItemValues.value];
+    }
   },
   { immediate: true }
 );
@@ -75,7 +90,7 @@ const selectionString = computed(() => {
   if (allSelected.value) return allItemsText.value;
   if (model.value.length === 0) return '';
 
-  const firstVal = model.value[0];
+  const firstVal = model.value;
   let _string = String(firstVal);
   if (!isPrimitiveItems.value && item_value.value && item_title.value) {
     const _item = props.items.find((ii) => String(ii[item_value.value]) === String(firstVal));
@@ -97,12 +112,17 @@ const selectionString = computed(() => {
 
 function toggleSelectAll() {
   if (allSelected.value) {
+    userCleared.value = true;
     model.value = [];
-  } else if (!isPrimitiveItems.value && item_value.value && typeof props.items[0]?.[item_value.value] !== 'undefined') {
-    model.value = props.items.map((item) => item[item_value.value]);
   } else {
-    model.value = [...props.items];
+    userCleared.value = false;
+    model.value = [...allItemValues.value];
   }
+}
+
+function handleClear() {
+  userCleared.value = true;
+  model.value = [];
 }
 </script>
 
@@ -113,15 +133,15 @@ function toggleSelectAll() {
     multiple
     clearable
     :return-object="false"
-    :placeholder="allItemsText"
-    persistent-placeholder
+    :placeholder="defaultAll ? $t('common.select_item', { label: data_label }) : allItemsText"
+    :persistent-placeholder="!defaultAll"
     :item-title="item_title"
     :item-value="item_value"
     :color="model.length > 0 ? 'primary' : undefined"
     :menu-props="{ maxWidth: 360 }"
     bg-color="surface"
     class="w-100 multi-select-box"
-    @click:clear="model = []"
+    @click:clear="handleClear"
   >
     <template #label>
       {{ data_label }}
@@ -135,6 +155,7 @@ function toggleSelectAll() {
             :indeterminate="model.length > 0 && !allSelected"
             color="primary"
             class="me-3"
+            style="pointer-events: none;"
             tabindex="-1"
           />
         </template>
@@ -145,16 +166,23 @@ function toggleSelectAll() {
       <v-divider class="mt-1" />
     </template>
 
-    <template #item="{ props: itemProps }">
+    <template #item="{ props: itemProps, item }">
       <v-list-item v-bind="itemProps" title="">
-        <template #prepend="{ isSelected }">
-          <v-checkbox-btn :model-value="isSelected" color="primary" class="me-3" tabindex="-1" />
+        <template #prepend>
+          <v-checkbox-btn
+            :model-value="model.some((v) => String(v) === String(itemProps.value ?? item.value))"
+            color="primary"
+            class="me-3"
+            style="pointer-events: none;"
+            tabindex="-1"
+          />
         </template>
         <v-list-item-title class="text-truncate" :title="itemProps.title">
           {{ formatOptionLabel(itemProps.title) }}
         </v-list-item-title>
       </v-list-item>
     </template>
+
 
     <template #selection="{ index }">
       <span v-if="index === 0" class="text-truncate d-inline-block" style="max-width: 170px;" :title="selectionString">
@@ -189,7 +217,7 @@ function toggleSelectAll() {
   overflow: hidden;
 }
 
-.multi-select-box :deep(input::placeholder) {
+.multi-select-box:not(.v-input--dirty) :deep(input::placeholder) {
   color: rgba(var(--v-theme-on-surface), var(--v-high-emphasis-opacity)) !important;
   opacity: 1 !important;
 }

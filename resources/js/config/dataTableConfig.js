@@ -705,7 +705,41 @@ const rawTableSetup = {
       return t("datasets.roles.title");
     },
     fields: [
-      // Hidden IDs
+      // ─── TABLE COLUMNS ───
+      {
+        name: "name",
+        get label() {
+          return t("fields.username");
+        },
+        editable: false,
+        visible: false,
+      },
+      {
+        name: "email",
+        get label() {
+          return t("fields.email_address");
+        },
+        editable: false,
+        visible: false,
+      },
+      {
+        name: "role_string",
+        get label() {
+          return t("fields.role");
+        },
+        editable: false,
+        visible: false,
+      },
+      {
+        name: "scope",
+        get label() {
+          return t("fields.scope");
+        },
+        editable: false,
+        visible: false,
+      },
+
+      // ─── HIDDEN IDS ───
       {
         name: "role_id",
         label: "role_id",
@@ -742,65 +776,8 @@ const rawTableSetup = {
         visible: false,
         searchable: false,
       },
-      // Table-only display columns (hidden in form since dropdowns below represent them)
-      {
-        name: "name",
-        get label() {
-          return t("fields.username");
-        },
-        editable: false,
-        visible: false,
-      },
-      {
-        name: "email",
-        get label() {
-          return t("fields.email_address");
-        },
-        editable: false,
-        visible: false,
-      },
-      {
-        name: "role_string",
-        get label() {
-          return t("fields.role");
-        },
-        editable: false,
-        visible: false,
-      },
-      {
-        name: "scope",
-        get label() {
-          return t("fields.scope");
-        },
-        editable: false,
-        visible: false,
-      },
-      {
-        name: "role",
-        get label() {
-          return t("fields.role");
-        },
-        type: "select",
-        options: "fromURL",
-        isFilter: true,
-        filterCol: "role_string",
-        header: null,
-        visible: false,
-        searchable: false,
-      },
-      // Form fields (Clean 2-column grid)
-      {
-        name: "conso",
-        get label() {
-          return t("fields.entire_consortium");
-        },
-        type: "toggle",
-        options: ["Inactive", "Active"],
-        addValue: "Inactive",
-        header: null,
-        searchable: false,
-        cols: 12,
-      },
+
+      // ─── FORM FIELDS ───
       {
         name: "user",
         get label() {
@@ -810,8 +787,6 @@ const rawTableSetup = {
         options: "fromURL",
         optVal: "id",
         optTxt: "name",
-        isFilter: true,
-        filterCol: "user_id",
         header: null,
         searchable: false,
         cols: 6,
@@ -828,6 +803,18 @@ const rawTableSetup = {
         cols: 6,
       },
       {
+        name: "conso",
+        get label() {
+          return t("fields.entire_consortium");
+        },
+        type: "toggle",
+        options: ["Inactive", "Active"],
+        addValue: "Inactive",
+        header: null,
+        searchable: false,
+        cols: 12,
+      },
+      {
         name: "institution",
         get label() {
           return t("fields.institution");
@@ -836,8 +823,6 @@ const rawTableSetup = {
         options: "fromURL",
         optVal: "id",
         optTxt: "name",
-        isFilter: true,
-        filterCol: "inst_id",
         header: null,
         searchable: false,
         cols: 6,
@@ -851,19 +836,78 @@ const rawTableSetup = {
         options: "fromURL",
         optVal: "id",
         optTxt: "name",
-        isFilter: true,
-        filterCol: "group_id",
         header: null,
         searchable: false,
         cols: 6,
       },
+
+      // ─── TOOLBAR FILTERS ───
+      {
+        name: "users",
+        get label() {
+          return t("fields.users");
+        },
+        type: "mselect",
+        options: "fromURL",
+        optVal: "id",
+        optTxt: "name",
+        isFilter: true,
+        filterCol: "user_id",
+        header: null,
+        visible: false,
+        searchable: false,
+      },
+      {
+        name: "roles",
+        get label() {
+          return t("fields.roles");
+        },
+        type: "mselect",
+        options: "fromURL",
+        isFilter: true,
+        filterCol: "role_string",
+        header: null,
+        visible: false,
+        searchable: false,
+      },
+      {
+        name: "institutions",
+        get label() {
+          return t("fields.institutions");
+        },
+        type: "mselect",
+        options: "fromURL",
+        optVal: "id",
+        optTxt: "name",
+        isFilter: true,
+        filterCol: "inst_id",
+        header: null,
+        visible: false,
+        searchable: false,
+      },
+      {
+        name: "groups",
+        get label() {
+          return t("fields.groups");
+        },
+        type: "mselect",
+        options: "fromURL",
+        optVal: "id",
+        optTxt: "name",
+        isFilter: true,
+        filterCol: "group_id",
+        header: null,
+        visible: false,
+        searchable: false,
+      },
     ],
     required: ["user_role", "user", "conso", "institution", "group"],
-    static: ["role", "user_id", "role_id", "inst_id", "group_id"],
+    static: ["user_id", "role_id", "inst_id", "group_id"],
     bulkOptions: ["Delete"],
     exportFields: [],
     sortby: "email",
   },
+
 
   platforms: {
     urlRoot: "/api/platforms",

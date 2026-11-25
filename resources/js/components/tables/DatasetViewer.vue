@@ -33,6 +33,7 @@ import ManageConnectionsDialog from '@/components/dialogs/ManageConnectionsDialo
 import CredentialsForm from '@/components/forms/CredentialsForm.vue';
 import DataForm from '@/components/forms/DataForm.vue';
 import PlatformForm from '@/components/forms/PlatformForm.vue';
+import RoleForm from '@/components/forms/RoleForm.vue';
 import { fyMonths } from '@/components/ui/YmInput.vue';
 
 // ============================================================================
@@ -102,8 +103,10 @@ const visibleHeaders = computed(() => {
 const formComponent = computed(() => {
   if (props.datasetKey === 'platforms') return PlatformForm;
   if (props.datasetKey === 'credentials') return CredentialsForm;
+  if (props.datasetKey === 'roles') return RoleForm;
   return DataForm;
 });
+
 
 const formSchema = computed(() => {
   const config = datasetConfig[props.datasetKey];
@@ -407,7 +410,6 @@ watch(locale, () => {
   dtKey.value++;
 });
 </script>
-
 
 <template>
   <div class="ma-2">

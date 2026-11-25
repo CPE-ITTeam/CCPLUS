@@ -8,6 +8,7 @@ import SettingsPanelShell from '@/components/ui/SettingsPanelShell.vue';
 import SaveReport from '@/components/dialogs/SaveReport.vue';
 import MultiSelectCombobox from '@/components/ui/MultiSelectCombobox.vue';
 import InstitutionScopeSwitch from '@/components/ui/InstitutionScopeSwitch.vue';
+import PlatformScopeSwitch from '@/components/ui/PlatformScopeSwitch.vue';
 import YmRangeSelector from '@/components/ui/YmRangeSelector.vue';
 import { exportUsageReportToExcel } from '@/utils/excelJsExporter.js';
 
@@ -515,9 +516,7 @@ onBeforeMount(() => {
               {{ $t('harvest.scope_and_platforms') }}
             </div>
 
-            <v-switch :model-value="consoPlatformSwitch.modelValue" :indeterminate="consoPlatformSwitch.indeterminate"
-              :color="consoPlatformSwitch.color" :label="consoPlatformSwitch.label" true-icon="mdi-star-circle"
-              false-icon="mdi-home-circle" class="mb-n2" @click.prevent="cycleConsoPlatformFilter" />
+            <PlatformScopeSwitch v-model="consoPlatformFilter" class="mb-n2" />
 
             <MultiSelectCombobox v-model="selectedFields.provider" :label="$t('routes.platforms')"
               :items="filteredPlatformOptions" item-title="name" item-value="id" />
