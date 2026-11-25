@@ -161,3 +161,61 @@ export async function exportDatasetToExcel({
     console.error("Failed executing workbook compilation or download stream:", writeError);
   }
 }
+
+export async function exportUsageReportToExcel(headerRows, usageRows, fileName, sheetName = 'CCPlus_Usage') {
+  const workbook = new ExcelJS.Workbook();
+  const sheet = workbook.addWorksheet(sheetName);
+  sheet.views = [{ showGridLines: true }];
+
+  const safeHeaderRows = Array.isArray(headerRows) ? headerRows : [];
+  const safeRows = Array.isArray(usageRows)
+    ? usageRows
+    : usageRows && typeof usageRows === 'object'
+      ? Object.values(usageRows)
+      : [];
+
+  // 1. Write COUNTER header metadata rows + column header row
+  safeHeaderRows.forEach((hRow, idx) => {
+    const added = sheet.addRow(Array.isArray(hRow) ? hRow : Object.values(hRow || {}));
+    if (idx === safeHeaderRows.length - 1) {
+      added.font = { bold: true };
+    }
+  });
+
+  // 2. Write every usage data row
+  safeRows.forEach((row) => {
+    if (Array.isArray(row)) {
+      sheet.addRow(row);
+    } else if (row && typeof row === 'object') {
+      sheet.addRow(Object.values(row));
+    }
+  });
+
+  // 3. Auto-size columns safely
+  sheet.columns.forEach((column) => {
+    let maxLen = 0;
+    column.eachCell({ includeEmpty: true }, (cell) => {
+      if (cell?.value !== undefined && cell?.value !== null) {
+        maxLen = Math.max(maxLen, String(cell.value).length);
+      }
+    });
+    column.width = maxLen < 10 ? 12 : Math.min(maxLen + 3, 60);
+  });
+
+  // 4. Trigger download (converting .csv extension from backend to .xlsx)
+  const cleanName = (fileName || 'CCPlus_Usage.xlsx').replace(/\.csv$/i, '.xlsx');
+  const finalName = cleanName.endsWith('.xlsx') ? cleanName : `${cleanName}.xlsx`;
+
+  const buffer = await workbook.xlsx.writeBuffer();
+  const blob = new Blob([buffer], {
+    type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+  });
+  const url = window.URL.createObjectURL(blob);
+  const anchor = document.createElement('a');
+  anchor.href = url;
+  anchor.download = finalName;
+  document.body.appendChild(anchor);
+  anchor.click();
+  document.body.removeChild(anchor);
+  window.URL.revokeObjectURL(url);
+}

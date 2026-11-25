@@ -2,7 +2,7 @@
 
 import { fyMonths } from "@/components/ui/YmInput.vue";
 
-const REFRESHABLE_DATASETS = new Set(["harvests", "jobs"]);
+const REFRESHABLE_DATASETS = new Set(["harvests", "jobs", "audit"]);
 const ENTITY_FILTER_FIELDS = new Set([
   "consortia",
   "institutions",
@@ -212,10 +212,9 @@ config.fields.forEach((fld, idx) => {
 
         let items = [];
         let show = false;
-
         if (REFRESHABLE_DATASETS.has(activeKey)) {
           items = [...urlOptions];
-          show = true;
+          show = items.length > 0 && fld.isFilter;
         } else if (
           fld.name === "fiscalYr" ||
           (activeKey === "institutions" && fld.name === "groups")

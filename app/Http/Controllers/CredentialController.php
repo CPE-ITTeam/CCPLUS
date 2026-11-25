@@ -34,7 +34,7 @@ class CredentialController extends BaseController
             $limit_to_insts = [];
         }
 
-        $data = Credential::with('institution:id,name,is_active,local_id', 'lastHarvest')
+        $data = Credential::with('institution:id,name,is_active,local_id', 'institution.institutionGroups:id', 'lastHarvest')
             ->when(count($limit_to_insts) > 0, fn($qry) => $qry->whereIn('inst_id', $limit_to_insts))
             ->get();
 
@@ -146,6 +146,9 @@ class CredentialController extends BaseController
                 'status'         => $cred->status,
                 'is_conso'       => $platformIsConso[$cred->prov_id] ?? false,
                 'inst_id'        => $cred->inst_id,
+                'group_ids'      => $cred->institution
+                    ? $cred->institution->institutionGroups->pluck('id')->map(fn($id) => (int) $id)->values()->toArray()
+                    : [],
                 'prov_id'        => $cred->prov_id,
                 'legacy_prov_id' => $global->legacy_id,
                 'customer_id'    => $cred->customer_id,

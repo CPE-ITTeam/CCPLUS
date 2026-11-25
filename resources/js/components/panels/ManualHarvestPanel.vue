@@ -23,17 +23,25 @@
                     item-value="id" item-title="name" @update:model-value="onPlatChange" />
 
                 <template v-if="institution_options.length > 1">
-                    <MultiSelectCombobox v-if="group_ids.length === 0" v-model="form.inst" :items="institution_options"
+                    <InstitutionScopeSwitch
+                        v-if="inst_groups.length > 0"
+                        v-model="useInstGroups"
+                        class="mb-n2"
+                        @update:model-value="onScopeModeChange"
+                    />
+
+                    <MultiSelectCombobox v-if="!useInstGroups" v-model="form.inst" :items="institution_options"
                         :label="$t('routes.institutions')" item-value="id" item-title="name"
                         @update:model-value="onInstChange" />
 
-                    <MultiSelectCombobox v-if="form.inst.length === 0 && inst_groups.length > 0" v-model="group_ids"
-                        :items="inst_groups" :label="$t('routes.institution_groups')" item-value="id" item-title="name"
+                    <MultiSelectCombobox v-else v-model="group_ids" :items="inst_groups"
+                        :label="$t('routes.institution_groups')" item-value="id" item-title="name"
                         @update:model-value="onGroupChange" />
                 </template>
 
                 <v-text-field v-else :model-value="inst_name" :label="$t('fields.institution')" readonly />
             </v-col>
+
 
             <!-- COLUMN 2: Reports and Dates -->
             <v-col cols="12" md="4" class="d-flex flex-column ga-3">
@@ -113,10 +121,12 @@ import { useAuthStore } from '@/stores/useAuthStore.js';
 import SettingsPanelShell from '@/components/ui/SettingsPanelShell.vue';
 import YmRangeSelector from '@/components/ui/YmRangeSelector.vue';
 import MultiSelectCombobox from '@/components/ui/MultiSelectCombobox.vue';
+import InstitutionScopeSwitch from '@/components/ui/InstitutionScopeSwitch.vue';
 
 const { t } = useI18n();
 const authStore = useAuthStore();
 const group_ids = ref([]);
+const useInstGroups = ref(false);
 
 defineOptions({ name: 'ManualHarvestPanel', inheritAttrs: false });
 const emit = defineEmits(['newHarvests', 'updatedHarvests', 'updateConso']);
@@ -211,8 +221,9 @@ const submit_enabled = computed(
 
 function resetForm() {
     selectAllAvailableReports.value = true;
+    useInstGroups.value = false;
     form.value = {
-        inst: institutions.value.length === 1 ? [institutions.value.id] : [],
+        inst: institutions.value.length === 1 ? [institutions.value[0].id] : [],
         inst_group_id: 0,
         plat: [],
         reports: master_reports.value.map((r) => r.name),
@@ -227,10 +238,27 @@ function resetForm() {
     allPlats.value = false;
     allConsoPlats.value = false;
     available_platforms.value = [...platforms.value];
-    selectedInstitutions.value = institutions.value.length === 1 ? [institutions.value.id] : [];
+    selectedInstitutions.value = institutions.value.length === 1 ? [institutions.value[0].id] : [];
     success.value = '';
     failure.value = '';
 }
+
+
+function onScopeModeChange(isGroups) {
+    failure.value = '';
+    if (isGroups) {
+        form.value.inst = [];
+        allInsts.value = false;
+        selectedInstitutions.value = [];
+    } else {
+        group_ids.value = [];
+        form.value.inst_group_id = 0;
+        selectedInstitutions.value = [];
+    }
+    available_platforms.value = [...platforms.value];
+    onPlatChange(true);
+}
+
 
 function onGroupChange() {
     failure.value = '';

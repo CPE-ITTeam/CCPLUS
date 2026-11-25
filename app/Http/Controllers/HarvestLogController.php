@@ -319,21 +319,21 @@ class HarvestLogController extends BaseController
 
         $validCreds = Credential::with(['institution', 'provider', 'provider.registries'])
             ->where('status', 'Enabled')
-            ->whereHas('institution', fn ($q) => $q->where('id', '>', 1)->where('is_active', true))
-            ->when(count($limit_insts) > 0, fn ($q) => $q->whereIn('inst_id', $limit_insts))
+            ->whereHas('institution', fn($q) => $q->where('id', '>', 1)->where('is_active', true))
+            ->when(count($limit_insts) > 0, fn($q) => $q->whereIn('inst_id', $limit_insts))
             ->get()
-            ->filter(fn ($cred) => $cred->provider?->is_active && $cred->isComplete());
+            ->filter(fn($cred) => $cred->provider?->is_active && $cred->isComplete());
 
         $validProvIds = $validCreds->pluck('prov_id')->unique()->all();
         $validInstIds = $validCreds->pluck('inst_id')->unique()->all();
         $validPairsByProv = $validCreds
             ->groupBy('prov_id')
-            ->map(fn ($group) => $group->pluck('inst_id')->map(fn ($id) => (int) $id)->unique()->all());
+            ->map(fn($group) => $group->pluck('inst_id')->map(fn($id) => (int) $id)->unique()->all());
 
         $institutions = Institution::where('id', '>', 1)
             ->where('is_active', true)
             ->whereIn('id', $validInstIds)
-            ->when(count($limit_insts) > 0, fn ($q) => $q->whereIn('id', $limit_insts))
+            ->when(count($limit_insts) > 0, fn($q) => $q->whereIn('id', $limit_insts))
             ->orderBy('name', 'ASC')
             ->get(['id', 'name'])
             ->toArray();
@@ -344,7 +344,7 @@ class HarvestLogController extends BaseController
 
         $inst_groups = $consoAdmin ? $allGroups->toArray() : [];
         $groupInstMap = $allGroups->mapWithKeys(
-            fn ($g) => [$g->id => $g->institutions->pluck('id')->map(fn ($id) => (int) $id)->all()]
+            fn($g) => [$g->id => $g->institutions->pluck('id')->map(fn($id) => (int) $id)->all()]
         );
 
         $master_reports = Report::where('parent_id', 0)
@@ -415,7 +415,7 @@ class HarvestLogController extends BaseController
                     'reports'      => $reportMap,
                 ];
             })
-            ->filter(fn ($plat) => count($plat['institutions']) > 0)
+            ->filter(fn($plat) => count($plat['institutions']) > 0)
             ->sortBy('name', SORT_NATURAL | SORT_FLAG_CASE)
             ->values()
             ->toArray();
@@ -481,7 +481,7 @@ class HarvestLogController extends BaseController
             'provider.connections.reports',
         ])
             ->whereIn('prov_id', $provIds)
-            ->when(count($instIds) > 0, fn ($q) => $q->whereIn('inst_id', $instIds))
+            ->when(count($instIds) > 0, fn($q) => $q->whereIn('inst_id', $instIds))
             ->where('status', 'Enabled')
             ->get();
 
@@ -837,7 +837,6 @@ class HarvestLogController extends BaseController
         return $this->respondError(__('harvests.errors.unknown_bulk_action'));
     }
 
-
     /**
      * Download raw data for a harvest.
      */
@@ -904,7 +903,6 @@ class HarvestLogController extends BaseController
             'Content-Disposition' => 'attachment; filename="' . $downloadName . '"',
         ]);
     }
-
 
     /**
      * Remove the specified harvest record and its stored report data.
@@ -1144,23 +1142,23 @@ class HarvestLogController extends BaseController
         abort_unless($thisUser->isAdmin(), 403);
 
         $limit_insts = $thisUser->isConsoAdmin() ? [] : $thisUser->adminInsts();
-        $badCredCodes = [ 1030, 2000, 2010, 2020, 9100 ];
+        $badCredCodes = [1030, 2000, 2010, 2020, 9100];
         $now = new \DateTime();
 
         $logs = HarvestLog::with($this->harvestRelations())
             ->when(
                 count($limit_insts) > 0,
-                fn ($qry) => $qry->whereIn('credentials_id', Credential::whereIn('inst_id', $limit_insts)->pluck('id'))
+                fn($qry) => $qry->whereIn('credentials_id', Credential::whereIn('inst_id', $limit_insts)->pluck('id'))
             )
             ->where('status', '!=', 'Success')
-            ->where(fn ($q) => $q->where('status', 'BadCreds')->orWhereIn('error_id', $badCredCodes))
+            ->where(fn($q) => $q->where('status', 'BadCreds')->orWhereIn('error_id', $badCredCodes))
             ->orderBy('updated_at', 'DESC')
             ->get();
 
         $records = $logs
-            ->filter(fn ($h) => $h->credential?->inst_id && $h->credential?->prov_id)
-            ->unique(fn ($h) => "{$h->credential->inst_id}-{$h->credential->prov_id}")
-            ->map(fn ($h) => $this->formatRecord($h, $now))
+            ->filter(fn($h) => $h->credential?->inst_id && $h->credential?->prov_id)
+            ->unique(fn($h) => "{$h->credential->inst_id}-{$h->credential->prov_id}")
+            ->map(fn($h) => $this->formatRecord($h, $now))
             ->sortBy([['inst_name', 'asc'], ['prov_name', 'asc']])
             ->values()
             ->all();
@@ -1170,8 +1168,6 @@ class HarvestLogController extends BaseController
             'records' => $records,
         ], 200);
     }
-
-
 
     /**
      * Common eager-loading relationships for HarvestLog records.
@@ -1189,7 +1185,6 @@ class HarvestLogController extends BaseController
             'failedHarvests.ccplusError',
         ];
     }
-
 
     private function createYMarray(string $from, string $to): array
     {
@@ -1247,7 +1242,7 @@ class HarvestLogController extends BaseController
             },
         };
     }
-// app/Http/Controllers/HarvestLogController.php (or HarvestController)
+    // app/Http/Controllers/HarvestLogController.php (or HarvestController)
 
     private function formatRecord($harvest, ?\DateTime $now = null): array
     {

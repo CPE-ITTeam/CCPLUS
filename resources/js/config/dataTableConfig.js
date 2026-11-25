@@ -1486,18 +1486,6 @@ const rawTableSetup = {
         searchable: false,
       },
       {
-        name: "groups",
-        get label() {
-          return t("fields.groups_multi");
-        },
-        type: "mselect",
-        options: "fromURL",
-        optVal: "id",
-        optTxt: "name",
-        header: null,
-        searchable: false,
-      },
-      {
         name: "PR",
         label: "PR",
         type: "toggle",
@@ -1594,6 +1582,20 @@ const rawTableSetup = {
         searchable: false,
       },
       {
+        name: "groups",
+        get label() {
+          return t("fields.groups_multi");
+        },
+        type: "mselect",
+        options: "fromURL",
+        optVal: "id",
+        optTxt: "name",
+        isFilter: true,
+        filterCol: "group_ids",
+        header: null,
+        searchable: false,
+      },
+      {
         name: "statuses",
         get label() {
           return t("fields.status");
@@ -1650,59 +1652,6 @@ const rawTableSetup = {
       "api_key",
     ],
     sortby: "platform",
-  },
-
-  badCredentials: {
-    urlRoot: "/api/harvests/bad-credentials",
-    title: "Bad Credentials",
-    fields: [
-      {
-        name: "inst_name",
-        get label() {
-          return t("fields.institution");
-        },
-        searchable: true,
-        editable: false,
-      },
-      {
-        name: "prov_name",
-        get label() {
-          return t("fields.platform");
-        },
-        searchable: true,
-        editable: false,
-      },
-      {
-        name: "error",
-        get label() {
-          return t("fields.result");
-        },
-        editable: false,
-      },
-      {
-        name: "updated",
-        get label() {
-          return t("fields.result_date");
-        },
-        type: "date",
-        editable: false,
-      },
-   {
-     name: "actions",
-     get label() {
-       return t("tables.actions");
-     },
-     header: "center",
-     sortable: false,
-     editable: false,
-   },
-
-    ],
-    required: [],
-    static: ["id"],
-    bulkOptions: [],
-    exportFields: ["inst_name", "prov_name", "d_status", "updated"],
-    sortby: "inst_name",
   },
 
   audit: {
@@ -1913,6 +1862,59 @@ const rawTableSetup = {
       "json_inst",
     ],
     sortby: "plat_name",
+  },
+
+  badCredentials: {
+    urlRoot: "/api/harvests/bad-credentials",
+    title: "Bad Credentials",
+    fields: [
+      {
+        name: "inst_name",
+        get label() {
+          return t("fields.institution");
+        },
+        searchable: true,
+        editable: false,
+      },
+      {
+        name: "prov_name",
+        get label() {
+          return t("fields.platform");
+        },
+        searchable: true,
+        editable: false,
+      },
+      {
+        name: "error",
+        get label() {
+          return t("fields.result");
+        },
+        editable: false,
+      },
+      {
+        name: "updated",
+        get label() {
+          return t("fields.result_date");
+        },
+        type: "date",
+        editable: false,
+      },
+   {
+     name: "actions",
+     get label() {
+       return t("tables.actions");
+     },
+     header: "center",
+     sortable: false,
+     editable: false,
+   },
+
+    ],
+    required: [],
+    static: ["id"],
+    bulkOptions: [],
+    exportFields: ["inst_name", "prov_name", "d_status", "updated"],
+    sortby: "inst_name",
   },
 
   jobs: {
