@@ -14,9 +14,20 @@ export function useToolbarFilters(filterOptions, dataset, emit) {
 
     return filterOptions.value.some((row) =>
       Object.entries(row).some(([key, filter]) => {
+        if (['no_inst', 'no_plat', 'no_host'].includes(key)) {
+          return filter.value === 'Active';
+        }
         if (!filter.show) return false;
         if (Array.isArray(filter.value)) return filter.value.length > 0;
         if (key === 'valid_types') return filter.value !== 'Not Validated';
+      if (key === 'status_switch') {
+        if (dataset.value === 'credentials') {
+          const vals = Array.isArray(filter.value) ? filter.value : [filter.value];
+          return !(vals.length === 1 && vals[0] === 'Enabled');
+        }
+        return filter.value !== 'Active' && filter.value !== 'All';
+      }
+
         if (key === 'is_conso') return filter.value === 'Active' || filter.value === 'NonConso';
         if (filter.type === 'toggle') return filter.value === 'Active';
 
@@ -33,6 +44,8 @@ export function useToolbarFilters(filterOptions, dataset, emit) {
       })
     );
   });
+
+
 
   function handleFilter(filt) {
     for (const row of filterOptions.value) {

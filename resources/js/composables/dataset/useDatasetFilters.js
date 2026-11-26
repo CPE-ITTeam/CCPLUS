@@ -77,7 +77,6 @@ export function useDatasetFilters({
     const dsKey = toValue(datasetKey);
     const shouldServerRefresh =
       filt.refresh || dsKey === "jobs" || dsKey === "harvests";
-
     if (filt.key === "reset") {
       selectedRows.value = [];
       for (const key of Object.keys(filterOptions)) {
@@ -98,9 +97,13 @@ export function useDatasetFilters({
           f.show = true;
           continue;
         }
+        if (key === "status_switch") {
+          f.value = dsKey === "credentials" ? "Enabled" : "All";
+          f.show = true;
+          continue;
+        }
         if (
           key === "is_conso" ||
-          key === "status_switch" ||
           key === "valid_target" ||
           key === "releases"
         ) {
@@ -128,6 +131,7 @@ export function useDatasetFilters({
       }
       return;
     }
+
 
     if (
       !filterOptions[filt.key] &&
@@ -193,13 +197,13 @@ export function useDatasetFilters({
     if (Array.isArray(filter.value) && filter.value.length === 0) return true;
     if (!Array.isArray(filter.value) && !filter.value) return true;
 
-    if (filter.name === "status_switch") {
-      if (!filter.value || filter.value === "All") return true;
-      return (
-        String(item[filter.col] || "").toLowerCase() ===
-        String(filter.value).toLowerCase()
-      );
-    }
+  if (filter.name === "status_switch") {
+    if (!filter.value || filter.value === "All") return true;
+    const vals = Array.isArray(filter.value) ? filter.value : [filter.value];
+    if (vals.length === 0 || vals.includes("All")) return true;
+    const itemStatus = String(item[filter.col] || "").toLowerCase();
+    return vals.some((v) => String(v).toLowerCase() === itemStatus);
+  }
 
     if (filter.name === "is_conso") {
       if (filter.value === "All" || filter.value === "Inactive") return true;

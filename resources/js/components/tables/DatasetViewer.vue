@@ -416,7 +416,7 @@ watch(locale, () => {
     <v-sheet class="bg-transparent">
 
       <!-- 1. Toolbar Filters Wrapper -->
-      <DataToolbar :model-value="toolbarFilters" :search="search" :dataset="props.datasetKey"
+      <DataToolbar :model-value="toolbarFilters" :search="search" :dataset="props.datasetKey" :items="allItems"
         :bulkOptions="effectiveBulkOptions" :selectedRows="selectedRows" :showSelectedOnly="showSelectedOnly"
         :hideExport="!exportable" @updateConso="handleChangeConso" @export="handleExport" @setFilter="handleFilter"
         @bulkAction="handleBulk" @add="handleAddItem" @update:search="search = $event"

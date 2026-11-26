@@ -49,14 +49,10 @@ const auditJsonSwitches = computed(() =>
 );
 
 const hasCol2Switches = computed(() =>
-  Boolean(
-    props.filters?.status_switch ||
-    props.filters?.valid_types ||
-    props.filters?.valid_target ||
-    props.filters?.releases ||
-    auditJsonSwitches.value.length > 0
-  )
+  Boolean((props.filters?.status_switch && !isCredentialsStatus.value) || props.filters?.releases)
 );
+
+
 
 const isPlatformEntry = (name) => PLATFORM_ENTRY_KEYS.has(name);
 const isInstOrGroupEntry = (name) => INST_GROUP_ENTRY_KEYS.has(name);
@@ -136,14 +132,15 @@ const filterColumns = computed(() => {
   return hasCol2Switches.value ? [{ key: 'period', items: [] }] : [];
 });
 
-const isCredentialsStatus = computed(
-  () =>
-    props.filters?.status_switch?.value === 'Enabled' ||
-    props.filters?.status_switch?.value === 'Incomplete' ||
-    (props.filters?.status_switch &&
-      props.filters?.statuses !== undefined &&
-      !props.filters?.releases)
+const isCredentialsStatus = computed(() =>
+  Boolean(
+    props.filters?.status_switch &&
+    (Array.isArray(props.filters.status_switch.value) ||
+      ['Enabled', 'Incomplete', 'Suspended', 'Disabled'].includes(props.filters.status_switch.value) ||
+      (props.filters?.statuses !== undefined && !props.filters?.releases))
+  )
 );
+
 
 const statusSwitchState = computed(() => {
   const val = props.filters?.status_switch?.value || 'All';
@@ -319,15 +316,14 @@ function handleFilter(keyName, newValue) {
 <template>
   <v-row v-if="filterColumns.length > 0" align="start" class="w-100 pt-2 mt-0">
     <v-col v-for="col in filterColumns" :key="col.key" cols="12" md="4" class="d-flex flex-column ga-3 pt-1">
-      <!-- Column 2 Switches (Status / Credentials, Releases, Validation, Audit JSON) -->
+      <!-- Column 2 Switches (Status / Releases) -->
       <div v-if="hasCol2Switches && (col.key === 'period' || filterColumns.length === 1)"
         class="d-flex flex-column align-start ga-2 w-100 col-switch-stack">
-        <!-- Primary Status / Release / Validation Switches -->
-        <div v-if="props.filters.status_switch || props.filters.releases || props.filters.valid_types"
+        <!-- Primary Status / Release Switches -->
+        <div v-if="(props.filters.status_switch && !isCredentialsStatus) || props.filters.releases"
           class="d-flex flex-column align-start ga-1 w-100">
-          <div v-if="props.filters.status_switch || props.filters.releases"
-            class="d-flex flex-wrap align-center ga-x-4 ga-y-1">
-            <v-switch v-if="props.filters.status_switch" :model-value="statusSwitchState.modelValue"
+          <div class="d-flex flex-wrap align-center ga-x-4 ga-y-1">
+            <v-switch v-if="props.filters.status_switch && !isCredentialsStatus" :model-value="statusSwitchState.modelValue"
               :indeterminate="statusSwitchState.indeterminate" :color="statusSwitchState.color"
               :base-color="statusSwitchState.color" :label="statusSwitchState.label" hide-details
               @click.prevent="cycleStatusSwitch" />
@@ -337,38 +333,7 @@ function handleFilter(keyName, newValue) {
               :base-color="releaseSwitchState.color" :label="releaseSwitchState.label" hide-details
               @click.prevent="cycleReleaseSwitch" />
           </div>
-
-          <div v-if="props.filters.valid_types" class="d-flex flex-wrap align-center ga-x-4 ga-y-1">
-            <v-switch :model-value="validStatusSwitchState.modelValue"
-              :indeterminate="validStatusSwitchState.indeterminate" :color="validStatusSwitchState.color"
-              :base-color="validStatusSwitchState.color" :label="validStatusSwitchState.label" hide-details
-              @click.prevent="cycleValidStatusSwitch" />
-
-            <v-switch v-if="props.filters.valid_types.value === 'Not Validated' && props.filters.valid_target"
-              :model-value="validTargetSwitchState.modelValue" :indeterminate="validTargetSwitchState.indeterminate"
-              :color="validTargetSwitchState.color" :label="validTargetSwitchState.label" hide-details
-              @click.prevent="cycleValidTargetSwitch" />
-          </div>
         </div>
-
-        <!-- Divider + JSON Audit Switches -->
-        <template v-if="auditJsonSwitches.length > 0">
-          <v-divider v-if="props.filters.status_switch || props.filters.releases || props.filters.valid_types"
-            class="w-100 my-1" />
-
-          <div class="d-flex flex-column align-start ga-1 w-100">
-            <span class="text-caption text-uppercase font-weight-bold text-medium-emphasis">
-              {{ $t('audit.json_records', 'JSON Records') }}
-            </span>
-
-            <div class="d-flex flex-wrap align-center ga-x-4 ga-y-1">
-              <v-switch v-for="sw in auditJsonSwitches" :key="sw.name"
-                :model-value="sw.value !== 'Active' && sw.value !== true" :label="formatJsonToggleLabel(sw)"
-                color="success" base-color="warning" hide-details
-                @update:modelValue="handleFilter(sw.name, $event ? 'Inactive' : 'Active')" />
-            </div>
-          </div>
-        </template>
       </div>
 
       <!-- Column Filter Inputs -->
@@ -397,8 +362,7 @@ function handleFilter(keyName, newValue) {
           </div>
           <MultiSelectCombobox v-if="entry.filter.type == 'mselect'" v-model="props.filters[entry.name].value"
             :label="entry.filter.label" multiple :items="entry.filter.items" :item-title="entry.filter.txt"
-            :item-value="entry.filter.val" :truncate="entry.filter.truncate"
-            :group-by="entry.filter.groupBy || null"
+            :item-value="entry.filter.val" :truncate="entry.filter.truncate" :group-by="entry.filter.groupBy || null"
             @update:modelValue="handleFilter(entry.name, $event)" />
         </v-sheet>
 
@@ -417,8 +381,7 @@ function handleFilter(keyName, newValue) {
         <!-- Multi-select combobox case -->
         <MultiSelectCombobox v-else-if="entry.filter.type == 'mselect'" v-model="props.filters[entry.name].value"
           :label="entry.filter.label" multiple :items="entry.filter.items" :item-title="entry.filter.txt"
-          :item-value="entry.filter.val" :truncate="entry.filter.truncate"
-          :group-by="entry.filter.groupBy || null"
+          :item-value="entry.filter.val" :truncate="entry.filter.truncate" :group-by="entry.filter.groupBy || null"
           @update:modelValue="handleFilter(entry.name, $event)" />
 
 
@@ -435,7 +398,7 @@ function handleFilter(keyName, newValue) {
               </template>
               <v-list-item-title class="text-truncate" :title="itemProps.title">
                 {{ entry.filter.truncate ? formatTruncatedDisplay(itemProps.title, entry.filter.truncate) :
-                itemProps.title }}
+                  itemProps.title }}
               </v-list-item-title>
             </v-list-item>
           </template>
@@ -462,7 +425,7 @@ function handleFilter(keyName, newValue) {
               </template>
               <v-list-item-title class="text-truncate" :title="itemProps.title">
                 {{ entry.filter.truncate ? formatTruncatedDisplay(itemProps.title, entry.filter.truncate) :
-                itemProps.title }}
+                  itemProps.title }}
               </v-list-item-title>
             </v-list-item>
           </template>
