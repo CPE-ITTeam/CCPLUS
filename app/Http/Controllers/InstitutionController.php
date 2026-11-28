@@ -97,7 +97,6 @@ class InstitutionController extends BaseController
         return response()->json(['records' => $data, 'options' => $filter_options], 200);
     }
 
-
     /**
      * Store a newly created resource in storage.
      */
@@ -266,7 +265,6 @@ class InstitutionController extends BaseController
         ];
         return $this->respondSuccess(__('institutions.settings_updated'), $inst);
     }
-
 
     /**
      * Remove the specified resource from storage.
@@ -562,7 +560,6 @@ class InstitutionController extends BaseController
         ];
     }
 
-
     /**
      * Replace group pivot assignments for an imported institution.
      */
@@ -612,22 +609,21 @@ class InstitutionController extends BaseController
         }
         return $inst_data;
     }
+    
     /**
      * Update credentials when an institution is_active setting is changed.
      */
-    private function updateCredentials($instId, $active): void
+    private function updateCredentials($instId, $active = null): void
     {
-        $credentials = Credential::with('provider')->where('inst_id', $instId)->get();
+        $credentials = Credential::with('institution', 'provider')->where('inst_id', $instId)->get();
         foreach ($credentials as $credential) {
-            if ($active == 1) {
-                if ($credential->status !== 'Disabled') {
-                    $credential->update(['status' => 'Suspended']);
-                }
-            } else {
-                $credential->resetStatus();
+            if ($active !== null && $credential->institution) {
+                $credential->institution->is_active = (int) $active;
             }
+            $credential->resetStatus();
         }
     }
+
     /**
      * Return a string for the current user's role(s).
      */

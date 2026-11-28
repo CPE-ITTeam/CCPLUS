@@ -306,7 +306,7 @@ class CredentialController extends BaseController
         return $this->respondSuccess(__('credentials.created'), $rec);
     }
 
-     private function attachLastHarvestResult(array &$rec, $lastHarvest): void
+    private function attachLastHarvestResult(array &$rec, $lastHarvest): void
     {
         if (!$lastHarvest) {
             $rec['result'] = 'No Harvests';
@@ -332,6 +332,7 @@ class CredentialController extends BaseController
             $rec['error'] = $errPayload;
         }
     }
+
     /**
      * Set/update credential values and report access/availability.
      */
@@ -433,6 +434,7 @@ class CredentialController extends BaseController
 
         return $this->respondSuccess(__('credentials.updated'), $record);
     }
+
     /**
      * Update report definition for a connection.
      */
@@ -619,6 +621,7 @@ class CredentialController extends BaseController
         }
         return response()->json(['result' => true, 'rows' => $rows, 'msg' => $result]);
     }
+
     /**
      * Remove the specified resource from storage.
      */
@@ -638,6 +641,7 @@ class CredentialController extends BaseController
         $credential->delete();
         return $this->respondSuccess(__('credentials.deleted'));
     }
+
     /**
      * Bulk operations from the UI.
      */
@@ -697,6 +701,7 @@ class CredentialController extends BaseController
         }
         return $this->respondError(__('credentials.bulk_unrecognized'));
     }
+
     /**
      * Return an array of IDs for not-set credentials.
      */
@@ -728,6 +733,7 @@ class CredentialController extends BaseController
         }
         return response()->json(['result' => true, 'msg' => '', 'unset_ids' => array_values($unset_ids)]);
     }
+
     /**
      * Import credentials from a CSV file to the database.
      */
@@ -887,6 +893,7 @@ class CredentialController extends BaseController
 
         return $this->respondSuccess(__('credentials.import_completed', ['detail' => $detail]));
     }
+
     /**
      * Returns filter_options for the UI. Item records returned with auditItems().
      */
@@ -941,6 +948,7 @@ class CredentialController extends BaseController
         ])->toArray();
         return response()->json(['records' => [], 'options' => $filter_options], 200);
     }
+
     /**
      * Returns (possibly filtered) items for the Credential Audit UI.
      */
@@ -1095,6 +1103,7 @@ class CredentialController extends BaseController
             'records' => $records,
         ], 200);
     }
+
     /**
      * Update credential as audit-validated.
      */
@@ -1114,6 +1123,7 @@ class CredentialController extends BaseController
         $credential->save();
         return response()->json(['result' => true], 200);
     }
+
     /**
      * Load master reports ordered by display order.
      */
@@ -1121,6 +1131,7 @@ class CredentialController extends BaseController
     {
         $this->masterReports = Report::where('parent_id', 0)->orderBy('dorder', 'ASC')->get(['id', 'name']);
     }
+
     /**
      * Build the connector definition array for a credential/provider.
      */
@@ -1132,6 +1143,7 @@ class CredentialController extends BaseController
             return $cnx;
         })->all();
     }
+    
     /**
      * Attach per-report availability and sortval flags onto a credential payload array.
      */

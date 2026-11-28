@@ -14,7 +14,7 @@ const CRED_STATUS_DEFS = [
   { value: 'Incomplete', fallbackLabel: 'Incomplete', color: 'warning', alwaysShow: false },
   { value: 'Suspended', fallbackLabel: 'Suspended', color: 'secondary', alwaysShow: false },
   { value: 'Disabled', fallbackLabel: 'Disabled', color: 'error', alwaysShow: true },
-  { value: 'All', fallbackLabel: 'All', color: 'info', alwaysShow: true },
+  { value: 'All', fallbackLabel: 'Total', color: 'info', alwaysShow: true },
 ];
 
 export function useAuditStatus(dataset, items, filterOptions, handleFilter) {
@@ -94,7 +94,10 @@ export function useAuditStatus(dataset, items, filterOptions, handleFilter) {
               ).length;
         return {
           value: def.value,
-          label: t(`statuses.${def.value.toLowerCase()}`, def.fallbackLabel),
+          label:
+            def.value === 'All'
+              ? 'Total'
+              : t(`statuses.${def.value.toLowerCase()}`, def.fallbackLabel),
           color: def.color,
           count,
           show:
@@ -158,12 +161,12 @@ export function useAuditStatus(dataset, items, filterOptions, handleFilter) {
       return states.includes('Not Fully Validated');
     });
 
-    const platformCount = visibleNotValidated.filter((itm) =>
-      Array.isArray(itm[col]) && itm[col].includes('Platform Not Validated')
+    const platformCount = visibleNotValidated.filter(
+      (itm) => Array.isArray(itm[col]) && itm[col].includes('Platform Not Validated')
     ).length;
 
-    const institutionCount = visibleNotValidated.filter((itm) =>
-      Array.isArray(itm[col]) && itm[col].includes('Institution Not Validated')
+    const institutionCount = visibleNotValidated.filter(
+      (itm) => Array.isArray(itm[col]) && itm[col].includes('Institution Not Validated')
     ).length;
 
     return [
@@ -172,22 +175,52 @@ export function useAuditStatus(dataset, items, filterOptions, handleFilter) {
     ];
   });
 
-
   const jsonChips = computed(() => {
     if (!showJsonChips.value) return [];
     const list = Array.isArray(items.value) ? items.value : [];
+    const col = filterLookup.value.valid_types?.col || 'valid_state';
 
-    return JSON_CHIP_DEFS.map((def) => {
-      const f = filterLookup.value[def.key];
-      const col = f?.col || def.col;
-      const count = list.filter((itm) => !itm[col]).length;
-      return {
-        key: def.key,
-        label: def.label,
-        color: def.color,
-        count,
-      };
-    }).filter((chip) => chip.count > 0 || activeJsonFilters.value.includes(chip.key));
+    const activeSingleTarget =
+      activeValidTargets.value.length === 1 ? activeValidTargets.value.at(0) : null;
+
+    const allowedKeys =
+      activeSingleTarget === 'Platform'
+        ? new Set(['no_plat', 'no_host'])
+        : activeSingleTarget === 'Institution'
+          ? new Set(['no_inst'])
+          : new Set(['no_inst', 'no_plat', 'no_host']);
+
+    const scopedList = list.filter((itm) => {
+      const states = Array.isArray(itm[col]) ? itm[col] : [];
+      const matchesValid = activeValidTypes.value.some((v) => {
+        if (v === 'Validated') return states.includes('Fully Validated');
+        if (v === 'Not Validated') return states.includes('Not Fully Validated');
+        return true;
+      });
+      if (!matchesValid) return false;
+
+      if (activeSingleTarget === 'Platform') {
+        return states.includes('Platform Not Validated');
+      }
+      if (activeSingleTarget === 'Institution') {
+        return states.includes('Institution Not Validated');
+      }
+      return true;
+    });
+
+    return JSON_CHIP_DEFS.filter((def) => allowedKeys.has(def.key))
+      .map((def) => {
+        const f = filterLookup.value[def.key];
+        const fCol = f?.col || def.col;
+        const count = scopedList.filter((itm) => !itm[fCol]).length;
+        return {
+          key: def.key,
+          label: def.label,
+          color: def.color,
+          count,
+        };
+      })
+      .filter((chip) => chip.count > 0 || activeJsonFilters.value.includes(chip.key));
   });
 
   function setValidType(val) {
@@ -205,9 +238,16 @@ export function useAuditStatus(dataset, items, filterOptions, handleFilter) {
         current.push(val);
       }
 
+      const visibleStatusValues = validationChips.value
+        .filter((c) => c.value !== 'All')
+        .map((c) => c.value);
+      const allSelected =
+        visibleStatusValues.length > 0 &&
+        visibleStatusValues.every((v) => current.includes(v));
+
       handleFilter({
         key: 'status_switch',
-        value: current.length > 0 ? current : ['All'],
+        value: current.length === 0 || allSelected ? ['All'] : current,
       });
       return;
     }
@@ -243,10 +283,19 @@ export function useAuditStatus(dataset, items, filterOptions, handleFilter) {
     } else {
       current.push(val);
     }
-
-    const nextTarget =
-      current.length === 1 ? current : 'All';
+    const nextTarget = current.length === 1 ? current.at(0) : 'All';
     handleFilter({ key: 'valid_target', value: nextTarget });
+
+    if (nextTarget === 'Platform' && filterLookup.value.no_inst?.value === 'Active') {
+      handleFilter({ key: 'no_inst', value: 'Inactive' });
+    } else if (nextTarget === 'Institution') {
+      if (filterLookup.value.no_plat?.value === 'Active') {
+        handleFilter({ key: 'no_plat', value: 'Inactive' });
+      }
+      if (filterLookup.value.no_host?.value === 'Active') {
+        handleFilter({ key: 'no_host', value: 'Inactive' });
+      }
+    }
   }
 
   function toggleJsonChip(key) {

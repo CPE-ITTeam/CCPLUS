@@ -19,6 +19,16 @@ const NON_TEXT_TRUNCATE_KEYS = new Set([
   'IR',
 ]);
 
+function resultSortRank(item) {
+  if (!item) return Number.MAX_SAFE_INTEGER;
+  const errId = Number(item.error?.id);
+  if (Number.isFinite(errId) && errId > 0) return errId;
+  if (item.status === 'Success' || item.result === 'Success') return -1;
+  if (!item.result || item.result === 'No Harvests') return Number.MAX_SAFE_INTEGER;
+  const num = Number(item.result);
+  return Number.isFinite(num) ? num : Number.MAX_SAFE_INTEGER - 1;
+}
+
 export function useTableHeaders(headers, items, selectableRows, loadingColor) {
   const { t } = useI18n();
   const authStore = useAuthStore();
@@ -64,12 +74,16 @@ export function useTableHeaders(headers, items, selectableRows, loadingColor) {
     });
 
     const hdrs = rawHeaders.map((header) => {
+      const keyName = header.key || header.name;
       const isCustomHeader = Boolean(header.headerProps?.class);
       const isCentered = !isCustomHeader && (header.align === 'center' || header.header === 'center');
       return {
         ...header,
-        key: header.key || header.name,
+        key: keyName,
         title: header.title || header.label,
+        ...(keyName === 'error' || keyName === 'result'
+          ? { sortRaw: (a, b) => resultSortRank(a) - resultSortRank(b) }
+          : {}),
         align: isCustomHeader ? header.align : isCentered ? 'center' : (header.align || 'start'),
         headerProps: isCustomHeader
           ? {
@@ -103,7 +117,6 @@ export function useTableHeaders(headers, items, selectableRows, loadingColor) {
         headerProps: { class: `font-weight-bold bg-${loadingColor.value} text-white` },
       });
     }
-
 
     return hdrs;
   });

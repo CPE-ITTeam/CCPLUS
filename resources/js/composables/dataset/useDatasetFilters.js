@@ -20,38 +20,43 @@ export function useDatasetFilters({
       filterOptions.inst_id;
     const grpFilter =
       filterOptions.groups || filterOptions.group || filterOptions.group_id;
-    const platVal =
-      filterOptions.platforms?.value ?? filterOptions.platform?.value;
-    const hasPlat = Array.isArray(platVal)
-      ? platVal.length > 0
-      : Boolean(platVal);
     const isAudit = toValue(datasetKey) === "audit";
 
+    const validTarget = isAudit ? (filterOptions.valid_target?.value || "All") : "All";
+    const vt = filterOptions.valid_types?.value;
+    const isNotValOnly =
+      isAudit &&
+      (Array.isArray(vt)
+        ? vt.includes("Not Validated") && !vt.includes("Validated")
+        : vt === "Not Validated");
+
+    // On Audit when specifically targeting Platform validation issues, hide Institution/Group scope
+    if (isNotValOnly && validTarget === "Platform") {
+      if (filterOptions.scope_mode) filterOptions.scope_mode.show = false;
+      if (instFilter) instFilter.show = false;
+      if (grpFilter) grpFilter.show = false;
+      if (filterOptions.platforms) {
+        filterOptions.platforms.show = filterOptions.platforms.items?.length > 0;
+      }
+      return;
+    }
+
+    // Otherwise, keep Platform visible alongside Institution / Group
+    if (filterOptions.platforms) {
+      filterOptions.platforms.show = filterOptions.platforms.items?.length > 0;
+    }
+
     if (filterOptions.scope_mode) {
+      const hasInstItems = instFilter?.items?.length > 0;
+      const hasGrpItems = grpFilter?.items?.length > 0;
+      filterOptions.scope_mode.show = hasInstItems && hasGrpItems;
       const useGroups = Boolean(filterOptions.scope_mode.value);
+
       if (instFilter) {
-        instFilter.show =
-          !useGroups &&
-          (!isAudit || !hasPlat) &&
-          instFilter.items?.length > 0;
+        instFilter.show = !useGroups && hasInstItems;
       }
       if (grpFilter) {
-        grpFilter.show =
-          useGroups &&
-          (!isAudit || !hasPlat) &&
-          grpFilter.items?.length > 0;
-      }
-      if (isAudit && filterOptions.platforms) {
-        const instVal = instFilter?.value;
-        const grpVal = grpFilter?.value;
-        const hasInst = Array.isArray(instVal)
-          ? instVal.length > 0
-          : Boolean(instVal);
-        const hasGrp = Array.isArray(grpVal)
-          ? grpVal.length > 0
-          : Boolean(grpVal);
-        filterOptions.platforms.show =
-          !hasInst && !hasGrp && filterOptions.platforms.items?.length > 0;
+        grpFilter.show = useGroups && hasGrpItems;
       }
       return;
     }
@@ -63,15 +68,10 @@ export function useDatasetFilters({
       : Boolean(instVal);
     const hasGrp = Array.isArray(grpVal) ? grpVal.length > 0 : Boolean(grpVal);
 
-    if (grpFilter)
-      grpFilter.show = !hasInst && grpFilter.items?.length > 0;
-    if (instFilter)
-      instFilter.show =
-        !hasGrp && (!isAudit || !hasPlat) && instFilter.items?.length > 0;
-    if (isAudit && filterOptions.platforms)
-      filterOptions.platforms.show =
-        !hasInst && filterOptions.platforms.items?.length > 0;
+    if (grpFilter) grpFilter.show = !hasInst && grpFilter.items?.length > 0;
+    if (instFilter) instFilter.show = !hasGrp && instFilter.items?.length > 0;
   }
+
 
   function handleFilter(filt) {
     const dsKey = toValue(datasetKey);
@@ -234,19 +234,24 @@ export function useDatasetFilters({
       }
       return normalized.includes(target);
     }
-
     if (filter.name === "valid_types") {
       if (!filter.value || filter.value === "All") return true;
+      const vals = Array.isArray(filter.value) ? filter.value : [filter.value];
+      if (vals.length === 0 || vals.includes("All")) return true;
       const states = Array.isArray(item[filter.col]) ? item[filter.col] : [];
-      if (filter.value === "Validated")
-        return states.includes("Fully Validated");
-      if (filter.value === "Not Validated")
-        return states.includes("Not Fully Validated");
-      return states.includes(filter.value);
+      return vals.some((v) => {
+        if (v === "Validated") return states.includes("Fully Validated");
+        if (v === "Not Validated") return states.includes("Not Fully Validated");
+        return states.includes(v);
+      });
     }
 
     if (filter.name === "valid_target") {
-      if (filterOptions.valid_types?.value !== "Not Validated") return true;
+      const vt = filterOptions.valid_types?.value;
+      const hasNotVal = Array.isArray(vt)
+        ? vt.includes("Not Validated")
+        : vt === "Not Validated";
+      if (!hasNotVal) return true;
       if (!filter.value || filter.value === "All") return true;
       const states = Array.isArray(item[filter.col]) ? item[filter.col] : [];
       if (filter.value === "Platform")
@@ -255,6 +260,7 @@ export function useDatasetFilters({
         return states.includes("Institution Not Validated");
       return true;
     }
+
 
     if (filter.type === "ymrange") {
       const fromYM = filter.value?.fromYM || "";

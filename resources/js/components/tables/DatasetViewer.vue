@@ -88,7 +88,11 @@ const AUDIT_PLAT_COLS = new Set(['plat_name', 'plat_valid', 'json_item', 'json_h
 
 const visibleHeaders = computed(() => {
   if (props.datasetKey !== 'audit') return headers.value;
-  if (filterOptions.valid_types?.value !== 'Not Validated') return headers.value;
+  const vt = filterOptions.valid_types?.value;
+  const isNotValOnly = Array.isArray(vt)
+    ? vt.includes('Not Validated') && !vt.includes('Validated')
+    : vt === 'Not Validated';
+  if (!isNotValOnly) return headers.value;
 
   const target = filterOptions.valid_target?.value || 'All';
   if (target === 'Platform') {
@@ -290,17 +294,20 @@ const effectiveBulkOptions = computed(() => {
     return base;
   }
 
-  const validMode = filterOptions.valid_types?.value;
+  const vt = filterOptions.valid_types?.value;
+  const isNotValOnly = Array.isArray(vt)
+    ? vt.includes('Not Validated') && !vt.includes('Validated')
+    : vt === 'Not Validated';
   const target = filterOptions.valid_target?.value;
 
-  if (validMode === 'Not Validated' && target === 'Platform') {
+  if (isNotValOnly && target === 'Platform') {
     return {
       ...base,
       items: base.items.filter((opt) => opt !== 'Set Institution Validated'),
     };
   }
 
-  if (validMode === 'Not Validated' && target === 'Institution') {
+  if (isNotValOnly && target === 'Institution') {
     return {
       ...base,
       items: base.items.filter((opt) => opt !== 'Set Platform Validated'),
@@ -309,6 +316,7 @@ const effectiveBulkOptions = computed(() => {
 
   return base;
 });
+
 
 
 const toolbarFilters = computed(() => {

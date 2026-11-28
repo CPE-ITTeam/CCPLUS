@@ -2,7 +2,7 @@
 
 <script setup>
 // Core & Plugins
-import { ref, computed, toRef } from 'vue';
+import { ref, computed, toRef, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
 
 // Config & Utils
@@ -28,7 +28,6 @@ import HarvestResultCell from '@/components/tables/cells/HarvestResultCell.vue';
 import HarvestIdCell from '@/components/tables/cells/HarvestIdCell.vue';
 import TableRowActions from '@/components/tables/cells/TableRowActions.vue';
 import TableSelectionMenu from '@/components/tables/cells/TableSelectionMenu.vue';
-
 
 const { t } = useI18n();
 const { openUrl, openRegistryPlatform } = useExternalLinks();
@@ -80,6 +79,8 @@ const props = defineProps({
 
 const currentPage = ref(1);
 const itemsPerPage = ref(10);
+const sortBy = ref([]);
+const currentPageItems = ref([]);
 
 const filteredItems = computed(() => {
   const searchTerm = (props.search ?? '').trim().toLowerCase();
@@ -100,11 +101,21 @@ const filteredItems = computed(() => {
   return sortDatasetItems(list, tableSetup[props.dataset]?.sortby);
 });
 
-const visibleItems = computed(() => {
-  if (itemsPerPage.value === -1) return filteredItems.value;
-  const start = (currentPage.value - 1) * itemsPerPage.value;
-  return filteredItems.value.slice(start, start + itemsPerPage.value);
-});
+watch(
+  () => props.items.length,
+  () => {
+    currentPage.value = 1;
+  }
+);
+
+function isInactiveCell(item, key) {
+  const flag =
+    key === 'platform' || key === 'prov_name'
+      ? item.plat_active
+      : item.inst_active;
+  if (flag === undefined || flag === null) return false;
+  return flag === false || flag === 0 || flag === '0';
+}
 
 const {
   selectedIdSet,
@@ -118,7 +129,7 @@ const {
   toggleSingleRow,
 } = useTableSelection(
   filteredItems,
-  visibleItems,
+  currentPageItems,
   toRef(props, 'selectedRows'),
   (rows) => emit('update:selectedRows', rows)
 );
@@ -154,12 +165,30 @@ const current_error = ref({ id: null, message: '', explanation: '', detail: '', 
 
 const reportSort = (a, b) => a.sortval - b.sortval;
 
+function resultSortRank(val) {
+  if (!val) return Number.MAX_SAFE_INTEGER;
+  if (typeof val === 'object') {
+    const id = Number(val.id ?? val.error_id);
+    if (val.status === 'Success' || val.message === 'Success' || id === 0) return -1;
+    if (Number.isFinite(id) && id > 0) return id;
+    return Number.MAX_SAFE_INTEGER;
+  }
+  if (val === 'Success') return -1;
+  if (val === 'No Harvests') return Number.MAX_SAFE_INTEGER;
+  const num = Number(val);
+  return Number.isFinite(num) ? num : Number.MAX_SAFE_INTEGER - 1;
+}
+
 const customKeySort = {
   DR: (a, b) => reportSort(a, b),
   PR: (a, b) => reportSort(a, b),
   TR: (a, b) => reportSort(a, b),
   IR: (a, b) => reportSort(a, b),
+  result: (a, b) => resultSortRank(a) - resultSortRank(b),
+  error: (a, b) => resultSortRank(a) - resultSortRank(b),
 };
+
+
 
 const refreshDataset = computed(() => {
   return props.dataset === 'harvests' || props.dataset === 'jobs' || props.dataset === 'audit';
@@ -193,31 +222,23 @@ function closeErrorDialog() {
 }
 </script>
 
+
 <template>
   <div class="w-100">
     <!-- Top Table Header Utility Bar Area -->
     <div class="d-flex flex-column ga-2 mb-4">
-      <StatusAlerts
-        v-if="truncated"
-        mode="page"
-        container-class="font-weight-bold mb-0"
-        :info="$t('tables.truncated_warning')"
-        @update:warning="$emit('update:truncated', false)"
-      />
+      <StatusAlerts v-if="truncated" mode="page" container-class="font-weight-bold mb-0"
+        :info="$t('tables.truncated_warning')" @update:warning="$emit('update:truncated', false)" />
 
-      <div v-if="props.selectableRows && (selectedRows.length > 0 || props.showSelectedOnly)" class="align-self-start ms-4">
+      <div v-if="props.selectableRows && (selectedRows.length > 0 || props.showSelectedOnly)"
+        class="align-self-start ms-4">
         <v-tooltip :text="props.showSelectedOnly ? $t('tables.show_all') : $t('tables.show_selected_only')">
           <template #activator="{ props: tooltipProps }">
-            <v-chip
-              v-bind="tooltipProps"
-              color="primary"
-              :variant="props.showSelectedOnly ? 'flat' : 'tonal'"
-              prepend-icon="mdi-check-circle"
-              :append-icon="props.showSelectedOnly ? 'mdi-filter-off' : 'mdi-filter'"
+            <v-chip v-bind="tooltipProps" color="primary" :variant="props.showSelectedOnly ? 'flat' : 'tonal'"
+              prepend-icon="mdi-check-circle" :append-icon="props.showSelectedOnly ? 'mdi-filter-off' : 'mdi-filter'"
               class="font-weight-bold cursor-pointer"
               :aria-label="props.showSelectedOnly ? $t('tables.show_all') : $t('tables.show_selected_only')"
-              @click="$emit('update:toggleSelectedOnly', !props.showSelectedOnly)"
-            >
+              @click="$emit('update:toggleSelectedOnly', !props.showSelectedOnly)">
               {{ $t('tables.items_selected', { count: selectedRows.length }, selectedRows.length) }}
             </v-chip>
           </template>
@@ -226,40 +247,28 @@ function closeErrorDialog() {
     </div>
 
     <!-- Core Interactive Data Grid Matrix -->
-    <v-data-table
-      v-model:page="currentPage"
-      v-model:items-per-page="itemsPerPage"
-      :headers="computedHeaders"
-      :header-props="{ class: `bg-${props.loadingColor} text-white` }"
-      :items="filteredItems"
-      item-key="id"
-      item-value="id"
-      :loading="props.isLoading ? props.loadingColor : false"
-      :custom-key-sort="customKeySort"
-      class="elevation-4 bg-surface rounded-lg overflow-hidden"
-    >
+    <v-data-table v-model:page="currentPage" v-model:items-per-page="itemsPerPage" v-model:sort-by="sortBy"
+      :headers="computedHeaders" :header-props="{ class: `bg-${props.loadingColor} text-white` }" :items="filteredItems"
+      item-key="id" item-value="id" :loading="props.isLoading ? props.loadingColor : false"
+      :custom-key-sort="customKeySort" class="elevation-4 bg-surface rounded-lg overflow-hidden"
+      @update:current-items="currentPageItems = $event.map((e) => e?.raw ?? e)">
       <template #loader="{ isActive }">
+
         <v-progress-linear :active="isActive" :color="props.loadingColor" height="2" indeterminate />
       </template>
 
       <template #no-data>
-        <v-alert
-          type="info"
-          variant="tonal"
-          density="compact"
-          icon="mdi-alert-circle-outline"
-          class="ma-4"
-          :text="noDataMessage"
-        />
+        <v-alert type="info" variant="tonal" density="compact" icon="mdi-alert-circle-outline" class="ma-4"
+          :text="noDataMessage" />
       </template>
 
       <template #header.row_select>
         <TableSelectionMenu
-          :show-menu="itemsPerPage !== -1 && filteredItems.length > visibleItems.length"
+          :show-menu="itemsPerPage !== -1 && filteredItems.length > currentPageItems.length"
           :is-all-selected="isAllSelected"
           :is-some-selected="isSomeSelected"
           :are-all-visible-selected="areAllVisibleSelected"
-          :visible-count="visibleItems.length"
+          :visible-count="currentPageItems.length"
           :total-count="filteredItems.length"
           :selected-count="selectedIdSet.size"
           @selectVisible="selectVisibleRows"
@@ -269,73 +278,57 @@ function closeErrorDialog() {
         />
       </template>
 
+
       <template #item.row_select="{ item }">
-        <input
-          type="checkbox"
-          :checked="selectedIdSet.has(item.id)"
-          :aria-label="$t('tables.select_row', 'Select row')"
-          class="cursor-pointer"
-          style="width: 18px; height: 18px; accent-color: rgb(var(--v-theme-primary));"
-          @change="toggleSingleRow(item)"
-        />
+        <input type="checkbox" :checked="selectedIdSet.has(item.id)" :aria-label="$t('tables.select_row', 'Select row')"
+          class="cursor-pointer" style="width: 18px; height: 18px; accent-color: rgb(var(--v-theme-primary));"
+          @change="toggleSingleRow(item)" />
       </template>
 
       <!-- 1. REUSABLE TOGGLE ENGINE LOOP -->
-      <template
-        v-for="col in ['status', 'connected', 'includeZeros', 'inst_valid', 'plat_valid']"
-        :key="col"
-        #[`item.${col}`]="{ item }"
-      >
-        <ToggleIcon
-          v-model="item[col]"
-          :toggleable="col === 'status' ? props.dataset !== 'audit' : true"
-          @update:modelValue="$emit('update:toggle', item.id, col, $event)"
-        />
+      <template v-for="col in ['status', 'connected', 'includeZeros', 'inst_valid', 'plat_valid']" :key="col"
+        #[`item.${col}`]="{ item }">
+        <ToggleIcon v-model="item[col]" :toggleable="col === 'status' ? props.dataset !== 'audit' : true"
+          @update:modelValue="$emit('update:toggle', item.id, col, $event)" />
       </template>
 
       <!-- 2. COUNTER REPORT SLOT ENGINE LOOP -->
       <template v-for="report in ['PR', 'DR', 'TR', 'IR']" :key="report" #[`item.${report}`]="{ item }">
-        <ToggleIcon
-          v-model="item[report]"
-          :toggleable="true"
-          :size="24"
-          @update:modelValue="$emit('update:report', item.id, report)"
-        />
+        <ToggleIcon v-model="item[report]" :toggleable="true" :size="24"
+          @update:modelValue="$emit('update:report', item.id, report)" />
       </template>
 
       <!-- 3. ACCESSIBILITY INPUT VALIDATOR LOOP -->
       <template v-for="field in ['customer_id', 'requestor_id', 'api_key']" :key="field" #[`item.${field}`]="{ item }">
-        <CredentialCell
-          :field="field"
-          :value="item[field]"
-          :copied="copiedCell === `${item.id}-${field}`"
-          @copy="copyCellValue(`${item.id}-${field}`, item[field])"
-        />
+        <CredentialCell :field="field" :value="item[field]" :copied="copiedCell === `${item.id}-${field}`"
+          @copy="copyCellValue(`${item.id}-${field}`, item[field])" />
       </template>
 
       <!-- 4. INACTIVE RECORD ENTRIES & TRUNCATED NAMES LOOP -->
-      <template v-for="key in ['platform', 'prov_name', 'institution']" :key="key" #[`item.${key}`]="{ item }">
+      <template v-for="key in ['platform', 'prov_name', 'institution', 'inst_name']" :key="key" #[`item.${key}`]="{ item }">
         <span
           :title="item[key]"
-          :class="{ 'text-disabled font-italic': (key === 'platform' || key === 'prov_name') ? item.plat_active === 0 : item.inst_active === 0 }"
+          :class="{ 'text-disabled font-italic': isInactiveCell(item, key) }"
         >
           {{ formatTruncatedDisplay(item[key], 30) }}
         </span>
-      </template>      <template #item.harvest_id="{ item }">
+      </template>
+
+      <template #item.harvest_id="{ item }">
         <HarvestIdCell :item="item" @download="ccRawJson" @retry="openUrl" />
       </template>
 
       <template v-for="col in ['error', 'result']" :key="col" #[`item.${col}`]="{ item }">
         <HarvestResultCell :item="item" @viewDetails="enableErrorDialog" />
       </template>
-      
+
       <!-- Dynamic Date Interceptor Loop -->
       <template v-for="header in dateHeaders" :key="header.key" #[`item.${header.key}`]="{ value }">
         <span v-if="value" :title="formatDateTimeTooltip(value)">{{ formatDateDisplay(value) }}</span>
       </template>
 
       <!-- Dynamic Truncated Interceptor Loop -->
-      <template v-for="header in truncatedHeaders" :key="header.key" #[`item.${header.key}`]="{ value }">
+      <template v-for="header in truncatedHeaders" :key="header.key" #[`item.${header.key}`]="{ item, value }">
         <span
           v-if="value === '-required-'"
           class="d-inline-flex align-center text-warning"
@@ -345,46 +338,35 @@ function closeErrorDialog() {
         >
           <i class="mdi mdi-asterisk text-warning" style="font-size: 20px; line-height: 1;" aria-hidden="true" />
         </span>
-        <span v-else :title="value">{{ formatTruncatedDisplay(value, header.truncate) }}</span>
+        <span
+          v-else
+          :title="value"
+          :class="{ 'text-disabled font-italic': isInactiveCell(item, header.key) }"
+        >
+          {{ formatTruncatedDisplay(value, header.truncate) }}
+        </span>
       </template>
+
 
       <!-- Row Level Operations Action Matrix Column -->
       <template #item.actions="{ item }">
-        <TableRowActions
-          :item="item"
-          :dataset="props.dataset"
-          :show-actions="showActions"
-          :is-testing="isTesting"
-          :testing-row-id="testingRowId"
-          @testCredential="handleCredentialTest"
-          @openRegistry="openRegistryPlatform"
-          @edit="$emit('edit', $event)"
-          @delete="enableDeleteDialog"
-        />
+        <TableRowActions :item="item" :dataset="props.dataset" :show-actions="showActions" :is-testing="isTesting"
+          :testing-row-id="testingRowId" @testCredential="handleCredentialTest" @openRegistry="openRegistryPlatform"
+          @edit="$emit('edit', $event)" @delete="enableDeleteDialog" />
       </template>
     </v-data-table>
 
     <v-dialog v-model="deleteDialog" width="auto">
-      <DeleteConfirm
-        :item="curItem"
-        :dataset="props.dataset"
-        @confirm="$emit('delete', curItem.id)"
-        @close="closeDeleteDialog"
-      />
+      <DeleteConfirm :item="curItem" :dataset="props.dataset" @confirm="$emit('delete', curItem.id)"
+        @close="closeDeleteDialog" />
     </v-dialog>
 
     <v-dialog v-model="errorDialog" width="auto">
       <ErrorDetails :error="current_error" @close="closeErrorDialog" />
     </v-dialog>
 
-    <CredentialTestDialog
-      v-model="testDialog"
-      :is-testing="isTesting"
-      :passed="testPassed"
-      :status="testStatus"
-      :rows="testRows"
-      :target-label="testTargetLabel"
-    />
+    <CredentialTestDialog v-model="testDialog" :is-testing="isTesting" :passed="testPassed" :status="testStatus"
+      :rows="testRows" :target-label="testTargetLabel" />
   </div>
 </template>
 
